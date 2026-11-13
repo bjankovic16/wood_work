@@ -1,0 +1,372 @@
+import { DEFAULT_CONSTRUCTION, DEFAULT_EDGE_BANDS, DEFAULT_MATERIALS, parseConstruction, parseEdgeBands, parseMaterials } from '../engine/settings';
+import { ELEVATION_LIMITS, KIND_SPECS, sizeLimits, type SizeField } from './catalog';
+import { clampToRoom, resizeFromAnchor } from './geometry';
+import { clamp } from './math';
+import { clampOpening } from './openings';
+import { DEFAULT_STYLE, parseStyle, type KitchenStyle } from './style';
+import type { ConstructionSettings, Design, EdgeBand, ItemKind, KitchenItem, Material, Opening, Room } from './types';
+
+/**
+ * Pure operations on a design. Each returns the same object when nothing
+ * changes, so callers can skip no-op history entries.
+ */
+
+export const ROOM_LIMITS = {
+  width: { min: 1000, max: 20000 },
+  depth: { min: 1000, max: 20000 },
+  height: { min: 2000, max: 4000 },
+} as const;
+
+export const DEFAULT_ROOM: Room = { width: 3600, depth: 3000, height: 2600 };
+
+export function createDesign(name = 'My kitchen'): Design {
+  return {
+    version: 3,
+    name,
+    room: { ...DEFAULT_ROOM },
+    items: [],
+    openings: [],
+    materials: structuredClone(DEFAULT_MATERIALS),
+    edgeBands: structuredClone(DEFAULT_EDGE_BANDS),
+    construction: structuredClone(DEFAULT_CONSTRUCTION),
+    style: { ...DEFAULT_STYLE },
+  };
+}
+
+export function setConstruction(design: Design, patch: Partial<ConstructionSettings>): Design {
+  const next = { ...design.construction, ...patch };
+  const changed = (Object.keys(patch) as Array<keyof ConstructionSettings>).some(
+    (key) => JSON.stringify(next[key]) !== JSON.stringify(design.construction[key]),
+  );
+  return changed ? { ...design, construction: next } : design;
+}
+
+function shallowEqual<T extends object>(a: T, b: T): boolean {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]) as Set<keyof T>;
+  for (const key of keys) if (a[key] !== b[key]) return false;
+  return true;
+}
+
+export function setName(design: Design, name: string): Design {
+  return name === design.name ? design : { ...design, name };
+}
+
+/** Changes the room size and pulls any unit that would end up outside back in. */
+export function setRoom(design: Design, patch: Partial<Room>): Design {
+  const room: Room = {
+    width: Math.round(clamp(patch.width ?? design.room.width, ROOM_LIMITS.width.min, ROOM_LIMITS.width.max)),
+    depth: Math.round(clamp(patch.depth ?? design.room.depth, ROOM_LIMITS.depth.min, ROOM_LIMITS.depth.max)),
+    height: Math.round(clamp(patch.height ?? design.room.height, ROOM_LIMITS.height.min, ROOM_LIMITS.height.max)),
+  };
+  if (shallowEqual(room, design.room)) return design;
+  return {
+    ...design,
+    room,
+    items: design.items.map((item) => clampToRoom(item, room)),
+    openings: design.openings.map((opening) => clampOpening(opening, room)),
+  };
+}
+
+export function addItem(design: Design, item: KitchenItem): Design {
+  return { ...design, items: [...design.items, item] };
+}
+
+export function updateItem(design: Design, id: string, patch: Partial<KitchenItem>): Design {
+  let changed = false;
+  const items = design.items.map((item) => {
+    if (item.id !== id) return item;
+    const next = { ...item, ...patch, id };
+    if (shallowEqual(next, item)) return item;
+    changed = true;
+    return next;
+  });
+  return changed ? { ...design, items } : design;
+}
+
+/** Replaces a unit as a whole, so edits can also remove optional settings. */
+export function replaceItem(design: Design, next: KitchenItem): Design {
+  let changed = false;
+  const items = design.items.map((item) => {
+    if (item.id !== next.id || shallowEqual(item, next)) return item;
+    changed = true;
+    return next;
+  });
+  return changed ? { ...design, items } : design;
+}
+
+export function removeItem(design: Design, id: string): Design {
+  const items = design.items.filter((item) => item.id !== id);
+  return items.length === design.items.length ? design : { ...design, items };
+}
+
+export function clearItems(design: Design): Design {
+  return design.items.length === 0 ? design : { ...design, items: [] };
+}
+
+/** Sets one dimension, clamped to what the unit type allows. The back-left corner stays in place. */
+export function withSize(item: KitchenItem, field: SizeField, value: number, room: Room): KitchenItem {
+  const limits = sizeLimits(item, field);
+  const size = Math.round(clamp(value, limits.min, limits.max));
+  if (field === 'height') return size === item.height ? item : { ...item, height: size };
+  return clampToRoom(resizeFromAnchor(item, { [field]: size }), room);
+}
+
+export function withElevation(item: KitchenItem, value: number): KitchenItem {
+  const elevation = Math.round(clamp(value, ELEVATION_LIMITS.min, ELEVATION_LIMITS.max));
+  return elevation === item.elevation ? item : { ...item, elevation };
+}
+
+export function withPosition(item: KitchenItem, x: number, y: number, room: Room): KitchenItem {
+  return clampToRoom({ ...item, x: Math.round(x), y: Math.round(y) }, room);
+}
+
+const ROTATIONS = new Set([0, 90, 180, 270]);
+
+const isNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+
+/** Per-unit thicknesses as designs saved before the materials library stored them. */
+interface LegacyThickness {
+  carcassThickness?: number;
+  backThickness?: number;
+}
+
+function parseItem(raw: unknown): { item: KitchenItem; legacy: LegacyThickness } | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const v = raw as Record<string, unknown>;
+  if (typeof v.id !== 'string' || typeof v.kind !== 'string' || !(v.kind in KIND_SPECS)) return null;
+  if (![v.x, v.y, v.width, v.depth, v.height, v.elevation].every(isNumber)) return null;
+  if (!ROTATIONS.has(v.rotation as number)) return null;
+  const item: KitchenItem = {
+    id: v.id,
+    kind: v.kind as ItemKind,
+    label: typeof v.label === 'string' ? v.label : '',
+    x: v.x as number,
+    y: v.y as number,
+    rotation: v.rotation as KitchenItem['rotation'],
+    width: v.width as number,
+    depth: v.depth as number,
+    height: v.height as number,
+    elevation: v.elevation as number,
+  };
+  if (isNumber(v.width2)) item.width2 = v.width2;
+  for (const key of ['doors', 'drawers', 'shelves'] as const) {
+    if (isNumber(v[key])) item[key] = v[key];
+  }
+  if (v.doorType === 'overlay' || v.doorType === 'inset') item.doorType = v.doorType;
+  if (v.hinge === 'left' || v.hinge === 'right') item.hinge = v.hinge;
+  if (v.drawerLayout === 'equal' || v.drawerLayout === 'shallowTop') item.drawerLayout = v.drawerLayout;
+  for (const key of ['carcassMaterial', 'backMaterial', 'frontMaterial'] as const) {
+    if (typeof v[key] === 'string') item[key] = v[key];
+  }
+  const legacy: LegacyThickness = {};
+  if (isNumber(v.carcassThickness)) legacy.carcassThickness = v.carcassThickness;
+  if (isNumber(v.backThickness)) legacy.backThickness = v.backThickness;
+  return { item, legacy };
+}
+
+function parseOpening(raw: unknown, room: Room): Opening | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const v = raw as Record<string, unknown>;
+  if (typeof v.id !== 'string' || (v.kind !== 'window' && v.kind !== 'door')) return null;
+  if (v.wall !== 'top' && v.wall !== 'right' && v.wall !== 'bottom' && v.wall !== 'left') return null;
+  if (![v.offset, v.width, v.height].every(isNumber)) return null;
+  return clampOpening(
+    {
+      id: v.id,
+      kind: v.kind,
+      wall: v.wall,
+      offset: v.offset as number,
+      width: v.width as number,
+      height: v.height as number,
+      sill: isNumber(v.sill) ? v.sill : 0,
+    },
+    room,
+  );
+}
+
+/**
+ * Designs from before the materials library could give a unit its own board
+ * thickness. Those units now get a material of that thickness instead.
+ */
+function migrateThicknesses(
+  parsed: Array<{ item: KitchenItem; legacy: LegacyThickness }>,
+  materials: Material[],
+  construction: ConstructionSettings,
+): { items: KitchenItem[]; materials: Material[] } {
+  const library = [...materials];
+  const variant = (baseId: string, thickness: number): string => {
+    const base = library.find((m) => m.id === baseId) ?? library[0];
+    if (base.thickness === thickness) return base.id;
+    const existing = library.find((m) => m.name === base.name && m.thickness === thickness);
+    if (existing) return existing.id;
+    const created = { ...base, id: `${base.id}-${thickness}`, thickness };
+    library.push(created);
+    return created.id;
+  };
+  const items = parsed.map(({ item, legacy }) => {
+    const next = { ...item };
+    if (legacy.carcassThickness !== undefined && !next.carcassMaterial) {
+      const id = variant(construction.carcassMaterial, legacy.carcassThickness);
+      if (id !== construction.carcassMaterial) next.carcassMaterial = id;
+    }
+    if (legacy.backThickness !== undefined && !next.backMaterial) {
+      const id = variant(construction.backMaterial, legacy.backThickness);
+      if (id !== construction.backMaterial) next.backMaterial = id;
+    }
+    return next;
+  });
+  return { items, materials: library };
+}
+
+/**
+ * Validates data loaded from storage. Items that cannot be read are dropped,
+ * and designs saved by earlier versions are brought up to date.
+ */
+export function parseDesign(raw: unknown): Design | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const v = raw as Record<string, unknown>;
+  const rawRoom = v.room as Record<string, unknown> | undefined;
+  if (!rawRoom || !isNumber(rawRoom.width) || !isNumber(rawRoom.depth) || !isNumber(rawRoom.height)) return null;
+  if (!Array.isArray(v.items)) return null;
+  const room: Room = { width: rawRoom.width, depth: rawRoom.depth, height: rawRoom.height };
+  const rawConstruction = (v.construction ?? {}) as Record<string, unknown>;
+  const edgeBands = parseEdgeBands(v.edgeBands);
+  const parsedItems = v.items.map(parseItem).filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+  const startMaterials = parseMaterials(v.materials, rawConstruction);
+  const construction = parseConstruction(v.construction, startMaterials, edgeBands);
+  const { items, materials } = migrateThicknesses(parsedItems, startMaterials, construction);
+  const materialIds = new Set(materials.map((m) => m.id));
+  // Forget unit materials that are no longer in the library.
+  const checkedItems = items.map((item) => {
+    const next = { ...item };
+    for (const key of ['carcassMaterial', 'backMaterial', 'frontMaterial'] as const) {
+      if (next[key] !== undefined && !materialIds.has(next[key])) delete next[key];
+    }
+    return next;
+  });
+  return {
+    version: 3,
+    name: typeof v.name === 'string' ? v.name : 'My kitchen',
+    room,
+    items: checkedItems,
+    openings: Array.isArray(v.openings) ? v.openings.map((o) => parseOpening(o, room)).filter((o): o is Opening => o !== null) : [],
+    materials,
+    edgeBands,
+    construction,
+    style: parseStyle(v.style),
+  };
+}
+
+type CountKey = 'doors' | 'drawers' | 'shelves';
+type OptionKey = 'doorType' | 'hinge' | 'drawerLayout' | 'carcassMaterial' | 'backMaterial' | 'frontMaterial';
+
+function without<K extends keyof KitchenItem>(item: KitchenItem, key: K): KitchenItem {
+  if (item[key] === undefined) return item;
+  const next = { ...item };
+  delete next[key];
+  return next;
+}
+
+/** Sets a door/drawer/shelf count; undefined returns it to the default for the unit. */
+export function withCount(item: KitchenItem, key: CountKey, value: number | undefined): KitchenItem {
+  if (value === undefined) return without(item, key);
+  const count = Math.max(0, Math.round(value));
+  return count === item[key] ? item : { ...item, [key]: count };
+}
+
+/** Sets a door, drawer or material choice; undefined returns it to the kitchen-wide setting. */
+export function withOption<K extends OptionKey>(item: KitchenItem, key: K, value: KitchenItem[K] | undefined): KitchenItem {
+  if (value === undefined) return without(item, key);
+  return value === item[key] ? item : { ...item, [key]: value };
+}
+
+export function addMaterial(design: Design, material: Material): Design {
+  return { ...design, materials: [...design.materials, material] };
+}
+
+export function updateMaterial(design: Design, id: string, patch: Partial<Omit<Material, 'id'>>): Design {
+  let changed = false;
+  const materials = design.materials.map((m) => {
+    if (m.id !== id) return m;
+    const next = { ...m, ...patch };
+    if (shallowEqual(next, m)) return m;
+    changed = true;
+    return next;
+  });
+  return changed ? { ...design, materials } : design;
+}
+
+/** Whether the kitchen-wide settings use a material (such materials cannot be removed). */
+export function materialInUse(design: Design, id: string): boolean {
+  const c = design.construction;
+  return c.carcassMaterial === id || c.backMaterial === id || c.frontMaterial === id;
+}
+
+/** Removes a material; units that used it go back to the kitchen-wide one. */
+export function removeMaterial(design: Design, id: string): Design {
+  if (materialInUse(design, id) || !design.materials.some((m) => m.id === id)) return design;
+  return {
+    ...design,
+    materials: design.materials.filter((m) => m.id !== id),
+    items: design.items.map((item) =>
+      (['carcassMaterial', 'backMaterial', 'frontMaterial'] as const).reduce((it, key) => (it[key] === id ? without(it, key) : it), item),
+    ),
+  };
+}
+
+export function addEdgeBand(design: Design, band: EdgeBand): Design {
+  return { ...design, edgeBands: [...design.edgeBands, band] };
+}
+
+export function updateEdgeBand(design: Design, id: string, patch: Partial<Omit<EdgeBand, 'id'>>): Design {
+  let changed = false;
+  const edgeBands = design.edgeBands.map((b) => {
+    if (b.id !== id) return b;
+    const next = { ...b, ...patch };
+    if (shallowEqual(next, b)) return b;
+    changed = true;
+    return next;
+  });
+  return changed ? { ...design, edgeBands } : design;
+}
+
+/** Removes an edge band; parts that used it are left unbanded. */
+export function removeEdgeBand(design: Design, id: string): Design {
+  if (!design.edgeBands.some((b) => b.id === id)) return design;
+  const c = design.construction;
+  return {
+    ...design,
+    edgeBands: design.edgeBands.filter((b) => b.id !== id),
+    construction: {
+      ...c,
+      carcassEdge: c.carcassEdge === id ? null : c.carcassEdge,
+      frontEdge: c.frontEdge === id ? null : c.frontEdge,
+    },
+  };
+}
+
+export function addOpening(design: Design, opening: Opening): Design {
+  return { ...design, openings: [...design.openings, clampOpening(opening, design.room)] };
+}
+
+export function updateOpening(design: Design, id: string, patch: Partial<Omit<Opening, 'id' | 'kind'>>): Design {
+  let changed = false;
+  const openings = design.openings.map((o) => {
+    if (o.id !== id) return o;
+    const next = clampOpening({ ...o, ...patch }, design.room);
+    if (shallowEqual(next, o)) return o;
+    changed = true;
+    return next;
+  });
+  return changed ? { ...design, openings } : design;
+}
+
+export function removeOpening(design: Design, id: string): Design {
+  const openings = design.openings.filter((o) => o.id !== id);
+  return openings.length === design.openings.length ? design : { ...design, openings };
+}
+
+export function setStyle(design: Design, patch: Partial<KitchenStyle>): Design {
+  const style = { ...design.style, ...patch };
+  return shallowEqual(style, design.style) ? design : { ...design, style };
+}

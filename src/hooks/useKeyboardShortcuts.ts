@@ -1,0 +1,67 @@
+import { useEffect } from 'react';
+import {
+  deleteSelected,
+  duplicateSelected,
+  nudgeSelected,
+  redo,
+  rotateSelected,
+  undo,
+} from '../store/actions';
+import { useUiStore } from '../store/uiStore';
+
+function isTyping(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+  );
+}
+
+const ARROWS: Record<string, [number, number]> = {
+  ArrowLeft: [-1, 0],
+  ArrowRight: [1, 0],
+  ArrowUp: [0, -1],
+  ArrowDown: [0, 1],
+};
+
+export function useKeyboardShortcuts(): void {
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (isTyping(e.target)) return;
+      const key = e.key.toLowerCase();
+
+      if (e.ctrlKey || e.metaKey) {
+        if (key === 'z') {
+          e.preventDefault();
+          if (e.shiftKey) redo();
+          else undo();
+        } else if (key === 'y') {
+          e.preventDefault();
+          redo();
+        } else if (key === 'd') {
+          e.preventDefault();
+          duplicateSelected();
+        }
+        return;
+      }
+      if (e.altKey) return;
+
+      const hasSelection = useUiStore.getState().selectedId !== null;
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (!hasSelection) return;
+        e.preventDefault();
+        deleteSelected();
+      } else if (key === 'r') {
+        rotateSelected(e.shiftKey ? -1 : 1);
+      } else if (e.key === 'Escape') {
+        useUiStore.getState().select(null);
+      } else if (e.key in ARROWS && hasSelection) {
+        e.preventDefault();
+        const step = e.shiftKey ? 100 : 10;
+        const [dx, dy] = ARROWS[e.key];
+        nudgeSelected(dx * step, dy * step);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+}

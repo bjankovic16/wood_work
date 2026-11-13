@@ -1,0 +1,29 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'cv11', 'ss01';
+}
+
+kbd {
+  font-family: inherit;
+}
+
+/* While an element is dragged from the library. */
+.is-dragging,
+.is-dragging * {
+  cursor: grabbing !important;
+}
