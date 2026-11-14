@@ -38,11 +38,13 @@ interface UiState {
   /** Which tab of the kitchen settings dialog is open, if any. */
   settingsTab: SettingsTab | null;
   layoutsOpen: boolean;
+  projectsOpen: boolean;
 
   select: (id: string | null) => void;
   setView: (view: MainView) => void;
   setSettingsTab: (tab: SettingsTab | null) => void;
   setLayoutsOpen: (open: boolean) => void;
+  setProjectsOpen: (open: boolean) => void;
   setViewport: (zoom: number, pan: Point) => void;
   setSnapEnabled: (enabled: boolean) => void;
   setGridSize: (size: number) => void;
@@ -67,11 +69,13 @@ export const useUiStore = create<UiState>()(
       view: 'plan',
       settingsTab: null,
       layoutsOpen: false,
+      projectsOpen: false,
 
       select: (selectedId) => set({ selectedId }),
       setView: (view) => set({ view }),
       setSettingsTab: (settingsTab) => set({ settingsTab }),
       setLayoutsOpen: (layoutsOpen) => set({ layoutsOpen }),
+      setProjectsOpen: (projectsOpen) => set({ projectsOpen }),
       setViewport: (zoom, pan) => set({ zoom, pan }),
       setSnapEnabled: (snapEnabled) => set({ snapEnabled }),
       setGridSize: (gridSize) => set({ gridSize }),

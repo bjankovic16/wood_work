@@ -37,48 +37,59 @@ export function hostDownloads(): Promise<HostDownloads | null> {
 
 export type SaveOutcome = 'saved' | 'declined' | 'unavailable';
 
-/** Saves a generated text file: a normal download, or through the host page when embedded. */
-export async function saveTextFile(filename: string, text: string, mimeType: string): Promise<SaveOutcome> {
+/** Saves a generated file: a normal download, or through the host page when embedded. */
+export async function saveFile(filename: string, data: Blob, mimeType: string): Promise<SaveOutcome> {
   if (!embedded) {
-    // The byte-order mark makes spreadsheet programs read the file as UTF-8.
-    const blob = new Blob(['﻿', text], { type: mimeType });
-    const url = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(data.type ? data : new Blob([data], { type: mimeType }));
     const link = document.createElement('a');
     link.href = url;
     link.download = filename;
+    document.body.appendChild(link);
     link.click();
-    URL.revokeObjectURL(url);
+    link.remove();
+    // Give the browser a moment to start the download before letting go of the data.
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
     return 'saved';
   }
   const downloads = await hostDownloads();
   if (!downloads) return 'unavailable';
   try {
-    await downloads.save({ filename, data: '﻿' + text });
+    await downloads.save({ filename, data });
     return 'saved';
   } catch (error) {
     return (error as { code?: string } | null)?.code === 'declined' ? 'declined' : 'unavailable';
   }
 }
 
+/** Saves generated text. The byte-order mark makes spreadsheet programs read it as UTF-8. */
+export function saveTextFile(filename: string, text: string, mimeType: string, byteOrderMark = true): Promise<SaveOutcome> {
+  return saveFile(filename, new Blob([byteOrderMark ? '﻿' : '', text], { type: mimeType }), mimeType);
+}
+
+/** A file name without characters that file systems refuse. */
+export function safeFileName(name: string, fallback = 'kitchen'): string {
+  return name.replace(/[\\/:*?"<>|]+/g, '').trim() || fallback;
+}
+
 /** localStorage that never throws: where storage is blocked the app simply does not remember. */
 export const safeStorage: StateStorage = {
   getItem: (name) => {
     try {
-      return window.localStorage.getItem(name);
+      return globalThis.localStorage.getItem(name);
     } catch {
       return null;
     }
   },
   setItem: (name, value) => {
     try {
-      window.localStorage.setItem(name, value);
+      globalThis.localStorage.setItem(name, value);
     } catch {
       // Storage full or blocked: keep working without saving.
     }
   },
   removeItem: (name) => {
     try {
-      window.localStorage.removeItem(name);
+      globalThis.localStorage.removeItem(name);
     } catch {
       // Nothing to do.
     }

@@ -4,7 +4,7 @@ import { clampToRoom, resizeFromAnchor } from './geometry';
 import { clamp } from './math';
 import { clampOpening } from './openings';
 import { DEFAULT_STYLE, parseStyle, type KitchenStyle } from './style';
-import type { ConstructionSettings, Design, EdgeBand, ItemKind, KitchenItem, Material, Opening, Room } from './types';
+import type { ConstructionSettings, CustomPart, Design, EdgeBand, ItemKind, KitchenItem, Material, Opening, PartEdit, Room } from './types';
 
 /**
  * Pure operations on a design. Each returns the same object when nothing
@@ -21,7 +21,7 @@ export const DEFAULT_ROOM: Room = { width: 3600, depth: 3000, height: 2600 };
 
 export function createDesign(name = 'My kitchen'): Design {
   return {
-    version: 3,
+    version: 4,
     name,
     room: { ...DEFAULT_ROOM },
     items: [],
@@ -30,6 +30,8 @@ export function createDesign(name = 'My kitchen'): Design {
     edgeBands: structuredClone(DEFAULT_EDGE_BANDS),
     construction: structuredClone(DEFAULT_CONSTRUCTION),
     style: { ...DEFAULT_STYLE },
+    customParts: [],
+    partEdits: {},
   };
 }
 
@@ -96,11 +98,14 @@ export function replaceItem(design: Design, next: KitchenItem): Design {
 
 export function removeItem(design: Design, id: string): Design {
   const items = design.items.filter((item) => item.id !== id);
-  return items.length === design.items.length ? design : { ...design, items };
+  if (items.length === design.items.length) return design;
+  const partEdits = { ...design.partEdits };
+  delete partEdits[id];
+  return { ...design, items, partEdits };
 }
 
 export function clearItems(design: Design): Design {
-  return design.items.length === 0 ? design : { ...design, items: [] };
+  return design.items.length === 0 ? design : { ...design, items: [], partEdits: {} };
 }
 
 /** Sets one dimension, clamped to what the unit type allows. The back-left corner stays in place. */
@@ -244,8 +249,9 @@ export function parseDesign(raw: unknown): Design | null {
     }
     return next;
   });
+  const itemIds = new Set(checkedItems.map((item) => item.id));
   return {
-    version: 3,
+    version: 4,
     name: typeof v.name === 'string' ? v.name : 'My kitchen',
     room,
     items: checkedItems,
@@ -254,7 +260,86 @@ export function parseDesign(raw: unknown): Design | null {
     edgeBands,
     construction,
     style: parseStyle(v.style),
+    customParts: Array.isArray(v.customParts)
+      ? v.customParts.map((c) => parseCustomPart(c, materialIds, edgeBands, construction)).filter((c): c is CustomPart => c !== null)
+      : [],
+    partEdits: parsePartEdits(v.partEdits, itemIds),
   };
+}
+
+function parseCustomPart(raw: unknown, materialIds: Set<string>, edgeBands: EdgeBand[], construction: ConstructionSettings): CustomPart | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const v = raw as Record<string, unknown>;
+  if (typeof v.id !== 'string' || ![v.quantity, v.length, v.width].every(isNumber)) return null;
+  const edges = (value: unknown) => (isNumber(value) ? Math.min(2, Math.max(0, Math.round(value))) : 0);
+  return {
+    id: v.id,
+    name: typeof v.name === 'string' && v.name.trim() ? v.name : 'Piece',
+    quantity: Math.max(1, Math.round(v.quantity as number)),
+    length: Math.max(1, v.length as number),
+    width: Math.max(1, v.width as number),
+    materialId: typeof v.materialId === 'string' && materialIds.has(v.materialId) ? v.materialId : construction.carcassMaterial,
+    edgesLength: edges(v.edgesLength),
+    edgesWidth: edges(v.edgesWidth),
+    edgeBandId: typeof v.edgeBandId === 'string' && edgeBands.some((b) => b.id === v.edgeBandId) ? v.edgeBandId : null,
+    note: typeof v.note === 'string' ? v.note : '',
+  };
+}
+
+function parsePartEdits(raw: unknown, itemIds: Set<string>): Record<string, Record<string, PartEdit>> {
+  const result: Record<string, Record<string, PartEdit>> = {};
+  if (!raw || typeof raw !== 'object') return result;
+  for (const [itemId, edits] of Object.entries(raw as Record<string, unknown>)) {
+    if (!itemIds.has(itemId) || !edits || typeof edits !== 'object') continue;
+    const parsed: Record<string, PartEdit> = {};
+    for (const [key, edit] of Object.entries(edits as Record<string, unknown>)) {
+      const e = (edit ?? {}) as Record<string, unknown>;
+      const clean: PartEdit = {};
+      if (isNumber(e.length) && e.length > 0) clean.length = e.length;
+      if (isNumber(e.width) && e.width > 0) clean.width = e.width;
+      if (isNumber(e.quantity) && e.quantity >= 0) clean.quantity = Math.round(e.quantity);
+      if (Object.keys(clean).length > 0) parsed[key] = clean;
+    }
+    if (Object.keys(parsed).length > 0) result[itemId] = parsed;
+  }
+  return result;
+}
+
+export function addCustomPart(design: Design, part: CustomPart): Design {
+  return { ...design, customParts: [...design.customParts, part] };
+}
+
+export function updateCustomPart(design: Design, id: string, patch: Partial<Omit<CustomPart, 'id'>>): Design {
+  let changed = false;
+  const customParts = design.customParts.map((part) => {
+    if (part.id !== id) return part;
+    const next = { ...part, ...patch };
+    if (shallowEqual(next, part)) return part;
+    changed = true;
+    return next;
+  });
+  return changed ? { ...design, customParts } : design;
+}
+
+export function removeCustomPart(design: Design, id: string): Design {
+  const customParts = design.customParts.filter((part) => part.id !== id);
+  return customParts.length === design.customParts.length ? design : { ...design, customParts };
+}
+
+/** Changes one generated part of a unit by hand; undefined puts it back as the rules make it. */
+export function setPartEdit(design: Design, itemId: string, key: string, edit: PartEdit | undefined): Design {
+  const unitEdits = { ...(design.partEdits[itemId] ?? {}) };
+  if (edit && Object.keys(edit).length > 0) {
+    if (JSON.stringify(unitEdits[key]) === JSON.stringify(edit)) return design;
+    unitEdits[key] = edit;
+  } else {
+    if (!(key in unitEdits)) return design;
+    delete unitEdits[key];
+  }
+  const partEdits = { ...design.partEdits };
+  if (Object.keys(unitEdits).length > 0) partEdits[itemId] = unitEdits;
+  else delete partEdits[itemId];
+  return { ...design, partEdits };
 }
 
 type CountKey = 'doors' | 'drawers' | 'shelves';
@@ -308,6 +393,7 @@ export function removeMaterial(design: Design, id: string): Design {
   return {
     ...design,
     materials: design.materials.filter((m) => m.id !== id),
+    customParts: design.customParts.map((part) => (part.materialId === id ? { ...part, materialId: design.construction.carcassMaterial } : part)),
     items: design.items.map((item) =>
       (['carcassMaterial', 'backMaterial', 'frontMaterial'] as const).reduce((it, key) => (it[key] === id ? without(it, key) : it), item),
     ),

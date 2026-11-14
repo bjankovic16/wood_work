@@ -1,5 +1,5 @@
 import { isWallMounted } from '../domain/geometry';
-import type { EdgeBand, KitchenItem, Material } from '../domain/types';
+import type { CustomPart, EdgeBand, KitchenItem, Material, PartEdit } from '../domain/types';
 import { KIND_OPTIONS, resolveConfig, type BuildContext, type ResolvedConfig } from './config';
 import { cornerDoorWidths, frontLayout, OVEN_NICHE_HEIGHT, round1, type FrontRect } from './fronts';
 
@@ -22,6 +22,10 @@ export interface Part {
   /** The material's grain must run along the length, so the piece cannot be turned on the sheet. */
   grain: boolean;
   note?: string;
+  /** Identifies a generated part for hand edits: its name, note and generated size. */
+  key: string;
+  /** Changed by hand in the cutting list. */
+  edited?: boolean;
 }
 
 /** A grooved back reaches this much short of the bottom of each groove. */
@@ -61,11 +65,13 @@ function piece(spec: PieceSpec, ctx: BuildContext): Part {
   const a = spec.a - edgesB * shrink;
   const b = spec.b - edgesA * shrink;
   const aIsLength = a >= b;
+  const length = round1(Math.max(a, b));
+  const width = round1(Math.min(a, b));
   return {
     name: spec.name,
     quantity: spec.quantity,
-    length: round1(Math.max(a, b)),
-    width: round1(Math.min(a, b)),
+    length,
+    width,
     thickness: spec.material.thickness,
     materialId: spec.material.id,
     edges: aIsLength ? { length: edgesA, width: edgesB } : { length: edgesB, width: edgesA },
@@ -74,7 +80,12 @@ function piece(spec: PieceSpec, ctx: BuildContext): Part {
     area: spec.area ?? round1(Math.max(a, b)) * round1(Math.min(a, b)),
     grain: spec.material.grain,
     ...(spec.note ? { note: spec.note } : {}),
+    key: partKey(spec.name, spec.note, length, width),
   };
+}
+
+export function partKey(name: string, note: string | undefined, length: number, width: number): string {
+  return `${name}|${note ?? ''}|${length}x${width}`;
 }
 
 const carcassBand = (ctx: BuildContext) => (ctx.settings.carcassEdge ? (ctx.edgeBands.get(ctx.settings.carcassEdge) ?? null) : null);
@@ -244,8 +255,8 @@ function cornerParts(item: KitchenItem, config: ResolvedConfig, ctx: BuildContex
   return parts;
 }
 
-/** Every piece needed to build one unit. */
-export function unitParts(item: KitchenItem, ctx: BuildContext): Part[] {
+/** Every piece needed to build one unit, as the construction rules give them. */
+export function generatedParts(item: KitchenItem, ctx: BuildContext): Part[] {
   const config = resolveConfig(item, ctx);
   const fronts = frontLayout(item, config, ctx.settings);
   const fullBaseTop = ctx.settings.baseTop === 'full';
@@ -292,4 +303,53 @@ export function unitParts(item: KitchenItem, ctx: BuildContext): Part[] {
     case 'fridge':
       return [];
   }
+}
+
+/**
+ * Every piece needed to build one unit, with any hand edits applied. An edit
+ * is tied to the generated size of its part, so it stops applying (rather
+ * than giving a wrong part) once the unit changes and the part with it.
+ */
+export function unitParts(item: KitchenItem, ctx: BuildContext, edits?: Record<string, PartEdit>): Part[] {
+  const parts = generatedParts(item, ctx);
+  if (!edits) return parts;
+  return parts.map((part) => {
+    const edit = edits[part.key];
+    if (!edit) return part;
+    const length = edit.length ?? part.length;
+    const width = edit.width ?? part.width;
+    const banded = part.edges.length + part.edges.width > 0;
+    return {
+      ...part,
+      length,
+      width,
+      quantity: edit.quantity ?? part.quantity,
+      area: length * width,
+      edgeLength: banded ? round1(part.edges.length * length + part.edges.width * width) : part.edgeLength,
+      edited: true,
+    };
+  });
+}
+
+/** A piece added by hand, as a cutting-list part. */
+export function customPart(custom: CustomPart, ctx: BuildContext): Part {
+  const material = ctx.materials.get(custom.materialId);
+  const band = custom.edgeBandId ? (ctx.edgeBands.get(custom.edgeBandId) ?? null) : null;
+  const edgesLength = band ? custom.edgesLength : 0;
+  const edgesWidth = band ? custom.edgesWidth : 0;
+  return {
+    name: custom.name,
+    quantity: custom.quantity,
+    length: custom.length,
+    width: custom.width,
+    thickness: material?.thickness ?? 18,
+    materialId: custom.materialId,
+    edges: { length: edgesLength, width: edgesWidth },
+    edgeBandId: band && edgesLength + edgesWidth > 0 ? band.id : null,
+    edgeLength: edgesLength * custom.length + edgesWidth * custom.width,
+    area: custom.length * custom.width,
+    grain: material?.grain ?? false,
+    ...(custom.note ? { note: custom.note } : {}),
+    key: `custom|${custom.id}`,
+  };
 }

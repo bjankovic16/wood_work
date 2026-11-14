@@ -12,6 +12,7 @@ import { RoomPanel } from '../properties/RoomPanel';
 import { Button, Dialog } from '../ui';
 import { View3D } from '../three/View3D';
 import { LayoutDialog } from '../layouts/LayoutDialog';
+import { ProjectsDialog } from '../projects/ProjectsDialog';
 import { TopBar } from './TopBar';
 
 /** The selected unit, docked at the bottom of the plan; expands to show all its settings. */
@@ -94,6 +95,7 @@ export function CompactLayout() {
       </Dialog>
       <ConstructionDialog />
       <LayoutDialog />
+      <ProjectsDialog />
     </div>
   );
 }

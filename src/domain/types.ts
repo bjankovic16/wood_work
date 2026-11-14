@@ -186,8 +186,30 @@ export interface Opening {
   sill: number;
 }
 
+/** A piece added to the cutting list by hand. */
+export interface CustomPart {
+  id: string;
+  name: string;
+  quantity: number;
+  length: number;
+  width: number;
+  materialId: string;
+  /** Banded edges along the length and along the width (0–2 each). */
+  edgesLength: number;
+  edgesWidth: number;
+  edgeBandId: string | null;
+  note: string;
+}
+
+/** A hand-made change to one part of a unit's generated cutting list. */
+export interface PartEdit {
+  length?: number;
+  width?: number;
+  quantity?: number;
+}
+
 export interface Design {
-  version: 3;
+  version: 4;
   name: string;
   room: Room;
   items: KitchenItem[];
@@ -196,4 +218,8 @@ export interface Design {
   edgeBands: EdgeBand[];
   construction: ConstructionSettings;
   style: KitchenStyle;
+  /** Pieces added to the cutting list by hand. */
+  customParts: CustomPart[];
+  /** Changes to generated parts: by unit id, then by part key (see partKey). */
+  partEdits: Record<string, Record<string, PartEdit>>;
 }

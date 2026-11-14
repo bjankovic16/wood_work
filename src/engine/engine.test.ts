@@ -275,3 +275,30 @@ describe('settings', () => {
     expect(sizes(design.items[0], buildContext(design))[0]).toEqual(['Side', 2, 720, 560, 16]);
   });
 });
+
+describe('changes by hand', () => {
+  it('applies an edit to one generated part, and drops it once the unit changes', () => {
+    const shelf = unitParts(unit('base'), context()).find((p) => p.name === 'Shelf')!;
+    const edits = { [shelf.key]: { width: 500, quantity: 2 } };
+    const edited = unitParts(unit('base'), context(), edits).find((p) => p.name === 'Shelf')!;
+    expect(edited).toMatchObject({ length: 564, width: 500, quantity: 2, edited: true });
+    // A wider unit has a different shelf, so the old edit no longer applies.
+    const wider = unitParts(unit('base', { width: 800 }), context(), edits).find((p) => p.name === 'Shelf')!;
+    expect(wider).toMatchObject({ length: 764, width: 540, quantity: 1 });
+    expect(wider.edited).toBeUndefined();
+  });
+
+  it('lists pieces added by hand with the rest, under Extra', () => {
+    const design = createDesign();
+    design.items = [unit('base', { label: 'B1' })];
+    design.customParts = [
+      { id: 'c1', name: 'Plinth', quantity: 2, length: 1800, width: 100, materialId: 'particleboard-white-18', edgesLength: 1, edgesWidth: 0, edgeBandId: 'abs-1', note: 'Under B1' },
+    ];
+    const list = buildCuttingList(design);
+    expect(list.rows.find((r) => r.name === 'Plinth')).toMatchObject({ quantity: 2, length: 1800, width: 100, units: ['Extra'], edges: { length: 1, width: 0 } });
+    expect(list.extra).toHaveLength(1);
+    const board = list.materials.find((m) => m.materialId === 'particleboard-white-18')!;
+    // The base unit has six particleboard pieces: two sides, bottom, two rails and a shelf.
+    expect(board.pieces).toBe(6 + 2);
+  });
+});

@@ -2,7 +2,7 @@ import type { Design, KitchenItem } from '../domain/types';
 import { buildContext } from './config';
 import { unitHardware, type Hardware } from './hardware';
 import { nest, SAW_KERF, SHEET_TRIM } from './nesting';
-import { unitParts, type Part } from './parts';
+import { customPart, unitParts, type Part } from './parts';
 
 /** A row of the cutting list: identical pieces from all units, counted together. */
 export interface CuttingRow extends Part {
@@ -52,6 +52,8 @@ export interface UnitParts {
 export interface CuttingList {
   rows: CuttingRow[];
   units: UnitParts[];
+  /** Pieces added by hand. */
+  extra: Array<Part & { materialName: string; customId: string }>;
   materials: MaterialTotal[];
   edges: EdgeTotal[];
   hardware: HardwareRow[];
@@ -59,6 +61,9 @@ export interface CuttingList {
   /** Sum of all priced materials and edge bands; null when nothing is priced. */
   cost: number | null;
 }
+
+/** How pieces added by hand appear in the Units column. */
+export const EXTRA_LABEL = 'Extra';
 
 /** Added to every banded edge for trimming the overhang. */
 export const EDGE_TRIM_ALLOWANCE = 30;
@@ -78,22 +83,27 @@ function compareParts(a: Part & { materialName: string }, b: Part & { materialNa
 export function buildCuttingList(design: Design): CuttingList {
   const ctx = buildContext(design);
   const materialName = (id: string) => ctx.materials.get(id)?.name ?? 'Unknown board';
-  const units = design.items.map((item) => ({ item, parts: unitParts(item, ctx) }));
+  const units = design.items.map((item) => ({ item, parts: unitParts(item, ctx, design.partEdits[item.id]) }));
+  const extra = design.customParts.map((custom) => ({ ...customPart(custom, ctx), materialName: materialName(custom.materialId), customId: custom.id }));
 
   const rows = new Map<string, CuttingRow>();
-  for (const { item, parts } of units) {
+  const groups: Array<{ label: string; parts: Part[] }> = [
+    ...units.map(({ item, parts }) => ({ label: item.label, parts })),
+    { label: EXTRA_LABEL, parts: extra },
+  ];
+  for (const { label, parts } of groups) {
     for (const p of parts) {
-      const key = [p.name, p.length, p.width, p.thickness, p.materialId, p.edges.length, p.edges.width, p.edgeBandId, p.note ?? ''].join('|');
+      const key = [p.name, p.length, p.width, p.thickness, p.materialId, p.edges.length, p.edges.width, p.edgeBandId, p.note ?? '', p.edited ? 'edited' : ''].join('|');
       const row = rows.get(key);
       if (row) {
         row.quantity += p.quantity;
-        if (!row.units.includes(item.label)) row.units.push(item.label);
+        if (!row.units.includes(label)) row.units.push(label);
       } else {
         rows.set(key, {
           ...p,
           materialName: materialName(p.materialId),
           bandName: p.edgeBandId ? (ctx.edgeBands.get(p.edgeBandId)?.name ?? null) : null,
-          units: [item.label],
+          units: [label],
         });
       }
     }
@@ -165,6 +175,7 @@ export function buildCuttingList(design: Design): CuttingList {
   const prices = [...materials.map((m) => m.cost), ...edges.map((e) => e.cost)].filter((c): c is number => c !== null);
   return {
     rows: sortedRows,
+    extra,
     units: units.map((u) => ({
       ...u,
       parts: [...u.parts]

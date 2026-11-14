@@ -1,4 +1,4 @@
-import { Box, Ellipsis, Hammer, Layers, LayoutGrid, List, Magnet, Redo2, RulerDimensionLine, Undo2 } from 'lucide-react';
+import { Box, Ellipsis, FolderOpen, Hammer, Layers, LayoutGrid, List, Magnet, Redo2, RulerDimensionLine, Undo2 } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { cn } from '../../lib/cn';
 import { redo, setProjectName, undo } from '../../store/actions';
@@ -130,6 +130,10 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
               <div className="px-1 pb-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Project</div>
               <ProjectName className="w-full border-zinc-200" />
             </div>
+            <Button className="w-full justify-start" data-close-menu onClick={() => ui.setProjectsOpen(true)}>
+              <FolderOpen className="size-4" />
+              Projects
+            </Button>
             <Button className="w-full justify-start" active={snapEnabled} onClick={() => ui.setSnapEnabled(!snapEnabled)}>
               <Magnet className="size-4" />
               Snap to walls and units
@@ -160,7 +164,11 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
         <span className="hidden text-[13px] font-semibold text-zinc-900 xl:inline">Kitchen Designer</span>
       </div>
       <Divider />
-      <ProjectName className="w-52" />
+      <Button title="All your kitchen projects" onClick={() => ui.setProjectsOpen(true)}>
+        <FolderOpen className="size-4" />
+        Projects
+      </Button>
+      <ProjectName className="w-48" />
 
       <div className="flex flex-1 justify-center">
         <ViewTabs compact={false} />

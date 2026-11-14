@@ -7,6 +7,7 @@ import { LibraryDragChip, LibraryPanel } from './components/library/LibraryPanel
 import { PropertiesPanel } from './components/properties/PropertiesPanel';
 import { View3D } from './components/three/View3D';
 import { LayoutDialog } from './components/layouts/LayoutDialog';
+import { ProjectsDialog } from './components/projects/ProjectsDialog';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useIsCompact } from './hooks/useMediaQuery';
 import { useUiStore } from './store/uiStore';
@@ -31,6 +32,7 @@ function DesktopLayout() {
       <LibraryDragChip />
       <ConstructionDialog />
       <LayoutDialog />
+      <ProjectsDialog />
     </div>
   );
 }

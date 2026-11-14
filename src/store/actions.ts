@@ -7,7 +7,7 @@ import { computeDragPlacement } from '../domain/snapping';
 import { buildLayout, type LayoutId } from '../domain/templates';
 import type { KitchenStyle } from '../domain/style';
 import { OPENING_DEFAULTS, wallLength } from '../domain/openings';
-import type { ConstructionSettings, Design, EdgeBand, KitchenItem, Material, Opening, OpeningKind, Room } from '../domain/types';
+import type { ConstructionSettings, CustomPart, Design, EdgeBand, KitchenItem, Material, Opening, OpeningKind, PartEdit, Room } from '../domain/types';
 import { DEFAULT_CONSTRUCTION } from '../engine/settings';
 import { useDesignStore } from './designStore';
 import { useUiStore } from './uiStore';
@@ -248,6 +248,39 @@ export function setStyle(patch: Partial<KitchenStyle>): void {
 
 /** Replaces the plan with a ready-made layout for the current room (one undo step). */
 export function applyLayout(id: LayoutId): void {
-  apply((design) => ({ ...design, items: buildLayout(id, design.room) }));
+  apply((design) => ({ ...design, items: buildLayout(id, design.room), partEdits: {} }));
   useUiStore.getState().select(null);
+}
+
+/** Changes one part of a unit's cutting list by hand; undefined puts it back as the rules make it. */
+export function setPartEdit(itemId: string, key: string, edit: PartEdit | undefined): void {
+  apply((design) => ops.setPartEdit(design, itemId, key, edit));
+}
+
+/** Adds a piece to the cutting list by hand, cut from the carcass board. */
+export function addCustomPart(): string {
+  const id = newId();
+  apply((design) =>
+    ops.addCustomPart(design, {
+      id,
+      name: 'Extra piece',
+      quantity: 1,
+      length: 600,
+      width: 100,
+      materialId: design.construction.carcassMaterial,
+      edgesLength: 0,
+      edgesWidth: 0,
+      edgeBandId: null,
+      note: '',
+    }),
+  );
+  return id;
+}
+
+export function updateCustomPart(id: string, patch: Partial<Omit<CustomPart, 'id'>>): void {
+  apply((design) => ops.updateCustomPart(design, id, patch));
+}
+
+export function removeCustomPart(id: string): void {
+  apply((design) => ops.removeCustomPart(design, id));
 }
