@@ -42,7 +42,7 @@ export function ChecksButton({ compact = false }: { compact?: boolean }) {
     issues.length === 0 ? t.checks.none : [errors > 0 && t.checks.errors(errors), warnings > 0 && t.checks.warnings(warnings)].filter(Boolean).join(', ');
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className="relative shrink-0">
       <button
         type="button"
         title={t.checks.summary(summary)}
@@ -50,7 +50,8 @@ export function ChecksButton({ compact = false }: { compact?: boolean }) {
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          'inline-flex h-8 min-w-8 touch-manipulation items-center justify-center gap-1.5 rounded-md px-2 text-[13px] font-medium transition-colors',
+          'inline-flex h-8 min-w-8 touch-manipulation items-center justify-center rounded-md text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40',
+          compact ? 'relative w-8 shrink-0' : 'gap-1.5 px-2',
           errors > 0 ? 'text-red-700 hover:bg-red-50' : warnings > 0 ? 'text-amber-700 hover:bg-amber-50' : 'text-emerald-700 hover:bg-emerald-50',
         )}
       >
@@ -58,9 +59,11 @@ export function ChecksButton({ compact = false }: { compact?: boolean }) {
         {!compact && <span>{t.checks.checks}</span>}
         {issues.length > 0 && (
           <span
+            aria-hidden
             className={cn(
-              'min-w-5 rounded-full px-1.5 text-[11px] font-semibold leading-5 text-white',
-              errors > 0 ? 'bg-red-600' : 'bg-amber-500',
+              'pointer-events-none rounded-full font-semibold text-white',
+              compact ? 'absolute right-0 top-0 min-w-3.5 px-0.5 text-[9px] leading-[14px]' : 'min-w-5 px-1.5 text-[11px] leading-5',
+              errors > 0 ? 'bg-red-600' : 'bg-amber-700',
             )}
           >
             {issues.length}

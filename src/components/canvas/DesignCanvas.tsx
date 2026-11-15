@@ -1,6 +1,6 @@
 import type { KonvaEventObject } from 'konva/lib/Node';
-import { Maximize, Minus, Plus } from 'lucide-react';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Images, Maximize, Minus, Plus, Ruler, X } from 'lucide-react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { Layer, Stage } from 'react-konva';
 import { updateItem } from '../../domain/designOps';
 import { attachedWall, isWallMounted, itemRect } from '../../domain/geometry';
@@ -13,6 +13,7 @@ import { useT } from '../../i18n';
 import { clearTextMetrics } from '../../lib/measureText';
 import { useDesignStore } from '../../store/designStore';
 import { useIssues } from '../../store/derived';
+import { useProjectsStore } from '../../store/projects';
 import { useUiStore, type ViewFilter } from '../../store/uiStore';
 import {
   clientToPlan,
@@ -430,9 +431,10 @@ interface CanvasControlsProps {
 function CanvasControls({ zoom, viewFilter, isEmpty, compact }: CanvasControlsProps) {
   const t = useT();
   const setViewFilter = useUiStore((s) => s.setViewFilter);
+  const projectId = useProjectsStore((state) => state.activeId);
   return (
     <>
-      <div className="absolute left-3 top-3 flex rounded-lg border border-zinc-200 bg-white p-0.5 shadow-sm">
+      <div role="group" aria-label={t.canvas.filterLabel} className="absolute left-3 top-3 flex rounded-lg border border-zinc-200 bg-white p-0.5 shadow-sm">
         {FILTERS.map((id) => {
           const filter = t.canvas.filters[id];
           return (
@@ -444,7 +446,8 @@ function CanvasControls({ zoom, viewFilter, isEmpty, compact }: CanvasControlsPr
               aria-pressed={viewFilter === id}
               onClick={() => setViewFilter(id)}
               className={cn(
-                'h-7 touch-manipulation rounded-md px-2.5 text-xs font-medium transition-colors',
+                'h-7 touch-manipulation rounded-md text-xs font-medium transition-colors',
+                compact ? 'px-1.5' : 'px-2.5',
                 viewFilter === id ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900',
               )}
             >
@@ -455,6 +458,8 @@ function CanvasControls({ zoom, viewFilter, isEmpty, compact }: CanvasControlsPr
       </div>
 
       <div
+        role="group"
+        aria-label={t.canvas.zoomControls}
         className={cn(
           'absolute right-3 flex items-center gap-0.5 rounded-lg border border-zinc-200 bg-white p-0.5 shadow-sm',
           compact ? 'top-3' : 'bottom-3',
@@ -467,7 +472,7 @@ function CanvasControls({ zoom, viewFilter, isEmpty, compact }: CanvasControlsPr
           type="button"
           title={t.canvas.fit}
           onClick={fitRoomInView}
-          className="h-7 w-12 rounded-md text-xs font-medium tabular-nums text-zinc-600 hover:bg-zinc-100"
+          className={cn('h-7 rounded-md text-xs font-medium tabular-nums text-zinc-600 hover:bg-zinc-100', compact ? 'w-10' : 'w-12')}
         >
           {Math.round((zoom / REFERENCE_ZOOM) * 100)}%
         </button>
@@ -480,25 +485,35 @@ function CanvasControls({ zoom, viewFilter, isEmpty, compact }: CanvasControlsPr
         </Button>
       </div>
 
-      {isEmpty && (
-        <div
-          className={cn(
-            'pointer-events-none absolute inset-x-0 flex flex-col items-center gap-2 px-4',
-            compact ? 'bottom-20' : 'bottom-16',
-          )}
-        >
-          <div className="rounded-full border border-zinc-200 bg-white/95 px-4 py-2 text-center text-[13px] text-zinc-600 shadow-sm">
-            {compact ? t.canvas.emptyTouch : t.canvas.emptyDesktop}
-          </div>
-          <button
-            type="button"
-            onClick={() => useUiStore.getState().setLayoutsOpen(true)}
-            className="pointer-events-auto touch-manipulation rounded-full border border-blue-200 bg-white px-4 py-2 text-[13px] font-medium text-blue-700 shadow-sm hover:bg-blue-50"
-          >
-            {t.canvas.startFromLayout}
-          </button>
-        </div>
-      )}
+      <EmptyPlanGuide key={projectId} compact={compact} isEmpty={isEmpty} />
     </>
+  );
+}
+
+function EmptyPlanGuide({ compact, isEmpty }: { compact: boolean; isEmpty: boolean }) {
+  const t = useT();
+  const titleId = useId();
+  const [dismissed, setDismissed] = useState(false);
+  const dragging = useUiStore((state) => state.libraryDrag !== null);
+  if (dismissed || dragging || !isEmpty) return null;
+  return (
+    <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-4 pb-20 pt-12">
+      <section aria-labelledby={titleId} className="pointer-events-auto relative w-full max-w-md rounded-xl border border-zinc-200 bg-white p-5 shadow-lg">
+        <Button aria-label={t.canvas.dismissStart} title={t.canvas.dismissStart} className="absolute right-2 top-2" onClick={() => setDismissed(true)}>
+          <X className="size-4" />
+        </Button>
+        <h2 id={titleId} className="pr-6 text-lg font-semibold text-zinc-900">{t.canvas.startTitle}</h2>
+        <p className="mt-2 text-[13px] leading-relaxed text-zinc-600">{t.canvas.startIntro}</p>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          <Button variant="primary" className="h-11 px-3 text-xs" onClick={() => useUiStore.getState().setLayoutsOpen(true)}>
+            <Images className="size-4 shrink-0" />{t.canvas.startFromLayout}
+          </Button>
+          <Button variant="outline" className="h-11 px-3 text-xs" onClick={() => { setDismissed(true); useUiStore.getState().setRoomOpen(true); }}>
+            <Ruler className="size-4 shrink-0" />{t.canvas.startWithRoom}
+          </Button>
+        </div>
+        <p className="mt-3 text-xs leading-relaxed text-zinc-600">{compact ? t.canvas.emptyTouch : t.canvas.emptyDesktop}</p>
+      </section>
+    </div>
   );
 }

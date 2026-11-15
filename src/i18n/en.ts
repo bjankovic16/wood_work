@@ -1,4 +1,5 @@
-import type { FrontFinish, HandleStyle, WorktopFinish } from '../domain/style';
+import type { BacksplashFinish, FrontFinish, HandleStyle, WorktopFinish } from '../domain/style';
+import type { KitchenDesignId } from '../domain/kitchens';
 import type { LayoutId } from '../domain/templates';
 import type { ItemKind, OpeningKind, Wall } from '../domain/types';
 import { formatMm } from '../engine/format';
@@ -36,6 +37,13 @@ export const en = {
     shelf: 'Open shelves',
     filler: 'Filler panel',
     endPanel: 'End panel',
+    pullOut: 'Pull-out storage',
+    glassWall: 'Glass display cabinet',
+    ovenTower: 'Oven tower',
+    integratedFridge: 'Fridge housing',
+    hood: 'Extractor hood',
+    hob: 'Hob drawer cabinet',
+    bar: 'Breakfast bar',
   } satisfies Record<ItemKind, string> as Record<ItemKind, string>,
   /** Start of the automatic codes of new units (B1, W1, …). */
   labelPrefix: {
@@ -51,6 +59,13 @@ export const en = {
     shelf: 'SH',
     filler: 'FP',
     endPanel: 'EP',
+    pullOut: 'PO',
+    glassWall: 'GW',
+    ovenTower: 'OT',
+    integratedFridge: 'IF',
+    hood: 'EH',
+    hob: 'HB',
+    bar: 'BB',
   } satisfies Record<ItemKind, string> as Record<ItemKind, string>,
   walls: { top: 'Top wall', right: 'Right wall', bottom: 'Bottom wall', left: 'Left wall' } satisfies Record<Wall, string> as Record<Wall, string>,
 
@@ -87,7 +102,7 @@ export const en = {
     view3d: '3D',
     view3dTitle: 'See the kitchen in 3D',
     list: 'Cutting list',
-    listShort: 'List',
+    listShort: 'Cut list',
     listTitle: 'Every piece to cut',
     undo: 'Undo',
     undoTitle: 'Undo (Ctrl+Z)',
@@ -123,7 +138,30 @@ export const en = {
   library: {
     elements: 'Elements',
     hint: 'Drag onto the plan, or click to add',
-    sections: { base: 'Base cabinets', wall: 'Wall cabinets', other: 'Other elements' } as Record<string, string>,
+    sections: { base: 'Base cabinets', wall: 'Wall cabinets', other: 'Other elements', storage: 'Storage & display', appliances: 'Appliances & housings', islands: 'Islands & breakfast bars' } as Record<string, string>,
+    island: 'Island drawer unit',
+    search: 'Search kitchen parts',
+    searchPlaceholder: 'Name or width in mm',
+    clearSearch: 'Clear search',
+    category: 'Part category',
+    allCategories: 'All categories',
+    results: (count: number) => plural(count, 'part', 'parts'),
+    noResults: 'No matching parts. Try a name, a width in mm, or a different category.',
+    resetSearch: 'Show all parts',
+    keywords: {
+      base: 'cupboard cupboards cabinets',
+      wall: 'upper cabinets cupboards',
+      drawer: 'drawers cutlery',
+      tall: 'pantry pantries cupboard storage',
+      shelf: 'shelves shelving',
+      pullOut: 'pull out baskets bottle rack',
+      glassWall: 'glass display cabinets',
+      ovenTower: 'tower built in',
+      integratedFridge: 'integrated refrigerator',
+      hood: 'extractor fan',
+      hob: 'cooktop',
+      bar: 'breakfast table',
+    } satisfies Partial<Record<ItemKind, string>> as Partial<Record<ItemKind, string>>,
     custom: 'Custom',
     withWidth: (name: string, width: number) => `${name} ${width}`,
     customSize: (name: string) => `${name} (custom size)`,
@@ -144,7 +182,13 @@ export const en = {
     fit: 'Fit the room in view',
     emptyTouch: 'Tap “Add element” to place your first cabinet.',
     emptyDesktop: 'Drag an element from the left onto the room, or simply click it.',
-    startFromLayout: 'Or start from a ready-made layout',
+    startFromLayout: 'Choose a kitchen',
+    filterLabel: 'Visible units',
+    zoomControls: 'Plan zoom',
+    startTitle: 'Start your kitchen',
+    startIntro: 'Customize a ready-made design, or begin with your own room.',
+    startWithRoom: 'Start with my room',
+    dismissStart: 'Use the blank plan',
   },
 
   phone: {
@@ -194,6 +238,8 @@ export const en = {
     materials: 'Materials',
     carcass: 'Carcass',
     backPanel: 'Back panel',
+    glass: 'Door glass',
+    barTop: 'Bar top',
     position: 'Position',
     fromLeftWall: 'From left wall',
     fromTopWall: 'From top wall',
@@ -204,7 +250,7 @@ export const en = {
     code: 'Code',
     parts: (n: number) => `Parts · ${plural(n, 'piece', 'pieces')}`,
     toCuttingList: 'Cutting list',
-    nothingToCut: 'A freestanding appliance: nothing to cut.',
+    nothingToCut: 'A purchased appliance: no boards to cut.',
     edges: (edges: string) => `Edges ${edges}`,
     rotateLeft: 'Rotate left',
     rotateLeftTitle: 'Rotate left (Shift+R)',
@@ -217,6 +263,9 @@ export const en = {
   },
 
   room: {
+    setupTitle: 'Set up your room',
+    setupIntro: 'Use inside measurements in millimetres: 3 metres = 3000 mm. Add any doors and windows; everything can be changed later.',
+    startAdding: 'Add kitchen parts',
     roomSize: 'Room size',
     width: 'Width',
     widthTitle: 'Length of the top and bottom walls',
@@ -237,7 +286,7 @@ export const en = {
     elements: 'Elements',
     floorUnits: 'Floor units',
     wallUnits: 'Wall units',
-    readyMadeLayouts: 'Ready-made layouts',
+    readyMadeLayouts: 'Kitchen designs',
     constructionSettings: 'Construction settings',
     removeAll: 'Remove all elements',
     removeAllQuestion: 'Remove all elements?',
@@ -266,7 +315,7 @@ export const en = {
   },
 
   layouts: {
-    title: 'Ready-made layouts',
+    title: 'Kitchen designs',
     intro: (width: number, depth: number) =>
       `A starting point sized for your ${width} × ${depth} mm room, built from standard cabinet widths. Change anything afterwards.`,
     replaces: (n: number) => ` It replaces the ${n} elements on the plan; Undo brings them back.`,
@@ -275,6 +324,46 @@ export const en = {
       'l-shape': { name: 'L-shaped', description: 'Two walls joined by a corner unit, oven on the side wall.' },
       'u-shape': { name: 'U-shaped', description: 'Three walls with two corner units: the most worktop.' },
     } satisfies Record<LayoutId, { name: string; description: string }> as Record<LayoutId, { name: string; description: string }>,
+  },
+
+  kitchens: {
+    browse: 'Designs',
+    gallery: 'Premium kitchens',
+    roomLayouts: 'My room layout',
+    intro: 'Warm woods, soft colors and stone. Choose a kitchen to open its exact layout, parts and finishes in 3D.',
+    replaceSummary: 'Replaces this kitchen, including its room. Undo brings it back.',
+    replaces: 'A design includes its own room size and default construction settings. It replaces this kitchen, including windows, doors and extra pieces. Your project name stays; Undo restores everything.',
+    materialsNote: 'These are original, editable designs, not imported Pinterest photos. Finishes show the look; choose your actual boards and construction details before ordering.',
+    pinterest: 'More kitchen ideas on Pinterest',
+    filter: 'Kitchen layout',
+    all: 'All designs',
+    island: 'With an island',
+    count: (shown: number, total: number) => `${shown} of ${total} designs`,
+    open: (name: string) => `Open ${name} in 3D`,
+    roomSize: (width: number, depth: number) => `${width} × ${depth} mm`,
+    previewUnavailable: 'Preview unavailable. You can still open this kitchen.',
+    names: {
+      'nordic-light': 'Nordic light',
+      'oak-studio': 'Oak studio',
+      'soft-sage': 'Soft sage',
+      'city-graphite': 'City graphite',
+      'cream-and-oak': 'Cream & oak',
+      'warm-minimal': 'Warm minimal',
+      'sage-and-black': 'Sage & black',
+      'coastal-blue': 'Coastal blue',
+      'walnut-retreat': 'Walnut retreat',
+      'white-and-stone': 'White & stone',
+      'urban-oak': 'Urban oak',
+      'soft-grey': 'Soft grey',
+      'midnight-brass': 'Midnight & brass',
+      'scandi-u': 'Scandinavian U',
+      'slate-and-stone': 'Slate & stone',
+      'warm-walnut': 'Warm walnut',
+      'calm-cream': 'Calm cream',
+      'oak-island': 'Oak island',
+      'sage-island': 'Sage island',
+      'monochrome-island': 'Monochrome island',
+    } satisfies Record<KitchenDesignId, string> as Record<KitchenDesignId, string>,
   },
 
   style: {
@@ -292,15 +381,27 @@ export const en = {
       anthracite: 'Anthracite',
       oak: 'Oak',
       walnut: 'Walnut',
+      cashmere: 'Cashmere',
+      sand: 'Sand',
+      taupe: 'Taupe',
+      olive: 'Olive',
+      clay: 'Terracotta',
+      espresso: 'Espresso wood',
+      ash: 'Natural ash',
     } satisfies Record<FrontFinish, string> as Record<FrontFinish, string>,
-    worktopFinishes: { stone: 'White stone', oak: 'Oak', concrete: 'Concrete', black: 'Black' } satisfies Record<WorktopFinish, string> as Record<
+    worktopFinishes: { stone: 'White stone', oak: 'Oak', concrete: 'Concrete', black: 'Black', marble: 'Warm marble', travertine: 'Travertine', walnut: 'Walnut' } satisfies Record<WorktopFinish, string> as Record<
       WorktopFinish,
       string
     >,
-    handleStyles: { steel: 'Steel bar', black: 'Black bar', brass: 'Brass bar', none: 'No handles' } satisfies Record<HandleStyle, string> as Record<
+    handleStyles: { steel: 'Steel bar', black: 'Black bar', brass: 'Brass bar', none: 'No handles', bronze: 'Bronze bar', copper: 'Copper bar' } satisfies Record<HandleStyle, string> as Record<
       HandleStyle,
       string
     >,
+    backsplash: 'Backsplash',
+    backsplashFinishes: { none: 'Painted wall', stone: 'White stone', marble: 'Warm marble', travertine: 'Travertine' } satisfies Record<BacksplashFinish, string> as Record<BacksplashFinish, string>,
+    lighting: 'Warm under-cabinet lighting',
+    decor: 'Style shelves with accessories',
+    previewNote: 'Lighting, backsplash and accessories are visual references, not included in the board cutting list. Specify these separately with your supplier.',
   },
 
   view3d: {

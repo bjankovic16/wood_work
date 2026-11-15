@@ -110,6 +110,7 @@ function show(id: string, design: Design): void {
   const ui = useUiStore.getState();
   ui.select(null);
   ui.setLibraryDrag(null);
+  ui.setRoomOpen(false);
   saveIndex();
 }
 

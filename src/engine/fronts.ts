@@ -19,6 +19,7 @@ export interface FrontRect {
 
 /** Built-in ovens are 595 mm tall and go into a 600 mm niche. */
 export const OVEN_NICHE_HEIGHT = 600;
+export const TOWER_OVEN_BOTTOM = 720;
 /** Tall units above this height get a second row of doors, split at worktop level. */
 export const TALL_SPLIT_FROM = 1400;
 
@@ -83,8 +84,10 @@ export function frontLayout(item: KitchenItem, config: ResolvedConfig, settings:
   switch (item.kind) {
     case 'base':
     case 'wall':
+    case 'glassWall':
     case 'sink':
     case 'drawer':
+    case 'hob':
     case 'tall': {
       const frame = frameFor(item, config, g);
       const inner = frame.h - 2 * frame.margin;
@@ -127,6 +130,19 @@ export function frontLayout(item: KitchenItem, config: ResolvedConfig, settings:
       }
       break;
     }
+    case 'integratedFridge': {
+      const frame = frameFor(item, config, g);
+      fronts.push(...doorRow(frame, g / 2, BASE_HEIGHT - g, 1, g, config.hinge));
+      fronts.push(...doorRow(frame, BASE_HEIGHT + g / 2, H - BASE_HEIGHT - g, 1, g, config.hinge));
+      break;
+    }
+    case 'ovenTower': {
+      const frame = frameFor(item, config, g);
+      fronts.push(...doorRow(frame, g / 2, TOWER_OVEN_BOTTOM - g, 1, g, config.hinge));
+      const upper = TOWER_OVEN_BOTTOM + OVEN_NICHE_HEIGHT;
+      fronts.push(...doorRow(frame, upper + g / 2, H - upper - g, 1, g, config.hinge));
+      break;
+    }
     case 'oven': {
       // The oven fills the top of the unit; a drawer or a fixed panel closes the space below it.
       const frame = frameFor(item, config, g);
@@ -152,6 +168,9 @@ export function frontLayout(item: KitchenItem, config: ResolvedConfig, settings:
     }
     case 'filler':
       fronts.push({ kind: 'panel', x: 0, y: 0, w: item.width, h: H });
+      break;
+    case 'pullOut':
+      fronts.push({ kind: 'panel', x: g / 2, y: g / 2, w: item.width - g, h: H - g });
       break;
     default:
       break;

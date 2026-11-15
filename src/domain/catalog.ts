@@ -31,6 +31,14 @@ export const WALL_DEPTH = 320;
 export const WALL_ELEVATION = 1450;
 /** Tall units are sized so their top lines up with the top of the wall units. */
 export const TALL_HEIGHT = WALL_ELEVATION + WALL_HEIGHT - PLINTH_HEIGHT;
+export const GLASS_MATERIAL_ID = 'glass-clear-4';
+export const BAR_MATERIAL_ID = 'worktop-38';
+export const WORKTOP_KINDS = new Set<ItemKind>(['base', 'sink', 'oven', 'drawer', 'dishwasher', 'filler', 'corner', 'pullOut', 'hob']);
+
+export const MODULE_MATERIAL_DEFAULTS: Partial<Record<ItemKind, Partial<Pick<KitchenItem, 'carcassMaterial' | 'frontMaterial'>>>> = {
+  glassWall: { frontMaterial: GLASS_MATERIAL_ID },
+  bar: { carcassMaterial: BAR_MATERIAL_ID },
+};
 
 export const ELEVATION_LIMITS: Range = { min: 0, max: 2500 };
 
@@ -121,6 +129,39 @@ export const KIND_SPECS: Record<ItemKind, KindSpec> = {
     defaults: { width: 18, depth: BASE_DEPTH + 20, height: PLINTH_HEIGHT + BASE_HEIGHT, elevation: 0 },
     limits: { width: range(10, 60), depth: range(100, 800), height: range(100, 2600) },
   },
+  pullOut: {
+    kind: 'pullOut', labelPrefix: 'PO',
+    defaults: { ...base, width: 300 },
+    limits: { width: range(150, 600), depth: range(450, 700), height: range(600, 1000) },
+  },
+  glassWall: {
+    kind: 'glassWall', labelPrefix: 'GW',
+    defaults: { width: 600, depth: WALL_DEPTH, height: WALL_HEIGHT, elevation: WALL_ELEVATION },
+    limits: { width: range(300, 1200), depth: range(200, 500), height: range(300, 1200) },
+  },
+  ovenTower: {
+    kind: 'ovenTower', labelPrefix: 'OT',
+    defaults: { ...base, height: TALL_HEIGHT },
+    limits: { width: range(560, 900), depth: range(500, 800), height: range(1600, 2600) },
+  },
+  integratedFridge: {
+    kind: 'integratedFridge', labelPrefix: 'IF',
+    defaults: { ...base, depth: 600, height: TALL_HEIGHT },
+    limits: { width: range(560, 900), depth: range(550, 800), height: range(1800, 2600) },
+  },
+  hood: {
+    kind: 'hood', labelPrefix: 'EH',
+    defaults: { width: 600, depth: 450, height: 500, elevation: 1550 },
+    limits: { width: range(500, 1200), depth: range(300, 650), height: range(150, 900) },
+  },
+  hob: {
+    kind: 'hob', labelPrefix: 'HB', defaults: base, limits: baseLimits,
+  },
+  bar: {
+    kind: 'bar', labelPrefix: 'BB',
+    defaults: { width: 1500, depth: 650, height: 900, elevation: 0 },
+    limits: { width: range(600, 2400), depth: range(350, 1000), height: range(600, 1200) },
+  },
 };
 
 /** An element in the library; its tile shows the width, "Custom", or the kind's name. */
@@ -131,10 +172,13 @@ export interface LibraryPreset {
   width?: number;
   /** "Custom" presets open the width field for editing right after they are added. */
   custom?: boolean;
+  options?: Partial<Pick<KitchenItem, 'depth' | 'height' | 'elevation' | 'doors' | 'drawers' | 'shelves' | 'drawerLayout'>>;
+  placement?: 'centre';
+  name?: 'island';
 }
 
 export interface LibrarySection {
-  id: 'base' | 'wall' | 'other';
+  id: 'base' | 'wall' | 'other' | 'storage' | 'appliances' | 'islands';
   layout: 'compact' | 'regular';
   presets: LibraryPreset[];
 }
@@ -159,6 +203,28 @@ export const LIBRARY: LibrarySection[] = [
       id: kind,
       kind,
     })),
+  },
+  {
+    id: 'storage', layout: 'regular',
+    presets: [
+      ...widths('drawer', [800, 900, 1200]),
+      ...widths('pullOut', [300, 450, 600]),
+      ...widths('tall', [450, 600, 800]),
+      ...widths('glassWall', [600, 800, 900]),
+      ...widths('shelf', [600, 900, 1200]),
+    ],
+  },
+  {
+    id: 'appliances', layout: 'regular',
+    presets: (['hob', 'ovenTower', 'integratedFridge', 'hood'] as const).map((kind) => ({ id: kind, kind })),
+  },
+  {
+    id: 'islands', layout: 'regular',
+    presets: [
+      { id: 'island-1200', kind: 'drawer', width: 1200, options: { depth: 700, drawerLayout: 'shallowTop' }, placement: 'centre', name: 'island' },
+      { id: 'bar-1500', kind: 'bar', width: 1500, placement: 'centre' },
+      { id: 'bar-1800', kind: 'bar', width: 1800, placement: 'centre' },
+    ],
   },
 ];
 
@@ -199,12 +265,13 @@ export function createItem(
     height: defaults.height,
     elevation: defaults.elevation,
     ...(defaults.width2 !== undefined ? { width2: defaults.width2 } : {}),
+    ...MODULE_MATERIAL_DEFAULTS[kind],
     ...overrides,
   };
 }
 
 export function itemFromPreset(preset: LibraryPreset, existing: readonly KitchenItem[], prefixes?: LabelPrefixes): KitchenItem {
-  return createItem(preset.kind, existing, preset.width !== undefined ? { width: preset.width } : {}, prefixes);
+  return createItem(preset.kind, existing, { ...preset.options, ...(preset.width !== undefined ? { width: preset.width } : {}) }, prefixes);
 }
 
 /** Allowed range for a dimension, taking the item's other dimensions into account. */

@@ -108,6 +108,7 @@ function drawKind(kind: ItemKind, width?: number, custom?: boolean): ReactNode {
         </>
       );
     case 'fridge':
+    case 'integratedFridge':
       return (
         <>
           <rect x={9.5} y={3} width={13} height={26} rx={1.5} />
@@ -170,5 +171,17 @@ function drawKind(kind: ItemKind, width?: number, custom?: boolean): ReactNode {
           <rect x={14} y={5} width={4} height={23} fill="currentColor" fillOpacity={0.15} />
         </>
       );
+    case 'pullOut':
+      return <><rect x={11} y={10} width={10} height={17} /><path d="M9 8h14M14 13h4M16 17v7m-2-2 2 2 2-2" /></>;
+    case 'glassWall':
+      return <><rect x={6} y={5} width={20} height={17} /><path d="M16 5v17M6 13h20M9 8l4 4m6-4 4 4M9 16l3 3m7-3 3 3" /><path d="M5 27h22" strokeDasharray="2 2" /></>;
+    case 'ovenTower':
+      return <><rect x={9} y={3} width={14} height={25} /><rect x={10.5} y={13} width={11} height={8} rx={1} /><path d="M9 11h14M13 15h6M20 6v3M20 24v2M10 30h12" /></>;
+    case 'hood':
+      return <><path d="M13 4h6v12l8 6H5l8-6ZM5 22v4h22v-4" /><path d="M10 24h12" /></>;
+    case 'hob':
+      return <><rect x={5} y={11} width={22} height={16} /><path d="M5 10h22M5 17h22M5 22h22M13 14h6M13 20h6M13 25h6" /><circle cx={10} cy={7} r={2} /><circle cx={21} cy={7} r={2} /></>;
+    case 'bar':
+      return <><rect x={3} y={10} width={26} height={3} rx={0.5} /><path d="M6 13v15M26 13v15M4 28h4M24 28h4" /></>;
   }
 }

@@ -105,10 +105,24 @@ function OpeningsSection() {
   );
 }
 
-/** Room size, windows and doors, a summary of the elements, and help. Shared by the desktop panel and the phone sheet. */
-export function RoomPanel({ touch = false }: { touch?: boolean }) {
+export function RoomSettings() {
   const t = useT();
   const room = useDesignStore((s) => s.design.room);
+  return (
+    <>
+      <PanelSection title={t.room.roomSize}>
+        <NumberField label={t.room.width} title={t.room.widthTitle} value={room.width} {...ROOM_LIMITS.width} onCommit={(v) => actions.setRoomSize({ width: v })} />
+        <NumberField label={t.room.depth} title={t.room.depthTitle} value={room.depth} {...ROOM_LIMITS.depth} onCommit={(v) => actions.setRoomSize({ depth: v })} />
+        <NumberField label={t.room.ceilingHeight} value={room.height} {...ROOM_LIMITS.height} onCommit={(v) => actions.setRoomSize({ height: v })} />
+      </PanelSection>
+      <OpeningsSection />
+    </>
+  );
+}
+
+/** Room size, windows and doors, a summary of the elements, and help. */
+export function RoomPanel({ touch = false }: { touch?: boolean }) {
+  const t = useT();
   const items = useDesignStore((s) => s.design.items);
   const wallUnits = items.filter(isWallMounted).length;
   const [confirming, setConfirming] = useState(false);
@@ -117,13 +131,7 @@ export function RoomPanel({ touch = false }: { touch?: boolean }) {
 
   return (
     <>
-      <PanelSection title={t.room.roomSize}>
-        <NumberField label={t.room.width} title={t.room.widthTitle} value={room.width} {...ROOM_LIMITS.width} onCommit={(v) => actions.setRoomSize({ width: v })} />
-        <NumberField label={t.room.depth} title={t.room.depthTitle} value={room.depth} {...ROOM_LIMITS.depth} onCommit={(v) => actions.setRoomSize({ depth: v })} />
-        <NumberField label={t.room.ceilingHeight} value={room.height} {...ROOM_LIMITS.height} onCommit={(v) => actions.setRoomSize({ height: v })} />
-      </PanelSection>
-
-      <OpeningsSection />
+      <RoomSettings />
 
       <PanelSection title={t.room.elements}>
         <div className="grid grid-cols-2 gap-2">

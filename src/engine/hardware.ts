@@ -38,7 +38,9 @@ export function unitHardware(item: KitchenItem, ctx: BuildContext): Hardware[] {
 
   for (const front of fronts) {
     if (front.kind !== 'door') continue;
-    if (item.kind === 'corner' && front.hinge === 'right') {
+    if (item.kind === 'glassWall') {
+      add({ kind: 'glassHinge' }, hingesPerDoor(front.h));
+    } else if (item.kind === 'corner' && front.hinge === 'right') {
       // The second door of a corner unit hangs on the first one.
       add({ kind: 'cornerHinge' }, hingesPerDoor(front.h));
     } else {
@@ -54,10 +56,16 @@ export function unitHardware(item: KitchenItem, ctx: BuildContext): Hardware[] {
 
   const handleStyle = ctx.style?.handles ?? 'steel';
   // Every door and drawer gets a handle; a corner unit's two folding doors share one.
-  const handles = item.kind === 'corner' ? 1 : fronts.filter((f) => f.kind !== 'panel' || item.kind === 'dishwasher').length;
+  const handles = item.kind === 'corner' ? 1 : fronts.filter((f) => f.kind !== 'panel' || item.kind === 'dishwasher' || item.kind === 'pullOut').length;
   if (HANDLE_STYLES[handleStyle].color) add({ kind: 'handle', style: handleStyle }, handles);
 
   add({ kind: 'shelfPin' }, config.shelves * PINS_PER_SHELF);
+  if (item.kind === 'pullOut') add({ kind: 'pullOut', width: item.width }, 1);
+  if (item.kind === 'bar') add({ kind: 'barLeg', height: item.height - config.carcass.thickness }, 4);
+  if (item.kind === 'oven' || item.kind === 'ovenTower') add({ kind: 'appliance', appliance: 'oven', width: item.width }, 1);
+  if (item.kind === 'fridge' || item.kind === 'integratedFridge') add({ kind: 'appliance', appliance: 'fridge', width: item.width }, 1);
+  if (item.kind === 'hob' || item.kind === 'oven') add({ kind: 'appliance', appliance: 'hob', width: item.width }, 1);
+  if (item.kind === 'hood' || item.kind === 'dishwasher') add({ kind: 'appliance', appliance: item.kind, width: item.width }, 1);
 
   if (options.carcass && isWallMounted(item)) {
     add({ kind: 'hangers' }, 1);

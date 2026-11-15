@@ -1,6 +1,6 @@
 import { ChevronRight, Copy, RotateCcw, RotateCw, Trash2, TriangleAlert, X } from 'lucide-react';
 import { useEffect, useMemo, type ReactNode } from 'react';
-import { ELEVATION_LIMITS, sizeLimits, type SizeField } from '../../domain/catalog';
+import { BAR_MATERIAL_ID, ELEVATION_LIMITS, GLASS_MATERIAL_ID, sizeLimits, type SizeField } from '../../domain/catalog';
 import { aabbSize, attachedWall, backWall, isFlushWith, itemRect, mountingWalls } from '../../domain/geometry';
 import type { KitchenItem, Material, Room } from '../../domain/types';
 import { KIND_OPTIONS, resolveConfig, type BuildContext } from '../../engine/config';
@@ -228,9 +228,9 @@ export function ItemFields({ item }: { item: KitchenItem }) {
 
       {(options.carcass || options.fronts) && (
         <PanelSection title={t.item.materials}>
-          {options.carcass && <MaterialField item={item} field="carcassMaterial" label={t.item.carcass} kitchenWide={construction.carcassMaterial} />}
+          {options.carcass && <MaterialField item={item} field="carcassMaterial" label={item.kind === 'bar' ? t.item.barTop : t.item.carcass} kitchenWide={item.kind === 'bar' ? BAR_MATERIAL_ID : construction.carcassMaterial} />}
           {options.back && <MaterialField item={item} field="backMaterial" label={t.item.backPanel} kitchenWide={construction.backMaterial} />}
-          {options.fronts && <MaterialField item={item} field="frontMaterial" label={t.item.fronts} kitchenWide={construction.frontMaterial} />}
+          {options.fronts && <MaterialField item={item} field="frontMaterial" label={item.kind === 'glassWall' ? t.item.glass : t.item.fronts} kitchenWide={item.kind === 'glassWall' ? GLASS_MATERIAL_ID : construction.frontMaterial} />}
         </PanelSection>
       )}
 

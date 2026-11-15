@@ -197,6 +197,7 @@ const PANEL_NAMES: Partial<Record<KitchenItem['kind'], PartName>> = {
   oven: 'ovenPanel',
   dishwasher: 'dishwasherFront',
   filler: 'fillerPanel',
+  pullOut: 'pullOutFront',
 };
 
 /** Doors, drawer fronts and panels, with identical sizes counted together. All four edges are banded. */
@@ -210,8 +211,9 @@ function frontParts(item: KitchenItem, fronts: FrontRect[], config: ResolvedConf
   }
   const band = frontBand(ctx);
   return [...counts.values()].map(({ front, count }) => {
-    const name: PartName = front.kind === 'door' ? 'door' : front.kind === 'drawer' ? 'drawerFront' : (PANEL_NAMES[item.kind] ?? 'panel');
-    return piece({ name, quantity: count, a: front.h, b: front.w, material: config.front, band, edgesA: 2, edgesB: 2 }, ctx);
+    const glass = item.kind === 'glassWall';
+    const name: PartName = glass ? 'glassDoor' : front.kind === 'door' ? 'door' : front.kind === 'drawer' ? 'drawerFront' : (PANEL_NAMES[item.kind] ?? 'panel');
+    return piece({ name, quantity: count, a: front.h, b: front.w, material: config.front, band: glass ? null : band, edgesA: 2, edgesB: 2, ...(glass ? { note: { kind: 'glassBlank' as const } } : {}) }, ctx);
   });
 }
 
@@ -277,6 +279,8 @@ export function generatedParts(item: KitchenItem, ctx: BuildContext): Part[] {
     case 'base':
     case 'sink':
     case 'drawer':
+    case 'hob':
+    case 'pullOut':
       return [
         ...carcass(item, config, ctx, fullBaseTop),
         ...shelves(item, config, ctx),
@@ -292,6 +296,7 @@ export function generatedParts(item: KitchenItem, ctx: BuildContext): Part[] {
         ...drawerBoxes(item, config, ctx, fronts),
       ];
     case 'wall':
+    case 'glassWall':
     case 'shelf':
       return [...carcass(item, config, ctx, true), ...shelves(item, config, ctx), ...frontParts(item, fronts, config, ctx)];
     case 'tall': {
@@ -304,6 +309,12 @@ export function generatedParts(item: KitchenItem, ctx: BuildContext): Part[] {
         ...frontParts(item, fronts, config, ctx),
       ];
     }
+    case 'ovenTower':
+      return [...carcass(item, config, ctx, true), ...shelves(item, config, ctx, 'ovenShelf', 2), ...frontParts(item, fronts, config, ctx)];
+    case 'integratedFridge':
+      return [...carcass(item, config, ctx, true), ...frontParts(item, fronts, config, ctx)];
+    case 'bar':
+      return [piece({ name: 'barTop', quantity: 1, a: item.width, b: item.depth, material: config.carcass, note: { kind: 'barBlank' } }, ctx)];
     case 'corner':
       return cornerParts(item, config, ctx);
     case 'dishwasher':
@@ -313,6 +324,7 @@ export function generatedParts(item: KitchenItem, ctx: BuildContext): Part[] {
       // The front edge and the top edge show.
       return [piece({ name: 'endPanel', quantity: 1, a: item.height, b: item.depth, material: config.front, band: frontBand(ctx), edgesA: 1, edgesB: 1 }, ctx)];
     case 'fridge':
+    case 'hood':
       return [];
   }
 }

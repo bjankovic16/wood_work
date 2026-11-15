@@ -47,8 +47,14 @@ export function findFreeSpot(
   items: readonly KitchenItem[],
   item: KitchenItem,
   openings: readonly Opening[] = [],
+  preferCentre = false,
 ): Placement | null {
   const obstacles = obstaclesFor(item, items, room, openings);
+
+  if (preferCentre) {
+    const centre = centreOfRoom(room, item);
+    if (fitsAt({ ...item, ...centre }, room, obstacles)) return centre;
+  }
 
   if (item.kind === 'corner') {
     for (const corner of CORNERS) {

@@ -5,6 +5,7 @@ import { CompactLayout } from './components/layout/CompactLayout';
 import { TopBar } from './components/layout/TopBar';
 import { LibraryDragChip, LibraryPanel } from './components/library/LibraryPanel';
 import { PropertiesPanel } from './components/properties/PropertiesPanel';
+import { RoomDialog } from './components/properties/RoomDialog';
 import { View3D } from './components/three/View3D';
 import { LayoutDialog } from './components/layouts/LayoutDialog';
 import { ProjectsDialog } from './components/projects/ProjectsDialog';
@@ -36,6 +37,7 @@ function DesktopLayout() {
       <ConstructionDialog />
       <LayoutDialog />
       <ProjectsDialog />
+      <RoomDialog />
     </div>
   );
 }

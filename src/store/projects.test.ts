@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createItem } from '../domain/catalog';
 import * as ops from '../domain/designOps';
+import { KITCHEN_DESIGNS } from '../domain/kitchens';
 import { DEFAULT_LANGUAGE } from '../i18n/language';
 import { useDesignStore } from './designStore';
 import { useUiStore } from './uiStore';
+import { applyKitchenDesign } from './actions';
 import {
   createProject,
   deleteProject,
@@ -40,10 +42,12 @@ describe('projects', () => {
     initProjects();
     const first = projects().activeId;
     useDesignStore.getState().apply((d) => ops.addItem(d, createItem('base', [])));
+    useUiStore.getState().setRoomOpen(true);
     const second = createProject('Second kitchen');
     expect(projects().activeId).toBe(second);
     expect(design().name).toBe('Second kitchen');
     expect(design().items).toHaveLength(0);
+    expect(useUiStore.getState().roomOpen).toBe(false);
 
     openProject(first);
     expect(design().items).toHaveLength(1);
@@ -59,6 +63,20 @@ describe('projects', () => {
     useDesignStore.getState().load(ops.createDesign());
     initProjects();
     expect(design().name).toBe('Saved');
+  });
+
+  it('saves and restores an entire gallery kitchen without changing the open project', () => {
+    initProjects();
+    const activeId = projects().activeId;
+    applyKitchenDesign(KITCHEN_DESIGNS[19]);
+    const saved = design();
+    flushSave();
+    resetProjectsForTests();
+    useDesignStore.getState().load(ops.createDesign());
+    initProjects();
+    expect(projects().activeId).toBe(activeId);
+    expect(projects().projects).toHaveLength(1);
+    expect(design()).toEqual(saved);
   });
 
   it('duplicates and deletes projects', () => {

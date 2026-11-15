@@ -1,4 +1,5 @@
 import { clamp } from '../domain/math';
+import { MODULE_MATERIAL_DEFAULTS } from '../domain/catalog';
 import { EN_LABELS, type EngineLabels } from './labels';
 import type { KitchenStyle } from '../domain/style';
 import type {
@@ -46,6 +47,13 @@ export const KIND_OPTIONS: Record<ItemKind, KindOptions> = {
   shelf: { shelves: { min: 0, max: 6 }, carcass: true, back: true, fronts: false, inset: false },
   filler: { carcass: false, back: false, fronts: true, inset: false },
   endPanel: { carcass: false, back: false, fronts: true, inset: false },
+  pullOut: { carcass: true, back: true, fronts: true, inset: false },
+  glassWall: { doors: { min: 1, max: 4 }, shelves: { min: 0, max: 5 }, carcass: true, back: true, fronts: true, inset: false },
+  ovenTower: { doors: { min: 1, max: 1 }, carcass: true, back: false, fronts: true, inset: false },
+  integratedFridge: { doors: { min: 1, max: 1 }, carcass: true, back: false, fronts: true, inset: false },
+  hood: { carcass: false, back: false, fronts: false, inset: false },
+  hob: { drawers: { min: 1, max: 4 }, carcass: true, back: true, fronts: true, inset: true },
+  bar: { carcass: true, back: false, fronts: false, inset: false },
 };
 
 /** Settings, materials and edge bands, looked up by id, and the words to use. */
@@ -92,17 +100,22 @@ function defaultCounts(item: KitchenItem): Pick<ResolvedConfig, 'doors' | 'drawe
     case 'base':
       return { doors, drawers: 0, shelves: 1 };
     case 'wall':
+    case 'glassWall':
       return { doors, drawers: 0, shelves: item.height >= 600 ? 2 : 1 };
     case 'sink':
       return { doors, drawers: 0, shelves: 0 };
     case 'oven':
       return { doors: 0, drawers: 1, shelves: 0 };
     case 'drawer':
+    case 'hob':
       return { doors: 0, drawers: 3, shelves: 0 };
     case 'corner':
       return { doors: 2, drawers: 0, shelves: 1 };
     case 'tall':
       return { doors, drawers: 0, shelves: 4 };
+    case 'ovenTower':
+    case 'integratedFridge':
+      return { doors: 1, drawers: 0, shelves: 0 };
     case 'shelf':
       return { doors: 0, drawers: 0, shelves: 2 };
     default:
@@ -136,8 +149,8 @@ export function resolveConfig(item: KitchenItem, ctx: BuildContext): ResolvedCon
     doorType: options.inset ? (item.doorType ?? settings.doorType) : 'overlay',
     hinge: item.hinge ?? 'left',
     drawerLayout: item.drawerLayout ?? 'equal',
-    carcass: material(ctx, item.carcassMaterial, settings.carcassMaterial),
+    carcass: material(ctx, item.carcassMaterial, MODULE_MATERIAL_DEFAULTS[item.kind]?.carcassMaterial ?? settings.carcassMaterial),
     back: material(ctx, item.backMaterial, settings.backMaterial),
-    front: material(ctx, item.frontMaterial, settings.frontMaterial),
+    front: material(ctx, item.frontMaterial, MODULE_MATERIAL_DEFAULTS[item.kind]?.frontMaterial ?? settings.frontMaterial),
   };
 }

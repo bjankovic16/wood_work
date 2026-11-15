@@ -2,6 +2,7 @@ import { findPreset, itemFromPreset, nextLabel, type SizeField } from '../domain
 import * as ops from '../domain/designOps';
 import { isWallMounted, rotateItem } from '../domain/geometry';
 import { newId } from '../domain/ids';
+import { createKitchenDesign, type KitchenPreset } from '../domain/kitchens';
 import { centreOfRoom, findFreeSpot, placeCopy } from '../domain/placement';
 import { computeDragPlacement } from '../domain/snapping';
 import { buildLayout, type LayoutId } from '../domain/templates';
@@ -49,7 +50,7 @@ export function addPresetToPlan(presetId: string): boolean {
   if (!preset) return false;
   const { room, items, openings } = current();
   const item = itemFromPreset(preset, items, currentMessages().labelPrefix);
-  insertAndSelect({ ...item, ...(findFreeSpot(room, items, item, openings) ?? centreOfRoom(room, item)) }, preset.custom);
+  insertAndSelect({ ...item, ...(findFreeSpot(room, items, item, openings, preset.placement === 'centre') ?? centreOfRoom(room, item)) }, preset.custom);
   return true;
 }
 
@@ -257,6 +258,15 @@ export function setStyle(patch: Partial<KitchenStyle>): void {
 export function applyLayout(id: LayoutId): void {
   apply((design) => ({ ...design, items: buildLayout(id, design.room, currentMessages().labelPrefix), partEdits: {} }));
   useUiStore.getState().select(null);
+}
+
+/** Opens exactly the kitchen shown in its preview, replacing the whole design in one undo step. */
+export function applyKitchenDesign(preset: KitchenPreset): void {
+  apply((design) => createKitchenDesign(preset, design.name, currentMessages().labelPrefix));
+  const ui = useUiStore.getState();
+  ui.select(null);
+  ui.setViewFilter('all');
+  ui.setView('3d');
 }
 
 /** Changes one part of a unit's cutting list by hand; undefined puts it back as the rules make it. */

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { FRONT_FINISHES, HANDLE_STYLES, WORKTOP_FINISHES, type KitchenStyle } from '../../domain/style';
+import { BACKSPLASH_FINISHES, FRONT_FINISHES, HANDLE_STYLES, WORKTOP_FINISHES, type Finish, type KitchenStyle } from '../../domain/style';
 
 /** Millimetres to scene units (metres). */
 export const m = (mm: number): number => mm / 1000;
@@ -64,6 +64,55 @@ export interface KitchenMaterials {
   glass: THREE.MeshStandardMaterial;
   appliance: THREE.MeshStandardMaterial;
   dark: THREE.MeshStandardMaterial;
+  displayGlass: THREE.MeshPhysicalMaterial;
+  light: THREE.MeshStandardMaterial;
+  ceramic: THREE.MeshStandardMaterial;
+  foliage: THREE.MeshStandardMaterial;
+  pot: THREE.MeshStandardMaterial;
+  backsplash: THREE.MeshStandardMaterial | null;
+}
+
+function stoneTexture(finish: Finish): THREE.CanvasTexture {
+  const key = `${finish.texture}|${finish.color}`;
+  const cached = textures.get(key);
+  if (cached) return cached;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 512;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = finish.color;
+  ctx.fillRect(0, 0, 512, 512);
+  let seed = 41;
+  const random = () => {
+    seed = (seed * 16807) % 2147483647;
+    return seed / 2147483647;
+  };
+  if (finish.texture === 'marble') {
+    for (let i = 0; i < 9; i++) {
+      const start = random() * 650 - 100;
+      ctx.strokeStyle = `rgba(125, 108, 88, ${0.08 + random() * 0.18})`;
+      ctx.lineWidth = 0.6 + random() * 2;
+      ctx.beginPath();
+      ctx.moveTo(start, 0);
+      ctx.bezierCurveTo(start - 90, 160, start + 140, 320, start + 180, 512);
+      ctx.stroke();
+    }
+  } else {
+    for (let i = 0; i < 1400; i++) {
+      const x = random() * 512;
+      const y = random() * 512;
+      ctx.fillStyle = `rgba(104, 79, 49, ${0.025 + random() * 0.1})`;
+      ctx.fillRect(x, y, 1 + random() * 12, 0.5 + random() * 2);
+    }
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  textures.set(key, texture);
+  return texture;
+}
+
+function finishMap(finish: Finish, across = false): THREE.CanvasTexture | null {
+  return finish.wood ? woodTexture(finish.color, across) : finish.texture ? stoneTexture(finish) : null;
 }
 
 /** The shared materials for one style. Callers should dispose them when the style changes. */
@@ -71,16 +120,17 @@ export function createMaterials(style: KitchenStyle): KitchenMaterials {
   const front = FRONT_FINISHES[style.front];
   const worktop = WORKTOP_FINISHES[style.worktop];
   const handle = HANDLE_STYLES[style.handles];
+  const backsplash = BACKSPLASH_FINISHES[style.backsplash ?? 'none'];
   return {
     carcass: new THREE.MeshStandardMaterial({ color: '#f3f2ee', roughness: 0.85 }),
     front: new THREE.MeshStandardMaterial({
       color: front.wood ? '#ffffff' : front.color,
-      map: front.wood ? woodTexture(front.color, false) : null,
+      map: finishMap(front),
       roughness: front.wood ? 0.7 : 0.55,
     }),
     worktop: new THREE.MeshStandardMaterial({
-      color: worktop.wood ? '#ffffff' : worktop.color,
-      map: worktop.wood ? woodTexture(worktop.color, true) : null,
+      color: worktop.wood || worktop.texture ? '#ffffff' : worktop.color,
+      map: finishMap(worktop, true),
       roughness: style.worktop === 'black' ? 0.35 : 0.6,
     }),
     handle: handle.color
@@ -90,6 +140,14 @@ export function createMaterials(style: KitchenStyle): KitchenMaterials {
     glass: new THREE.MeshStandardMaterial({ color: '#141518', metalness: 0.2, roughness: 0.15 }),
     appliance: new THREE.MeshStandardMaterial({ color: '#f4f5f6', metalness: 0.15, roughness: 0.4 }),
     dark: new THREE.MeshStandardMaterial({ color: '#4a4c50', roughness: 0.6 }),
+    displayGlass: new THREE.MeshPhysicalMaterial({ color: '#e3ece5', transparent: true, opacity: 0.23, roughness: 0.08, metalness: 0.08, depthWrite: false, side: THREE.DoubleSide }),
+    light: new THREE.MeshStandardMaterial({ color: '#ffe2ad', emissive: '#ffcb83', emissiveIntensity: 2, toneMapped: false }),
+    ceramic: new THREE.MeshStandardMaterial({ color: '#e4d7c3', roughness: 0.48 }),
+    foliage: new THREE.MeshStandardMaterial({ color: '#63734b', roughness: 0.9 }),
+    pot: new THREE.MeshStandardMaterial({ color: '#a66f51', roughness: 0.82 }),
+    backsplash: style.backsplash && style.backsplash !== 'none'
+      ? new THREE.MeshStandardMaterial({ color: backsplash.texture ? '#ffffff' : backsplash.color, map: finishMap(backsplash), roughness: 0.55 })
+      : null,
   };
 }
 

@@ -9,7 +9,7 @@ import { ConstructionDialog } from '../construction/ConstructionDialog';
 import { CuttingListView } from '../cutting/CuttingListView';
 import { LibrarySections } from '../library/LibraryPanel';
 import { DeleteButton, DuplicateButton, ItemFields, ItemHeader, RotateButtons } from '../properties/ItemPanel';
-import { RoomPanel } from '../properties/RoomPanel';
+import { RoomDialog } from '../properties/RoomDialog';
 import { Button, Dialog } from '../ui';
 import { View3D } from '../three/View3D';
 import { LayoutDialog } from '../layouts/LayoutDialog';
@@ -52,16 +52,18 @@ function ItemSheet({ item }: { item: KitchenItem }) {
 export function CompactLayout() {
   const t = useT();
   const view = useUiStore((s) => s.view);
+  const layoutsOpen = useUiStore((s) => s.layoutsOpen);
+  const roomOpen = useUiStore((s) => s.roomOpen);
   const selectedId = useUiStore((s) => s.selectedId);
   const item = useDesignStore((s) => (selectedId ? s.design.items.find((i) => i.id === selectedId) : undefined));
-  const [sheet, setSheet] = useState<'add' | 'room' | null>(null);
+  const [sheet, setSheet] = useState<'add' | null>(null);
 
   const designing = view !== 'list';
 
   // Leaving the plan and 3D views closes anything that belongs to them.
   useEffect(() => {
-    if (view === 'list') setSheet(null);
-  }, [view]);
+    if (view === 'list' || layoutsOpen || roomOpen) setSheet(null);
+  }, [view, layoutsOpen, roomOpen]);
 
   return (
     <div className="flex h-dvh select-none flex-col bg-white text-zinc-900">
@@ -76,7 +78,7 @@ export function CompactLayout() {
               <Plus className="size-4" />
               {t.phone.addElement}
             </Button>
-            <Button variant="outline" className="pointer-events-auto h-11 rounded-full px-4 text-sm shadow-lg" onClick={() => setSheet('room')}>
+            <Button variant="outline" className="pointer-events-auto h-11 rounded-full px-4 text-sm shadow-lg" onClick={() => useUiStore.getState().setRoomOpen(true)}>
               <Ruler className="size-4" />
               {t.phone.room}
             </Button>
@@ -91,11 +93,12 @@ export function CompactLayout() {
           <LibrarySections wide onAdded={() => setSheet(null)} />
         </div>
       </Dialog>
-      <Dialog open={sheet === 'room'} title={t.phone.room} sheet onClose={() => setSheet(null)}>
-        <div className="pb-[env(safe-area-inset-bottom)]">
-          <RoomPanel touch />
-        </div>
-      </Dialog>
+      <RoomDialog onDone={() => {
+        if (useDesignStore.getState().design.items.length === 0) {
+          useUiStore.getState().setView('plan');
+          setSheet('add');
+        }
+      }} />
       <ConstructionDialog />
       <LayoutDialog />
       <ProjectsDialog />

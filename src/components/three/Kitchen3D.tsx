@@ -2,7 +2,8 @@ import { OrbitControls } from '@react-three/drei';
 import { Canvas, useThree } from '@react-three/fiber';
 import { Palette, RotateCcw, X } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type RefObject } from 'react';
-import { backWall, WALLS } from '../../domain/geometry';
+import { backWall, isWallMounted, WALLS } from '../../domain/geometry';
+import { KIND_OPTIONS } from '../../engine/config';
 import type { KitchenItem, Room, Wall } from '../../domain/types';
 import { useT } from '../../i18n';
 import { useDesignStore } from '../../store/designStore';
@@ -86,6 +87,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
   const [resetToken, setResetToken] = useState(0);
 
   const materials = useMemo(() => createMaterials(style), [style]);
+  const litUnits = useMemo(() => new Set(items.filter((item) => isWallMounted(item) && KIND_OPTIONS[item.kind].carcass).slice(0, 3).map((item) => item.id)), [items]);
   useEffect(() => () => disposeMaterials(materials), [materials]);
 
   const select = useCallback((id: string) => useUiStore.getState().select(id), []);
@@ -101,8 +103,9 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
         }}
       >
         <color attach="background" args={['#ebe8e3']} />
-        <hemisphereLight args={['#ffffff', '#cbc2b4', 0.9]} />
+        <hemisphereLight args={[style.lighting ? '#fff6e8' : '#ffffff', '#cbc2b4', style.lighting ? 1.15 : 0.9]} />
         <ambientLight intensity={0.25} />
+        {style.lighting && <directionalLight position={[-3, 4, 1]} color="#fff4e2" intensity={0.45} />}
         <directionalLight
           position={[m(room.width) / 2 + 2.5, 5.5, m(room.depth) + 3]}
           intensity={1.7}
@@ -115,7 +118,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
           shadow-camera-bottom={-8}
           shadow-bias={-0.0004}
         />
-        <Room3D room={room} openings={openings} />
+        <Room3D room={room} openings={openings} items={items} materials={materials} />
         {items.map((item) => (
           <Unit3D
             key={item.id}
@@ -124,6 +127,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
             materials={materials}
             selected={item.id === selectedId}
             onSelect={select}
+            accentLight={litUnits.has(item.id)}
           />
         ))}
         <OrbitControls
@@ -144,7 +148,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
             {text.style.style}
           </Button>
         ) : styleOpen ? (
-          <div className="w-64 rounded-xl border border-zinc-200 bg-white/95 p-3 shadow-lg backdrop-blur">
+          <div className="max-h-[calc(100dvh-120px)] w-64 overflow-y-auto rounded-xl border border-zinc-200 bg-white/95 p-3 shadow-lg backdrop-blur">
             <div className="mb-3 flex items-center justify-between">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">{text.style.style}</span>
               <Button aria-label={text.style.hide} className="-my-1 -mr-1 h-6 min-w-6 px-1" onClick={() => setStyleOpen(false)}>

@@ -31,7 +31,10 @@ export type PartName =
   | 'dishwasherFront'
   | 'fillerPanel'
   | 'panel'
-  | 'endPanel';
+  | 'endPanel'
+  | 'glassDoor'
+  | 'pullOutFront'
+  | 'barTop';
 
 /** A remark on a piece, as data. */
 export type PartNote =
@@ -40,7 +43,9 @@ export type PartNote =
   | { kind: 'woodenDrawer'; slide: number }
   | { kind: 'lShaped'; a: number; b: number }
   | { kind: 'cornerBack'; wall: 'A' | 'B' }
-  | { kind: 'cornerDoor'; wall: 'A' | 'B' };
+  | { kind: 'cornerDoor'; wall: 'A' | 'B' }
+  | { kind: 'glassBlank' }
+  | { kind: 'barBlank' };
 
 /** A fitting to buy, as data. */
 export type HardwareItem =
@@ -51,7 +56,11 @@ export type HardwareItem =
   | { kind: 'handle'; style: HandleStyle }
   | { kind: 'shelfPin' }
   | { kind: 'hangers' }
-  | { kind: 'leg'; height: number };
+  | { kind: 'leg'; height: number }
+  | { kind: 'glassHinge' }
+  | { kind: 'pullOut'; width: number }
+  | { kind: 'barLeg'; height: number }
+  | { kind: 'appliance'; appliance: 'oven' | 'fridge' | 'hob' | 'hood' | 'dishwasher'; width: number };
 
 /** The checks' messages. Units are given by their codes. */
 export interface CheckLabels {
@@ -73,6 +82,8 @@ export interface CheckLabels {
   blocksDoor: (unit: string, wall: Wall) => string;
   coversWindow: (unit: string, wall: Wall) => string;
   windowBelowWorktop: (wall: Wall, sill: number, unit: string, top: number) => string;
+  specialistModule: (unit: string) => string;
+  glassSupplier: (unit: string) => string;
 }
 
 /** Everything the engine says, in one language. */
@@ -100,7 +111,8 @@ export interface EngineLabels {
   checks: CheckLabels;
 }
 
-const HANDLES: Record<HandleStyle, string> = { steel: 'steel bar', black: 'black bar', brass: 'brass bar', none: 'no handles' };
+const HANDLES: Record<HandleStyle, string> = { steel: 'steel bar', black: 'black bar', brass: 'brass bar', none: 'no handles', bronze: 'bronze bar', copper: 'copper bar' };
+const APPLIANCES = { oven: 'Built-in oven', fridge: 'Refrigerator', hob: 'Hob', hood: 'Extractor hood', dishwasher: 'Dishwasher' };
 const wall = (w: Wall) => `${w} wall`;
 
 export const EN_LABELS: EngineLabels = {
@@ -126,6 +138,9 @@ export const EN_LABELS: EngineLabels = {
     fillerPanel: 'Filler panel',
     panel: 'Panel',
     endPanel: 'End panel',
+    glassDoor: 'Glass door blank',
+    pullOutFront: 'Pull-out front',
+    barTop: 'Breakfast bar top',
   },
   note: (note) => {
     switch (note.kind) {
@@ -141,6 +156,10 @@ export const EN_LABELS: EngineLabels = {
         return `Corner unit, wall ${note.wall}`;
       case 'cornerDoor':
         return `Corner door, wall ${note.wall}`;
+      case 'glassBlank':
+        return 'Supplier to confirm safety glass, polished edges, hinge drilling and clearances';
+      case 'barBlank':
+        return 'Confirm finished edges, supports and fixings before ordering';
     }
   },
   hardware: (item) => {
@@ -161,6 +180,14 @@ export const EN_LABELS: EngineLabels = {
         return 'Wall cabinet hangers (pair)';
       case 'leg':
         return `Adjustable leg, ${item.height} mm`;
+      case 'glassHinge':
+        return 'Glass door hinge / clamp (confirm glass specification)';
+      case 'pullOut':
+        return `Pull-out basket and runner system, ${item.width} mm cabinet (confirm model)`;
+      case 'barLeg':
+        return `Bar support leg with mounting plate, ${formatMm(item.height)} mm`;
+      case 'appliance':
+        return `${APPLIANCES[item.appliance]}, ${item.width} mm unit (confirm model)`;
     }
   },
   material: (material) => material.name,
@@ -177,6 +204,8 @@ export const EN_LABELS: EngineLabels = {
     overlap: (a, b) => `${a} and ${b} overlap.`,
     outside: (unit) => `${unit} sticks out of the room.`,
     ceiling: (unit, top, ceiling) => `${unit} reaches ${top} mm, above the ${ceiling} mm ceiling.`,
+    specialistModule: (unit) => `${unit}: confirm the chosen appliance/system's niche, ventilation, load capacity, fixings and clearances with its manufacturer before production.`,
+    glassSupplier: (unit) => `${unit}: glass sizes are blanks; ask the glazing supplier to confirm safety glass, polished edges, hinge holes and operating clearances.`,
     gap: (gap, a, b, w) =>
       `A ${gap} mm gap between ${b === null ? `${a} and the corner` : `${a} and ${b}`} on the ${wall(w)}: close it, or fill it with a filler panel.`,
     lowWallUnit: (unit, clearance) => `${unit} hangs only ${clearance} mm above the worktop below it; 500–650 mm is usual.`,

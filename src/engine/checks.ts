@@ -1,4 +1,4 @@
-import { WORKTOP_THICKNESS } from '../domain/catalog';
+import { WORKTOP_KINDS, WORKTOP_THICKNESS } from '../domain/catalog';
 import {
   footprintRects,
   footprintsOverlap,
@@ -40,8 +40,6 @@ const MIN_DOOR_HEIGHT = 100;
 export const MIN_WORKTOP_CLEARANCE = 450;
 /** Drawer slides need at least this much depth inside a unit. */
 const MIN_SLIDE_DEPTH = 260;
-
-const WORKTOP_KINDS = new Set<KitchenItem['kind']>(['base', 'sink', 'oven', 'drawer', 'dishwasher', 'filler', 'corner']);
 
 /** Top of a floor unit, including its worktop. */
 function workingTop(item: KitchenItem): number {
@@ -118,6 +116,10 @@ export function checkDesign(design: Design, labels: EngineLabels = EN_LABELS): I
     const options = KIND_OPTIONS[item.kind];
     const config = resolveConfig(item, ctx);
     const fronts = frontLayout(item, config, ctx.settings);
+    if (['ovenTower', 'integratedFridge', 'hood', 'hob', 'pullOut', 'bar'].includes(item.kind)) {
+      add('warning', `manufacturer-${item.id}`, say.specialistModule(item.label), [item.id]);
+    }
+    if (item.kind === 'glassWall') add('warning', `glass-${item.id}`, say.glassSupplier(item.label), [item.id]);
 
     // Wall units too close to the worktop under them.
     if (isWallMounted(item)) {
@@ -174,8 +176,8 @@ export function checkDesign(design: Design, labels: EngineLabels = EN_LABELS): I
   }
 
   // A fridge right next to an oven gets warm.
-  for (const fridge of items.filter((i) => i.kind === 'fridge')) {
-    for (const oven of items.filter((i) => i.kind === 'oven')) {
+  for (const fridge of items.filter((i) => i.kind === 'fridge' || i.kind === 'integratedFridge')) {
+    for (const oven of items.filter((i) => i.kind === 'oven' || i.kind === 'ovenTower')) {
       const grown = { ...itemRect(fridge), x: itemRect(fridge).x - 1, y: itemRect(fridge).y - 1, w: itemRect(fridge).w + 2, h: itemRect(fridge).h + 2 };
       if (footprintRects(oven).some((r) => rectsOverlap(grown, r, 0))) {
         add('warning', `fridge-${fridge.id}-${oven.id}`, say.fridgeByOven(fridge.label, oven.label), [fridge.id, oven.id]);

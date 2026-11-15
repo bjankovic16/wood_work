@@ -1,4 +1,4 @@
-import { FRONT_FINISHES, HANDLE_STYLES, WORKTOP_FINISHES, type Finish } from '../../domain/style';
+import { BACKSPLASH_FINISHES, FRONT_FINISHES, HANDLE_STYLES, WORKTOP_FINISHES, type Finish } from '../../domain/style';
 import { useT } from '../../i18n';
 import { cn } from '../../lib/cn';
 import { setStyle } from '../../store/actions';
@@ -8,7 +8,9 @@ function swatchBackground(finish: Finish): string {
   // Wood finishes get a streaky gradient to hint at the grain.
   return finish.wood
     ? `repeating-linear-gradient(100deg, ${finish.color} 0 5px, color-mix(in srgb, ${finish.color} 82%, #3b2410) 5px 7px)`
-    : finish.color;
+    : finish.texture
+      ? `repeating-linear-gradient(${finish.texture === 'marble' ? '135deg' : '0deg'}, ${finish.color} 0 8px, color-mix(in srgb, ${finish.color} 80%, #8b7967) 8px 9px)`
+      : finish.color;
 }
 
 function Swatches<K extends string>({
@@ -40,7 +42,7 @@ function Swatches<K extends string>({
             aria-pressed={key === value}
             onClick={() => onChange(key)}
             className={cn(
-              'size-7 touch-manipulation rounded-full border border-black/10 shadow-inner transition',
+              'size-8 touch-manipulation rounded-full border border-black/10 shadow-inner transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 motion-reduce:transform-none',
               key === value ? 'ring-2 ring-blue-600 ring-offset-2' : 'hover:scale-110',
             )}
             style={{ background: swatchBackground(options[key]) }}
@@ -87,6 +89,24 @@ export function StylePicker() {
             </button>
           ))}
         </div>
+      </div>
+      <Swatches
+        label={t.style.backsplash}
+        options={BACKSPLASH_FINISHES}
+        names={t.style.backsplashFinishes}
+        value={style.backsplash ?? 'none'}
+        onChange={(backsplash) => setStyle({ backsplash })}
+      />
+      <div className="space-y-3 border-t border-zinc-100 pt-3">
+        <label className="flex cursor-pointer items-start gap-2 text-xs leading-relaxed text-zinc-700">
+          <input type="checkbox" className="mt-0.5 size-4 accent-blue-600" checked={style.lighting ?? false} onChange={(event) => setStyle({ lighting: event.target.checked })} />
+          {t.style.lighting}
+        </label>
+        <label className="flex cursor-pointer items-start gap-2 text-xs leading-relaxed text-zinc-700">
+          <input type="checkbox" className="mt-0.5 size-4 accent-blue-600" checked={style.decor ?? false} onChange={(event) => setStyle({ decor: event.target.checked })} />
+          {t.style.decor}
+        </label>
+        <p className="text-[11px] leading-relaxed text-zinc-600">{t.style.previewNote}</p>
       </div>
     </div>
   );

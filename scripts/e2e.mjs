@@ -66,7 +66,9 @@ async function drag(from, to, { steps = 12, beforeRelease } = {}) {
 }
 
 async function dragPreset(presetId, to, options) {
-  const box = await page.locator(`[data-preset="${presetId}"]`).boundingBox();
+  const preset = page.locator(`[data-preset="${presetId}"]`);
+  await preset.evaluate((element) => element.scrollIntoView({ block: 'center', inline: 'nearest' }));
+  const box = await preset.boundingBox();
   await drag({ x: box.x + box.width / 2, y: box.y + box.height / 2 }, to, options);
 }
 
@@ -80,7 +82,7 @@ try {
   await shot('00-empty-sr.png');
 
   console.log('Serbian by default');
-  const startFromLayoutSr = page.getByRole('button', { name: 'Ili počnite od gotovog rasporeda' });
+  const startFromLayoutSr = page.getByRole('button', { name: 'Izaberite kuhinju' });
   check(
     'the app starts in Serbian',
     (await page.evaluate(() => document.documentElement.lang)) === 'sr-Latn' && (await startFromLayoutSr.isVisible()),
@@ -88,6 +90,7 @@ try {
   );
   check('the first project has a Serbian name', (await design()).name === 'Moja kuhinja', (await design()).name);
   await startFromLayoutSr.click();
+  await page.getByRole('radio', { name: 'Moj raspored' }).click();
   await page.getByRole('button', { name: /^L-oblik/ }).click();
   const serbianCodes = (await design()).items.map((i) => i.label);
   check('new units get Serbian codes', serbianCodes.includes('U1') && serbianCodes.includes('D1') && !serbianCodes.some((code) => /^(B|W|C)\d/.test(code)), serbianCodes);
@@ -111,12 +114,151 @@ try {
   await page.getByLabel('Jezik / Language').selectOption('en');
   check(
     'the language can be switched to English',
-    (await page.evaluate(() => document.documentElement.lang)) === 'en' && (await page.getByRole('button', { name: 'Or start from a ready-made layout' }).isVisible()),
+    (await page.evaluate(() => document.documentElement.lang)) === 'en' && (await page.getByRole('button', { name: 'Choose a kitchen' }).isVisible()),
   );
   await shot('01-empty.png');
 
+  console.log('Kitchen inspiration gallery');
+  await page.getByRole('button', { name: 'Choose a kitchen' }).click();
+  const gallery = page.getByRole('dialog', { name: 'Kitchen designs' });
+  const kitchenCards = gallery.locator('[data-kitchen-design]');
+  check('the gallery offers exactly 20 kitchen images', (await kitchenCards.count()) === 20 && (await kitchenCards.locator('img').count()) === 20);
+  await gallery.locator('summary').click();
+  check('the replacement notice explains all changes before opening a kitchen', await gallery.locator('details p').isVisible());
+  await gallery.locator('summary').click();
+  await gallery.getByRole('button', { name: 'With an island', exact: true }).click();
+  check('the island filter shows three kitchens', (await kitchenCards.count()) === 3);
+  await gallery.getByRole('button', { name: 'All designs', exact: true }).click();
+  await gallery.locator('img').first().waitFor();
+  await page.waitForFunction(() => document.querySelector('[data-kitchen-design] img')?.naturalWidth === 900);
+  await shot('01c-kitchen-gallery.png');
+  const kitchenPresets = await page.evaluate(async () => {
+    const { KITCHEN_DESIGNS, createKitchenDesign } = await import('/src/domain/kitchens.ts');
+    return KITCHEN_DESIGNS.map((preset) => ({ id: preset.id, design: createKitchenDesign(preset, 'Preview') }));
+  });
+  const kitchenSnapshot = (design) => ({
+    ...design,
+    name: undefined,
+    items: design.items.map(({ id, ...item }) => item),
+  });
+  for (const [index, preset] of kitchenPresets.entries()) {
+    if (index > 0) await page.getByRole('button', { name: 'Kitchen designs', exact: true }).first().click();
+    const card = gallery.locator(`[data-kitchen-design="${preset.id}"]`);
+    await card.scrollIntoViewIfNeeded();
+    await page.waitForFunction((id) => document.querySelector(`[data-kitchen-design="${id}"] img`)?.naturalWidth === 900, preset.id);
+    if (index === 0) {
+      await card.focus();
+      await page.keyboard.press('Enter');
+    } else {
+      await card.click();
+    }
+    const loaded = await design();
+    check(
+      `${preset.id}: clicking the image loads exactly its room, units, finishes and construction`,
+      sortedJson(kitchenSnapshot(loaded)) === sortedJson(kitchenSnapshot(preset.design)),
+      { room: loaded.room, style: loaded.style, units: loaded.items.length },
+    );
+    check(`${preset.id}: the gallery closes and opens 3D`, !(await gallery.isVisible()) && (await page.getByRole('radio', { name: /^3D/ }).getAttribute('aria-checked')) === 'true');
+  }
+  await page.locator('main canvas').waitFor();
+  await page.waitForTimeout(500);
+  await shot('01d-gallery-kitchen-loaded.png');
+  for (let index = 0; index < kitchenPresets.length; index++) await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  check('every gallery selection is one undo step', (await design()).items.length === 0 && (await design()).room.width === 3600);
+  await page.getByRole('radio', { name: /^Plan/ }).click();
+
+  console.log('Premium library and finishes');
+  const premiumContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const premiumPage = await premiumContext.newPage();
+  premiumPage.on('pageerror', (error) => problems.push(`premium page error: ${error.message}`));
+  premiumPage.on('console', (message) => {
+    if ((message.type() === 'error' || message.type() === 'warning') && !isNoise(message.text())) problems.push(`premium ${message.type()}: ${message.text()}`);
+  });
+  await premiumPage.goto(url);
+  await premiumPage.waitForSelector('canvas');
+  await premiumPage.getByLabel('Jezik / Language').selectOption('en');
+  const premiumDesign = () => premiumPage.evaluate(() => window.__kitchen.design.getState().design);
+  check('blank kitchens offer a clear optional starting point', await premiumPage.getByRole('heading', { name: 'Start your kitchen' }).isVisible());
+  check('specialist modules start collapsed without being removed', (await premiumPage.getByRole('button', { name: 'Storage & display', exact: true }).getAttribute('aria-expanded')) === 'false');
+  await premiumPage.getByRole('button', { name: 'Start with my room' }).click();
+  const roomSetup = premiumPage.getByRole('dialog', { name: 'Set up your room' });
+  await roomSetup.getByLabel('Width', { exact: true }).fill('4200');
+  await roomSetup.getByLabel('Width', { exact: true }).press('Enter');
+  await roomSetup.getByLabel('Depth', { exact: true }).fill('3200');
+  await roomSetup.getByLabel('Depth', { exact: true }).press('Enter');
+  await premiumPage.screenshot({ path: path.join(shotsDir, 'usability-room-setup-desktop.png') });
+  await roomSetup.getByRole('button', { name: 'Add kitchen parts', exact: true }).click();
+  const partSearch = premiumPage.getByRole('searchbox', { name: 'Search kitchen parts' });
+  await premiumPage.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Search kitchen parts');
+  check('room setup edits the real room and focuses the next useful action', (await premiumDesign()).room.width === 4200 && (await premiumDesign()).room.depth === 3200 && !(await roomSetup.isVisible()));
+  await partSearch.fill('drawers 900');
+  check('parts can be found by a common name and width', (await premiumPage.locator('[data-preset]').count()) === 1 && (await premiumPage.locator('[data-preset="drawer-900"]').isVisible()));
+  await premiumPage.screenshot({ path: path.join(shotsDir, 'usability-part-search-desktop.png') });
+  await premiumPage.getByLabel('Part category').selectOption('appliances');
+  check('empty searches explain how to recover', await premiumPage.getByRole('button', { name: 'Show all parts' }).isVisible());
+  await premiumPage.getByRole('button', { name: 'Show all parts' }).click();
+  check('resetting the search clears both the query and category', (await partSearch.inputValue()) === '' && (await premiumPage.getByLabel('Part category').inputValue()) === 'all');
+  await partSearch.fill('glassWall-600');
+  await premiumPage.locator('[data-preset="glassWall-600"]').click();
+  await partSearch.fill('');
+  await partSearch.press('Backspace');
+  check('typing in part search does not delete the selected cabinet', (await premiumDesign()).items.length === 1 && (await premiumDesign()).items[0].kind === 'glassWall');
+  await premiumPage.getByRole('button', { name: 'Undo', exact: true }).click();
+  check('the optional start guide stays dismissed while editing this project', !(await premiumPage.getByRole('heading', { name: 'Start your kitchen' }).isVisible()));
+  const modules = await premiumPage.evaluate(async () => {
+    const { LIBRARY, itemFromPreset } = await import('/src/domain/catalog.ts');
+    return LIBRARY.filter((section) => ['storage', 'appliances', 'islands'].includes(section.id))
+      .flatMap((section) => section.presets.map((preset) => ({ id: preset.id, placement: preset.placement, item: itemFromPreset(preset, []) })));
+  });
+  check('the library adds 22 premium module choices', modules.length === 22, modules.length);
+  for (const module of modules) {
+    await partSearch.fill(module.id);
+    await premiumPage.locator(`[data-preset="${module.id}"]`).click();
+    const current = await premiumDesign();
+    const added = current.items[0];
+    const fields = ['kind', 'width', 'depth', 'height', 'elevation', 'doors', 'drawers', 'shelves', 'drawerLayout', 'carcassMaterial', 'frontMaterial'];
+    const shape = (item) => Object.fromEntries(fields.map((key) => [key, item[key]]));
+    check(`${module.id}: the library creates the configured module`, current.items.length === 1 && sortedJson(shape(added)) === sortedJson(shape(module.item)), added);
+    if (module.placement === 'centre') {
+      check(`${module.id}: starts in the room centre`, added.x === (current.room.width - added.width) / 2 && added.y === (current.room.depth - added.depth) / 2, added);
+    }
+    await premiumPage.getByRole('button', { name: 'Undo', exact: true }).click();
+  }
+  await partSearch.fill('');
+  await premiumPage.getByRole('button', { name: 'Kitchen designs', exact: true }).first().click();
+  await premiumPage.locator('[data-kitchen-design="oak-island"]').click();
+  await premiumPage.getByRole('button', { name: 'Fronts: Terracotta', exact: true }).click();
+  await premiumPage.getByRole('button', { name: 'Worktop: Warm marble', exact: true }).click();
+  await premiumPage.getByRole('button', { name: 'Copper bar', exact: true }).click();
+  await premiumPage.getByRole('button', { name: 'Backsplash: Warm marble', exact: true }).click();
+  await premiumPage.getByRole('checkbox', { name: 'Warm under-cabinet lighting' }).uncheck();
+  check('under-cabinet lighting is an editable setting', (await premiumDesign()).style.lighting === false);
+  await premiumPage.getByRole('checkbox', { name: 'Warm under-cabinet lighting' }).check();
+  await premiumPage.getByRole('checkbox', { name: 'Style shelves with accessories' }).uncheck();
+  check('shelf accessories can be switched off', (await premiumDesign()).style.decor === false);
+  await premiumPage.getByRole('checkbox', { name: 'Style shelves with accessories' }).check();
+  const savedPremium = await premiumDesign();
+  check(
+    'all premium finish controls update the real kitchen',
+    sortedJson(savedPremium.style) === sortedJson({ front: 'clay', worktop: 'marble', handles: 'copper', backsplash: 'marble', lighting: true, decor: true }),
+    savedPremium.style,
+  );
+  await premiumPage.screenshot({ path: path.join(shotsDir, 'premium-finishes-and-parts.png') });
+  await premiumPage.waitForTimeout(500);
+  await premiumPage.reload();
+  await premiumPage.waitForSelector('canvas');
+  check('all new modules, materials and premium finishes survive a reload', sortedJson(await premiumDesign()) === sortedJson(savedPremium));
+  await premiumPage.getByRole('button', { name: 'Projects', exact: true }).click();
+  await premiumPage.getByRole('dialog', { name: 'Projects' }).getByRole('button', { name: 'New project', exact: true }).click();
+  await premiumPage.keyboard.press('Escape');
+  check('new projects get their own starting guide', await premiumPage.getByRole('heading', { name: 'Start your kitchen' }).isVisible());
+  await premiumPage.getByRole('button', { name: 'Use the blank plan', exact: true }).click();
+  check('experienced users can dismiss the guide and work directly', !(await premiumPage.getByRole('heading', { name: 'Start your kitchen' }).isVisible()));
+  await premiumContext.close();
+
   console.log('Ready-made layouts');
-  await page.getByRole('button', { name: 'Or start from a ready-made layout' }).click();
+  await page.getByRole('button', { name: 'Choose a kitchen' }).click();
+  await page.getByRole('radio', { name: 'My room layout' }).click();
   await page.getByRole('button', { name: /^L-shaped/ }).click();
   const laid = await design();
   check(
@@ -588,7 +730,7 @@ try {
   await projectsDialog.getByRole('button', { name: 'New project' }).click();
   check(
     'a new project starts empty and offers the ready-made layouts',
-    (await design()).items.length === 0 && (await design()).name === 'Kitchen 1' && (await page.getByRole('dialog', { name: 'Ready-made layouts' }).isVisible()),
+    (await design()).items.length === 0 && (await design()).name === 'Kitchen 1' && (await page.getByRole('dialog', { name: 'Kitchen designs' }).isVisible()),
     (await design()).name,
   );
   await page.keyboard.press('Escape');
@@ -710,13 +852,30 @@ try {
   await mobile.evaluate(() => document.fonts.ready);
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-01-empty-sr.png') });
   check('the phone starts in Serbian too', await mobile.getByRole('button', { name: 'Dodaj element' }).isVisible());
+  await mobile.setViewportSize({ width: 320, height: 568 });
+  const narrowStartFits = await mobile.getByRole('region', { name: 'Započnite svoju kuhinju' }).evaluate((guide) => {
+    const rect = guide.getBoundingClientRect();
+    const main = document.querySelector('main').getBoundingClientRect();
+    return rect.left >= 0 && rect.right <= innerWidth && rect.top >= main.top + 44 && rect.bottom <= innerHeight - 70;
+  });
+  check('the optional starting choices fit on a 320 px phone without hiding editing controls', narrowStartFits);
+  const filterBounds = await mobile.getByRole('group', { name: 'Prikaz elemenata' }).boundingBox();
+  const zoomBounds = await mobile.getByRole('group', { name: 'Uvećanje osnove' }).boundingBox();
+  check('plan filters and zoom controls do not overlap at 320 px', filterBounds.x >= 0 && filterBounds.x + filterBounds.width + 4 <= zoomBounds.x && zoomBounds.x + zoomBounds.width <= 320, { filterBounds, zoomBounds });
+  await mobile.screenshot({ path: path.join(shotsDir, 'usability-start-phone-narrow.png') });
+  await mobile.setViewportSize({ width: 390, height: 844 });
   await mobile.getByRole('button', { name: 'Više' }).tap();
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-00-menu-sr.png') });
   await mobile.getByRole('radio', { name: 'English' }).tap();
   await mobile.getByRole('button', { name: 'More' }).tap();
   check('the phone layout shows the plan with an "Add element" button', await mobile.getByRole('button', { name: 'Add element' }).isVisible());
-
-  await mobile.getByRole('button', { name: 'Add element' }).tap();
+  check('the phone keeps the project name and navigation labels visible', (await mobile.getByLabel('Project name').isVisible()) && (await mobile.getByRole('radio', { name: 'Plan', exact: true }).getByText('Plan', { exact: true }).isVisible()) && (await mobile.getByRole('radio', { name: 'Cutting list', exact: true }).getByText('Cut list', { exact: true }).isVisible()));
+  await mobile.getByRole('button', { name: 'Start with my room', exact: true }).tap();
+  const phoneRoomSetup = mobile.getByRole('dialog', { name: 'Set up your room' });
+  await mobile.screenshot({ path: path.join(shotsDir, 'usability-room-setup-phone.png') });
+  await phoneRoomSetup.getByRole('button', { name: 'Add kitchen parts', exact: true }).tap();
+  check('room setup leads straight to the part picker on phones', await mobile.getByRole('dialog', { name: 'Add element', exact: true }).isVisible());
+  await mobile.getByRole('searchbox', { name: 'Search kitchen parts' }).fill('600');
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-02-add.png') });
   await mobile.locator('[data-preset="base-600"]').tap();
   check('tapping an element adds it and closes the panel', (await mobileDesign()).items.length === 1 && !(await mobile.getByRole('dialog').isVisible()));
@@ -746,7 +905,7 @@ try {
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-03-edit.png') });
   await mobile.getByRole('button', { name: 'Less' }).tap();
 
-  await mobile.getByRole('radio', { name: /List/ }).tap();
+  await mobile.getByRole('radio', { name: 'Cutting list', exact: true }).tap();
   check('the cutting list opens on the phone', await mobile.locator('table').first().isVisible());
   check('…with its Export menu and extra pieces', (await mobile.getByRole('button', { name: 'Export the cutting list' }).isVisible()) && (await mobile.getByRole('button', { name: 'Add piece' }).isVisible()));
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-04-list.png') });
@@ -762,12 +921,49 @@ try {
 
   await mobile.getByRole('button', { name: 'Deselect' }).tap();
   await mobile.getByRole('button', { name: 'Room' }).tap();
-  await mobile.getByRole('button', { name: 'Ready-made layouts' }).tap();
+  await mobile.getByRole('button', { name: 'Kitchen designs', exact: true }).tap();
+  await mobile.getByRole('radio', { name: 'My room layout' }).tap();
   await mobile.getByRole('button', { name: /^U-shaped/ }).tap();
   check('a ready-made U-shaped kitchen can be chosen on the phone', (await mobileDesign()).items.filter((i) => i.kind === 'corner').length === 2);
-  await mobile.getByRole('button', { name: 'Close' }).tap();
   await mobile.waitForTimeout(2000);
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-06-u-3d.png') });
+
+  await mobile.getByRole('button', { name: 'More' }).tap();
+  await mobile.getByRole('button', { name: 'Kitchen designs', exact: true }).tap();
+  const phoneGallery = mobile.getByRole('dialog', { name: 'Kitchen designs' });
+  check('all twenty inspiration kitchens are available on the phone', (await phoneGallery.locator('[data-kitchen-design]').count()) === 20);
+  await mobile.setViewportSize({ width: 320, height: 568 });
+  await mobile.evaluate(() => window.__kitchen.ui.getState().setLanguage('sr'));
+  await mobile.getByRole('dialog', { name: 'Ideje za kuhinju' }).waitFor();
+  const narrowOverflow = await mobile.getByRole('dialog').evaluate((dialog) =>
+    [...dialog.querySelectorAll('button, [role="radiogroup"], p, summary')]
+      .filter((element) => element.scrollWidth > element.clientWidth + 1)
+      .map((element) => element.textContent),
+  );
+  check('the gallery fits a 320 px phone in Serbian without clipped controls or text', narrowOverflow.length === 0, narrowOverflow);
+  const headerFits = () => mobile.locator('header').evaluate((header) => {
+    const bounds = header.getBoundingClientRect();
+    const buttons = [...header.querySelectorAll('button')].map((button) => button.getBoundingClientRect()).filter((rect) => rect.width > 0 && rect.height > 0);
+    return header.scrollWidth <= header.clientWidth + 1 &&
+      buttons.every((rect, index) => rect.left >= bounds.left - 1 && rect.right <= bounds.right + 1 && rect.bottom <= bounds.bottom + 1 &&
+        buttons.slice(index + 1).every((other) => Math.min(rect.right, other.right) - Math.max(rect.left, other.left) <= 1 || Math.min(rect.bottom, other.bottom) - Math.max(rect.top, other.top) <= 1));
+  });
+  check('all phone toolbar controls fit at 320 px', await headerFits());
+  await mobile.screenshot({ path: path.join(shotsDir, 'phone-06a-kitchen-gallery-sr-narrow.png') });
+  await mobile.setViewportSize({ width: 390, height: 844 });
+  check('the Serbian toolbar also fits a 390 px phone', await headerFits());
+  await mobile.evaluate(() => window.__kitchen.ui.getState().setLanguage('en'));
+  await mobile.waitForFunction(() => document.querySelector('[data-kitchen-design] img')?.naturalWidth === 900);
+  await mobile.screenshot({ path: path.join(shotsDir, 'phone-06b-kitchen-gallery.png') });
+  await phoneGallery.getByRole('button', { name: 'With an island', exact: true }).tap();
+  await phoneGallery.locator('[data-kitchen-design="monochrome-island"]').tap();
+  check(
+    'tapping a kitchen image on the phone opens the same editable kitchen without an underlying room sheet',
+    sortedJson(kitchenSnapshot(await mobileDesign())) === sortedJson(kitchenSnapshot(kitchenPresets.at(-1).design)) && (await mobile.getByRole('dialog').count()) === 0,
+  );
+  check('warning counts do not overlap or hide the phone menu', await headerFits());
+  await mobile.waitForTimeout(500);
+  await mobile.screenshot({ path: path.join(shotsDir, 'phone-06c-gallery-kitchen-loaded.png') });
 
   await mobile.getByRole('button', { name: 'More' }).tap();
   await mobile.getByRole('button', { name: 'Projects', exact: true }).tap();

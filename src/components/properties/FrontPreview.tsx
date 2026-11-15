@@ -1,7 +1,7 @@
 import { PLINTH_HEIGHT } from '../../domain/catalog';
 import type { KitchenItem } from '../../domain/types';
 import { resolveConfig, type BuildContext } from '../../engine/config';
-import { frontLayout, OVEN_NICHE_HEIGHT, type FrontRect } from '../../engine/fronts';
+import { frontLayout, OVEN_NICHE_HEIGHT, TOWER_OVEN_BOTTOM, type FrontRect } from '../../engine/fronts';
 import { useT } from '../../i18n';
 
 const MAX_W = 236;
@@ -43,7 +43,13 @@ export function FrontPreview({ item, ctx }: { item: KitchenItem; ctx: BuildConte
         role="img"
         aria-label={text.item.frontViewAria(W, H)}
       >
-        {item.kind === 'fridge' ? (
+        {item.kind === 'bar' ? (
+          <g stroke="#71717a" strokeWidth={3 * px}>
+            <rect x={0} y={0} width={W} height={t} fill="#d6b38b" strokeWidth={px} />
+            <line x1={W * 0.06} x2={W * 0.06} y1={t} y2={H} />
+            <line x1={W * 0.94} x2={W * 0.94} y1={t} y2={H} />
+          </g>
+        ) : item.kind === 'fridge' ? (
           <Fridge W={W} H={H} px={px} />
         ) : (
           <rect x={0} y={0} width={W} height={H} fill="#f4f4f5" stroke="#a1a1aa" strokeWidth={px} />
@@ -52,11 +58,12 @@ export function FrontPreview({ item, ctx }: { item: KitchenItem; ctx: BuildConte
           <line key={y} x1={t} x2={W - t} y1={H - y} y2={H - y} stroke="#a1a1aa" strokeWidth={px} strokeDasharray={`${4 * px} ${3 * px}`} />
         ))}
         {item.kind === 'oven' && <Oven W={W} px={px} />}
+        {item.kind === 'ovenTower' && <g transform={`translate(0 ${H - TOWER_OVEN_BOTTOM - OVEN_NICHE_HEIGHT})`}><Oven W={W} px={px} /></g>}
         {item.kind === 'dishwasher' && (
           <rect x={0} y={H - PLINTH_HEIGHT} width={W} height={PLINTH_HEIGHT} fill="#e4e4e7" stroke="none" />
         )}
         {fronts.map((front, i) => (
-          <Front key={i} front={front} top={top(front)} px={px} handleLow={wallUnit} />
+          <Front key={i} front={front} top={top(front)} px={px} handleLow={wallUnit} glass={item.kind === 'glassWall'} />
         ))}
       </svg>
       <figcaption className="text-[11px] tabular-nums text-zinc-500">{text.item.frontViewCaption(text.mm(W), text.mm(H))}</figcaption>
@@ -64,12 +71,13 @@ export function FrontPreview({ item, ctx }: { item: KitchenItem; ctx: BuildConte
   );
 }
 
-function Front({ front, top, px, handleLow }: { front: FrontRect; top: number; px: number; handleLow: boolean }) {
+function Front({ front, top, px, handleLow, glass }: { front: FrontRect; top: number; px: number; handleLow: boolean; glass: boolean }) {
   const { x, w, h } = front;
   const handle = Math.min(w, h) * 0.28;
   return (
     <g>
-      <rect x={x} y={top} width={w} height={h} fill="#ffffff" stroke="#52525b" strokeWidth={1.2 * px} />
+      <rect x={x} y={top} width={w} height={h} fill={glass ? '#cce0df' : '#ffffff'} fillOpacity={glass ? 0.4 : 1} stroke="#52525b" strokeWidth={1.2 * px} />
+      {glass && <path d={`M${x + w * 0.2} ${top + h * 0.25}l${w * 0.35} ${-h * 0.15}m${-w * 0.2} ${h * 0.3}l${w * 0.35} ${-h * 0.15}`} fill="none" stroke="#8ba9a6" strokeWidth={px} />}
       {front.kind === 'door' && (
         <>
           {/* Swing lines meet at the hinge side. */}

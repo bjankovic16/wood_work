@@ -57,7 +57,7 @@ export function Kbd({ children }: { children: ReactNode }) {
 
 interface SegmentedProps<T extends string> {
   value: T;
-  options: Array<{ value: T; label: ReactNode; title?: string }>;
+  options: Array<{ value: T; label: ReactNode; title?: string; ariaLabel?: string }>;
   onChange: (value: T) => void;
   className?: string;
   size?: 'sm' | 'md';
@@ -74,6 +74,7 @@ export function Segmented<T extends string>({ value, options, onChange, classNam
           type="button"
           role="radio"
           aria-checked={value === option.value}
+          aria-label={option.ariaLabel}
           title={option.title}
           onClick={() => onChange(option.value)}
           className={cn(

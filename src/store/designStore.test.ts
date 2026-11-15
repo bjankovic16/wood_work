@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createItem } from '../domain/catalog';
 import * as ops from '../domain/designOps';
+import { KITCHEN_DESIGNS } from '../domain/kitchens';
+import { DEFAULT_CONSTRUCTION } from '../engine/settings';
 import * as actions from './actions';
 import { useDesignStore } from './designStore';
 import { useUiStore } from './uiStore';
@@ -94,5 +96,47 @@ describe('parseDesign', () => {
     expect(parsed?.items).toEqual([good]);
     expect(ops.parseDesign({ room: {} })).toBeNull();
     expect(ops.parseDesign(null)).toBeNull();
+  });
+});
+
+describe('kitchen design gallery', () => {
+    it('loads the complete pictured kitchen as one undoable change and keeps the project name', () => {
+      const item = createItem('base', []);
+      const original = {
+        ...ops.createDesign('My existing project'),
+        items: [item],
+        openings: [{ id: 'window', kind: 'window' as const, wall: 'top' as const, offset: 100, width: 800, height: 1000, sill: 900 }],
+        partEdits: { [item.id]: { 'Shelf||564x540': { quantity: 2 } } },
+        construction: { ...DEFAULT_CONSTRUCTION, frontGap: 6 },
+        customParts: [{ id: 'extra', name: 'Extra', quantity: 1, length: 600, width: 100, materialId: 'mdf-18', edgesLength: 0, edgesWidth: 0, edgeBandId: null, note: '' }],
+      };
+      store().load(original);
+      useUiStore.setState({ selectedId: item.id, viewFilter: 'wall', view: 'list', language: 'en' });
+      actions.applyKitchenDesign(KITCHEN_DESIGNS[17]);
+      const loaded = store().design;
+      expect(loaded.name).toBe(original.name);
+      expect(loaded.room).toEqual(KITCHEN_DESIGNS[17].room);
+      expect(loaded.style).toEqual(KITCHEN_DESIGNS[17].style);
+      expect(loaded.openings).toEqual([]);
+      expect(loaded.customParts).toEqual([]);
+      expect(loaded.partEdits).toEqual({});
+      expect(loaded.construction).toEqual(DEFAULT_CONSTRUCTION);
+      expect(store().past).toEqual([original]);
+      expect(useUiStore.getState()).toMatchObject({ selectedId: null, viewFilter: 'all', view: '3d' });
+      store().undo();
+      expect(store().design).toBe(original);
+      store().redo();
+      expect(store().design).toBe(loaded);
+    });
+
+    it('uses the selected language for every cabinet code, including open shelves and islands', () => {
+      for (const language of ['sr', 'en'] as const) {
+        useUiStore.getState().setLanguage(language);
+        actions.applyKitchenDesign(KITCHEN_DESIGNS[18]);
+        const labels = store().design.items.map((item) => item.label);
+        expect(labels).toContain(language === 'sr' ? 'FI1' : 'D1');
+        expect(labels).toContain(language === 'sr' ? 'P1' : 'SH1');
+        expect(new Set(labels).size).toBe(labels.length);
+      }
   });
 });

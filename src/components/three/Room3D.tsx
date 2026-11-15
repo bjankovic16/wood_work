@@ -1,11 +1,12 @@
 import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { wallLength } from '../../domain/openings';
-import type { Opening, Room, Wall } from '../../domain/types';
-import { WALLS } from '../../domain/geometry';
+import { alongWall, wallLength } from '../../domain/openings';
+import { WORKTOP_KINDS, WORKTOP_THICKNESS } from '../../domain/catalog';
+import type { KitchenItem, Opening, Room, Wall } from '../../domain/types';
+import { isFlushWith, itemRect, mountingWalls, WALLS } from '../../domain/geometry';
 import { WALL_THICKNESS } from '../../store/viewport';
-import { m } from './materials';
+import { m, type KitchenMaterials } from './materials';
 
 type Vec3 = [number, number, number];
 
@@ -70,7 +71,7 @@ const FRAME = 0.05;
  * between the camera and the room is hidden, so the kitchen can be seen from
  * any side.
  */
-export function Room3D({ room, openings }: { room: Room; openings: Opening[] }) {
+export function Room3D({ room, openings, items, materials }: { room: Room; openings: Opening[]; items: KitchenItem[]; materials: KitchenMaterials }) {
   const W = m(room.width);
   const D = m(room.depth);
   const H = m(room.height);
@@ -95,6 +96,7 @@ export function Room3D({ room, openings }: { room: Room; openings: Opening[] }) 
   });
 
   const wallColor = '#f0ede7';
+  const backsplash = materials.backsplash;
   return (
     <>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[W / 2, 0, D / 2]} receiveShadow>
@@ -105,6 +107,17 @@ export function Room3D({ room, openings }: { room: Room; openings: Opening[] }) 
         const length = m(wallLength(room, wall));
         const own = openings.filter((o) => o.wall === wall);
         const pieces = solidParts(length, H, own);
+        const cladding = backsplash
+          ? items.filter((item) => WORKTOP_KINDS.has(item.kind) && mountingWalls(item).includes(wall) && isFlushWith(itemRect(item), wall, room))
+            .flatMap((item) => {
+              const [start, end] = alongWall(itemRect(item), wall);
+              const bottom = m(item.elevation + item.height + WORKTOP_THICKNESS);
+              return pieces.map((piece) => ({
+                from: Math.max(m(start), piece.from), to: Math.min(m(end), piece.to),
+                bottom: Math.max(bottom, piece.bottom), top: Math.min(bottom + 0.6, piece.top),
+              })).filter((piece) => piece.to > piece.from && piece.top > piece.bottom);
+            })
+          : [];
         // The top and bottom walls run past the corners to close them.
         const ends: Piece[] =
           wall === 'top' || wall === 'bottom'
@@ -128,6 +141,10 @@ export function Room3D({ room, openings }: { room: Room; openings: Opening[] }) 
                   <meshStandardMaterial color={wallColor} roughness={0.95} />
                 </mesh>
               );
+            })}
+            {backsplash && cladding.map((piece, i) => {
+              const box = boxFor(wall, { W, D }, T, { ...piece, inset: -0.006, depth: 0.012 });
+              return <mesh key={`cladding-${i}`} position={box.position} material={backsplash} receiveShadow><boxGeometry args={box.size} /></mesh>;
             })}
             {own.map((o) => {
               const from = m(o.offset);

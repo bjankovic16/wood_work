@@ -1,3 +1,4 @@
+import { BAR_MATERIAL_ID, GLASS_MATERIAL_ID } from '../domain/catalog';
 import type {
   BackMount,
   BaseTop,
@@ -8,6 +9,7 @@ import type {
   EdgeBand,
   Material,
   TopJoint,
+  KitchenItem,
 } from '../domain/types';
 
 /** The usual 2800 × 2070 mm board. */
@@ -22,6 +24,20 @@ export const DEFAULT_MATERIALS: Material[] = [
   { id: 'mdf-18', name: 'MDF for painting', thickness: 18, ...SHEET, grain: false, price: 0 },
   { id: 'mdf-oak-19', name: 'Oak-veneered MDF', thickness: 19, ...SHEET, grain: true, price: 0 },
 ];
+
+export const MODULE_MATERIALS: Material[] = [
+  { id: GLASS_MATERIAL_ID, name: 'Clear cabinet glass', thickness: 4, sheetLength: 2400, sheetWidth: 1600, grain: false, price: 0 },
+  { id: BAR_MATERIAL_ID, name: 'Worktop blank (choose finish)', thickness: 38, sheetLength: 4100, sheetWidth: 900, grain: true, price: 0 },
+];
+
+/** Older projects gain only the specialist stock that a newly added module needs. */
+export function withModuleMaterials(materials: Material[], items: readonly KitchenItem[]): Material[] {
+  const required = new Set<string>();
+  if (items.some((item) => item.kind === 'glassWall')) required.add(GLASS_MATERIAL_ID);
+  if (items.some((item) => item.kind === 'bar')) required.add(BAR_MATERIAL_ID);
+  const missing = MODULE_MATERIALS.filter((material) => required.has(material.id) && !materials.some((existing) => existing.id === material.id));
+  return missing.length ? [...materials, ...structuredClone(missing)] : materials;
+}
 
 export const DEFAULT_EDGE_BANDS: EdgeBand[] = [
   { id: 'abs-1', name: 'ABS edge 1 mm', thickness: 1, price: 0 },

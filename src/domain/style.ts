@@ -1,13 +1,17 @@
 /** Finishes used to show the kitchen in 3D. They do not change any cut sizes. */
 
-export type FrontFinish = 'white' | 'cream' | 'grey' | 'sage' | 'navy' | 'anthracite' | 'oak' | 'walnut';
-export type WorktopFinish = 'stone' | 'oak' | 'concrete' | 'black';
-export type HandleStyle = 'steel' | 'black' | 'brass' | 'none';
+export type FrontFinish = 'white' | 'cream' | 'grey' | 'sage' | 'navy' | 'anthracite' | 'oak' | 'walnut' | 'cashmere' | 'sand' | 'taupe' | 'olive' | 'clay' | 'espresso' | 'ash';
+export type WorktopFinish = 'stone' | 'oak' | 'concrete' | 'black' | 'marble' | 'travertine' | 'walnut';
+export type HandleStyle = 'steel' | 'black' | 'brass' | 'none' | 'bronze' | 'copper';
+export type BacksplashFinish = 'none' | 'stone' | 'marble' | 'travertine';
 
 export interface KitchenStyle {
   front: FrontFinish;
   worktop: WorktopFinish;
   handles: HandleStyle;
+  backsplash?: BacksplashFinish;
+  lighting?: boolean;
+  decor?: boolean;
 }
 
 /** How a finish looks; its name comes with the interface language. */
@@ -15,6 +19,7 @@ export interface Finish {
   color: string;
   /** Drawn with a wood grain. */
   wood?: boolean;
+  texture?: 'marble' | 'travertine';
 }
 
 export const FRONT_FINISHES: Record<FrontFinish, Finish> = {
@@ -26,6 +31,13 @@ export const FRONT_FINISHES: Record<FrontFinish, Finish> = {
   anthracite: { color: '#3b3c3e' },
   oak: { color: '#c69b6d', wood: true },
   walnut: { color: '#6e4b34', wood: true },
+  cashmere: { color: '#d8ccbb' },
+  sand: { color: '#c6ad8c' },
+  taupe: { color: '#a28f7d' },
+  olive: { color: '#7c8262' },
+  clay: { color: '#b67c62' },
+  espresso: { color: '#46372f', wood: true },
+  ash: { color: '#d1b58c', wood: true },
 };
 
 export const WORKTOP_FINISHES: Record<WorktopFinish, Finish> = {
@@ -33,6 +45,9 @@ export const WORKTOP_FINISHES: Record<WorktopFinish, Finish> = {
   oak: { color: '#b98955', wood: true },
   concrete: { color: '#9d9c97' },
   black: { color: '#262628' },
+  marble: { color: '#f0e9dd', texture: 'marble' },
+  travertine: { color: '#d7c4a4', texture: 'travertine' },
+  walnut: { color: '#775038', wood: true },
 };
 
 export const HANDLE_STYLES: Record<HandleStyle, { color: string | null; metal: boolean }> = {
@@ -40,6 +55,15 @@ export const HANDLE_STYLES: Record<HandleStyle, { color: string | null; metal: b
   black: { color: '#1c1c1e', metal: false },
   brass: { color: '#b8955a', metal: true },
   none: { color: null, metal: false },
+  bronze: { color: '#876444', metal: true },
+  copper: { color: '#b57653', metal: true },
+};
+
+export const BACKSPLASH_FINISHES: Record<BacksplashFinish, Finish> = {
+  none: { color: '#f0ede7' },
+  stone: WORKTOP_FINISHES.stone,
+  marble: WORKTOP_FINISHES.marble,
+  travertine: WORKTOP_FINISHES.travertine,
 };
 
 export const DEFAULT_STYLE: KitchenStyle = { front: 'white', worktop: 'stone', handles: 'steel' };
@@ -52,5 +76,8 @@ export function parseStyle(raw: unknown): KitchenStyle {
     front: pick(v.front, FRONT_FINISHES, DEFAULT_STYLE.front),
     worktop: pick(v.worktop, WORKTOP_FINISHES, DEFAULT_STYLE.worktop),
     handles: pick(v.handles, HANDLE_STYLES, DEFAULT_STYLE.handles),
+    ...(typeof v.backsplash === 'string' && v.backsplash in BACKSPLASH_FINISHES ? { backsplash: v.backsplash as BacksplashFinish } : {}),
+    ...(typeof v.lighting === 'boolean' ? { lighting: v.lighting } : {}),
+    ...(typeof v.decor === 'boolean' ? { decor: v.decor } : {}),
   };
 }

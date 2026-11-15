@@ -23,7 +23,14 @@ export type ItemKind =
   | 'tall'
   | 'shelf'
   | 'filler'
-  | 'endPanel';
+  | 'endPanel'
+  | 'pullOut'
+  | 'glassWall'
+  | 'ovenTower'
+  | 'integratedFridge'
+  | 'hood'
+  | 'hob'
+  | 'bar';
 
 export interface Point {
   x: number;

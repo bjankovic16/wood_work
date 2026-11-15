@@ -3,12 +3,16 @@ import { createItem, LIBRARY, nextLabel, sizeLimits } from './catalog';
 import { evaluateExpression } from './math';
 
 describe('library', () => {
-  it('offers every element from the specification', () => {
+  it('keeps every original element and offers all premium module sizes', () => {
     const ids = LIBRARY.flatMap((s) => s.presets.map((p) => p.id));
     expect(ids).toEqual([
       'base-300', 'base-400', 'base-450', 'base-500', 'base-600', 'base-800', 'base-900', 'base-custom',
       'wall-300', 'wall-400', 'wall-500', 'wall-600', 'wall-800', 'wall-custom',
       'sink', 'oven', 'dishwasher', 'fridge', 'drawer', 'corner', 'tall', 'shelf', 'filler', 'endPanel',
+      'drawer-800', 'drawer-900', 'drawer-1200', 'pullOut-300', 'pullOut-450', 'pullOut-600',
+      'tall-450', 'tall-600', 'tall-800', 'glassWall-600', 'glassWall-800', 'glassWall-900',
+      'shelf-600', 'shelf-900', 'shelf-1200', 'hob', 'ovenTower', 'integratedFridge', 'hood',
+      'island-1200', 'bar-1500', 'bar-1800',
     ]);
   });
 });

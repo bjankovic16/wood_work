@@ -89,23 +89,19 @@ function ItemSymbol({ item, px, color }: { item: KitchenItem; px: number; color:
       );
     }
     case 'oven': {
-      // Hob rings on the worktop above the oven, kept to the sides so the label fits between them.
-      const radius = Math.min(w, d) * 0.12;
-      const rings: Array<[number, number, number]> = [
-        [0.24, 0.3, 1],
-        [0.76, 0.3, 0.75],
-        [0.24, 0.72, 0.75],
-        [0.76, 0.72, 1],
-      ];
-      return (
-        <>
-          {rings.map(([fu, fv, scale]) => {
-            const c = at(w * fu, d * fv);
-            return <Circle key={`${fu}-${fv}`} x={c.x} y={c.y} radius={radius * scale} {...stroke} />;
-          })}
-        </>
-      );
+      return <HobSymbol item={item} px={px} color={color} />;
     }
+    case 'hob': {
+      return <HobSymbol item={item} px={px} color={color} />;
+    }
+    case 'hood': {
+      const centre = at(w / 2, d / 2);
+      return <><Circle x={centre.x} y={centre.y} radius={Math.min(w, d) * 0.22} {...stroke} /><Line points={line(at(w * 0.25, d * 0.5), at(w * 0.75, d * 0.5))} {...stroke} /></>;
+    }
+    case 'pullOut':
+      return <><Line points={line(at(w / 2, d * 0.2), at(w / 2, d * 0.8))} {...stroke} /><Line points={[...line(at(w * 0.3, d * 0.65), at(w / 2, d * 0.8)), ...line(at(w / 2, d * 0.8), at(w * 0.7, d * 0.65))]} {...stroke} /></>;
+    case 'bar':
+      return <>{[[0.08, 0.12], [0.92, 0.12], [0.08, 0.88], [0.92, 0.88]].map(([u, v]) => { const p = at(w * u, d * v); return <Circle key={`${u}-${v}`} x={p.x} y={p.y} radius={Math.min(w, d) * 0.035} {...stroke} />; })}</>;
     case 'drawer':
       return (
         <>
@@ -115,6 +111,8 @@ function ItemSymbol({ item, px, color }: { item: KitchenItem; px: number; color:
         </>
       );
     case 'tall':
+    case 'ovenTower':
+    case 'integratedFridge':
     case 'fridge':
       return (
         <>
@@ -128,6 +126,7 @@ function ItemSymbol({ item, px, color }: { item: KitchenItem; px: number; color:
       return <Rect x={r.x} y={r.y} width={r.w} height={r.h} dash={[4 * px, 3 * px]} {...stroke} />;
     }
     case 'shelf':
+    case 'glassWall':
       return (
         <>
           {[0.35, 0.65].map((fv) => (
@@ -151,6 +150,29 @@ function ItemSymbol({ item, px, color }: { item: KitchenItem; px: number; color:
     default:
       return null;
   }
+}
+
+function HobSymbol({ item, px, color }: { item: KitchenItem; px: number; color: string }) {
+  const w = item.width;
+  const d = localDepthExtent(item);
+  const at = (u: number, v: number) => localToRoom(item, u, v);
+  const stroke = { stroke: color, strokeWidth: px, listening: false } as const;
+      // Hob rings on the worktop above the oven, kept to the sides so the label fits between them.
+      const radius = Math.min(w, d) * 0.12;
+      const rings: Array<[number, number, number]> = [
+        [0.24, 0.3, 1],
+        [0.76, 0.3, 0.75],
+        [0.24, 0.72, 0.75],
+        [0.76, 0.72, 1],
+      ];
+      return (
+        <>
+          {rings.map(([fu, fv, scale]) => {
+            const c = at(w * fu, d * fv);
+            return <Circle key={`${fu}-${fv}`} x={c.x} y={c.y} radius={radius * scale} {...stroke} />;
+          })}
+        </>
+      );
 }
 
 const LABEL_FONT_PX = 11;

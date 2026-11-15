@@ -40,6 +40,7 @@ interface UiState {
   settingsTab: SettingsTab | null;
   layoutsOpen: boolean;
   projectsOpen: boolean;
+  roomOpen: boolean;
   /** Language of the interface and of everything exported. */
   language: Language;
 
@@ -49,6 +50,7 @@ interface UiState {
   setSettingsTab: (tab: SettingsTab | null) => void;
   setLayoutsOpen: (open: boolean) => void;
   setProjectsOpen: (open: boolean) => void;
+  setRoomOpen: (open: boolean) => void;
   setViewport: (zoom: number, pan: Point) => void;
   setSnapEnabled: (enabled: boolean) => void;
   setGridSize: (size: number) => void;
@@ -74,6 +76,7 @@ export const useUiStore = create<UiState>()(
       settingsTab: null,
       layoutsOpen: false,
       projectsOpen: false,
+      roomOpen: false,
       language: DEFAULT_LANGUAGE,
 
       select: (selectedId) => set({ selectedId }),
@@ -82,6 +85,7 @@ export const useUiStore = create<UiState>()(
       setSettingsTab: (settingsTab) => set({ settingsTab }),
       setLayoutsOpen: (layoutsOpen) => set({ layoutsOpen }),
       setProjectsOpen: (projectsOpen) => set({ projectsOpen }),
+      setRoomOpen: (roomOpen) => set({ roomOpen }),
       setViewport: (zoom, pan) => set({ zoom, pan }),
       setSnapEnabled: (snapEnabled) => set({ snapEnabled }),
       setGridSize: (gridSize) => set({ gridSize }),

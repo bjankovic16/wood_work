@@ -2,7 +2,7 @@ import type { HandleStyle } from '../domain/style';
 import type { Wall } from '../domain/types';
 import { formatMm } from '../engine/format';
 import type { EngineLabels } from '../engine/labels';
-import { DEFAULT_EDGE_BANDS, DEFAULT_MATERIALS } from '../engine/settings';
+import { DEFAULT_EDGE_BANDS, DEFAULT_MATERIALS, MODULE_MATERIALS } from '../engine/settings';
 
 /** Sizes with a decimal comma, as written in Serbian. */
 export const srMm = (value: number) => formatMm(value).replace('.', ',');
@@ -10,7 +10,8 @@ export const srMm = (value: number) => formatMm(value).replace('.', ',');
 /** "na gornjem zidu" and so on: the wall after "na" (locative). */
 const naZidu: Record<Wall, string> = { top: 'na gornjem zidu', right: 'na desnom zidu', bottom: 'na donjem zidu', left: 'na levom zidu' };
 
-const HANDLES: Record<HandleStyle, string> = { steel: 'čelična', black: 'crna', brass: 'mesingana', none: 'bez ručke' };
+const HANDLES: Record<HandleStyle, string> = { steel: 'čelična', black: 'crna', brass: 'mesingana', none: 'bez ručke', bronze: 'bronzana', copper: 'bakarna' };
+const APPLIANCES = { oven: 'Ugradna rerna', fridge: 'Frižider', hob: 'Ploča za kuvanje', hood: 'Aspirator', dishwasher: 'Mašina za sudove' };
 
 /** The built-in boards and edge bands, named in Serbian for as long as they keep their original names. */
 const BOARDS: Record<string, string> = {
@@ -20,13 +21,15 @@ const BOARDS: Record<string, string> = {
   'hdf-white-3': 'Beli lesonit (HDF)',
   'mdf-18': 'MDF za farbanje',
   'mdf-oak-19': 'MDF furniran hrastom',
+  'glass-clear-4': 'Providno staklo za vitrinu',
+  'worktop-38': 'Radna ploča (izabrati završnu obradu)',
 };
 const BANDS: Record<string, string> = {
   'abs-1': 'ABS kant traka 1 mm',
   'abs-2': 'ABS kant traka 2 mm',
   'pvc-04': 'PVC kant traka 0,4 mm',
 };
-const originalBoardNames = new Map(DEFAULT_MATERIALS.map((m) => [m.id, m.name]));
+const originalBoardNames = new Map([...DEFAULT_MATERIALS, ...MODULE_MATERIALS].map((m) => [m.id, m.name]));
 const originalBandNames = new Map(DEFAULT_EDGE_BANDS.map((b) => [b.id, b.name]));
 
 export const SR_LABELS: EngineLabels = {
@@ -52,6 +55,9 @@ export const SR_LABELS: EngineLabels = {
     fillerPanel: 'Filer',
     panel: 'Maska',
     endPanel: 'Bočna ploča',
+    glassDoor: 'Staklena vrata, pripremna mera',
+    pullOutFront: 'Front izvlačne korpe',
+    barTop: 'Barska ploča',
   },
   note: (note) => {
     switch (note.kind) {
@@ -67,6 +73,10 @@ export const SR_LABELS: EngineLabels = {
         return `Ugaoni element, zid ${note.wall}`;
       case 'cornerDoor':
         return `Ugaona vrata, zid ${note.wall}`;
+      case 'glassBlank':
+        return 'Staklorezac potvrđuje sigurnosno staklo, obradu ivica, rupe za šarke i zazore';
+      case 'barBlank':
+        return 'Pre naručivanja potvrditi obradu ivica, oslonce i pričvršćenja';
     }
   },
   hardware: (item) => {
@@ -87,6 +97,14 @@ export const SR_LABELS: EngineLabels = {
         return 'Nosači za kačenje gornjeg elementa (par)';
       case 'leg':
         return `Podesiva nogica, ${item.height} mm`;
+      case 'glassHinge':
+        return 'Šarka / stega za staklena vrata (potvrditi specifikaciju stakla)';
+      case 'pullOut':
+        return `Izvlačna korpa sa klizačima, element ${item.width} mm (potvrditi model)`;
+      case 'barLeg':
+        return `Barska noga sa pričvrsnom pločom, ${srMm(item.height)} mm`;
+      case 'appliance':
+        return `${APPLIANCES[item.appliance]}, element ${item.width} mm (potvrditi model)`;
     }
   },
   material: (material) => (BOARDS[material.id] && originalBoardNames.get(material.id) === material.name ? BOARDS[material.id] : material.name),
@@ -103,6 +121,8 @@ export const SR_LABELS: EngineLabels = {
     overlap: (a, b) => `${a} i ${b} se preklapaju.`,
     outside: (unit) => `${unit} izlazi van prostorije.`,
     ceiling: (unit, top, ceiling) => `${unit} doseže ${top} mm, iznad plafona na ${ceiling} mm.`,
+    specialistModule: (unit) => `${unit}: pre izrade potvrditi nišu, ventilaciju, nosivost, pričvršćenja i zazore prema izabranom aparatu ili sistemu.`,
+    glassSupplier: (unit) => `${unit}: mere stakla su pripremne; staklorezac potvrđuje sigurnosno staklo, obradu ivica, rupe za šarke i radne zazore.`,
     gap: (gap, a, b, wall) =>
       `Razmak od ${gap} mm između ${b === null ? `${a} i ugla` : `${a} i ${b}`} ${naZidu[wall]}: zatvorite ga ili ga popunite filerom.`,
     lowWallUnit: (unit, clearance) => `${unit} visi samo ${clearance} mm iznad radne ploče ispod sebe; uobičajeno je 500–650 mm.`,

@@ -1,5 +1,5 @@
-import { DEFAULT_CONSTRUCTION, DEFAULT_EDGE_BANDS, DEFAULT_MATERIALS, parseConstruction, parseEdgeBands, parseMaterials } from '../engine/settings';
-import { ELEVATION_LIMITS, KIND_SPECS, sizeLimits, type SizeField } from './catalog';
+import { DEFAULT_CONSTRUCTION, DEFAULT_EDGE_BANDS, DEFAULT_MATERIALS, parseConstruction, parseEdgeBands, parseMaterials, withModuleMaterials } from '../engine/settings';
+import { BAR_MATERIAL_ID, ELEVATION_LIMITS, GLASS_MATERIAL_ID, KIND_SPECS, MODULE_MATERIAL_DEFAULTS, sizeLimits, type SizeField } from './catalog';
 import { clampToRoom, resizeFromAnchor } from './geometry';
 import { clamp } from './math';
 import { clampOpening } from './openings';
@@ -70,7 +70,8 @@ export function setRoom(design: Design, patch: Partial<Room>): Design {
 }
 
 export function addItem(design: Design, item: KitchenItem): Design {
-  return { ...design, items: [...design.items, item] };
+  const items = [...design.items, item];
+  return { ...design, items, materials: withModuleMaterials(design.materials, items) };
 }
 
 export function updateItem(design: Design, id: string, patch: Partial<KitchenItem>): Design {
@@ -239,7 +240,9 @@ export function parseDesign(raw: unknown): Design | null {
   const parsedItems = v.items.map(parseItem).filter((entry): entry is NonNullable<typeof entry> => entry !== null);
   const startMaterials = parseMaterials(v.materials, rawConstruction);
   const construction = parseConstruction(v.construction, startMaterials, edgeBands);
-  const { items, materials } = migrateThicknesses(parsedItems, startMaterials, construction);
+  const migrated = migrateThicknesses(parsedItems, startMaterials, construction);
+  const items = migrated.items;
+  const materials = withModuleMaterials(migrated.materials, items);
   const materialIds = new Set(materials.map((m) => m.id));
   // Forget unit materials that are no longer in the library.
   const checkedItems = items.map((item) => {
@@ -247,7 +250,7 @@ export function parseDesign(raw: unknown): Design | null {
     for (const key of ['carcassMaterial', 'backMaterial', 'frontMaterial'] as const) {
       if (next[key] !== undefined && !materialIds.has(next[key])) delete next[key];
     }
-    return next;
+    return { ...MODULE_MATERIAL_DEFAULTS[next.kind], ...next };
   });
   const itemIds = new Set(checkedItems.map((item) => item.id));
   return {
@@ -385,7 +388,11 @@ export function updateMaterial(design: Design, id: string, patch: Partial<Omit<M
 /** Whether the kitchen-wide settings use a material (such materials cannot be removed). */
 export function materialInUse(design: Design, id: string): boolean {
   const c = design.construction;
-  return c.carcassMaterial === id || c.backMaterial === id || c.frontMaterial === id;
+  return c.carcassMaterial === id || c.backMaterial === id || c.frontMaterial === id ||
+    design.items.some((item) =>
+      (item.kind === 'glassWall' && (item.frontMaterial ?? GLASS_MATERIAL_ID) === id) ||
+      (item.kind === 'bar' && (item.carcassMaterial ?? BAR_MATERIAL_ID) === id),
+    );
 }
 
 /** Removes a material; units and pieces that used it go back to the kitchen-wide one. */

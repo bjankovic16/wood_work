@@ -1,4 +1,4 @@
-import { Box, Ellipsis, FolderOpen, Hammer, Languages, Layers, LayoutGrid, List, Magnet, Redo2, RulerDimensionLine, Undo2 } from 'lucide-react';
+import { Box, Ellipsis, FolderOpen, Hammer, Images, Languages, Layers, LayoutGrid, List, Magnet, Redo2, RulerDimensionLine, Undo2 } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { LANGUAGE_LABEL, LANGUAGES, useT, type Language } from '../../i18n';
 import { cn } from '../../lib/cn';
@@ -59,14 +59,14 @@ function ViewTabs({ compact }: { compact: boolean }) {
   return (
     <Segmented<MainView>
       ariaLabel={t.topBar.view}
-      size="sm"
+      size={compact ? 'md' : 'sm'}
       value={view}
       onChange={(v) => useUiStore.getState().setView(v)}
-      className={compact ? '' : 'w-72'}
+      className={compact ? 'w-full' : 'w-72'}
       options={[
-        { value: 'plan', label: <><LayoutGrid className="size-3.5" />{t.topBar.plan}</>, title: t.topBar.planTitle },
-        { value: '3d', label: <><Box className="size-3.5" />{t.topBar.view3d}</>, title: t.topBar.view3dTitle },
-        { value: 'list', label: <><List className="size-3.5" />{compact ? t.topBar.listShort : t.topBar.list}</>, title: t.topBar.listTitle },
+        { value: 'plan', label: <><LayoutGrid className="size-3.5" /><span>{t.topBar.plan}</span></>, ariaLabel: t.topBar.plan, title: t.topBar.planTitle },
+        { value: '3d', label: <><Box className="size-3.5" /><span>{t.topBar.view3d}</span></>, ariaLabel: t.topBar.view3d, title: t.topBar.view3dTitle },
+        { value: 'list', label: <><List className="size-3.5" /><span>{compact ? t.topBar.listShort : t.topBar.list}</span></>, ariaLabel: t.topBar.list, title: t.topBar.listTitle },
       ]}
     />
   );
@@ -145,23 +145,21 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
 
   if (compact) {
     return (
-      <header className="flex h-12 shrink-0 items-center gap-1 border-b border-zinc-200 bg-white px-2 print:hidden">
+      <header className="shrink-0 border-b border-zinc-200 bg-white print:hidden">
+        <div className="flex h-12 items-center gap-1 px-2">
         <Logo />
-        {/* On narrow phones the name moves into the menu to leave room for the view switch. */}
-        <ProjectName className="hidden flex-1 min-[520px]:block" />
-        <div className="flex-1 min-[520px]:hidden" />
-        <ViewTabs compact />
+        <ProjectName className="flex-1" />
         <UndoRedo />
         <ChecksButton compact />
         <Menu label={t.topBar.more} icon={<Ellipsis className="size-4" />}>
           <div className="space-y-1">
-            <div className="px-1 pb-1 min-[520px]:hidden">
-              <div className="px-1 pb-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">{t.topBar.project}</div>
-              <ProjectName className="w-full border-zinc-200" />
-            </div>
             <Button className="w-full justify-start" data-close-menu onClick={() => ui.setProjectsOpen(true)}>
               <FolderOpen className="size-4" />
               {t.topBar.projects}
+            </Button>
+            <Button className="w-full justify-start" data-close-menu onClick={() => ui.setLayoutsOpen(true)}>
+              <Images className="size-4" />
+              {t.layouts.title}
             </Button>
             <Button className="w-full justify-start" active={snapEnabled} onClick={() => ui.setSnapEnabled(!snapEnabled)}>
               <Magnet className="size-4" />
@@ -194,6 +192,8 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
             </div>
           </div>
         </Menu>
+        </div>
+        <div className="px-2 pb-2"><ViewTabs compact /></div>
       </header>
     );
   }
@@ -209,7 +209,11 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
         <FolderOpen className="size-4" />
         {t.topBar.projects}
       </Button>
-      <ProjectName className="w-48" />
+      <Button title={t.layouts.title} aria-label={t.layouts.title} onClick={() => ui.setLayoutsOpen(true)}>
+        <Images className="size-4" />
+        <span className="hidden xl:inline">{t.kitchens.browse}</span>
+      </Button>
+      <ProjectName className="w-40" />
 
       <div className="flex flex-1 justify-center">
         <ViewTabs compact={false} />
