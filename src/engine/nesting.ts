@@ -5,6 +5,7 @@
  */
 
 export interface NestPiece {
+  /** With grain, the side that must lie along the sheet's length. */
   length: number;
   width: number;
   /** May be turned 90° on the sheet (no grain to follow). */
@@ -51,11 +52,11 @@ export function nest(pieces: NestPiece[], options: NestOptions): NestResult {
   const usableWidth = options.sheetWidth - 2 * options.trim;
   const { kerf } = options;
 
-  // Lay each piece with its longer side along the sheet when that fits (it always must with grain).
+  // Lay each piece with its longer side along the sheet when that fits; with grain, its length always goes along.
   const oriented: Array<{ length: number; width: number }> = [];
   let oversize = 0;
   for (const p of pieces) {
-    const along = { length: Math.max(p.length, p.width), width: Math.min(p.length, p.width) };
+    const along = p.canRotate ? { length: Math.max(p.length, p.width), width: Math.min(p.length, p.width) } : { length: p.length, width: p.width };
     const across = { length: along.width, width: along.length };
     const fitsAlong = along.length <= usableLength && along.width <= usableWidth;
     const fitsAcross = p.canRotate && across.length <= usableLength && across.width <= usableWidth;

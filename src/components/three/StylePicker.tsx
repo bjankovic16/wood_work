@@ -1,4 +1,5 @@
 import { FRONT_FINISHES, HANDLE_STYLES, WORKTOP_FINISHES, type Finish } from '../../domain/style';
+import { useT } from '../../i18n';
 import { cn } from '../../lib/cn';
 import { setStyle } from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
@@ -13,11 +14,13 @@ function swatchBackground(finish: Finish): string {
 function Swatches<K extends string>({
   label,
   options,
+  names,
   value,
   onChange,
 }: {
   label: string;
   options: Record<K, Finish>;
+  names: Record<K, string>;
   value: K;
   onChange: (value: K) => void;
 }) {
@@ -25,15 +28,15 @@ function Swatches<K extends string>({
     <div>
       <div className="mb-1.5 flex items-baseline justify-between">
         <span className="text-xs font-medium text-zinc-700">{label}</span>
-        <span className="text-[11px] text-zinc-500">{options[value].name}</span>
+        <span className="text-[11px] text-zinc-500">{names[value]}</span>
       </div>
       <div className="flex flex-wrap gap-1.5">
         {(Object.keys(options) as K[]).map((key) => (
           <button
             key={key}
             type="button"
-            title={options[key].name}
-            aria-label={`${label}: ${options[key].name}`}
+            title={names[key]}
+            aria-label={`${label}: ${names[key]}`}
             aria-pressed={key === value}
             onClick={() => onChange(key)}
             className={cn(
@@ -50,13 +53,20 @@ function Swatches<K extends string>({
 
 /** Fronts, worktop and handles for the whole kitchen, as shown in 3D. */
 export function StylePicker() {
+  const t = useT();
   const style = useDesignStore((s) => s.design.style);
   return (
     <div className="space-y-4">
-      <Swatches label="Fronts" options={FRONT_FINISHES} value={style.front} onChange={(front) => setStyle({ front })} />
-      <Swatches label="Worktop" options={WORKTOP_FINISHES} value={style.worktop} onChange={(worktop) => setStyle({ worktop })} />
+      <Swatches label={t.style.fronts} options={FRONT_FINISHES} names={t.style.frontFinishes} value={style.front} onChange={(front) => setStyle({ front })} />
+      <Swatches
+        label={t.style.worktop}
+        options={WORKTOP_FINISHES}
+        names={t.style.worktopFinishes}
+        value={style.worktop}
+        onChange={(worktop) => setStyle({ worktop })}
+      />
       <div>
-        <div className="mb-1.5 text-xs font-medium text-zinc-700">Handles</div>
+        <div className="mb-1.5 text-xs font-medium text-zinc-700">{t.style.handles}</div>
         <div className="grid grid-cols-2 gap-1.5">
           {(Object.keys(HANDLE_STYLES) as Array<keyof typeof HANDLE_STYLES>).map((key) => (
             <button
@@ -70,10 +80,10 @@ export function StylePicker() {
               )}
             >
               <span
-                className="h-1.5 w-4 rounded-full"
+                className="h-1.5 w-4 shrink-0 rounded-full"
                 style={{ background: HANDLE_STYLES[key].color ?? 'transparent', border: HANDLE_STYLES[key].color ? 'none' : '1px dashed #a1a1aa' }}
               />
-              {HANDLE_STYLES[key].name}
+              {t.style.handleStyles[key]}
             </button>
           ))}
         </div>

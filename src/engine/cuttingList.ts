@@ -1,8 +1,11 @@
 import type { Design, KitchenItem } from '../domain/types';
 import { buildContext } from './config';
 import { unitHardware, type Hardware } from './hardware';
+import { EN_LABELS, type EngineLabels } from './labels';
 import { nest, SAW_KERF, SHEET_TRIM } from './nesting';
 import { customPart, unitParts, type Part } from './parts';
+
+export { formatMm } from './format';
 
 /** A row of the cutting list: identical pieces from all units, counted together. */
 export interface CuttingRow extends Part {
@@ -62,37 +65,47 @@ export interface CuttingList {
   cost: number | null;
 }
 
-/** How pieces added by hand appear in the Units column. */
-export const EXTRA_LABEL = 'Extra';
-
 /** Added to every banded edge for trimming the overhang. */
 export const EDGE_TRIM_ALLOWANCE = 30;
 
-function compareParts(a: Part & { materialName: string }, b: Part & { materialName: string }): number {
-  return (
-    a.materialName.localeCompare(b.materialName) ||
+type Named = Part & { materialName: string };
+
+/** Board, then thickness, name, size and note, in the language's alphabetical order. */
+function partOrder(locale: string): (a: Named, b: Named) => number {
+  const collator = new Intl.Collator(locale);
+  return (a, b) =>
+    collator.compare(a.materialName, b.materialName) ||
     b.thickness - a.thickness ||
-    a.name.localeCompare(b.name) ||
+    collator.compare(a.name, b.name) ||
     b.length - a.length ||
     b.width - a.width ||
-    (a.note ?? '').localeCompare(b.note ?? '')
-  );
+    collator.compare(a.note ?? '', b.note ?? '');
 }
 
-/** Every piece of every unit, identical pieces grouped, with board, edging and hardware totals. */
-export function buildCuttingList(design: Design): CuttingList {
-  const ctx = buildContext(design);
-  const materialName = (id: string) => ctx.materials.get(id)?.name ?? 'Unknown board';
+/** Every piece of every unit, identical pieces grouped, with board, edging and hardware totals, in the labels' language. */
+export function buildCuttingList(design: Design, labels: EngineLabels = EN_LABELS): CuttingList {
+  const ctx = buildContext(design, labels);
+  const compareParts = partOrder(labels.locale);
+  const materialName = (id: string) => {
+    const material = ctx.materials.get(id);
+    return material ? labels.material(material) : labels.unknownBoard;
+  };
+  const bandName = (id: string | null) => {
+    const band = id ? ctx.edgeBands.get(id) : undefined;
+    return band ? labels.edgeBand(band) : null;
+  };
   const units = design.items.map((item) => ({ item, parts: unitParts(item, ctx, design.partEdits[item.id]) }));
   const extra = design.customParts.map((custom) => ({ ...customPart(custom, ctx), materialName: materialName(custom.materialId), customId: custom.id }));
 
   const rows = new Map<string, CuttingRow>();
   const groups: Array<{ label: string; parts: Part[] }> = [
     ...units.map(({ item, parts }) => ({ label: item.label, parts })),
-    { label: EXTRA_LABEL, parts: extra },
+    { label: labels.extra, parts: extra },
   ];
   for (const { label, parts } of groups) {
     for (const p of parts) {
+      // Set to none by hand: still listed under its unit, so it can be brought back.
+      if (p.quantity <= 0) continue;
       const key = [p.name, p.length, p.width, p.thickness, p.materialId, p.edges.length, p.edges.width, p.edgeBandId, p.note ?? '', p.edited ? 'edited' : ''].join('|');
       const row = rows.get(key);
       if (row) {
@@ -102,7 +115,7 @@ export function buildCuttingList(design: Design): CuttingList {
         rows.set(key, {
           ...p,
           materialName: materialName(p.materialId),
-          bandName: p.edgeBandId ? (ctx.edgeBands.get(p.edgeBandId)?.name ?? null) : null,
+          bandName: bandName(p.edgeBandId),
           units: [label],
         });
       }
@@ -152,7 +165,7 @@ export function buildCuttingList(design: Design): CuttingList {
     const rounded = Math.ceil(metres * 10) / 10;
     return {
       bandId,
-      name: band?.name ?? 'Edge band',
+      name: bandName(bandId) ?? bandId,
       thickness: band?.thickness ?? 0,
       metres: rounded,
       cost: band && band.price > 0 ? rounded * band.price : null,
@@ -184,47 +197,48 @@ export function buildCuttingList(design: Design): CuttingList {
     })),
     materials,
     edges,
-    hardware: [...hardware.values()].sort((a, b) => a.name.localeCompare(b.name)),
+    hardware: [...hardware.values()].sort((a, b) => a.name.localeCompare(b.name, labels.locale)),
     pieceCount: sortedRows.reduce((sum, row) => sum + row.quantity, 0),
     cost: prices.length > 0 ? prices.reduce((sum, c) => sum + c, 0) : null,
   };
 }
 
-/** Formats a length for display: whole millimetres without decimals, otherwise one decimal. */
-export function formatMm(value: number): string {
-  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+/** Edge banding of a row as "L1 W0"-style text, empty when there is none. */
+export function edgeText(row: Pick<Part, 'edges' | 'edgeBandId' | 'edgeLength'>, labels: EngineLabels = EN_LABELS): string {
+  if (!row.edgeBandId) return '';
+  if (row.edges.length + row.edges.width === 0) return labels.innerEdges;
+  return labels.edges(row.edges.length, row.edges.width);
 }
 
-/** Edge banding of a row as "L1 W0"-style text, empty when there is none. */
-export function edgeText(row: Pick<Part, 'edges' | 'edgeBandId' | 'edgeLength'>): string {
-  if (!row.edgeBandId) return '';
-  if (row.edges.length + row.edges.width === 0) return 'inner L edges';
-  return `L${row.edges.length} W${row.edges.width}`;
+/** A part's note, followed by "changed by hand" (or "left out by hand") when it was changed in the cutting list. */
+export function partNote(part: Pick<Part, 'note' | 'edited' | 'quantity'>, labels: EngineLabels = EN_LABELS): string {
+  const hand = part.edited ? (part.quantity <= 0 ? labels.leftOutByHand : labels.changedByHand) : '';
+  return [part.note, hand].filter(Boolean).join('; ');
 }
 
 /**
  * The grouped cutting list as delimited text: semicolons for a CSV file
  * (spreadsheet programs open it directly), tabs for pasting into a sheet.
+ * Numbers use the language's decimal mark, as its spreadsheets expect.
  */
-export function cuttingListCsv(list: CuttingList, separator: ';' | '\t' = ';'): string {
+export function cuttingListCsv(list: CuttingList, separator: ';' | '\t' = ';', labels: EngineLabels = EN_LABELS): string {
   const special = separator === ';' ? /[";\n]/ : /["\t\n]/;
   const escape = (value: string) => (special.test(value) ? `"${value.replace(/"/g, '""')}"` : value);
-  const header = ['Piece', 'Quantity', 'Length (mm)', 'Width (mm)', 'Thickness (mm)', 'Material', 'Edges', 'Edge band', 'Units', 'Note'];
   const lines = list.rows.map((row) =>
     [
       row.name,
       String(row.quantity),
-      formatMm(row.length),
-      formatMm(row.width),
-      formatMm(row.thickness),
+      labels.mm(row.length),
+      labels.mm(row.width),
+      labels.mm(row.thickness),
       row.materialName,
-      edgeText(row),
+      edgeText(row, labels),
       row.bandName ?? '',
       row.units.join(', '),
-      row.note ?? '',
+      partNote(row, labels),
     ]
       .map(escape)
       .join(separator),
   );
-  return [header.join(separator), ...lines].join('\r\n');
+  return [labels.csvHeader.map(escape).join(separator), ...lines].join('\r\n');
 }

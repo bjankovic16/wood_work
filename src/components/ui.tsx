@@ -1,6 +1,7 @@
 import { X } from 'lucide-react';
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { useT } from '../i18n';
 import { cn } from '../lib/cn';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -104,6 +105,7 @@ const openDialogs: object[] = [];
 
 /** Modal dialog, or a bottom sheet on small screens. Escape and the backdrop close it. */
 export function Dialog({ open, title, onClose, children, footer, sheet = false, wide = false }: DialogProps) {
+  const t = useT();
   const panelRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -145,7 +147,7 @@ export function Dialog({ open, title, onClose, children, footer, sheet = false, 
       >
         <div className="flex items-center justify-between border-b border-zinc-100 py-3 pl-5 pr-3">
           <h2 className="text-sm font-semibold text-zinc-900">{title}</h2>
-          <Button aria-label="Close" title="Close (Esc)" onClick={onClose}>
+          <Button aria-label={t.common.close} title={t.common.closeTitle} onClick={onClose}>
             <X className="size-4" />
           </Button>
         </div>
@@ -162,7 +164,17 @@ export function Dialog({ open, title, onClose, children, footer, sheet = false, 
 }
 
 /** A button that opens a small menu below it. */
-export function Menu({ label, icon, children, align = 'right' }: { label: string; icon: ReactNode; children: ReactNode; align?: 'left' | 'right' }) {
+interface MenuProps {
+  label: string;
+  icon: ReactNode;
+  children: ReactNode;
+  align?: 'left' | 'right';
+  /** Shown next to the icon; without it the button is icon-only. */
+  text?: string;
+  variant?: ButtonProps['variant'];
+}
+
+export function Menu({ label, icon, children, align = 'right', text, variant = 'ghost' }: MenuProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -175,8 +187,9 @@ export function Menu({ label, icon, children, align = 'right' }: { label: string
   }, [open]);
   return (
     <div ref={rootRef} className="relative">
-      <Button aria-label={label} title={label} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+      <Button variant={variant} aria-label={label} title={label} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
         {icon}
+        {text}
       </Button>
       {open && (
         <div

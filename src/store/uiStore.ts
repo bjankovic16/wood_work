@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { Guide } from '../domain/snapping';
-import { safeStorage } from '../lib/platform';
 import type { KitchenItem, Point, Wall } from '../domain/types';
+import { DEFAULT_LANGUAGE, isLanguage, type Language } from '../i18n/language';
+import { safeStorage } from '../lib/platform';
 
 export type ViewFilter = 'all' | 'floor' | 'wall';
 export type MainView = 'plan' | '3d' | 'list';
@@ -39,8 +40,11 @@ interface UiState {
   settingsTab: SettingsTab | null;
   layoutsOpen: boolean;
   projectsOpen: boolean;
+  /** Language of the interface and of everything exported. */
+  language: Language;
 
   select: (id: string | null) => void;
+  setLanguage: (language: Language) => void;
   setView: (view: MainView) => void;
   setSettingsTab: (tab: SettingsTab | null) => void;
   setLayoutsOpen: (open: boolean) => void;
@@ -70,8 +74,10 @@ export const useUiStore = create<UiState>()(
       settingsTab: null,
       layoutsOpen: false,
       projectsOpen: false,
+      language: DEFAULT_LANGUAGE,
 
       select: (selectedId) => set({ selectedId }),
+      setLanguage: (language) => set({ language }),
       setView: (view) => set({ view }),
       setSettingsTab: (settingsTab) => set({ settingsTab }),
       setLayoutsOpen: (layoutsOpen) => set({ layoutsOpen }),
@@ -93,7 +99,13 @@ export const useUiStore = create<UiState>()(
         gridSize: s.gridSize,
         showDimensions: s.showDimensions,
         viewFilter: s.viewFilter,
+        language: s.language,
       }),
+      // A stored language this version does not know falls back to the default.
+      merge: (persisted, current) => {
+        const stored = (persisted ?? {}) as Partial<UiState>;
+        return { ...current, ...stored, language: isLanguage(stored.language) ? stored.language : current.language };
+      },
     },
   ),
 );

@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { clamp, evaluateExpression } from '../../domain/math';
+import { useT } from '../../i18n';
 
 interface NumberFieldProps {
   label: string;
@@ -31,6 +32,7 @@ export function NumberField({
   precision = 0,
 }: NumberFieldProps) {
   const id = useId();
+  const show = useT().number;
   const inputRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState<string | null>(null);
   const skipBlurCommit = useRef(false);
@@ -62,9 +64,9 @@ export function NumberField({
           inputMode="decimal"
           autoComplete="off"
           spellCheck={false}
-          value={draft ?? String(value)}
+          value={draft ?? show(value)}
           onFocus={(e) => {
-            setDraft(String(value));
+            setDraft(show(value));
             e.currentTarget.select();
           }}
           onChange={(e) => setDraft(e.target.value)}
@@ -76,7 +78,7 @@ export function NumberField({
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               const next = commit(e.currentTarget.value);
-              setDraft(String(next ?? value));
+              setDraft(show(next ?? value));
               e.currentTarget.select();
             } else if (e.key === 'Escape') {
               skipBlurCommit.current = true;
@@ -86,7 +88,7 @@ export function NumberField({
               const step = (e.shiftKey ? 100 : 10) * (e.key === 'ArrowUp' ? 1 : -1);
               const base = evaluateExpression(e.currentTarget.value) ?? value;
               const next = commit(String(base + step));
-              if (next !== null) setDraft(String(next));
+              if (next !== null) setDraft(show(next));
             }
           }}
           className="h-9 w-full rounded-md border border-zinc-200 bg-white pl-2.5 pr-9 text-base tabular-nums lg:h-8 lg:text-[13px] text-zinc-900 shadow-xs transition-colors hover:border-zinc-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
@@ -104,9 +106,12 @@ interface TextFieldProps {
   value: string;
   onCommit: (value: string) => void;
   maxLength?: number;
+  /** The text may be cleared (a note); otherwise an empty field keeps the old value. */
+  allowEmpty?: boolean;
+  placeholder?: string;
 }
 
-export function TextField({ label, value, onCommit, maxLength }: TextFieldProps) {
+export function TextField({ label, value, onCommit, maxLength, allowEmpty = false, placeholder }: TextFieldProps) {
   const id = useId();
   const [draft, setDraft] = useState<string | null>(null);
   const skipBlurCommit = useRef(false);
@@ -119,12 +124,14 @@ export function TextField({ label, value, onCommit, maxLength }: TextFieldProps)
         id={id}
         value={draft ?? value}
         maxLength={maxLength}
+        placeholder={placeholder}
         autoComplete="off"
         spellCheck={false}
         onFocus={() => setDraft(value)}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={(e) => {
-          if (!skipBlurCommit.current && e.target.value.trim()) onCommit(e.target.value);
+          const text = e.target.value;
+          if (!skipBlurCommit.current && (allowEmpty || text.trim()) && text !== value) onCommit(text);
           skipBlurCommit.current = false;
           setDraft(null);
         }}

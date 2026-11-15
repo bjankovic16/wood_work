@@ -1,6 +1,7 @@
 import { CircleCheck, TriangleAlert } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { Issue } from '../../engine/checks';
+import { useT } from '../../i18n';
 import { cn } from '../../lib/cn';
 import { useIssues } from '../../store/derived';
 import { useUiStore } from '../../store/uiStore';
@@ -14,6 +15,7 @@ function openIssue(issue: Issue) {
 
 /** The design checks: a count in the top bar, and the list when opened. */
 export function ChecksButton({ compact = false }: { compact?: boolean }) {
+  const t = useT();
   const issues = useIssues();
   const errors = issues.filter((i) => i.severity === 'error').length;
   const warnings = issues.length - errors;
@@ -36,14 +38,15 @@ export function ChecksButton({ compact = false }: { compact?: boolean }) {
     };
   }, [open]);
 
-  const summary = issues.length === 0 ? 'No problems found' : [errors && `${errors} ${errors === 1 ? 'error' : 'errors'}`, warnings && `${warnings} ${warnings === 1 ? 'warning' : 'warnings'}`].filter(Boolean).join(', ');
+  const summary =
+    issues.length === 0 ? t.checks.none : [errors > 0 && t.checks.errors(errors), warnings > 0 && t.checks.warnings(warnings)].filter(Boolean).join(', ');
 
   return (
     <div ref={rootRef} className="relative">
       <button
         type="button"
-        title={`Checks: ${summary}`}
-        aria-label={`Checks: ${summary}`}
+        title={t.checks.summary(summary)}
+        aria-label={t.checks.summary(summary)}
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className={cn(
@@ -52,7 +55,7 @@ export function ChecksButton({ compact = false }: { compact?: boolean }) {
         )}
       >
         {issues.length === 0 ? <CircleCheck className="size-4" /> : <TriangleAlert className="size-4" />}
-        {!compact && <span>Checks</span>}
+        {!compact && <span>{t.checks.checks}</span>}
         {issues.length > 0 && (
           <span
             className={cn(
@@ -65,12 +68,12 @@ export function ChecksButton({ compact = false }: { compact?: boolean }) {
         )}
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-40 mt-1 w-[min(22rem,calc(100vw-1rem))] rounded-xl border border-zinc-200 bg-white p-2 shadow-xl" role="dialog" aria-label="Checks">
+        <div className="absolute right-0 top-full z-40 mt-1 w-[min(22rem,calc(100vw-1rem))] rounded-xl border border-zinc-200 bg-white p-2 shadow-xl" role="dialog" aria-label={t.checks.checks}>
           <div className="px-2 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">{summary}</div>
           {issues.length === 0 ? (
             <p className="flex items-center gap-2 px-2 pb-2 text-[13px] text-zinc-600">
               <CircleCheck className="size-4 text-emerald-600" />
-              Nothing overlaps, every part fits its sheet, and doors and windows are clear.
+              {t.checks.allClear}
             </p>
           ) : (
             <ul className="max-h-80 space-y-1 overflow-y-auto">

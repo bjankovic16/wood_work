@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createItem } from '../domain/catalog';
 import * as ops from '../domain/designOps';
+import * as actions from './actions';
 import { useDesignStore } from './designStore';
+import { useUiStore } from './uiStore';
 
 const store = () => useDesignStore.getState();
 
@@ -60,6 +62,19 @@ describe('design history', () => {
     store().apply((d) => ops.replaceItem(d, ops.withCount(d.items[0], 'doors', undefined)));
     expect(store().design.items[0]).not.toHaveProperty('carcassMaterial');
     expect(store().design.items[0]).not.toHaveProperty('doors');
+  });
+
+  it('gives a duplicated unit the pieces changed by hand, in one undo step', () => {
+    const item = createItem('base', [], { label: 'B1' });
+    store().apply((d) => ops.addItem(d, item));
+    store().apply((d) => ops.setPartEdit(d, item.id, 'Shelf||564x540', { quantity: 2 }));
+    useUiStore.getState().select(item.id);
+    actions.duplicateSelected();
+    const copy = store().design.items[1];
+    expect(store().design.partEdits[copy.id]).toEqual({ 'Shelf||564x540': { quantity: 2 } });
+    store().undo();
+    expect(store().design.items).toHaveLength(1);
+    expect(Object.keys(store().design.partEdits)).toEqual([item.id]);
   });
 
   it('pulls units back inside when the room shrinks', () => {

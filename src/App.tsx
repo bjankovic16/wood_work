@@ -8,8 +8,11 @@ import { PropertiesPanel } from './components/properties/PropertiesPanel';
 import { View3D } from './components/three/View3D';
 import { LayoutDialog } from './components/layouts/LayoutDialog';
 import { ProjectsDialog } from './components/projects/ProjectsDialog';
+import { useEffect } from 'react';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useIsCompact } from './hooks/useMediaQuery';
+import { LANGUAGES, useT } from './i18n';
+import { useDesignStore } from './store/designStore';
 import { useUiStore } from './store/uiStore';
 
 /** Large screens: library on the left, plan or cutting list in the middle, properties on the right. */
@@ -39,5 +42,16 @@ function DesktopLayout() {
 
 export function App() {
   useKeyboardShortcuts();
+  const t = useT();
+  const language = useUiStore((s) => s.language);
+  // The browser tab names the open project.
+  const name = useDesignStore((s) => s.design.name);
+  useEffect(() => {
+    document.title = name.trim() ? `${name.trim()} · ${t.appName}` : t.appName;
+  }, [name, t]);
+  // Lets the browser hyphenate, pick fonts and read aloud in the right language.
+  useEffect(() => {
+    document.documentElement.lang = LANGUAGES.find((option) => option.value === language)?.htmlLang ?? language;
+  }, [language]);
   return useIsCompact() ? <CompactLayout /> : <DesktopLayout />;
 }

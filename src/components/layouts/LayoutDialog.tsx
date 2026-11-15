@@ -1,5 +1,6 @@
 import { LAYOUTS, type LayoutId } from '../../domain/templates';
 import { useIsCompact } from '../../hooks/useMediaQuery';
+import { useT } from '../../i18n';
 import { applyLayout } from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
 import { useUiStore } from '../../store/uiStore';
@@ -20,6 +21,7 @@ function LayoutSketch({ id }: { id: LayoutId }) {
 
 /** Start from a complete kitchen that fits the room, like a planner's ready-made kitchens. */
 export function LayoutDialog() {
+  const t = useT();
   const open = useUiStore((s) => s.layoutsOpen);
   const count = useDesignStore((s) => s.design.items.length);
   const room = useDesignStore((s) => s.design.room);
@@ -27,12 +29,11 @@ export function LayoutDialog() {
   const close = () => useUiStore.getState().setLayoutsOpen(false);
 
   return (
-    <Dialog open={open} title="Ready-made layouts" sheet={compact} onClose={close}>
+    <Dialog open={open} title={t.layouts.title} sheet={compact} onClose={close}>
       <div className="space-y-2 p-4 pb-[max(env(safe-area-inset-bottom),16px)]">
         <p className="pb-1 text-[13px] leading-relaxed text-zinc-600">
-          A starting point sized for your {room.width} × {room.depth} mm room, built from standard cabinet widths. Change
-          anything afterwards.
-          {count > 0 && <span className="font-medium text-zinc-800"> It replaces the {count} elements on the plan; Undo brings them back.</span>}
+          {t.layouts.intro(room.width, room.depth)}
+          {count > 0 && <span className="font-medium text-zinc-800">{t.layouts.replaces(count)}</span>}
         </p>
         {LAYOUTS.map((layout) => (
           <button
@@ -46,8 +47,8 @@ export function LayoutDialog() {
           >
             <LayoutSketch id={layout.id} />
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold text-zinc-900">{layout.name}</span>
-              <span className="block text-xs leading-snug text-zinc-500">{layout.description}</span>
+              <span className="block text-sm font-semibold text-zinc-900">{t.layouts.names[layout.id].name}</span>
+              <span className="block text-xs leading-snug text-zinc-500">{t.layouts.names[layout.id].description}</span>
             </span>
           </button>
         ))}

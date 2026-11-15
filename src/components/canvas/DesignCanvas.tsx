@@ -9,6 +9,7 @@ import type { KitchenItem, Point, Wall } from '../../domain/types';
 import { cn } from '../../lib/cn';
 import { clamp } from '../../domain/math';
 import { useCoarsePointer } from '../../hooks/useMediaQuery';
+import { useT } from '../../i18n';
 import { clearTextMetrics } from '../../lib/measureText';
 import { useDesignStore } from '../../store/designStore';
 import { useIssues } from '../../store/derived';
@@ -417,11 +418,7 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
   );
 }
 
-const FILTERS: Array<{ id: ViewFilter; label: string; short: string; title: string }> = [
-  { id: 'all', label: 'All', short: 'All', title: 'Show all units' },
-  { id: 'floor', label: 'Floor units', short: 'Floor', title: 'Work on floor units; wall units are faded' },
-  { id: 'wall', label: 'Wall units', short: 'Wall', title: 'Work on wall units; floor units are faded' },
-];
+const FILTERS: ViewFilter[] = ['all', 'floor', 'wall'];
 
 interface CanvasControlsProps {
   zoom: number;
@@ -431,26 +428,30 @@ interface CanvasControlsProps {
 }
 
 function CanvasControls({ zoom, viewFilter, isEmpty, compact }: CanvasControlsProps) {
+  const t = useT();
   const setViewFilter = useUiStore((s) => s.setViewFilter);
   return (
     <>
       <div className="absolute left-3 top-3 flex rounded-lg border border-zinc-200 bg-white p-0.5 shadow-sm">
-        {FILTERS.map((filter) => (
-          <button
-            key={filter.id}
-            type="button"
-            title={filter.title}
-            aria-label={filter.label}
-            aria-pressed={viewFilter === filter.id}
-            onClick={() => setViewFilter(filter.id)}
-            className={cn(
-              'h-7 touch-manipulation rounded-md px-2.5 text-xs font-medium transition-colors',
-              viewFilter === filter.id ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900',
-            )}
-          >
-            {compact ? filter.short : filter.label}
-          </button>
-        ))}
+        {FILTERS.map((id) => {
+          const filter = t.canvas.filters[id];
+          return (
+            <button
+              key={id}
+              type="button"
+              title={filter.title}
+              aria-label={filter.label}
+              aria-pressed={viewFilter === id}
+              onClick={() => setViewFilter(id)}
+              className={cn(
+                'h-7 touch-manipulation rounded-md px-2.5 text-xs font-medium transition-colors',
+                viewFilter === id ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900',
+              )}
+            >
+              {compact ? filter.short : filter.label}
+            </button>
+          );
+        })}
       </div>
 
       <div
@@ -459,22 +460,22 @@ function CanvasControls({ zoom, viewFilter, isEmpty, compact }: CanvasControlsPr
           compact ? 'top-3' : 'bottom-3',
         )}
       >
-        <Button title="Zoom out" aria-label="Zoom out" className="h-7 min-w-7 px-1.5" onClick={() => zoomBy(1 / 1.25)}>
+        <Button title={t.canvas.zoomOut} aria-label={t.canvas.zoomOut} className="h-7 min-w-7 px-1.5" onClick={() => zoomBy(1 / 1.25)}>
           <Minus className="size-4" />
         </Button>
         <button
           type="button"
-          title="Fit the room in view"
+          title={t.canvas.fit}
           onClick={fitRoomInView}
           className="h-7 w-12 rounded-md text-xs font-medium tabular-nums text-zinc-600 hover:bg-zinc-100"
         >
           {Math.round((zoom / REFERENCE_ZOOM) * 100)}%
         </button>
-        <Button title="Zoom in" aria-label="Zoom in" className="h-7 min-w-7 px-1.5" onClick={() => zoomBy(1.25)}>
+        <Button title={t.canvas.zoomIn} aria-label={t.canvas.zoomIn} className="h-7 min-w-7 px-1.5" onClick={() => zoomBy(1.25)}>
           <Plus className="size-4" />
         </Button>
         <div className="mx-0.5 h-4 w-px bg-zinc-200" />
-        <Button title="Fit the room in view" aria-label="Fit the room in view" className="h-7 min-w-7 px-1.5" onClick={fitRoomInView}>
+        <Button title={t.canvas.fit} aria-label={t.canvas.fit} className="h-7 min-w-7 px-1.5" onClick={fitRoomInView}>
           <Maximize className="size-4" />
         </Button>
       </div>
@@ -487,16 +488,14 @@ function CanvasControls({ zoom, viewFilter, isEmpty, compact }: CanvasControlsPr
           )}
         >
           <div className="rounded-full border border-zinc-200 bg-white/95 px-4 py-2 text-center text-[13px] text-zinc-600 shadow-sm">
-            {compact
-              ? 'Tap “Add element” to place your first cabinet.'
-              : 'Drag an element from the left onto the room, or simply click it.'}
+            {compact ? t.canvas.emptyTouch : t.canvas.emptyDesktop}
           </div>
           <button
             type="button"
             onClick={() => useUiStore.getState().setLayoutsOpen(true)}
             className="pointer-events-auto touch-manipulation rounded-full border border-blue-200 bg-white px-4 py-2 text-[13px] font-medium text-blue-700 shadow-sm hover:bg-blue-50"
           >
-            Or start from a ready-made layout
+            {t.canvas.startFromLayout}
           </button>
         </div>
       )}

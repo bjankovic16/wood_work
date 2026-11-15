@@ -206,6 +206,8 @@ export interface PartEdit {
   length?: number;
   width?: number;
   quantity?: number;
+  /** Another board from the library; the thickness and grain come with it. */
+  materialId?: string;
 }
 
 export interface Design {

@@ -1,4 +1,5 @@
 import { clamp } from '../domain/math';
+import { EN_LABELS, type EngineLabels } from './labels';
 import type { KitchenStyle } from '../domain/style';
 import type {
   ConstructionSettings,
@@ -47,20 +48,25 @@ export const KIND_OPTIONS: Record<ItemKind, KindOptions> = {
   endPanel: { carcass: false, back: false, fronts: true, inset: false },
 };
 
-/** Settings, materials and edge bands, looked up by id. */
+/** Settings, materials and edge bands, looked up by id, and the words to use. */
 export interface BuildContext {
   settings: ConstructionSettings;
   materials: Map<string, Material>;
   edgeBands: Map<string, EdgeBand>;
   style?: KitchenStyle;
+  labels: EngineLabels;
 }
 
-export function buildContext(design: Pick<Design, 'construction' | 'materials' | 'edgeBands'> & { style?: KitchenStyle }): BuildContext {
+export function buildContext(
+  design: Pick<Design, 'construction' | 'materials' | 'edgeBands'> & { style?: KitchenStyle },
+  labels: EngineLabels = EN_LABELS,
+): BuildContext {
   return {
     settings: design.construction,
     materials: new Map(design.materials.map((m) => [m.id, m])),
     edgeBands: new Map(design.edgeBands.map((b) => [b.id, b])),
     style: design.style,
+    labels,
   };
 }
 

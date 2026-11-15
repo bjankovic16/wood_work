@@ -12,11 +12,12 @@ import {
   WALLS,
 } from '../domain/geometry';
 import { alongWall, doorClearance, wallLength } from '../domain/openings';
-import type { Design, KitchenItem, Wall } from '../domain/types';
+import type { Design, KitchenItem, Material } from '../domain/types';
 import { KIND_OPTIONS, buildContext, resolveConfig } from './config';
 import { frontLayout } from './fronts';
+import { EN_LABELS, type EngineLabels } from './labels';
 import { SHEET_TRIM } from './nesting';
-import { innerDepth, MIN_DRAWER_BOX_HEIGHT, unitParts } from './parts';
+import { customPart, innerDepth, MIN_DRAWER_BOX_HEIGHT, unitParts, type Part } from './parts';
 
 export type Severity = 'error' | 'warning';
 
@@ -47,8 +48,11 @@ function workingTop(item: KitchenItem): number {
   return item.elevation + item.height + (WORKTOP_KINDS.has(item.kind) ? WORKTOP_THICKNESS : 0);
 }
 
-function wallName(wall: Wall): string {
-  return `${wall} wall`;
+/** Whether a piece can be cut from one sheet; with grain it cannot be turned. */
+function fitsOnSheet(part: Part, material: Material): boolean {
+  const usableLength = material.sheetLength - 2 * SHEET_TRIM;
+  const usableWidth = material.sheetWidth - 2 * SHEET_TRIM;
+  return (part.length <= usableLength && part.width <= usableWidth) || (!part.grain && part.length <= usableWidth && part.width <= usableLength);
 }
 
 /**
@@ -57,9 +61,10 @@ function wallName(wall: Wall): string {
  * cannot be built, wall units too low, and units in the way of doors and
  * windows. Errors make the kitchen unbuildable; warnings are worth a look.
  */
-export function checkDesign(design: Design): Issue[] {
+export function checkDesign(design: Design, labels: EngineLabels = EN_LABELS): Issue[] {
   const { room, items } = design;
-  const ctx = buildContext(design);
+  const ctx = buildContext(design, labels);
+  const say = labels.checks;
   const issues: Issue[] = [];
   const add = (severity: Severity, key: string, message: string, itemIds: string[] = []) =>
     issues.push({ key, severity, message, itemIds });
@@ -68,12 +73,12 @@ export function checkDesign(design: Design): Issue[] {
   items.forEach((a, i) => {
     for (const b of items.slice(i + 1)) {
       if (verticalOverlap(a, b) && footprintsOverlap(a, b)) {
-        add('error', `overlap-${a.id}-${b.id}`, `${a.label} and ${b.label} overlap.`, [a.id, b.id]);
+        add('error', `overlap-${a.id}-${b.id}`, say.overlap(a.label, b.label), [a.id, b.id]);
       }
     }
-    if (!insideRoom(itemRect(a), room)) add('error', `outside-${a.id}`, `${a.label} sticks out of the room.`, [a.id]);
+    if (!insideRoom(itemRect(a), room)) add('error', `outside-${a.id}`, say.outside(a.label), [a.id]);
     if (a.elevation + a.height > room.height) {
-      add('error', `ceiling-${a.id}`, `${a.label} reaches ${a.elevation + a.height} mm, above the ${room.height} mm ceiling.`, [a.id]);
+      add('error', `ceiling-${a.id}`, say.ceiling(a.label, a.elevation + a.height, room.height), [a.id]);
     }
   });
 
@@ -93,11 +98,14 @@ export function checkDesign(design: Design): Issue[] {
       for (const span of [...spans, { item: null, start: length, end: length }]) {
         const gap = Math.round(span.start - previous.end);
         if (gap > 0 && gap < MIN_USEFUL_GAP && (previous.item || span.item)) {
-          const between = previous.item && span.item ? `${previous.item.label} and ${span.item.label}` : `${(previous.item ?? span.item)!.label} and the corner`;
+          const message =
+            previous.item && span.item
+              ? say.gap(gap, previous.item.label, span.item.label, wall)
+              : say.gap(gap, (previous.item ?? span.item)!.label, null, wall);
           add(
             'warning',
             `gap-${wall}-${level}-${previous.end}`,
-            `A ${gap} mm gap between ${between} on the ${wallName(wall)}: close it, or fill it with a filler panel.`,
+            message,
             [previous.item, span.item].filter((x): x is KitchenItem => x !== null).map((x) => x.id),
           );
         }
@@ -117,52 +125,52 @@ export function checkDesign(design: Design): Issue[] {
       if (below.length > 0) {
         const clearance = item.elevation - Math.max(...below.map(workingTop));
         if (clearance < MIN_WORKTOP_CLEARANCE) {
-          add('warning', `low-${item.id}`, `${item.label} hangs only ${clearance} mm above the worktop below it; 500–650 mm is usual.`, [item.id]);
+          add('warning', `low-${item.id}`, say.lowWallUnit(item.label, clearance), [item.id]);
         }
       }
     }
 
     // Fronts that do not work.
     if (fronts.some((f) => f.w <= 0 || f.h <= 0)) {
-      add('error', `fronts-${item.id}`, `The fronts of ${item.label} do not fit: use fewer doors or drawers.`, [item.id]);
+      add('error', `fronts-${item.id}`, say.frontsDoNotFit(item.label), [item.id]);
     } else {
       const widest = Math.max(0, ...fronts.filter((f) => f.kind === 'door').map((f) => f.w));
       if (widest > MAX_DOOR_WIDTH) {
-        add('warning', `wide-door-${item.id}`, `${item.label} has doors ${widest} mm wide; doors over ${MAX_DOOR_WIDTH} mm sag. Use more doors.`, [item.id]);
+        add('warning', `wide-door-${item.id}`, say.wideDoors(item.label, widest, MAX_DOOR_WIDTH), [item.id]);
       }
       const lowest = Math.min(Infinity, ...fronts.filter((f) => f.kind === 'door').map((f) => f.h));
       if (config.drawers > 0 && lowest < MIN_DOOR_HEIGHT) {
-        add('warning', `low-door-${item.id}`, `The doors of ${item.label} are only ${lowest} mm high under the drawers; use fewer drawers.`, [item.id]);
+        add('warning', `low-door-${item.id}`, say.lowDoors(item.label, lowest), [item.id]);
       }
       const drawers = fronts.filter((f) => f.kind === 'drawer');
       if (drawers.some((f) => f.h - ctx.settings.drawerBoxGap < MIN_DRAWER_BOX_HEIGHT)) {
-        add('warning', `drawer-box-${item.id}`, `The drawer fronts of ${item.label} are too low for a drawer box.`, [item.id]);
+        add('warning', `drawer-box-${item.id}`, say.lowDrawers(item.label), [item.id]);
       }
       if (drawers.length > 0 && innerDepth(item, config, ctx) < MIN_SLIDE_DEPTH) {
-        add('warning', `slides-${item.id}`, `${item.label} is too shallow for drawer slides; they need ${MIN_SLIDE_DEPTH} mm inside.`, [item.id]);
+        add('warning', `slides-${item.id}`, say.shallowForSlides(item.label, MIN_SLIDE_DEPTH), [item.id]);
       }
     }
 
     // Parts that do not fit on their sheet.
     if (options.carcass || options.fronts) {
-      for (const part of unitParts(item, ctx)) {
+      for (const part of unitParts(item, ctx, design.partEdits[item.id])) {
         const material = ctx.materials.get(part.materialId);
-        if (!material) continue;
-        const usableLength = material.sheetLength - 2 * SHEET_TRIM;
-        const usableWidth = material.sheetWidth - 2 * SHEET_TRIM;
-        const fits =
-          (part.length <= usableLength && part.width <= usableWidth) ||
-          (!part.grain && part.length <= usableWidth && part.width <= usableLength);
-        if (!fits) {
-          add(
-            'error',
-            `sheet-${item.id}-${part.name}`,
-            `${part.name} of ${item.label} (${part.length} × ${part.width}) does not fit on a ${material.sheetLength} × ${material.sheetWidth} sheet of ${material.name}.`,
-            [item.id],
-          );
-        }
+        if (!material || part.quantity <= 0 || fitsOnSheet(part, material)) continue;
+        add(
+          'error',
+          `sheet-${item.id}-${part.key}`,
+          say.partTooLarge(part.name, item.label, part.length, part.width, material, labels.material(material)),
+          [item.id],
+        );
       }
     }
+  }
+
+  for (const custom of design.customParts) {
+    const part = customPart(custom, ctx);
+    const material = ctx.materials.get(part.materialId);
+    if (!material || fitsOnSheet(part, material)) continue;
+    add('error', `sheet-custom-${custom.id}`, say.extraTooLarge(part.name, part.length, part.width, material, labels.material(material)));
   }
 
   // A fridge right next to an oven gets warm.
@@ -170,22 +178,21 @@ export function checkDesign(design: Design): Issue[] {
     for (const oven of items.filter((i) => i.kind === 'oven')) {
       const grown = { ...itemRect(fridge), x: itemRect(fridge).x - 1, y: itemRect(fridge).y - 1, w: itemRect(fridge).w + 2, h: itemRect(fridge).h + 2 };
       if (footprintRects(oven).some((r) => rectsOverlap(grown, r, 0))) {
-        add('warning', `fridge-${fridge.id}-${oven.id}`, `Fridge ${fridge.label} stands right next to oven ${oven.label}; put a unit or a panel between them.`, [fridge.id, oven.id]);
+        add('warning', `fridge-${fridge.id}-${oven.id}`, say.fridgeByOven(fridge.label, oven.label), [fridge.id, oven.id]);
       }
     }
   }
 
   // Windows and doors.
   for (const opening of design.openings) {
-    const name = `${opening.kind === 'door' ? 'door' : 'window'} on the ${wallName(opening.wall)}`;
     if (opening.offset + opening.width > wallLength(room, opening.wall) || opening.sill + opening.height > room.height) {
-      add('error', `opening-${opening.id}`, `The ${name} does not fit in the wall.`);
+      add('error', `opening-${opening.id}`, say.openingDoesNotFit(opening.kind, opening.wall));
     }
     for (const item of items) {
       if (opening.kind === 'door') {
         const clear = doorClearance(room, opening);
         if (item.elevation < opening.height && footprintRects(item).some((r) => rectsOverlap(r, clear))) {
-          add('error', `door-${opening.id}-${item.id}`, `${item.label} blocks the ${name}.`, [item.id]);
+          add('error', `door-${opening.id}-${item.id}`, say.blocksDoor(item.label, opening.wall), [item.id]);
         }
         continue;
       }
@@ -200,7 +207,7 @@ export function checkDesign(design: Design): Issue[] {
       add(
         'warning',
         `window-${opening.id}-${item.id}`,
-        lowUnit ? `The ${name} starts at ${opening.sill} mm, below the worktop of ${item.label} (${top} mm).` : `${item.label} covers the ${name}.`,
+        lowUnit ? say.windowBelowWorktop(opening.wall, opening.sill, item.label, top) : say.coversWindow(item.label, opening.wall),
         [item.id],
       );
     }

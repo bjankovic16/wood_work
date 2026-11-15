@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createItem } from '../domain/catalog';
 import * as ops from '../domain/designOps';
+import { DEFAULT_LANGUAGE } from '../i18n/language';
 import { useDesignStore } from './designStore';
+import { useUiStore } from './uiStore';
 import {
   createProject,
   deleteProject,
@@ -20,6 +22,7 @@ const design = () => useDesignStore.getState().design;
 beforeEach(() => {
   localStorage.clear();
   resetProjectsForTests();
+  useUiStore.setState({ language: DEFAULT_LANGUAGE });
   useDesignStore.getState().load(ops.createDesign());
 });
 
@@ -62,10 +65,36 @@ describe('projects', () => {
     initProjects();
     const original = projects().activeId;
     const copy = duplicateProject(original)!;
-    expect(projects().projects.find((p) => p.id === copy)?.name).toBe('My kitchen (copy)');
+    expect(projects().projects.find((p) => p.id === copy)?.name).toBe('Moja kuhinja (kopija)');
     deleteProject(original);
     expect(projects().projects.map((p) => p.id)).toEqual([copy]);
     expect(projects().activeId).toBe(copy);
+  });
+
+  it('leaves nothing behind when the last project is deleted, and does not re-date unchanged projects', () => {
+    initProjects();
+    const only = projects().activeId;
+    useDesignStore.getState().apply((d) => ops.setName(d, 'Unsaved change'));
+    deleteProject(only);
+    expect(localStorage.getItem(`kitchen-designer:project:${only}`)).toBeNull();
+    expect(projects().projects.map((p) => p.name)).toEqual(['Moja kuhinja']);
+
+    const meta = projects().projects[0];
+    useProjectsStore.setState({ projects: [{ ...meta, updatedAt: 1 }] });
+    flushSave();
+    expect(projects().projects[0].updatedAt).toBe(1);
+  });
+
+  it('names new projects and copies in the interface language, Serbian by default', () => {
+    initProjects();
+    expect(design().name).toBe('Moja kuhinja');
+    useUiStore.getState().setLanguage('en');
+    createProject();
+    expect(design().name).toBe('Kitchen 1');
+    duplicateProject(projects().activeId);
+    useUiStore.getState().setLanguage('sr');
+    createProject();
+    expect(projects().projects.map((p) => p.name).sort()).toEqual(['Kitchen 1', 'Kitchen 1 (copy)', 'Kuhinja 1', 'Moja kuhinja']);
   });
 
   it('imports a design from a file and refuses anything else', () => {

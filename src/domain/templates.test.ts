@@ -23,7 +23,7 @@ function collisions(items: KitchenItem[]): string[] {
 describe('ready-made layouts', () => {
   for (const layout of LAYOUTS) {
     for (const room of ROOMS) {
-      it(`${layout.name} fits a ${room.width} × ${room.depth} room without overlaps`, () => {
+      it(`${layout.id} fits a ${room.width} × ${room.depth} room without overlaps`, () => {
         const items = buildLayout(layout.id, room);
         expect(items.length).toBeGreaterThan(0);
         expect(items.filter((item) => !insideRoom(itemRect(item), room)).map((i) => i.label)).toEqual([]);

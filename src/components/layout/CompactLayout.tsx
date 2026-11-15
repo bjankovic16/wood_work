@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronUp, Plus, Ruler } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { KitchenItem } from '../../domain/types';
+import { useT } from '../../i18n';
 import { useDesignStore } from '../../store/designStore';
 import { useUiStore } from '../../store/uiStore';
 import { DesignCanvas } from '../canvas/DesignCanvas';
@@ -17,6 +18,7 @@ import { TopBar } from './TopBar';
 
 /** The selected unit, docked at the bottom of the plan; expands to show all its settings. */
 function ItemSheet({ item }: { item: KitchenItem }) {
+  const t = useT();
   const [expanded, setExpanded] = useState(false);
   return (
     <div
@@ -31,7 +33,7 @@ function ItemSheet({ item }: { item: KitchenItem }) {
         <div className="flex-1" />
         <Button variant="outline" aria-expanded={expanded} onClick={() => setExpanded((e) => !e)}>
           {expanded ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
-          {expanded ? 'Less' : 'Edit'}
+          {expanded ? t.phone.less : t.phone.edit}
         </Button>
       </div>
       {expanded && (
@@ -48,6 +50,7 @@ function ItemSheet({ item }: { item: KitchenItem }) {
  * the room settings and the selected unit slide up from the bottom.
  */
 export function CompactLayout() {
+  const t = useT();
   const view = useUiStore((s) => s.view);
   const selectedId = useUiStore((s) => s.selectedId);
   const item = useDesignStore((s) => (selectedId ? s.design.items.find((i) => i.id === selectedId) : undefined));
@@ -71,24 +74,24 @@ export function CompactLayout() {
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center gap-2 px-3 pb-[max(env(safe-area-inset-bottom),14px)] pt-3">
             <Button variant="primary" className="pointer-events-auto h-11 rounded-full px-5 text-sm shadow-lg" onClick={() => setSheet('add')}>
               <Plus className="size-4" />
-              Add element
+              {t.phone.addElement}
             </Button>
             <Button variant="outline" className="pointer-events-auto h-11 rounded-full px-4 text-sm shadow-lg" onClick={() => setSheet('room')}>
               <Ruler className="size-4" />
-              Room
+              {t.phone.room}
             </Button>
           </div>
         )}
         {designing && item && <ItemSheet key={item.id} item={item} />}
       </main>
 
-      <Dialog open={sheet === 'add'} title="Add element" sheet onClose={() => setSheet(null)}>
-        <p className="px-4 pt-3 text-xs text-zinc-500">Tap an element: it goes into the first free spot along the walls.</p>
+      <Dialog open={sheet === 'add'} title={t.phone.addElement} sheet onClose={() => setSheet(null)}>
+        <p className="px-4 pt-3 text-xs text-zinc-500">{t.phone.addHint}</p>
         <div className="space-y-1 px-3 pb-[max(env(safe-area-inset-bottom),16px)] pt-1">
           <LibrarySections wide onAdded={() => setSheet(null)} />
         </div>
       </Dialog>
-      <Dialog open={sheet === 'room'} title="Room" sheet onClose={() => setSheet(null)}>
+      <Dialog open={sheet === 'room'} title={t.phone.room} sheet onClose={() => setSheet(null)}>
         <div className="pb-[env(safe-area-inset-bottom)]">
           <RoomPanel touch />
         </div>

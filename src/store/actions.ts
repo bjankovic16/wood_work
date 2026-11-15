@@ -9,6 +9,7 @@ import type { KitchenStyle } from '../domain/style';
 import { OPENING_DEFAULTS, wallLength } from '../domain/openings';
 import type { ConstructionSettings, CustomPart, Design, EdgeBand, KitchenItem, Material, Opening, OpeningKind, PartEdit, Room } from '../domain/types';
 import { DEFAULT_CONSTRUCTION } from '../engine/settings';
+import { currentMessages } from '../i18n';
 import { useDesignStore } from './designStore';
 import { useUiStore } from './uiStore';
 import { clientToPlan, snapSettings } from './viewport';
@@ -30,8 +31,11 @@ function editItem(id: string, edit: (item: KitchenItem, room: Room) => KitchenIt
   });
 }
 
-function insertAndSelect(item: KitchenItem, focusWidth = false): void {
-  apply((design) => ops.addItem(design, item));
+function insertAndSelect(item: KitchenItem, focusWidth = false, partEdits?: Record<string, PartEdit>): void {
+  apply((design) => {
+    const next = ops.addItem(design, item);
+    return partEdits ? { ...next, partEdits: { ...next.partEdits, [item.id]: partEdits } } : next;
+  });
   const ui = useUiStore.getState();
   // A new unit hidden by the view filter would look as if nothing happened.
   if (ui.viewFilter !== 'all' && (ui.viewFilter === 'wall') !== isWallMounted(item)) ui.setViewFilter('all');
@@ -44,7 +48,7 @@ export function addPresetToPlan(presetId: string): boolean {
   const preset = findPreset(presetId);
   if (!preset) return false;
   const { room, items, openings } = current();
-  const item = itemFromPreset(preset, items);
+  const item = itemFromPreset(preset, items, currentMessages().labelPrefix);
   insertAndSelect({ ...item, ...(findFreeSpot(room, items, item, openings) ?? centreOfRoom(room, item)) }, preset.custom);
   return true;
 }
@@ -60,7 +64,7 @@ export function updateLibraryDrag(presetId: string, clientX: number, clientY: nu
     return;
   }
   const { room, items } = current();
-  const item = previous?.ghost ?? itemFromPreset(preset, items);
+  const item = previous?.ghost ?? itemFromPreset(preset, items, currentMessages().labelPrefix);
   const result = computeDragPlacement({
     room,
     others: items,
@@ -90,7 +94,7 @@ export function finishLibraryDrag(drop: boolean): boolean {
   ui.setLibraryDrag(null);
   if (!drop || !drag?.ghost) return false;
   const { items } = current();
-  const item = { ...drag.ghost, id: newId(), label: nextLabel(drag.ghost.kind, items) };
+  const item = { ...drag.ghost, id: newId(), label: nextLabel(drag.ghost.kind, items, currentMessages().labelPrefix) };
   insertAndSelect(item, findPreset(drag.presetId)?.custom);
   return true;
 }
@@ -105,9 +109,10 @@ export function deleteSelected(): void {
 export function duplicateSelected(): void {
   const item = selectedItem();
   if (!item) return;
-  const { room, items, openings } = current();
-  const copy = { ...item, id: newId(), label: nextLabel(item.kind, items) };
-  insertAndSelect({ ...copy, ...placeCopy(room, items, item, copy, openings) });
+  const { room, items, openings, partEdits } = current();
+  const copy = { ...item, id: newId(), label: nextLabel(item.kind, items, currentMessages().labelPrefix) };
+  // The copy keeps any pieces changed by hand in the cutting list.
+  insertAndSelect({ ...copy, ...placeCopy(room, items, item, copy, openings) }, false, partEdits[item.id]);
 }
 
 /** Rotates the selection in 90° steps; positive is clockwise. */
@@ -179,8 +184,10 @@ export function resetConstruction(): void {
 /** Adds a material to the library, starting as a copy of `template` (or a plain 18 mm board). */
 export function addMaterial(template?: Material): string {
   const id = newId();
-  const base: Material = template ?? { id, name: 'New board', thickness: 18, sheetLength: 2800, sheetWidth: 2070, grain: false, price: 0 };
-  apply((design) => ops.addMaterial(design, { ...base, id, name: template ? `${template.name} (copy)` : base.name }));
+  const t = currentMessages();
+  const base: Material = template ?? { id, name: t.names.newBoard, thickness: 18, sheetLength: 2800, sheetWidth: 2070, grain: false, price: 0 };
+  // A copy is named after the board as it is shown, so a built-in board's copy reads in the same language.
+  apply((design) => ops.addMaterial(design, { ...base, id, name: template ? t.names.copyOf(t.engine.material(template)) : base.name }));
   return id;
 }
 
@@ -194,7 +201,7 @@ export function removeMaterial(id: string): void {
 
 export function addEdgeBand(): string {
   const id = newId();
-  apply((design) => ops.addEdgeBand(design, { id, name: 'New edge band', thickness: 1, price: 0 }));
+  apply((design) => ops.addEdgeBand(design, { id, name: currentMessages().names.newEdgeBand, thickness: 1, price: 0 }));
   return id;
 }
 
@@ -248,7 +255,7 @@ export function setStyle(patch: Partial<KitchenStyle>): void {
 
 /** Replaces the plan with a ready-made layout for the current room (one undo step). */
 export function applyLayout(id: LayoutId): void {
-  apply((design) => ({ ...design, items: buildLayout(id, design.room), partEdits: {} }));
+  apply((design) => ({ ...design, items: buildLayout(id, design.room, currentMessages().labelPrefix), partEdits: {} }));
   useUiStore.getState().select(null);
 }
 
@@ -263,7 +270,7 @@ export function addCustomPart(): string {
   apply((design) =>
     ops.addCustomPart(design, {
       id,
-      name: 'Extra piece',
+      name: currentMessages().names.extraPiece,
       quantity: 1,
       length: 600,
       width: 100,

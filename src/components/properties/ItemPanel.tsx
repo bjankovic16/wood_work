@@ -1,11 +1,12 @@
 import { ChevronRight, Copy, RotateCcw, RotateCw, Trash2, TriangleAlert, X } from 'lucide-react';
 import { useEffect, useMemo, type ReactNode } from 'react';
-import { ELEVATION_LIMITS, KIND_SPECS, sizeLimits, type SizeField } from '../../domain/catalog';
+import { ELEVATION_LIMITS, sizeLimits, type SizeField } from '../../domain/catalog';
 import { aabbSize, attachedWall, backWall, isFlushWith, itemRect, mountingWalls } from '../../domain/geometry';
 import type { KitchenItem, Material, Room } from '../../domain/types';
 import { KIND_OPTIONS, resolveConfig, type BuildContext } from '../../engine/config';
-import { edgeText, formatMm } from '../../engine/cuttingList';
+import { edgeText } from '../../engine/cuttingList';
 import { unitParts } from '../../engine/parts';
+import { useT, type CornerName, type Messages } from '../../i18n';
 import { cn } from '../../lib/cn';
 import * as actions from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
@@ -17,19 +18,20 @@ import { FrontPreview } from './FrontPreview';
 import { NumberField, SelectField, TextField } from './NumberField';
 import { Stepper } from './Stepper';
 
-const CORNER_NAMES = { 0: 'top-left', 90: 'top-right', 180: 'bottom-right', 270: 'bottom-left' } as const;
+const CORNER_NAMES: Record<KitchenItem['rotation'], CornerName> = { 0: 'top-left', 90: 'top-right', 180: 'bottom-right', 270: 'bottom-left' };
 
-export function placementText(item: KitchenItem, room: Room): string {
+function placementText(item: KitchenItem, room: Room, t: Messages): string {
   if (item.kind === 'corner') {
     const rect = itemRect(item);
     const inCorner = mountingWalls(item).every((wall) => isFlushWith(rect, wall, room));
-    return inCorner ? `In the ${CORNER_NAMES[item.rotation]} corner` : 'Not in a corner';
+    return inCorner ? t.item.inCorner(CORNER_NAMES[item.rotation]) : t.item.notInCorner;
   }
   const wall = attachedWall(item, room);
-  return wall ? `Back against the ${wall} wall` : `Free-standing, facing away from the ${backWall(item.rotation)} wall`;
+  return wall ? t.item.backAgainst(wall) : t.item.freeStanding(backWall(item.rotation));
 }
 
 export function ItemHeader({ item, compact = false }: { item: KitchenItem; compact?: boolean }) {
+  const t = useT();
   const room = useDesignStore((s) => s.design.room);
   return (
     <div className={cn('flex items-start gap-3 px-4', compact ? 'pb-2 pt-3' : 'border-b border-zinc-100 py-4')}>
@@ -38,12 +40,12 @@ export function ItemHeader({ item, compact = false }: { item: KitchenItem; compa
       </div>
       <div className="min-w-0 flex-1 pt-0.5">
         <div className="truncate text-sm font-semibold text-zinc-900">
-          {KIND_SPECS[item.kind].name}
+          {t.kinds[item.kind]}
           <span className="ml-1.5 font-medium text-zinc-400">{item.label}</span>
         </div>
-        <div className="truncate text-xs text-zinc-500">{placementText(item, room)}</div>
+        <div className="truncate text-xs text-zinc-500">{placementText(item, room, t)}</div>
       </div>
-      <Button title="Deselect (Esc)" aria-label="Deselect" onClick={() => useUiStore.getState().select(null)} className="-mr-2 -mt-1">
+      <Button title={t.item.deselectTitle} aria-label={t.item.deselect} onClick={() => useUiStore.getState().select(null)} className="-mr-2 -mt-1">
         <X className="size-4" />
       </Button>
     </div>
@@ -72,8 +74,6 @@ function UnitIssues({ item }: { item: KitchenItem }) {
   );
 }
 
-const materialLabel = (m: Material) => `${m.name} ${formatMm(m.thickness)} mm`;
-
 /** A board for this unit: the kitchen-wide one, or any other from the library. */
 function MaterialField({
   item,
@@ -86,10 +86,12 @@ function MaterialField({
   label: string;
   kitchenWide: string;
 }) {
+  const t = useT();
   const materials = useDesignStore((s) => s.design.materials);
   const kitchen = materials.find((m) => m.id === kitchenWide);
+  const materialLabel = (m: Material) => `${t.engine.material(m)} ${t.mm(m.thickness)} mm`;
   const options = [
-    { value: '', label: `Kitchen: ${kitchen ? materialLabel(kitchen) : '—'}` },
+    { value: '', label: t.item.kitchenBoard(kitchen ? materialLabel(kitchen) : '—') },
     ...materials.filter((m) => m.id !== kitchenWide).map((m) => ({ value: m.id, label: materialLabel(m) })),
   ];
   return (
@@ -104,6 +106,7 @@ function MaterialField({
 
 /** Everything editable about one unit. Shared by the desktop panel and the phone sheet. */
 export function ItemFields({ item }: { item: KitchenItem }) {
+  const t = useT();
   const room = useDesignStore((s) => s.design.room);
   const construction = useDesignStore((s) => s.design.construction);
   const ctx = useBuildContext();
@@ -140,62 +143,83 @@ export function ItemFields({ item }: { item: KitchenItem }) {
     <>
       <UnitIssues item={item} />
 
-      <PanelSection title="Size">
-        {sizeField('width', corner ? 'Width, wall A' : 'Width')}
-        {corner && sizeField('width2', 'Width, wall B')}
-        {sizeField('depth', 'Depth')}
-        {sizeField('height', 'Height')}
+      <PanelSection title={t.item.size}>
+        {sizeField('width', corner ? t.item.widthWallA : t.item.width)}
+        {corner && sizeField('width2', t.item.widthWallB)}
+        {sizeField('depth', t.item.depth)}
+        {sizeField('height', t.item.height)}
       </PanelSection>
 
-      <PanelSection title={hasCounts ? 'Fronts and shelves' : 'Front view'}>
+      <PanelSection title={hasCounts ? t.item.frontsAndShelves : t.item.frontView}>
         <FrontPreview item={item} ctx={ctx} />
         {options.doors && (
-          <Stepper label="Doors" value={config.doors} {...options.doors} onChange={(v) => actions.setItemCount(item.id, 'doors', v)} />
+          <Stepper
+            label={t.item.doors}
+            fewerLabel={t.item.fewer.doors}
+            moreLabel={t.item.more.doors}
+            value={config.doors}
+            {...options.doors}
+            onChange={(v) => actions.setItemCount(item.id, 'doors', v)}
+          />
         )}
         {options.drawers && (
-          <Stepper label="Drawers" value={config.drawers} {...options.drawers} onChange={(v) => actions.setItemCount(item.id, 'drawers', v)} />
+          <Stepper
+            label={t.item.drawers}
+            fewerLabel={t.item.fewer.drawers}
+            moreLabel={t.item.more.drawers}
+            value={config.drawers}
+            {...options.drawers}
+            onChange={(v) => actions.setItemCount(item.id, 'drawers', v)}
+          />
         )}
         {options.shelves && !drawersOnly && (
-          <Stepper label="Shelves" value={config.shelves} {...options.shelves} onChange={(v) => actions.setItemCount(item.id, 'shelves', v)} />
+          <Stepper
+            label={t.item.shelves}
+            fewerLabel={t.item.fewer.shelves}
+            moreLabel={t.item.more.shelves}
+            value={config.shelves}
+            {...options.shelves}
+            onChange={(v) => actions.setItemCount(item.id, 'shelves', v)}
+          />
         )}
         {options.inset && (config.doors > 0 || config.drawers > 0) && (
-          <OptionRow label="Fronts">
+          <OptionRow label={t.item.fronts}>
             <Segmented
-              ariaLabel="Door type"
+              ariaLabel={t.item.doorType}
               size="sm"
               value={config.doorType}
               onChange={(doorType) => actions.setItemOption(item.id, 'doorType', doorType === construction.doorType ? undefined : doorType)}
               options={[
-                { value: 'overlay', label: 'Full overlay' },
-                { value: 'inset', label: 'Inset' },
+                { value: 'overlay', label: t.item.fullOverlay },
+                { value: 'inset', label: t.item.inset },
               ]}
             />
           </OptionRow>
         )}
         {config.doors === 1 && (
-          <OptionRow label="Hinges">
+          <OptionRow label={t.item.hinges}>
             <Segmented
-              ariaLabel="Hinge side"
+              ariaLabel={t.item.hingeSide}
               size="sm"
               value={config.hinge}
               onChange={(hinge) => actions.setItemOption(item.id, 'hinge', hinge === 'left' ? undefined : hinge)}
               options={[
-                { value: 'left', label: 'Left' },
-                { value: 'right', label: 'Right' },
+                { value: 'left', label: t.item.left },
+                { value: 'right', label: t.item.right },
               ]}
             />
           </OptionRow>
         )}
         {drawersOnly && config.drawers > 1 && (
-          <OptionRow label="Drawer fronts">
+          <OptionRow label={t.item.drawerFronts}>
             <Segmented
-              ariaLabel="Drawer fronts"
+              ariaLabel={t.item.drawerFronts}
               size="sm"
               value={config.drawerLayout}
               onChange={(layout) => actions.setItemOption(item.id, 'drawerLayout', layout === 'equal' ? undefined : layout)}
               options={[
-                { value: 'equal', label: 'Equal' },
-                { value: 'shallowTop', label: 'Small top' },
+                { value: 'equal', label: t.item.equal },
+                { value: 'shallowTop', label: t.item.smallTop },
               ]}
             />
           </OptionRow>
@@ -203,41 +227,41 @@ export function ItemFields({ item }: { item: KitchenItem }) {
       </PanelSection>
 
       {(options.carcass || options.fronts) && (
-        <PanelSection title="Materials">
-          {options.carcass && <MaterialField item={item} field="carcassMaterial" label="Carcass" kitchenWide={construction.carcassMaterial} />}
-          {options.back && <MaterialField item={item} field="backMaterial" label="Back panel" kitchenWide={construction.backMaterial} />}
-          {options.fronts && <MaterialField item={item} field="frontMaterial" label="Fronts" kitchenWide={construction.frontMaterial} />}
+        <PanelSection title={t.item.materials}>
+          {options.carcass && <MaterialField item={item} field="carcassMaterial" label={t.item.carcass} kitchenWide={construction.carcassMaterial} />}
+          {options.back && <MaterialField item={item} field="backMaterial" label={t.item.backPanel} kitchenWide={construction.backMaterial} />}
+          {options.fronts && <MaterialField item={item} field="frontMaterial" label={t.item.fronts} kitchenWide={construction.frontMaterial} />}
         </PanelSection>
       )}
 
-      <PanelSection title="Position">
+      <PanelSection title={t.item.position}>
         <NumberField
-          label="From left wall"
+          label={t.item.fromLeftWall}
           value={item.x}
           min={0}
           max={Math.max(0, room.width - footprint.w)}
           onCommit={(v) => actions.setItemPosition(item.id, v, item.y)}
         />
         <NumberField
-          label="From top wall"
+          label={t.item.fromTopWall}
           value={item.y}
           min={0}
           max={Math.max(0, room.depth - footprint.h)}
           onCommit={(v) => actions.setItemPosition(item.id, item.x, v)}
         />
         <NumberField
-          label="Height from floor"
-          title="Floor to the underside of the unit"
+          label={t.item.heightFromFloor}
+          title={t.item.heightFromFloorTitle}
           value={item.elevation}
           min={ELEVATION_LIMITS.min}
           max={ELEVATION_LIMITS.max}
           onCommit={(v) => actions.setItemElevation(item.id, v)}
         />
-        <p className="pl-[112px] text-[11px] text-zinc-400">Top edge at {item.elevation + item.height} mm</p>
+        <p className="pl-[112px] text-[11px] text-zinc-400">{t.item.topEdgeAt(item.elevation + item.height)}</p>
       </PanelSection>
 
-      <PanelSection title="Element">
-        <TextField label="Code" value={item.label} maxLength={12} onCommit={(v) => actions.setItemLabel(item.id, v)} />
+      <PanelSection title={t.item.element}>
+        <TextField label={t.item.code} value={item.label} maxLength={12} onCommit={(v) => actions.setItemLabel(item.id, v)} />
       </PanelSection>
 
       <PartsSection item={item} ctx={ctx} />
@@ -255,40 +279,48 @@ function OptionRow({ label, children }: { label: string; children: ReactNode }) 
 }
 
 function PartsSection({ item, ctx }: { item: KitchenItem; ctx: BuildContext }) {
-  const parts = useMemo(() => unitParts(item, ctx), [item, ctx]);
+  const t = useT();
+  const edits = useDesignStore((s) => s.design.partEdits[item.id]);
+  const parts = useMemo(() => unitParts(item, ctx, edits), [item, ctx, edits]);
   const pieces = parts.reduce((sum, p) => sum + p.quantity, 0);
   return (
     <PanelSection
-      title={`Parts · ${pieces} ${pieces === 1 ? 'piece' : 'pieces'}`}
+      title={t.item.parts(pieces)}
       aside={
         <button
           type="button"
           onClick={() => useUiStore.getState().setView('list')}
           className="flex items-center text-[11px] font-medium text-blue-600 hover:underline"
         >
-          Cutting list
+          {t.item.toCuttingList}
           <ChevronRight className="size-3.5" />
         </button>
       }
     >
       {parts.length === 0 ? (
-        <p className="text-xs text-zinc-500">A freestanding appliance: nothing to cut.</p>
+        <p className="text-xs text-zinc-500">{t.item.nothingToCut}</p>
       ) : (
         <ul className="divide-y divide-zinc-100">
           {parts.map((p, i) => (
-            <li key={i} className="flex items-baseline gap-2 py-1.5 text-xs">
+            <li key={i} className={cn('flex items-baseline gap-2 py-1.5 text-xs', p.quantity <= 0 && 'opacity-50')}>
               <span className="w-6 shrink-0 font-semibold tabular-nums text-zinc-900">{p.quantity}×</span>
               <span className="min-w-0 flex-1 text-zinc-700">
                 {p.name}
-                {(p.note || p.edgeBandId) && (
+                {(p.note || p.edgeBandId || p.edited) && (
                   <span className="block text-[11px] leading-snug text-zinc-400">
-                    {[p.edgeBandId && `Edges ${edgeText(p)}`, p.note].filter(Boolean).join(' · ')}
+                    {[
+                      p.edited && (p.quantity <= 0 ? t.engine.leftOutByHand : t.engine.changedByHand),
+                      p.edgeBandId && t.item.edges(edgeText(p, t.engine)),
+                      p.note,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
                   </span>
                 )}
               </span>
-              <span className="shrink-0 tabular-nums text-zinc-500">
-                {formatMm(p.length)} × {formatMm(p.width)}
-                <span className="text-zinc-400"> · {formatMm(p.thickness)}</span>
+              <span className={cn('shrink-0 tabular-nums', p.edited ? 'font-medium text-blue-700' : 'text-zinc-500')}>
+                {t.mm(p.length)} × {t.mm(p.width)}
+                <span className="text-zinc-400"> · {t.mm(p.thickness)}</span>
               </span>
             </li>
           ))}
@@ -299,12 +331,13 @@ function PartsSection({ item, ctx }: { item: KitchenItem; ctx: BuildContext }) {
 }
 
 export function RotateButtons() {
+  const t = useT();
   return (
     <>
-      <Button variant="outline" title="Rotate left (Shift+R)" aria-label="Rotate left" onClick={() => actions.rotateSelected(-1)}>
+      <Button variant="outline" title={t.item.rotateLeftTitle} aria-label={t.item.rotateLeft} onClick={() => actions.rotateSelected(-1)}>
         <RotateCcw className="size-4" />
       </Button>
-      <Button variant="outline" title="Rotate right (R)" aria-label="Rotate right" onClick={() => actions.rotateSelected(1)}>
+      <Button variant="outline" title={t.item.rotateRightTitle} aria-label={t.item.rotateRight} onClick={() => actions.rotateSelected(1)}>
         <RotateCw className="size-4" />
       </Button>
     </>
@@ -312,19 +345,21 @@ export function RotateButtons() {
 }
 
 export function DuplicateButton({ className, iconOnly = false }: { className?: string; iconOnly?: boolean }) {
+  const t = useT();
   return (
-    <Button variant="outline" className={className} title="Duplicate (Ctrl+D)" aria-label="Duplicate" onClick={actions.duplicateSelected}>
+    <Button variant="outline" className={className} title={t.item.duplicateTitle} aria-label={t.item.duplicate} onClick={actions.duplicateSelected}>
       <Copy className="size-4" />
-      {!iconOnly && 'Duplicate'}
+      {!iconOnly && t.item.duplicate}
     </Button>
   );
 }
 
 export function DeleteButton({ className, iconOnly = false }: { className?: string; iconOnly?: boolean }) {
+  const t = useT();
   return (
-    <Button variant="danger" className={className} title="Delete (Del)" aria-label="Delete" onClick={actions.deleteSelected}>
+    <Button variant="danger" className={className} title={t.item.deleteTitle} aria-label={t.item.delete} onClick={actions.deleteSelected}>
       <Trash2 className="size-4" />
-      {!iconOnly && 'Delete'}
+      {!iconOnly && t.item.delete}
     </Button>
   );
 }

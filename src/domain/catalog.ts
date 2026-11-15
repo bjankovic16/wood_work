@@ -8,10 +8,13 @@ export interface Range {
 
 export type SizeField = 'width' | 'depth' | 'height' | 'width2';
 
+/** Start of the automatic unit codes, per kind; the interface language supplies its own. */
+export type LabelPrefixes = Record<ItemKind, string>;
+
+/** Names live with the interface language (src/i18n), not here. */
 export interface KindSpec {
   kind: ItemKind;
-  name: string;
-  /** Prefix for the automatic item codes (B1, B2, W1, …). */
+  /** Default prefix for the automatic item codes (B1, B2, W1, …). */
   labelPrefix: string;
   defaults: { width: number; depth: number; height: number; elevation: number; width2?: number };
   limits: { width: Range; depth: Range; height: Range; width2?: Range };
@@ -42,56 +45,48 @@ const baseLimits = { width: range(150, 1200), depth: range(250, 800), height: ra
 export const KIND_SPECS: Record<ItemKind, KindSpec> = {
   base: {
     kind: 'base',
-    name: 'Base cabinet',
     labelPrefix: 'B',
     defaults: base,
     limits: baseLimits,
   },
   wall: {
     kind: 'wall',
-    name: 'Wall cabinet',
     labelPrefix: 'W',
     defaults: { width: 600, depth: WALL_DEPTH, height: WALL_HEIGHT, elevation: WALL_ELEVATION },
     limits: { width: range(150, 1200), depth: range(150, 600), height: range(200, 1200) },
   },
   sink: {
     kind: 'sink',
-    name: 'Sink cabinet',
     labelPrefix: 'S',
     defaults: { ...base, width: 800 },
     limits: { ...baseLimits, width: range(400, 1200) },
   },
   oven: {
     kind: 'oven',
-    name: 'Oven cabinet',
     labelPrefix: 'O',
     defaults: base,
     limits: { ...baseLimits, width: range(560, 900) },
   },
   dishwasher: {
     kind: 'dishwasher',
-    name: 'Dishwasher space',
     labelPrefix: 'DW',
     defaults: { width: 600, depth: BASE_DEPTH, height: PLINTH_HEIGHT + BASE_HEIGHT, elevation: 0 },
     limits: { width: range(450, 600), depth: range(500, 700), height: range(700, 950) },
   },
   fridge: {
     kind: 'fridge',
-    name: 'Refrigerator space',
     labelPrefix: 'F',
     defaults: { width: 600, depth: 600, height: 2000, elevation: 0 },
     limits: { width: range(500, 1000), depth: range(500, 800), height: range(800, 2400) },
   },
   drawer: {
     kind: 'drawer',
-    name: 'Drawer cabinet',
     labelPrefix: 'D',
     defaults: base,
     limits: { ...baseLimits, width: range(300, 1200) },
   },
   corner: {
     kind: 'corner',
-    name: 'Corner cabinet',
     labelPrefix: 'C',
     defaults: { ...base, width: 900, width2: 900 },
     limits: {
@@ -103,28 +98,24 @@ export const KIND_SPECS: Record<ItemKind, KindSpec> = {
   },
   tall: {
     kind: 'tall',
-    name: 'Tall pantry cabinet',
     labelPrefix: 'T',
     defaults: { ...base, height: TALL_HEIGHT },
     limits: { width: range(300, 1200), depth: range(250, 800), height: range(1200, 2600) },
   },
   shelf: {
     kind: 'shelf',
-    name: 'Open shelves',
     labelPrefix: 'SH',
     defaults: { width: 800, depth: 300, height: WALL_HEIGHT, elevation: WALL_ELEVATION },
     limits: { width: range(200, 1600), depth: range(100, 600), height: range(100, 1200) },
   },
   filler: {
     kind: 'filler',
-    name: 'Filler panel',
     labelPrefix: 'FP',
     defaults: { width: 50, depth: BASE_DEPTH, height: BASE_HEIGHT, elevation: PLINTH_HEIGHT },
     limits: { width: range(10, 300), depth: range(20, 800), height: range(100, 2600) },
   },
   endPanel: {
     kind: 'endPanel',
-    name: 'End panel',
     labelPrefix: 'EP',
     // Covers the side of a base unit from the floor to the worktop, including the door thickness.
     defaults: { width: 18, depth: BASE_DEPTH + 20, height: PLINTH_HEIGHT + BASE_HEIGHT, elevation: 0 },
@@ -132,10 +123,10 @@ export const KIND_SPECS: Record<ItemKind, KindSpec> = {
   },
 };
 
+/** An element in the library; its tile shows the width, "Custom", or the kind's name. */
 export interface LibraryPreset {
   id: string;
   kind: ItemKind;
-  title: string;
   /** Overrides the kind's default width. */
   width?: number;
   /** "Custom" presets open the width field for editing right after they are added. */
@@ -143,41 +134,31 @@ export interface LibraryPreset {
 }
 
 export interface LibrarySection {
-  id: string;
-  title: string;
+  id: 'base' | 'wall' | 'other';
   layout: 'compact' | 'regular';
   presets: LibraryPreset[];
 }
 
-const widths = (kind: ItemKind, values: number[]): LibraryPreset[] =>
-  values.map((width) => ({ id: `${kind}-${width}`, kind, title: String(width), width }));
+const widths = (kind: ItemKind, values: number[]): LibraryPreset[] => values.map((width) => ({ id: `${kind}-${width}`, kind, width }));
 
 export const LIBRARY: LibrarySection[] = [
   {
     id: 'base',
-    title: 'Base cabinets',
     layout: 'compact',
-    presets: [
-      ...widths('base', [300, 400, 450, 500, 600, 800, 900]),
-      { id: 'base-custom', kind: 'base', title: 'Custom', custom: true },
-    ],
+    presets: [...widths('base', [300, 400, 450, 500, 600, 800, 900]), { id: 'base-custom', kind: 'base', custom: true }],
   },
   {
     id: 'wall',
-    title: 'Wall cabinets',
     layout: 'compact',
-    presets: [
-      ...widths('wall', [300, 400, 500, 600, 800]),
-      { id: 'wall-custom', kind: 'wall', title: 'Custom', custom: true },
-    ],
+    presets: [...widths('wall', [300, 400, 500, 600, 800]), { id: 'wall-custom', kind: 'wall', custom: true }],
   },
   {
     id: 'other',
-    title: 'Other elements',
     layout: 'regular',
-    presets: (
-      ['sink', 'oven', 'dishwasher', 'fridge', 'drawer', 'corner', 'tall', 'shelf', 'filler', 'endPanel'] as const
-    ).map((kind) => ({ id: kind, kind, title: KIND_SPECS[kind].name })),
+    presets: (['sink', 'oven', 'dishwasher', 'fridge', 'drawer', 'corner', 'tall', 'shelf', 'filler', 'endPanel'] as const).map((kind) => ({
+      id: kind,
+      kind,
+    })),
   },
 ];
 
@@ -188,8 +169,8 @@ export function findPreset(id: string): LibraryPreset | undefined {
 }
 
 /** Next free code for a kind, e.g. "B3" when B1 and B2 exist. */
-export function nextLabel(kind: ItemKind, items: readonly KitchenItem[]): string {
-  const prefix = KIND_SPECS[kind].labelPrefix;
+export function nextLabel(kind: ItemKind, items: readonly KitchenItem[], prefixes?: LabelPrefixes): string {
+  const prefix = prefixes?.[kind] ?? KIND_SPECS[kind].labelPrefix;
   const pattern = new RegExp(`^${prefix}(\\d+)$`);
   let max = 0;
   for (const item of items) {
@@ -203,12 +184,13 @@ export function createItem(
   kind: ItemKind,
   existing: readonly KitchenItem[],
   overrides: Partial<KitchenItem> = {},
+  prefixes?: LabelPrefixes,
 ): KitchenItem {
   const { defaults } = KIND_SPECS[kind];
   return {
     id: newId(),
     kind,
-    label: nextLabel(kind, existing),
+    label: nextLabel(kind, existing, prefixes),
     x: 0,
     y: 0,
     rotation: 0,
@@ -221,8 +203,8 @@ export function createItem(
   };
 }
 
-export function itemFromPreset(preset: LibraryPreset, existing: readonly KitchenItem[]): KitchenItem {
-  return createItem(preset.kind, existing, preset.width !== undefined ? { width: preset.width } : {});
+export function itemFromPreset(preset: LibraryPreset, existing: readonly KitchenItem[], prefixes?: LabelPrefixes): KitchenItem {
+  return createItem(preset.kind, existing, preset.width !== undefined ? { width: preset.width } : {}, prefixes);
 }
 
 /** Allowed range for a dimension, taking the item's other dimensions into account. */

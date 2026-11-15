@@ -1,5 +1,6 @@
-import { Box, Ellipsis, FolderOpen, Hammer, Layers, LayoutGrid, List, Magnet, Redo2, RulerDimensionLine, Undo2 } from 'lucide-react';
+import { Box, Ellipsis, FolderOpen, Hammer, Languages, Layers, LayoutGrid, List, Magnet, Redo2, RulerDimensionLine, Undo2 } from 'lucide-react';
 import { useRef, useState } from 'react';
+import { LANGUAGE_LABEL, LANGUAGES, useT, type Language } from '../../i18n';
 import { cn } from '../../lib/cn';
 import { redo, setProjectName, undo } from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
@@ -8,13 +9,14 @@ import { ChecksButton } from '../checks/ChecksButton';
 import { Button, Divider, Menu, Segmented } from '../ui';
 
 function ProjectName({ className }: { className?: string }) {
+  const t = useT();
   const name = useDesignStore((s) => s.design.name);
   const [draft, setDraft] = useState<string | null>(null);
   const skipBlurCommit = useRef(false);
   return (
     <input
-      aria-label="Project name"
-      title="Rename the project"
+      aria-label={t.topBar.projectName}
+      title={t.topBar.renameProject}
       value={draft ?? name}
       maxLength={60}
       spellCheck={false}
@@ -52,32 +54,34 @@ function Logo() {
 }
 
 function ViewTabs({ compact }: { compact: boolean }) {
+  const t = useT();
   const view = useUiStore((s) => s.view);
   return (
     <Segmented<MainView>
-      ariaLabel="View"
+      ariaLabel={t.topBar.view}
       size="sm"
       value={view}
       onChange={(v) => useUiStore.getState().setView(v)}
       className={compact ? '' : 'w-72'}
       options={[
-        { value: 'plan', label: <><LayoutGrid className="size-3.5" />Plan</>, title: 'Design the kitchen from above' },
-        { value: '3d', label: <><Box className="size-3.5" />3D</>, title: 'See the kitchen in 3D' },
-        { value: 'list', label: <><List className="size-3.5" />{compact ? 'List' : 'Cutting list'}</>, title: 'Every piece to cut' },
+        { value: 'plan', label: <><LayoutGrid className="size-3.5" />{t.topBar.plan}</>, title: t.topBar.planTitle },
+        { value: '3d', label: <><Box className="size-3.5" />{t.topBar.view3d}</>, title: t.topBar.view3dTitle },
+        { value: 'list', label: <><List className="size-3.5" />{compact ? t.topBar.listShort : t.topBar.list}</>, title: t.topBar.listTitle },
       ]}
     />
   );
 }
 
 function UndoRedo() {
+  const t = useT();
   const canUndo = useDesignStore((s) => s.past.length > 0);
   const canRedo = useDesignStore((s) => s.future.length > 0);
   return (
     <>
-      <Button title="Undo (Ctrl+Z)" aria-label="Undo" disabled={!canUndo} onClick={undo}>
+      <Button title={t.topBar.undoTitle} aria-label={t.topBar.undo} disabled={!canUndo} onClick={undo}>
         <Undo2 className="size-4" />
       </Button>
-      <Button title="Redo (Ctrl+Y)" aria-label="Redo" disabled={!canRedo} onClick={redo}>
+      <Button title={t.topBar.redoTitle} aria-label={t.topBar.redo} disabled={!canRedo} onClick={redo}>
         <Redo2 className="size-4" />
       </Button>
     </>
@@ -85,12 +89,13 @@ function UndoRedo() {
 }
 
 function GridSelect({ className }: { className?: string }) {
+  const t = useT();
   const snapEnabled = useUiStore((s) => s.snapEnabled);
   const gridSize = useUiStore((s) => s.gridSize);
   return (
     <select
-      aria-label="Grid size"
-      title="Grid size"
+      aria-label={t.topBar.gridSize}
+      title={t.topBar.gridSize}
       value={gridSize}
       disabled={!snapEnabled}
       onChange={(e) => useUiStore.getState().setGridSize(Number(e.target.value))}
@@ -101,17 +106,41 @@ function GridSelect({ className }: { className?: string }) {
     >
       {GRID_SIZES.map((size) => (
         <option key={size} value={size}>
-          Grid {size} mm
+          {t.topBar.grid(size)}
         </option>
       ))}
     </select>
   );
 }
 
+/** Interface language. Each language is named in itself, and the control in both, so it can always be found. */
+function LanguageSelect() {
+  const language = useUiStore((s) => s.language);
+  return (
+    <label className="relative flex items-center" title={LANGUAGE_LABEL}>
+      <Languages className="pointer-events-none absolute left-2 size-4 text-zinc-500" />
+      <select
+        aria-label={LANGUAGE_LABEL}
+        value={language}
+        onChange={(e) => useUiStore.getState().setLanguage(e.target.value as Language)}
+        className="h-8 appearance-none rounded-md border border-transparent bg-transparent pl-8 pr-2 text-[13px] font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+      >
+        {LANGUAGES.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 export function TopBar({ compact = false }: { compact?: boolean }) {
+  const t = useT();
   const snapEnabled = useUiStore((s) => s.snapEnabled);
   const showDimensions = useUiStore((s) => s.showDimensions);
   const view = useUiStore((s) => s.view);
+  const language = useUiStore((s) => s.language);
   const ui = useUiStore.getState();
 
   if (compact) {
@@ -124,33 +153,45 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
         <ViewTabs compact />
         <UndoRedo />
         <ChecksButton compact />
-        <Menu label="More" icon={<Ellipsis className="size-4" />}>
+        <Menu label={t.topBar.more} icon={<Ellipsis className="size-4" />}>
           <div className="space-y-1">
             <div className="px-1 pb-1 min-[520px]:hidden">
-              <div className="px-1 pb-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Project</div>
+              <div className="px-1 pb-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">{t.topBar.project}</div>
               <ProjectName className="w-full border-zinc-200" />
             </div>
             <Button className="w-full justify-start" data-close-menu onClick={() => ui.setProjectsOpen(true)}>
               <FolderOpen className="size-4" />
-              Projects
+              {t.topBar.projects}
             </Button>
             <Button className="w-full justify-start" active={snapEnabled} onClick={() => ui.setSnapEnabled(!snapEnabled)}>
               <Magnet className="size-4" />
-              Snap to walls and units
+              {t.topBar.snapLong}
             </Button>
             <GridSelect className="w-full" />
             <Button className="w-full justify-start" active={showDimensions} onClick={() => ui.setShowDimensions(!showDimensions)}>
               <RulerDimensionLine className="size-4" />
-              Wall dimensions
+              {t.topBar.dimensionsLong}
             </Button>
             <Button className="w-full justify-start" data-close-menu onClick={() => ui.setSettingsTab('materials')}>
               <Layers className="size-4" />
-              Materials and edges
+              {t.topBar.materialsAndEdges}
             </Button>
             <Button className="w-full justify-start" data-close-menu onClick={() => ui.setSettingsTab('construction')}>
               <Hammer className="size-4" />
-              Construction settings
+              {t.topBar.constructionSettings}
             </Button>
+            <div className="px-1 pt-1">
+              <div className="flex items-center gap-1.5 px-1 pb-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                <Languages className="size-3.5" />
+                {LANGUAGE_LABEL}
+              </div>
+              <Segmented<Language>
+                ariaLabel={LANGUAGE_LABEL}
+                value={language}
+                onChange={(next) => ui.setLanguage(next)}
+                options={LANGUAGES.map((option) => ({ value: option.value, label: option.label }))}
+              />
+            </div>
           </div>
         </Menu>
       </header>
@@ -161,12 +202,12 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
     <header className="flex h-12 shrink-0 items-center gap-1 border-b border-zinc-200 bg-white px-3 print:hidden">
       <div className="flex items-center gap-2 pr-2">
         <Logo />
-        <span className="hidden text-[13px] font-semibold text-zinc-900 xl:inline">Kitchen Designer</span>
+        <span className="hidden whitespace-nowrap text-[13px] font-semibold text-zinc-900 2xl:inline">{t.appName}</span>
       </div>
       <Divider />
-      <Button title="All your kitchen projects" onClick={() => ui.setProjectsOpen(true)}>
+      <Button title={t.topBar.projectsTitle} onClick={() => ui.setProjectsOpen(true)}>
         <FolderOpen className="size-4" />
-        Projects
+        {t.topBar.projects}
       </Button>
       <ProjectName className="w-48" />
 
@@ -179,22 +220,23 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
       <Divider />
       {view === 'plan' && (
         <>
-          <Button active={snapEnabled} title="Snap to walls, neighbouring units and the grid" onClick={() => ui.setSnapEnabled(!snapEnabled)}>
+          <Button active={snapEnabled} title={t.topBar.snapTitle} onClick={() => ui.setSnapEnabled(!snapEnabled)}>
             <Magnet className="size-4" />
-            Snap
+            {t.topBar.snap}
           </Button>
           <GridSelect />
-          <Button active={showDimensions} title="Show wall dimensions" onClick={() => ui.setShowDimensions(!showDimensions)}>
+          <Button active={showDimensions} title={t.topBar.dimensionsTitle} onClick={() => ui.setShowDimensions(!showDimensions)}>
             <RulerDimensionLine className="size-4" />
-            Dimensions
+            {t.topBar.dimensions}
           </Button>
           <Divider />
         </>
       )}
-      <Button title="Materials, edge banding and construction rules for the whole kitchen" onClick={() => ui.setSettingsTab('materials')}>
+      <Button title={t.topBar.settingsTitle} onClick={() => ui.setSettingsTab('materials')}>
         <Hammer className="size-4" />
-        Settings
+        {t.topBar.settings}
       </Button>
+      <LanguageSelect />
     </header>
   );
 }

@@ -2,6 +2,7 @@ import { ChevronDown } from 'lucide-react';
 import { useState, type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { findPreset, KIND_SPECS, LIBRARY, type LibraryPreset, type LibrarySection } from '../../domain/catalog';
+import { useT, type Messages } from '../../i18n';
 import { cn } from '../../lib/cn';
 import { addPresetToPlan, finishLibraryDrag, updateLibraryDrag } from '../../store/actions';
 import { useUiStore } from '../../store/uiStore';
@@ -9,19 +10,22 @@ import { KindIcon } from './KindIcon';
 
 const DRAG_START_DISTANCE = 4;
 
-export function presetName(preset: LibraryPreset): string {
-  const name = KIND_SPECS[preset.kind].name;
-  return preset.width !== undefined ? `${name} ${preset.width}` : preset.custom ? `${name} (custom size)` : name;
+function presetName(preset: LibraryPreset, t: Messages): string {
+  const name = t.kinds[preset.kind];
+  return preset.width !== undefined ? t.library.withWidth(name, preset.width) : preset.custom ? t.library.customSize(name) : name;
 }
 
-function presetTooltip(preset: LibraryPreset): string {
+/** What the tile shows: the width, "Custom", or the kind's name. */
+function presetTitle(preset: LibraryPreset, t: Messages): string {
+  return preset.width !== undefined ? String(preset.width) : preset.custom ? t.library.custom : t.kinds[preset.kind];
+}
+
+function presetTooltip(preset: LibraryPreset, t: Messages): string {
   const { defaults } = KIND_SPECS[preset.kind];
   const width = preset.width ?? defaults.width;
   const size =
-    preset.kind === 'corner'
-      ? `${width} × ${defaults.width2} mm, ${defaults.depth} deep`
-      : `${width} × ${defaults.height} × ${defaults.depth} mm (W × H × D)`;
-  return `${presetName(preset)}\n${size}\nClick to add, or drag onto the plan`;
+    preset.kind === 'corner' ? t.library.cornerSize(width, defaults.width2 ?? width, defaults.depth) : t.library.size(width, defaults.height, defaults.depth);
+  return `${presetName(preset, t)}\n${size}\n${t.library.clickOrDrag}`;
 }
 
 /**
@@ -82,6 +86,7 @@ interface PresetTileProps {
 }
 
 function PresetTile({ preset, layout, onAdded }: PresetTileProps) {
+  const t = useT();
   // Mouse clicks are handled by the pointer logic; this covers Enter/Space from the keyboard.
   const onKeyboardClick = (e: MouseEvent) => {
     if (e.detail === 0 && addPresetToPlan(preset.id)) onAdded?.();
@@ -89,8 +94,8 @@ function PresetTile({ preset, layout, onAdded }: PresetTileProps) {
   return (
     <button
       type="button"
-      title={presetTooltip(preset)}
-      aria-label={`Add ${presetName(preset)}`}
+      title={presetTooltip(preset, t)}
+      aria-label={t.library.add(presetName(preset, t))}
       data-preset={preset.id}
       onPointerDown={(e) => startPointerDrag(preset.id, e, onAdded)}
       onClick={onKeyboardClick}
@@ -107,7 +112,7 @@ function PresetTile({ preset, layout, onAdded }: PresetTileProps) {
           layout === 'compact' ? 'text-[11px] tabular-nums' : 'text-center text-[11px] leading-tight',
         )}
       >
-        {preset.title}
+        {presetTitle(preset, t)}
       </span>
     </button>
   );
@@ -115,6 +120,7 @@ function PresetTile({ preset, layout, onAdded }: PresetTileProps) {
 
 /** The element sections, shared by the desktop sidebar and the phone's "Add" panel. */
 export function LibrarySections({ onAdded, wide = false }: { onAdded?: () => void; wide?: boolean }) {
+  const t = useT();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   return (
     <>
@@ -129,7 +135,7 @@ export function LibrarySections({ onAdded, wide = false }: { onAdded?: () => voi
               className="flex w-full items-center gap-1.5 rounded-md px-1 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-400 hover:text-zinc-600"
             >
               <ChevronDown className={cn('size-3.5 transition-transform', !open && '-rotate-90')} />
-              {section.title}
+              {t.library.sections[section.id]}
             </button>
             {open && (
               <div
@@ -151,11 +157,12 @@ export function LibrarySections({ onAdded, wide = false }: { onAdded?: () => voi
 }
 
 export function LibraryPanel() {
+  const t = useT();
   return (
     <aside className="flex w-[264px] shrink-0 flex-col border-r border-zinc-200 bg-white">
       <div className="px-4 pb-2 pt-4">
-        <h2 className="text-sm font-semibold text-zinc-900">Elements</h2>
-        <p className="mt-0.5 text-xs text-zinc-500">Drag onto the plan, or click to add</p>
+        <h2 className="text-sm font-semibold text-zinc-900">{t.library.elements}</h2>
+        <p className="mt-0.5 text-xs text-zinc-500">{t.library.hint}</p>
       </div>
       <div className="flex-1 space-y-1 overflow-y-auto px-3 pb-4">
         <LibrarySections />
@@ -166,6 +173,7 @@ export function LibraryPanel() {
 
 /** Follows the pointer while a library element is dragged outside the plan. */
 export function LibraryDragChip() {
+  const t = useT();
   const drag = useUiStore((s) => s.libraryDrag);
   if (!drag || drag.ghost) return null;
   const preset = findPreset(drag.presetId);
@@ -176,7 +184,7 @@ export function LibraryDragChip() {
       style={{ left: drag.clientX + 14, top: drag.clientY + 14 }}
     >
       <KindIcon kind={preset.kind} width={preset.width} custom={preset.custom} className="h-6 w-6 text-zinc-500" />
-      {presetName(preset)}
+      {presetName(preset, t)}
     </div>,
     document.body,
   );

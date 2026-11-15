@@ -4,6 +4,7 @@ import { Palette, RotateCcw, X } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type RefObject } from 'react';
 import { backWall, WALLS } from '../../domain/geometry';
 import type { KitchenItem, Room, Wall } from '../../domain/types';
+import { useT } from '../../i18n';
 import { useDesignStore } from '../../store/designStore';
 import { useBuildContext } from '../../store/derived';
 import { useUiStore } from '../../store/uiStore';
@@ -73,6 +74,7 @@ function CameraRig({ resetToken, controls }: { resetToken: number; controls: Ref
  * clicked to select them, and fronts, worktop and handles can be restyled.
  */
 export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
+  const text = useT();
   const room = useDesignStore((s) => s.design.room);
   const items = useDesignStore((s) => s.design.items);
   const openings = useDesignStore((s) => s.design.openings);
@@ -139,13 +141,13 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
         {compact ? (
           <Button variant="outline" className="shadow-sm" onClick={() => setStyleOpen(true)}>
             <Palette className="size-4" />
-            Style
+            {text.style.style}
           </Button>
         ) : styleOpen ? (
           <div className="w-64 rounded-xl border border-zinc-200 bg-white/95 p-3 shadow-lg backdrop-blur">
             <div className="mb-3 flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Style</span>
-              <Button aria-label="Hide style options" className="-my-1 -mr-1 h-6 min-w-6 px-1" onClick={() => setStyleOpen(false)}>
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">{text.style.style}</span>
+              <Button aria-label={text.style.hide} className="-my-1 -mr-1 h-6 min-w-6 px-1" onClick={() => setStyleOpen(false)}>
                 <X className="size-3.5" />
               </Button>
             </div>
@@ -154,28 +156,26 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
         ) : (
           <Button variant="outline" className="shadow-sm" onClick={() => setStyleOpen(true)}>
             <Palette className="size-4" />
-            Style
+            {text.style.style}
           </Button>
         )}
       </div>
 
       <div className="absolute right-3 top-3">
-        <Button variant="outline" className="shadow-sm" title="Back to the starting view" onClick={() => setResetToken((t) => t + 1)}>
+        <Button variant="outline" className="shadow-sm" title={text.view3d.resetViewTitle} onClick={() => setResetToken((t) => t + 1)}>
           <RotateCcw className="size-4" />
-          Reset view
+          {text.view3d.resetView}
         </Button>
       </div>
 
       {!compact && (
         <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center">
-          <div className="rounded-full border border-zinc-200 bg-white/90 px-3 py-1.5 text-xs text-zinc-600 shadow-sm">
-            Drag to turn · scroll to zoom · right-drag to move · click a unit to edit it
-          </div>
+          <div className="rounded-full border border-zinc-200 bg-white/90 px-3 py-1.5 text-xs text-zinc-600 shadow-sm">{text.view3d.hint}</div>
         </div>
       )}
 
       {compact && (
-        <Dialog open={styleOpen} title="Style" sheet onClose={() => setStyleOpen(false)}>
+        <Dialog open={styleOpen} title={text.style.style} sheet onClose={() => setStyleOpen(false)}>
           <div className="p-4 pb-[max(env(safe-area-inset-bottom),16px)]">
             <StylePicker />
           </div>

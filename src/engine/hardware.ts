@@ -3,6 +3,7 @@ import { HANDLE_STYLES } from '../domain/style';
 import type { KitchenItem } from '../domain/types';
 import { KIND_OPTIONS, resolveConfig, type BuildContext } from './config';
 import { frontLayout } from './fronts';
+import type { HardwareItem } from './labels';
 import { innerDepth, slideLength } from './parts';
 
 /** One kind of fitting to buy. */
@@ -30,38 +31,38 @@ export function unitHardware(item: KitchenItem, ctx: BuildContext): Hardware[] {
   const config = resolveConfig(item, ctx);
   const fronts = frontLayout(item, config, ctx.settings);
   const list = new Map<string, number>();
-  const add = (name: string, quantity: number) => {
+  const add = (fitting: HardwareItem, quantity: number) => {
+    const name = ctx.labels.hardware(fitting);
     if (quantity > 0) list.set(name, (list.get(name) ?? 0) + quantity);
   };
 
-  const hinge = config.doorType === 'inset' ? 'Concealed hinge, inset' : 'Concealed hinge, full overlay';
   for (const front of fronts) {
     if (front.kind !== 'door') continue;
     if (item.kind === 'corner' && front.hinge === 'right') {
       // The second door of a corner unit hangs on the first one.
-      add('Corner fold hinge', hingesPerDoor(front.h));
+      add({ kind: 'cornerHinge' }, hingesPerDoor(front.h));
     } else {
-      add(hinge, hingesPerDoor(front.h));
+      add({ kind: 'hinge', inset: config.doorType === 'inset' }, hingesPerDoor(front.h));
     }
   }
 
   const drawers = fronts.filter((f) => f.kind === 'drawer').length;
   if (drawers > 0) {
     const slide = slideLength(innerDepth(item, config, ctx));
-    add(ctx.settings.drawerSystem === 'metal' ? `Metal drawer system set, ${slide} mm` : `Ball-bearing slides, ${slide} mm (pair)`, drawers);
+    add(ctx.settings.drawerSystem === 'metal' ? { kind: 'metalDrawer', slide } : { kind: 'slides', slide }, drawers);
   }
 
-  const handleStyle = ctx.style ? HANDLE_STYLES[ctx.style.handles] : HANDLE_STYLES.steel;
+  const handleStyle = ctx.style?.handles ?? 'steel';
   // Every door and drawer gets a handle; a corner unit's two folding doors share one.
   const handles = item.kind === 'corner' ? 1 : fronts.filter((f) => f.kind !== 'panel' || item.kind === 'dishwasher').length;
-  if (handleStyle.color) add(`Handle, ${handleStyle.name.toLowerCase()}`, handles);
+  if (HANDLE_STYLES[handleStyle].color) add({ kind: 'handle', style: handleStyle }, handles);
 
-  add('Shelf support pin', config.shelves * PINS_PER_SHELF);
+  add({ kind: 'shelfPin' }, config.shelves * PINS_PER_SHELF);
 
   if (options.carcass && isWallMounted(item)) {
-    add('Wall cabinet hangers (pair)', 1);
+    add({ kind: 'hangers' }, 1);
   } else if (options.carcass && item.elevation >= 30) {
-    add(`Adjustable leg, ${item.elevation} mm`, item.kind === 'corner' || item.width > SIX_LEGS_FROM ? 6 : 4);
+    add({ kind: 'leg', height: item.elevation }, item.kind === 'corner' || item.width > SIX_LEGS_FROM ? 6 : 4);
   }
 
   return [...list].map(([name, quantity]) => ({ name, quantity }));

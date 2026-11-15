@@ -16,6 +16,11 @@ function isTyping(target: EventTarget | null): boolean {
   );
 }
 
+/** A dialog covers the plan: keys must not change the units behind it. */
+function dialogOpen(): boolean {
+  return document.querySelector('[role="dialog"][aria-modal="true"]') !== null;
+}
+
 const ARROWS: Record<string, [number, number]> = {
   ArrowLeft: [-1, 0],
   ArrowRight: [1, 0],
@@ -28,6 +33,9 @@ export function useKeyboardShortcuts(): void {
     const onKeyDown = (e: KeyboardEvent) => {
       if (isTyping(e.target)) return;
       const key = e.key.toLowerCase();
+      const { view, selectedId } = useUiStore.getState();
+      // Undo and redo work everywhere; commands for the selected unit only where it can be seen.
+      const unitKeys = view !== 'list' && !dialogOpen();
 
       if (e.ctrlKey || e.metaKey) {
         if (key === 'z') {
@@ -37,15 +45,15 @@ export function useKeyboardShortcuts(): void {
         } else if (key === 'y') {
           e.preventDefault();
           redo();
-        } else if (key === 'd') {
+        } else if (key === 'd' && unitKeys) {
           e.preventDefault();
           duplicateSelected();
         }
         return;
       }
-      if (e.altKey) return;
+      if (e.altKey || !unitKeys) return;
 
-      const hasSelection = useUiStore.getState().selectedId !== null;
+      const hasSelection = selectedId !== null;
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (!hasSelection) return;
         e.preventDefault();

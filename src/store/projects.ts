@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createDesign, parseDesign } from '../domain/designOps';
 import { newId } from '../domain/ids';
 import type { Design } from '../domain/types';
+import { currentMessages } from '../i18n';
 import { safeStorage } from '../lib/platform';
 import { useDesignStore } from './designStore';
 import { useUiStore } from './uiStore';
@@ -68,15 +69,18 @@ function loadDesign(id: string): Design | null {
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
+/** The open project's design as last written, so an unchanged design is not saved (or re-dated) again. */
+let savedDesign: Design | null = null;
 
 /** Writes the open project now (instead of after the short delay). */
 export function flushSave(): void {
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = null;
   const { activeId } = useProjectsStore.getState();
-  if (!activeId) return;
   const design = useDesignStore.getState().design;
+  if (!activeId || design === savedDesign) return;
   storeDesign(activeId, design);
+  savedDesign = design;
   useProjectsStore.setState((state) => ({
     projects: state.projects.map((p) => (p.id === activeId ? metaOf(activeId, design) : p)),
   }));
@@ -101,6 +105,7 @@ function parseIndex(raw: unknown): ProjectsState | null {
 
 function show(id: string, design: Design): void {
   useDesignStore.getState().load(design);
+  savedDesign = design;
   useProjectsStore.setState({ activeId: id });
   const ui = useUiStore.getState();
   ui.select(null);
@@ -117,13 +122,17 @@ export function initProjects(): void {
   const index = parseIndex(read(INDEX_KEY));
   if (index) {
     useProjectsStore.setState(index);
-    const design = loadDesign(index.activeId) ?? createDesign(index.projects.find((p) => p.id === index.activeId)?.name);
+    const stored = loadDesign(index.activeId);
+    const design = stored ?? createDesign(index.projects.find((p) => p.id === index.activeId)?.name);
     useDesignStore.getState().load(design);
+    // A design that had to be made up is written on the first save.
+    savedDesign = stored;
   } else {
     const legacy = read(LEGACY_KEY) as { state?: { design?: unknown } } | null;
-    const design = parseDesign(legacy?.state?.design) ?? createDesign();
+    const design = parseDesign(legacy?.state?.design) ?? createDesign(currentMessages().names.defaultProject);
     const id = newId();
     storeDesign(id, design);
+    savedDesign = design;
     useProjectsStore.setState({ activeId: id, projects: [metaOf(id, design)] });
     useDesignStore.getState().load(design);
     saveIndex();
@@ -164,7 +173,7 @@ export function duplicateProject(id: string): string | null {
   const source = loadDesign(id);
   if (!source) return null;
   const copyId = newId();
-  const design = { ...structuredClone(source), name: `${source.name} (copy)` };
+  const design = { ...structuredClone(source), name: currentMessages().names.copyOf(source.name) };
   storeDesign(copyId, design);
   useProjectsStore.setState((state) => ({ projects: [metaOf(copyId, design), ...state.projects] }));
   saveIndex();
@@ -178,17 +187,19 @@ export function deleteProject(id: string): void {
   safeStorage.removeItem(projectKey(id));
   memory.delete(id);
   const rest = projects.filter((p) => p.id !== id);
-  useProjectsStore.setState({ projects: rest });
   if (id !== activeId) {
+    useProjectsStore.setState({ projects: rest });
     saveIndex();
     return;
   }
+  // The open project goes, unsaved changes and all: nothing may write it back.
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = null;
+  useProjectsStore.setState({ projects: rest, activeId: '' });
   const next = [...rest].sort((a, b) => b.updatedAt - a.updatedAt)[0];
   const design = next ? loadDesign(next.id) : null;
   if (next && design) show(next.id, design);
-  else createProject('My kitchen');
+  else createProject(currentMessages().names.defaultProject);
 }
 
 /** Adds a design read from a file as a new project and opens it. */
@@ -212,7 +223,7 @@ export function projectDesign(id: string): Design | null {
 function nextName(): string {
   const names = new Set(useProjectsStore.getState().projects.map((p) => p.name));
   for (let n = 1; ; n++) {
-    const name = `Kitchen ${n}`;
+    const name = currentMessages().names.numberedProject(n);
     if (!names.has(name)) return name;
   }
 }
@@ -220,6 +231,7 @@ function nextName(): string {
 /** For tests: forget everything in memory. */
 export function resetProjectsForTests(): void {
   started = false;
+  savedDesign = null;
   memory.clear();
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = null;

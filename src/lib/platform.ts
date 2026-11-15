@@ -35,7 +35,12 @@ export function hostDownloads(): Promise<HostDownloads | null> {
   return hostDownloadsPromise;
 }
 
-export type SaveOutcome = 'saved' | 'declined' | 'unavailable';
+/**
+ * How a save ended: saved; turned down by the viewer; refused because
+ * another save is still waiting for an answer ("busy"); refused for this
+ * kind of file ("format"); or not possible here at all.
+ */
+export type SaveOutcome = 'saved' | 'declined' | 'busy' | 'format' | 'unavailable';
 
 /** Saves a generated file: a normal download, or through the host page when embedded. */
 export async function saveFile(filename: string, data: Blob, mimeType: string): Promise<SaveOutcome> {
@@ -57,7 +62,11 @@ export async function saveFile(filename: string, data: Blob, mimeType: string): 
     await downloads.save({ filename, data });
     return 'saved';
   } catch (error) {
-    return (error as { code?: string } | null)?.code === 'declined' ? 'declined' : 'unavailable';
+    const code = (error as { code?: string } | null)?.code;
+    if (code === 'declined') return 'declined';
+    if (code === 'rate_limited') return 'busy';
+    if (code === 'rejected_extension' || code === 'extension_not_enabled') return 'format';
+    return 'unavailable';
   }
 }
 
@@ -70,6 +79,19 @@ export function saveTextFile(filename: string, text: string, mimeType: string, b
 export function safeFileName(name: string, fallback = 'kitchen'): string {
   return name.replace(/[\\/:*?"<>|]+/g, '').trim() || fallback;
 }
+
+/** Whether this browser keeps data here between visits; sandboxed frames may refuse or drop it. */
+export const storageWorks: boolean = (() => {
+  try {
+    const key = 'kitchen-designer:probe';
+    globalThis.localStorage.setItem(key, '1');
+    const kept = globalThis.localStorage.getItem(key) === '1';
+    globalThis.localStorage.removeItem(key);
+    return kept;
+  } catch {
+    return false;
+  }
+})();
 
 /** localStorage that never throws: where storage is blocked the app simply does not remember. */
 export const safeStorage: StateStorage = {

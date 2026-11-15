@@ -263,7 +263,7 @@ export function parseDesign(raw: unknown): Design | null {
     customParts: Array.isArray(v.customParts)
       ? v.customParts.map((c) => parseCustomPart(c, materialIds, edgeBands, construction)).filter((c): c is CustomPart => c !== null)
       : [],
-    partEdits: parsePartEdits(v.partEdits, itemIds),
+    partEdits: parsePartEdits(v.partEdits, itemIds, materialIds),
   };
 }
 
@@ -286,7 +286,7 @@ function parseCustomPart(raw: unknown, materialIds: Set<string>, edgeBands: Edge
   };
 }
 
-function parsePartEdits(raw: unknown, itemIds: Set<string>): Record<string, Record<string, PartEdit>> {
+function parsePartEdits(raw: unknown, itemIds: Set<string>, materialIds: Set<string>): Record<string, Record<string, PartEdit>> {
   const result: Record<string, Record<string, PartEdit>> = {};
   if (!raw || typeof raw !== 'object') return result;
   for (const [itemId, edits] of Object.entries(raw as Record<string, unknown>)) {
@@ -298,6 +298,7 @@ function parsePartEdits(raw: unknown, itemIds: Set<string>): Record<string, Reco
       if (isNumber(e.length) && e.length > 0) clean.length = e.length;
       if (isNumber(e.width) && e.width > 0) clean.width = e.width;
       if (isNumber(e.quantity) && e.quantity >= 0) clean.quantity = Math.round(e.quantity);
+      if (typeof e.materialId === 'string' && materialIds.has(e.materialId)) clean.materialId = e.materialId;
       if (Object.keys(clean).length > 0) parsed[key] = clean;
     }
     if (Object.keys(parsed).length > 0) result[itemId] = parsed;
@@ -387,9 +388,19 @@ export function materialInUse(design: Design, id: string): boolean {
   return c.carcassMaterial === id || c.backMaterial === id || c.frontMaterial === id;
 }
 
-/** Removes a material; units that used it go back to the kitchen-wide one. */
+/** Removes a material; units and pieces that used it go back to the kitchen-wide one. */
 export function removeMaterial(design: Design, id: string): Design {
   if (materialInUse(design, id) || !design.materials.some((m) => m.id === id)) return design;
+  const partEdits: Design['partEdits'] = {};
+  for (const [itemId, edits] of Object.entries(design.partEdits)) {
+    const kept: Record<string, PartEdit> = {};
+    for (const [key, edit] of Object.entries(edits)) {
+      const { materialId, ...rest } = edit;
+      const next = materialId === id ? rest : edit;
+      if (Object.keys(next).length > 0) kept[key] = next;
+    }
+    if (Object.keys(kept).length > 0) partEdits[itemId] = kept;
+  }
   return {
     ...design,
     materials: design.materials.filter((m) => m.id !== id),
@@ -397,6 +408,7 @@ export function removeMaterial(design: Design, id: string): Design {
     items: design.items.map((item) =>
       (['carcassMaterial', 'backMaterial', 'frontMaterial'] as const).reduce((it, key) => (it[key] === id ? without(it, key) : it), item),
     ),
+    partEdits,
   };
 }
 

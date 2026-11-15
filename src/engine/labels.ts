@@ -1,0 +1,198 @@
+import type { HandleStyle } from '../domain/style';
+import type { EdgeBand, Material, OpeningKind, Wall } from '../domain/types';
+import { formatMm } from './format';
+
+/**
+ * Everything the engine puts into words, so the cutting list, the hardware
+ * list and the checks can be produced in any language. The engine works with
+ * the codes below; a language only supplies the text. English is the default,
+ * and hand edits are always keyed by the English names, so they survive a
+ * change of language.
+ */
+
+/** Pieces the construction rules make. */
+export type PartName =
+  | 'side'
+  | 'bottom'
+  | 'top'
+  | 'frontRail'
+  | 'backRail'
+  | 'back'
+  | 'shelf'
+  | 'ovenShelf'
+  | 'fixedShelf'
+  | 'drawerBottom'
+  | 'drawerBack'
+  | 'drawerSide'
+  | 'drawerFrontBack'
+  | 'door'
+  | 'drawerFront'
+  | 'ovenPanel'
+  | 'dishwasherFront'
+  | 'fillerPanel'
+  | 'panel'
+  | 'endPanel';
+
+/** A remark on a piece, as data. */
+export type PartNote =
+  | { kind: 'grooved' }
+  | { kind: 'metalDrawer'; slide: number }
+  | { kind: 'woodenDrawer'; slide: number }
+  | { kind: 'lShaped'; a: number; b: number }
+  | { kind: 'cornerBack'; wall: 'A' | 'B' }
+  | { kind: 'cornerDoor'; wall: 'A' | 'B' };
+
+/** A fitting to buy, as data. */
+export type HardwareItem =
+  | { kind: 'hinge'; inset: boolean }
+  | { kind: 'cornerHinge' }
+  | { kind: 'metalDrawer'; slide: number }
+  | { kind: 'slides'; slide: number }
+  | { kind: 'handle'; style: HandleStyle }
+  | { kind: 'shelfPin' }
+  | { kind: 'hangers' }
+  | { kind: 'leg'; height: number };
+
+/** The checks' messages. Units are given by their codes. */
+export interface CheckLabels {
+  overlap: (a: string, b: string) => string;
+  outside: (unit: string) => string;
+  ceiling: (unit: string, top: number, ceiling: number) => string;
+  /** `b` is null for a gap between a unit and the corner. */
+  gap: (gap: number, a: string, b: string | null, wall: Wall) => string;
+  lowWallUnit: (unit: string, clearance: number) => string;
+  frontsDoNotFit: (unit: string) => string;
+  wideDoors: (unit: string, width: number, max: number) => string;
+  lowDoors: (unit: string, height: number) => string;
+  lowDrawers: (unit: string) => string;
+  shallowForSlides: (unit: string, depth: number) => string;
+  partTooLarge: (part: string, unit: string, length: number, width: number, sheet: Pick<Material, 'sheetLength' | 'sheetWidth'>, material: string) => string;
+  extraTooLarge: (part: string, length: number, width: number, sheet: Pick<Material, 'sheetLength' | 'sheetWidth'>, material: string) => string;
+  fridgeByOven: (fridge: string, oven: string) => string;
+  openingDoesNotFit: (kind: OpeningKind, wall: Wall) => string;
+  blocksDoor: (unit: string, wall: Wall) => string;
+  coversWindow: (unit: string, wall: Wall) => string;
+  windowBelowWorktop: (wall: Wall, sill: number, unit: string, top: number) => string;
+}
+
+/** Everything the engine says, in one language. */
+export interface EngineLabels {
+  /** BCP 47 locale, for sorting. */
+  locale: string;
+  part: Record<PartName, string>;
+  note: (note: PartNote) => string;
+  hardware: (item: HardwareItem) => string;
+  /** A board's name; the built-in boards are named in this language unless they were renamed. */
+  material: (material: Material) => string;
+  edgeBand: (band: EdgeBand) => string;
+  unknownBoard: string;
+  /** Units column entry for pieces added by hand. */
+  extra: string;
+  changedByHand: string;
+  leftOutByHand: string;
+  /** Banded edges along the length and the width, e.g. "L1 W0". */
+  edges: (length: number, width: number) => string;
+  /** L-shaped pieces banded only on their inner edges. */
+  innerEdges: string;
+  /** A size in millimetres, without the unit. */
+  mm: (value: number) => string;
+  csvHeader: string[];
+  checks: CheckLabels;
+}
+
+const HANDLES: Record<HandleStyle, string> = { steel: 'steel bar', black: 'black bar', brass: 'brass bar', none: 'no handles' };
+const wall = (w: Wall) => `${w} wall`;
+
+export const EN_LABELS: EngineLabels = {
+  locale: 'en',
+  part: {
+    side: 'Side',
+    bottom: 'Bottom',
+    top: 'Top',
+    frontRail: 'Front rail',
+    backRail: 'Back rail',
+    back: 'Back',
+    shelf: 'Shelf',
+    ovenShelf: 'Oven shelf',
+    fixedShelf: 'Fixed shelf',
+    drawerBottom: 'Drawer bottom',
+    drawerBack: 'Drawer back',
+    drawerSide: 'Drawer side',
+    drawerFrontBack: 'Drawer front/back',
+    door: 'Door',
+    drawerFront: 'Drawer front',
+    ovenPanel: 'Panel under oven',
+    dishwasherFront: 'Dishwasher front',
+    fillerPanel: 'Filler panel',
+    panel: 'Panel',
+    endPanel: 'End panel',
+  },
+  note: (note) => {
+    switch (note.kind) {
+      case 'grooved':
+        return 'Set into grooves';
+      case 'metalDrawer':
+        return `Metal drawer system, ${note.slide} mm`;
+      case 'woodenDrawer':
+        return `Drawer box, ${note.slide} mm slides`;
+      case 'lShaped':
+        return `L-shaped: cut out ${note.a} × ${note.b} at the inner corner`;
+      case 'cornerBack':
+        return `Corner unit, wall ${note.wall}`;
+      case 'cornerDoor':
+        return `Corner door, wall ${note.wall}`;
+    }
+  },
+  hardware: (item) => {
+    switch (item.kind) {
+      case 'hinge':
+        return item.inset ? 'Concealed hinge, inset' : 'Concealed hinge, full overlay';
+      case 'cornerHinge':
+        return 'Corner fold hinge';
+      case 'metalDrawer':
+        return `Metal drawer system set, ${item.slide} mm`;
+      case 'slides':
+        return `Ball-bearing slides, ${item.slide} mm (pair)`;
+      case 'handle':
+        return `Handle, ${HANDLES[item.style]}`;
+      case 'shelfPin':
+        return 'Shelf support pin';
+      case 'hangers':
+        return 'Wall cabinet hangers (pair)';
+      case 'leg':
+        return `Adjustable leg, ${item.height} mm`;
+    }
+  },
+  material: (material) => material.name,
+  edgeBand: (band) => band.name,
+  unknownBoard: 'Unknown board',
+  extra: 'Extra',
+  changedByHand: 'changed by hand',
+  leftOutByHand: 'left out by hand',
+  edges: (length, width) => `L${length} W${width}`,
+  innerEdges: 'inner L edges',
+  mm: formatMm,
+  csvHeader: ['Piece', 'Quantity', 'Length (mm)', 'Width (mm)', 'Thickness (mm)', 'Material', 'Edges', 'Edge band', 'Units', 'Note'],
+  checks: {
+    overlap: (a, b) => `${a} and ${b} overlap.`,
+    outside: (unit) => `${unit} sticks out of the room.`,
+    ceiling: (unit, top, ceiling) => `${unit} reaches ${top} mm, above the ${ceiling} mm ceiling.`,
+    gap: (gap, a, b, w) =>
+      `A ${gap} mm gap between ${b === null ? `${a} and the corner` : `${a} and ${b}`} on the ${wall(w)}: close it, or fill it with a filler panel.`,
+    lowWallUnit: (unit, clearance) => `${unit} hangs only ${clearance} mm above the worktop below it; 500–650 mm is usual.`,
+    frontsDoNotFit: (unit) => `The fronts of ${unit} do not fit: use fewer doors or drawers.`,
+    wideDoors: (unit, width, max) => `${unit} has doors ${width} mm wide; doors over ${max} mm sag. Use more doors.`,
+    lowDoors: (unit, height) => `The doors of ${unit} are only ${height} mm high under the drawers; use fewer drawers.`,
+    lowDrawers: (unit) => `The drawer fronts of ${unit} are too low for a drawer box.`,
+    shallowForSlides: (unit, depth) => `${unit} is too shallow for drawer slides; they need ${depth} mm inside.`,
+    partTooLarge: (part, unit, length, width, sheet, material) =>
+      `${part} of ${unit} (${formatMm(length)} × ${formatMm(width)}) does not fit on a ${sheet.sheetLength} × ${sheet.sheetWidth} sheet of ${material}.`,
+    extraTooLarge: (part, length, width, sheet, material) =>
+      `The extra piece “${part}” (${formatMm(length)} × ${formatMm(width)}) does not fit on a ${sheet.sheetLength} × ${sheet.sheetWidth} sheet of ${material}.`,
+    fridgeByOven: (fridge, oven) => `Fridge ${fridge} stands right next to oven ${oven}; put a unit or a panel between them.`,
+    openingDoesNotFit: (kind, w) => `The ${kind === 'door' ? 'door' : 'window'} on the ${wall(w)} does not fit in the wall.`,
+    blocksDoor: (unit, w) => `${unit} blocks the door on the ${wall(w)}.`,
+    coversWindow: (unit, w) => `${unit} covers the window on the ${wall(w)}.`,
+    windowBelowWorktop: (w, sill, unit, top) => `The window on the ${wall(w)} starts at ${sill} mm, below the worktop of ${unit} (${top} mm).`,
+  },
+};

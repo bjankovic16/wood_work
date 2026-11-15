@@ -1,8 +1,8 @@
 import { PLINTH_HEIGHT } from '../../domain/catalog';
 import type { KitchenItem } from '../../domain/types';
 import { resolveConfig, type BuildContext } from '../../engine/config';
-import { formatMm } from '../../engine/cuttingList';
 import { frontLayout, OVEN_NICHE_HEIGHT, type FrontRect } from '../../engine/fronts';
+import { useT } from '../../i18n';
 
 const MAX_W = 236;
 const MAX_H = 150;
@@ -13,6 +13,7 @@ const MAX_H = 150;
  * and dashed shelves behind the doors.
  */
 export function FrontPreview({ item, ctx }: { item: KitchenItem; ctx: BuildContext }) {
+  const text = useT();
   const { settings } = ctx;
   const config = resolveConfig(item, ctx);
   const fronts = frontLayout(item, config, settings);
@@ -40,7 +41,7 @@ export function FrontPreview({ item, ctx }: { item: KitchenItem; ctx: BuildConte
         height={(H + 2 * pad) * scale}
         viewBox={`${-pad} ${-pad} ${W + 2 * pad} ${H + 2 * pad}`}
         role="img"
-        aria-label={`Front view, ${W} by ${H} mm`}
+        aria-label={text.item.frontViewAria(W, H)}
       >
         {item.kind === 'fridge' ? (
           <Fridge W={W} H={H} px={px} />
@@ -58,9 +59,7 @@ export function FrontPreview({ item, ctx }: { item: KitchenItem; ctx: BuildConte
           <Front key={i} front={front} top={top(front)} px={px} handleLow={wallUnit} />
         ))}
       </svg>
-      <figcaption className="text-[11px] tabular-nums text-zinc-500">
-        {formatMm(W)} × {formatMm(H)} mm, front view
-      </figcaption>
+      <figcaption className="text-[11px] tabular-nums text-zinc-500">{text.item.frontViewCaption(text.mm(W), text.mm(H))}</figcaption>
     </figure>
   );
 }

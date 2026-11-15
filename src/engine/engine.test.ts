@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createItem } from '../domain/catalog';
-import { createDesign, parseDesign } from '../domain/designOps';
+import { createDesign, parseDesign, removeMaterial } from '../domain/designOps';
 import type { ConstructionSettings, Design, ItemKind, KitchenItem } from '../domain/types';
 import { buildContext, resolveConfig, type BuildContext } from './config';
 import { buildCuttingList, cuttingListCsv } from './cuttingList';
@@ -194,6 +194,12 @@ describe('sheet estimate', () => {
     expect(nest([{ length: 2900, width: 500, canRotate: false }], sheet)).toMatchObject({ sheets: 0, oversize: 1 });
   });
 
+  it('lays a grain piece with its length along the sheet even when that is its shorter side', () => {
+    // 2100 mm across a 2070 mm sheet does not fit, and the grain stops the piece being turned.
+    expect(nest([{ length: 500, width: 2100, canRotate: false }], sheet)).toMatchObject({ sheets: 0, oversize: 1 });
+    expect(nest([{ length: 500, width: 2100, canRotate: true }], sheet)).toMatchObject({ sheets: 1, oversize: 0 });
+  });
+
   it('estimates sheets per material in the cutting list', () => {
     const design = { ...createDesign(), items: [unit('base', { label: 'B1' }), unit('tall', { label: 'T1' })] };
     const carcass = buildCuttingList(design).materials.find((m) => m.materialId === 'particleboard-white-18')!;
@@ -300,5 +306,52 @@ describe('changes by hand', () => {
     const board = list.materials.find((m) => m.materialId === 'particleboard-white-18')!;
     // The base unit has six particleboard pieces: two sides, bottom, two rails and a shelf.
     expect(board.pieces).toBe(6 + 2);
+  });
+
+  it('remembers the calculated size, keeps sizes as typed and leaves out pieces set to none', () => {
+    const design = createDesign();
+    design.items = [unit('base', { label: 'B1' })];
+    const id = design.items[0].id;
+    const parts = unitParts(design.items[0], buildContext(design));
+    const shelf = parts.find((p) => p.name === 'Shelf')!;
+    const bottom = parts.find((p) => p.name === 'Bottom')!;
+    const before = buildCuttingList(design);
+    design.partEdits = { [id]: { [shelf.key]: { width: 700 }, [bottom.key]: { quantity: 0 } } };
+    const list = buildCuttingList(design);
+
+    const unitShelf = list.units[0].parts.find((p) => p.name === 'Shelf')!;
+    expect(unitShelf).toMatchObject({ length: 564, width: 700, edited: true, calculated: { length: 564, width: 540, quantity: 1 } });
+    // The banded front edge stays on the side that was the length.
+    expect(unitShelf.edges).toEqual(shelf.edges);
+    expect(unitShelf.edgeLength).toBe(564);
+
+    // A piece set to none stays under its unit but leaves the list and the totals.
+    expect(list.units[0].parts.find((p) => p.name === 'Bottom')).toMatchObject({ quantity: 0, edited: true });
+    expect(list.rows.some((r) => r.name === 'Bottom')).toBe(false);
+    expect(list.pieceCount).toBe(before.pieceCount - bottom.quantity);
+
+    const csv = cuttingListCsv(list).split('\r\n');
+    expect(csv.find((line) => line.startsWith('Shelf;'))).toBe('Shelf;1;564;700;18;White melamine particleboard;L1 W0;ABS edge 1 mm;B1;changed by hand');
+  });
+
+  it('cuts one piece from another board, and forgets that board once it is removed', () => {
+    const design = createDesign();
+    design.items = [unit('base', { label: 'B1' })];
+    const id = design.items[0].id;
+    const side = unitParts(design.items[0], buildContext(design)).find((p) => p.name === 'Side')!;
+    design.partEdits = { [id]: { [side.key]: { materialId: 'mdf-oak-19' } } };
+
+    const edited = unitParts(design.items[0], buildContext(design), design.partEdits[id]).find((p) => p.name === 'Side')!;
+    expect(edited).toMatchObject({
+      materialId: 'mdf-oak-19',
+      thickness: 19,
+      grain: true,
+      length: side.length,
+      width: side.width,
+      calculated: { materialId: 'particleboard-white-18', thickness: 18 },
+    });
+    expect(buildCuttingList(design).materials.find((m) => m.materialId === 'mdf-oak-19')?.pieces).toBe(2);
+    expect(parseDesign(JSON.parse(JSON.stringify(design)))!.partEdits).toEqual(design.partEdits);
+    expect(removeMaterial(design, 'mdf-oak-19').partEdits).toEqual({});
   });
 });

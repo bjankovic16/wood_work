@@ -1,20 +1,11 @@
-import { createItem } from './catalog';
+import { createItem, type LabelPrefixes } from './catalog';
 import { aabbSize, rotationForWall } from './geometry';
 import type { ItemKind, KitchenItem, Room, Wall } from './types';
 
 export type LayoutId = 'straight' | 'l-shape' | 'u-shape';
 
-export interface LayoutTemplate {
-  id: LayoutId;
-  name: string;
-  description: string;
-}
-
-export const LAYOUTS: LayoutTemplate[] = [
-  { id: 'straight', name: 'Straight', description: 'Everything along one wall: fridge, sink, dishwasher, oven.' },
-  { id: 'l-shape', name: 'L-shaped', description: 'Two walls joined by a corner unit, oven on the side wall.' },
-  { id: 'u-shape', name: 'U-shaped', description: 'Three walls with two corner units: the most worktop.' },
-];
+/** The ready-made layouts, in the order they are offered; names and descriptions come with the language. */
+export const LAYOUTS: Array<{ id: LayoutId }> = [{ id: 'straight' }, { id: 'l-shape' }, { id: 'u-shape' }];
 
 const BASE_WIDTHS = [900, 800, 600, 500, 450, 400, 300];
 const WALL_WIDTHS = [800, 600, 500, 400, 300];
@@ -44,12 +35,15 @@ export function fillWidths(length: number, widths = BASE_WIDTHS): number[] {
 
 class Builder {
   readonly items: KitchenItem[] = [];
-  constructor(private readonly room: Room) {}
+  constructor(
+    private readonly room: Room,
+    private readonly prefixes?: LabelPrefixes,
+  ) {}
 
   /** Places one unit against `wall`, `along` mm from the wall's start (left or top end). */
   place(kind: ItemKind, wall: Wall, along: number, width: number, extra: Partial<KitchenItem> = {}): KitchenItem {
     const rotation = rotationForWall(wall);
-    const item = createItem(kind, this.items, { width, rotation, ...extra });
+    const item = createItem(kind, this.items, { width, rotation, ...extra }, this.prefixes);
     const { w, h } = aabbSize(item);
     const x = wall === 'left' ? 0 : wall === 'right' ? this.room.width - w : along;
     const y = wall === 'top' ? 0 : wall === 'bottom' ? this.room.depth - h : along;
@@ -118,8 +112,8 @@ const hobs = (spans: Array<{ kind: ItemKind; from: number; to: number }>) => spa
  * A complete starter kitchen for the room, laid out with standard widths.
  * Every unit stays inside the room and none overlap.
  */
-export function buildLayout(id: LayoutId, room: Room): KitchenItem[] {
-  const b = new Builder(room);
+export function buildLayout(id: LayoutId, room: Room, prefixes?: LabelPrefixes): KitchenItem[] {
+  const b = new Builder(room, prefixes);
   const W = room.width;
   const D = room.depth;
   const sideEnd = Math.max(CORNER, D - RUN_END_CLEARANCE);

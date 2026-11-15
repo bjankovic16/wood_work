@@ -3,6 +3,7 @@
 // Usage: node scripts/e2e.mjs [screenshot-dir]
 import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
+import ExcelJS from 'exceljs';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
 
@@ -14,7 +15,7 @@ await server.listen();
 const url = server.resolvedUrls.local[0];
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
-const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, permissions: ['clipboard-read', 'clipboard-write'] });
 const problems = [];
 page.on('pageerror', (e) => problems.push(`page error: ${e.message}`));
 // Deprecation notice printed by React Three Fiber itself with this three.js version; not caused by the app.
@@ -76,6 +77,42 @@ try {
   await page.waitForSelector('canvas');
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(200);
+  await shot('00-empty-sr.png');
+
+  console.log('Serbian by default');
+  const startFromLayoutSr = page.getByRole('button', { name: 'Ili počnite od gotovog rasporeda' });
+  check(
+    'the app starts in Serbian',
+    (await page.evaluate(() => document.documentElement.lang)) === 'sr-Latn' && (await startFromLayoutSr.isVisible()),
+    await page.evaluate(() => document.documentElement.lang),
+  );
+  check('the first project has a Serbian name', (await design()).name === 'Moja kuhinja', (await design()).name);
+  await startFromLayoutSr.click();
+  await page.getByRole('button', { name: /^L-oblik/ }).click();
+  const serbianCodes = (await design()).items.map((i) => i.label);
+  check('new units get Serbian codes', serbianCodes.includes('U1') && serbianCodes.includes('D1') && !serbianCodes.some((code) => /^(B|W|C)\d/.test(code)), serbianCodes);
+  await page.getByRole('radio', { name: /Krojna lista/ }).click();
+  await page.waitForSelector('table');
+  const serbianTable = await page.locator('table').first().innerText();
+  check(
+    'the cutting list is in Serbian',
+    (await page.getByRole('heading', { name: 'Krojna lista' }).isVisible()) && /Bok\s+\d+/.test(serbianTable) && serbianTable.includes('Bela oplemenjena iverica'),
+    serbianTable.slice(0, 300),
+  );
+  await shot('00b-cutting-list-sr.png');
+  await page.getByRole('button', { name: 'Izvezi krojnu listu' }).click();
+  const [serbianPdf] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'PDF dokument' }).click()]);
+  await serbianPdf.saveAs(path.join(shotsDir, 'cutting-list-sr.pdf'));
+  check('a Serbian PDF is named in Serbian', serbianPdf.suggestedFilename() === 'Moja kuhinja - krojna lista.pdf', serbianPdf.suggestedFilename());
+  await page.getByRole('radio', { name: /Osnova/ }).click();
+  await page.waitForSelector('canvas');
+  await page.keyboard.press('Control+z');
+  check('Undo takes the Serbian layout away again', (await design()).items.length === 0);
+  await page.getByLabel('Jezik / Language').selectOption('en');
+  check(
+    'the language can be switched to English',
+    (await page.evaluate(() => document.documentElement.lang)) === 'en' && (await page.getByRole('button', { name: 'Or start from a ready-made layout' }).isVisible()),
+  );
   await shot('01-empty.png');
 
   console.log('Ready-made layouts');
@@ -404,15 +441,117 @@ try {
   );
   await shot('12-cutting-list.png');
 
-  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'CSV' }).click()]);
-  const csvPath = path.join(shotsDir, 'cutting-list.csv');
-  await download.saveAs(csvPath);
-  const csv = await readFile(csvPath, 'utf8');
-  check('the CSV download has a header and a row per kind of piece', csv.includes('Piece;Quantity;Length (mm)') && csv.split('\r\n').length > 10, csv.slice(0, 200));
+  console.log('Exports');
+  const exportMenu = page.getByRole('button', { name: 'Export the cutting list' });
+  /** Picks an entry from the cutting list's Export menu and keeps the file it downloads. */
+  async function exportFile(entry, name) {
+    await exportMenu.click();
+    const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: entry }).click()]);
+    const file = path.join(shotsDir, name);
+    await download.saveAs(file);
+    return { file, suggested: download.suggestedFilename() };
+  }
+  await exportMenu.click();
+  await shot('12b-export-menu.png');
+  await exportMenu.click();
 
+  const csvFile = await exportFile('CSV file', 'cutting-list.csv');
+  const csv = await readFile(csvFile.file, 'utf8');
+  check('the CSV download has a header and a row per kind of piece', csv.includes('Piece;Quantity;Length (mm)') && csv.split('\r\n').length > 10, csv.slice(0, 200));
+  check('downloads are named after the project', csvFile.suggested === 'Kuhinja Petrović - cutting list.csv', csvFile.suggested);
+
+  const pdfFile = await exportFile('PDF document', 'cutting-list.pdf');
+  const pdf = await readFile(pdfFile.file);
+  const pdfPages = pdf.toString('latin1').match(/\/Type\s*\/Page\b/g)?.length ?? 0;
+  check('the PDF download is a PDF of several pages', pdf.subarray(0, 5).toString() === '%PDF-' && pdfPages >= 3, { bytes: pdf.length, pdfPages });
+
+  const xlsxFile = await exportFile('Excel workbook', 'cutting-list.xlsx');
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile(xlsxFile.file);
+  const sheetNames = workbook.worksheets.map((w) => w.name);
+  check(
+    'the Excel workbook has the parts, units, materials, hardware and project sheets',
+    JSON.stringify(sheetNames) === JSON.stringify(['Cutting list', 'By unit', 'Materials', 'Hardware', 'Project']),
+    sheetNames,
+  );
+  const firstSheet = workbook.getWorksheet('Cutting list');
+  check('…with a row per kind of piece', firstSheet.rowCount === csv.trim().split('\r\n').length, { rows: firstSheet.rowCount });
+  check('the app says the file was saved', await page.getByText('Saved “Kuhinja Petrović - cutting list.xlsx”.').isVisible());
+
+  await exportMenu.click();
+  await page.getByRole('button', { name: 'Copy table for a spreadsheet' }).click();
+  const clipboard = await page.evaluate(() => navigator.clipboard.readText());
+  check('Copy puts the table on the clipboard, tab-separated', clipboard.startsWith('Piece\tQuantity\tLength (mm)'), clipboard.slice(0, 80));
+
+  console.log('Changing pieces by hand');
+  const selectedBefore = await page.evaluate(() => window.__kitchen.ui.getState().selectedId);
+  const unitBefore = (await design()).items.find((i) => i.id === selectedBefore);
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('Delete');
+  const unitAfter = (await design()).items.find((i) => i.id === selectedBefore);
+  check('keys for the selected unit do nothing while the cutting list is open', !!unitBefore && unitAfter?.x === unitBefore.x, { unitBefore, unitAfter });
   await page.getByRole('radio', { name: 'By unit' }).click();
   check('the list can be grouped by unit', await page.getByRole('heading', { name: /^B1 / }).isVisible());
   await shot('13-cutting-list-by-unit.png');
+  const b1Id = (await byLabel('B1')).id;
+  const b1Section = page.locator('section').filter({ has: page.getByRole('heading', { name: /^B1 / }) });
+  await b1Section.getByRole('button', { name: 'Change Side', exact: true }).click();
+  const partEditor = page.getByTestId('part-editor');
+  await partEditor.getByLabel('Length', { exact: true }).fill('700');
+  await shot('13c-part-editor.png');
+  await partEditor.getByRole('button', { name: 'Save' }).click();
+  const b1Edits = (await design()).partEdits[b1Id];
+  check(
+    'a piece can be changed by hand, keeping only what differs from the calculation',
+    b1Edits && Object.values(b1Edits).length === 1 && sortedJson(Object.values(b1Edits)[0]) === sortedJson({ length: 700 }),
+    b1Edits,
+  );
+  const b1Table = await b1Section.locator('table').innerText();
+  check('the changed piece is marked in the list', /Side\s*changed\s+2\s+700\s+560/i.test(b1Table), b1Table.split('\n').find((l) => l.startsWith('Side')));
+  await b1Section.getByRole('button', { name: 'Undo the change to Side' }).click();
+  check('…and put back as calculated', !(await design()).partEdits[b1Id], (await design()).partEdits);
+
+  await b1Section.getByRole('button', { name: 'Change Side', exact: true }).click();
+  await partEditor.getByLabel('Board', { exact: true }).selectOption('mdf-oak-19');
+  check('the editor warns that the rest of the unit is sized for the old board', await partEditor.getByText('still sized for 18 mm').isVisible());
+  await partEditor.getByRole('button', { name: 'Save' }).click();
+  const boardEdits = (await design()).partEdits[b1Id];
+  check(
+    'a piece can be cut from another board',
+    boardEdits && sortedJson(Object.values(boardEdits)) === sortedJson([{ materialId: 'mdf-oak-19' }]),
+    boardEdits,
+  );
+  check('…which the list shows', /Side\s*changed\s+2\s+702\s+560\s+19\s+Oak-veneered MDF/i.test(await b1Section.locator('table').innerText()));
+  await page.keyboard.press('Control+z');
+  check('Ctrl+Z works in the cutting list too', !(await design()).partEdits[b1Id], (await design()).partEdits);
+
+  console.log('Extra pieces');
+  await page.getByRole('button', { name: 'Add piece' }).click();
+  const extraCard = page.getByTestId('custom-part').first();
+  const extraName = extraCard.getByLabel('Name', { exact: true });
+  await extraName.fill('Plinth');
+  await extraName.press('Enter');
+  for (const [label, value] of [
+    ['Quantity', '2'],
+    ['Length', '2400'],
+    ['Width', '100'],
+  ]) {
+    const field = extraCard.getByLabel(label, { exact: true });
+    await field.fill(value);
+    await field.press('Enter');
+  }
+  await extraCard.getByLabel('Edge band', { exact: true }).selectOption('abs-1');
+  await extraCard.getByLabel('Length edges', { exact: true }).selectOption('1');
+  const extraPart = (await design()).customParts[0];
+  check(
+    'an extra piece can be added and described',
+    extraPart?.name === 'Plinth' && extraPart.quantity === 2 && extraPart.length === 2400 && extraPart.width === 100 && extraPart.edgeBandId === 'abs-1' && extraPart.edgesLength === 1,
+    extraPart,
+  );
+  await shot('13d-extra-pieces.png');
+  await page.getByRole('radio', { name: 'Identical pieces together' }).click();
+  const grouped = await page.locator('table').first().innerText();
+  check('it is listed with the rest, under "Extra"', /Plinth\s+2\s+2400\s+100[^\n]*Extra/.test(grouped), grouped.split('\n').find((l) => l.startsWith('Plinth')));
 
   await page.getByRole('button', { name: 'Construction', exact: true }).first().click();
   await page.getByRole('button', { name: 'Reset to defaults' }).click();
@@ -422,6 +561,63 @@ try {
   await page.getByRole('button', { name: 'Done' }).click();
   await page.getByRole('radio', { name: /Plan/ }).click();
   await page.waitForSelector('canvas');
+
+  console.log('Projects');
+  const projectsButton = page.getByRole('button', { name: 'Projects', exact: true });
+  const projectsDialog = page.getByRole('dialog', { name: 'Projects' });
+  const projectRows = projectsDialog.getByTestId('project-row');
+  await projectsButton.click();
+  check('the projects dialog lists the open kitchen', (await projectRows.count()) === 1 && (await projectRows.first().innerText()).includes('Kuhinja Petrović'));
+  await projectsDialog.getByRole('button', { name: 'Copy Kuhinja Petrović' }).click();
+  check('a project can be copied', (await projectRows.count()) === 2 && (await projectsDialog.getByText('Kuhinja Petrović (copy)').isVisible()));
+
+  const [projectDownload] = await Promise.all([
+    page.waitForEvent('download'),
+    projectsDialog.getByRole('button', { name: 'Save Kuhinja Petrović to a file' }).click(),
+  ]);
+  const projectPath = path.join(shotsDir, 'project.kitchen.json');
+  await projectDownload.saveAs(projectPath);
+  const projectFile = JSON.parse(await readFile(projectPath, 'utf8'));
+  check(
+    'a project can be saved to a file, extra pieces and all',
+    projectDownload.suggestedFilename() === 'Kuhinja Petrović.kitchen.json' && projectFile.customParts.length === 1 && projectFile.items.length > 10,
+    projectDownload.suggestedFilename(),
+  );
+  await shot('17-projects.png');
+
+  await projectsDialog.getByRole('button', { name: 'New project' }).click();
+  check(
+    'a new project starts empty and offers the ready-made layouts',
+    (await design()).items.length === 0 && (await design()).name === 'Kitchen 1' && (await page.getByRole('dialog', { name: 'Ready-made layouts' }).isVisible()),
+    (await design()).name,
+  );
+  await page.keyboard.press('Escape');
+
+  await projectsButton.click();
+  await projectsDialog.getByLabel('Project file').setInputFiles(projectPath);
+  // The file is read in the background; the dialog closes once it is open.
+  await projectsDialog.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+  check(
+    'a project file can be opened again',
+    (await design()).name === 'Kuhinja Petrović' && sortedJson((await design()).items) === sortedJson(projectFile.items) && !(await projectsDialog.isVisible()),
+  );
+
+  await projectsButton.click();
+  await projectsDialog.getByRole('button', { name: 'Delete Kitchen 1' }).click();
+  check('deleting asks for a second click', (await projectRows.count()) === 4);
+  await projectsDialog.getByRole('button', { name: 'Delete?' }).click();
+  check('…and then deletes the project', (await projectRows.count()) === 3 && !(await projectsDialog.getByText('Kitchen 1').isVisible()));
+  await projectRows.filter({ hasText: 'Kuhinja Petrović (copy)' }).getByRole('button', { name: 'Open' }).click();
+  check('another project can be opened', (await design()).name === 'Kuhinja Petrović (copy)' && (await design()).customParts.length === 1, (await design()).name);
+
+  await page.reload();
+  await page.waitForSelector('canvas');
+  const storedIndex = await page.evaluate(() => JSON.parse(localStorage.getItem('kitchen-designer:projects')));
+  check(
+    'the projects and the open one survive a reload',
+    (await design()).name === 'Kuhinja Petrović (copy)' && storedIndex.projects.length === 3,
+    { name: (await design()).name, projects: storedIndex.projects.map((p) => p.name) },
+  );
 
   console.log('Checks');
   const checksButton = page.getByRole('button', { name: /^Checks:/ });
@@ -512,7 +708,12 @@ try {
   await mobile.reload();
   await mobile.waitForSelector('canvas');
   await mobile.evaluate(() => document.fonts.ready);
-  await mobile.screenshot({ path: path.join(shotsDir, 'phone-01-empty.png') });
+  await mobile.screenshot({ path: path.join(shotsDir, 'phone-01-empty-sr.png') });
+  check('the phone starts in Serbian too', await mobile.getByRole('button', { name: 'Dodaj element' }).isVisible());
+  await mobile.getByRole('button', { name: 'Više' }).tap();
+  await mobile.screenshot({ path: path.join(shotsDir, 'phone-00-menu-sr.png') });
+  await mobile.getByRole('radio', { name: 'English' }).tap();
+  await mobile.getByRole('button', { name: 'More' }).tap();
   check('the phone layout shows the plan with an "Add element" button', await mobile.getByRole('button', { name: 'Add element' }).isVisible());
 
   await mobile.getByRole('button', { name: 'Add element' }).tap();
@@ -547,7 +748,11 @@ try {
 
   await mobile.getByRole('radio', { name: /List/ }).tap();
   check('the cutting list opens on the phone', await mobile.locator('table').first().isVisible());
+  check('…with its Export menu and extra pieces', (await mobile.getByRole('button', { name: 'Export the cutting list' }).isVisible()) && (await mobile.getByRole('button', { name: 'Add piece' }).isVisible()));
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-04-list.png') });
+  await mobile.getByRole('button', { name: 'Export the cutting list' }).tap();
+  await mobile.screenshot({ path: path.join(shotsDir, 'phone-04b-export.png') });
+  await mobile.getByRole('button', { name: 'Export the cutting list' }).tap();
 
   await mobile.getByRole('radio', { name: /^3D/ }).tap();
   await mobile.locator('main canvas').first().waitFor();
@@ -563,6 +768,12 @@ try {
   await mobile.getByRole('button', { name: 'Close' }).tap();
   await mobile.waitForTimeout(2000);
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-06-u-3d.png') });
+
+  await mobile.getByRole('button', { name: 'More' }).tap();
+  await mobile.getByRole('button', { name: 'Projects', exact: true }).tap();
+  check('projects open from the menu on the phone', await mobile.getByRole('dialog', { name: 'Projects' }).isVisible());
+  await mobile.screenshot({ path: path.join(shotsDir, 'phone-07-projects.png') });
+  await mobile.getByRole('button', { name: 'Close' }).tap();
   await phone.close();
 } catch (error) {
   failures++;

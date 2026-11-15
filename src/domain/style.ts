@@ -10,36 +10,36 @@ export interface KitchenStyle {
   handles: HandleStyle;
 }
 
+/** How a finish looks; its name comes with the interface language. */
 export interface Finish {
-  name: string;
   color: string;
   /** Drawn with a wood grain. */
   wood?: boolean;
 }
 
 export const FRONT_FINISHES: Record<FrontFinish, Finish> = {
-  white: { name: 'White', color: '#f2f1ec' },
-  cream: { name: 'Cream', color: '#e9e2d0' },
-  grey: { name: 'Light grey', color: '#cfd0cc' },
-  sage: { name: 'Sage green', color: '#a3b49b' },
-  navy: { name: 'Navy blue', color: '#2e3b52' },
-  anthracite: { name: 'Anthracite', color: '#3b3c3e' },
-  oak: { name: 'Oak', color: '#c69b6d', wood: true },
-  walnut: { name: 'Walnut', color: '#6e4b34', wood: true },
+  white: { color: '#f2f1ec' },
+  cream: { color: '#e9e2d0' },
+  grey: { color: '#cfd0cc' },
+  sage: { color: '#a3b49b' },
+  navy: { color: '#2e3b52' },
+  anthracite: { color: '#3b3c3e' },
+  oak: { color: '#c69b6d', wood: true },
+  walnut: { color: '#6e4b34', wood: true },
 };
 
 export const WORKTOP_FINISHES: Record<WorktopFinish, Finish> = {
-  stone: { name: 'White stone', color: '#ecebe6' },
-  oak: { name: 'Oak', color: '#b98955', wood: true },
-  concrete: { name: 'Concrete', color: '#9d9c97' },
-  black: { name: 'Black', color: '#262628' },
+  stone: { color: '#ecebe6' },
+  oak: { color: '#b98955', wood: true },
+  concrete: { color: '#9d9c97' },
+  black: { color: '#262628' },
 };
 
-export const HANDLE_STYLES: Record<HandleStyle, { name: string; color: string | null; metal: boolean }> = {
-  steel: { name: 'Steel bar', color: '#b8bcc2', metal: true },
-  black: { name: 'Black bar', color: '#1c1c1e', metal: false },
-  brass: { name: 'Brass bar', color: '#b8955a', metal: true },
-  none: { name: 'No handles', color: null, metal: false },
+export const HANDLE_STYLES: Record<HandleStyle, { color: string | null; metal: boolean }> = {
+  steel: { color: '#b8bcc2', metal: true },
+  black: { color: '#1c1c1e', metal: false },
+  brass: { color: '#b8955a', metal: true },
+  none: { color: null, metal: false },
 };
 
 export const DEFAULT_STYLE: KitchenStyle = { front: 'white', worktop: 'stone', handles: 'steel' };
