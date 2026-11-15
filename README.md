@@ -78,3 +78,4 @@ npm run build    # static files in dist/, with relative paths so they work from 
   defaults.
 - In a cutting list row, length is always the longer side.
 - Units at 1000 mm or more above the floor count as wall units.
+# wood_work
