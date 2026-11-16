@@ -4,18 +4,95 @@ import { describe, expect, it } from 'vitest';
 import { checkDesign } from '../engine/checks';
 import { buildCuttingList } from '../engine/cuttingList';
 import { parseDesign } from './designOps';
-import { createKitchenDesign, KITCHEN_DESIGNS, kitchenCategory, type KitchenPreset } from './kitchens';
+import { createKitchenDesign, FRAMED_KITCHENS, KITCHEN_DESIGNS, kitchenCategory, type KitchenPreset } from './kitchens';
+import { CEILING_GAP, hasWorktop, WORKTOP_THICKNESS } from './catalog';
 import { PREMIUM_KITCHENS } from './premiumKitchens';
 import { en } from '../i18n/en';
 import { sr } from '../i18n/sr';
 import { roomSegments } from './walls';
 
 describe('kitchen inspiration designs', () => {
-  it('offers forty-two unique kitchens, including stacked collections and all three wall layouts', () => {
-    expect(KITCHEN_DESIGNS).toHaveLength(42);
-    expect(new Set(KITCHEN_DESIGNS.map((kitchen) => kitchen.id)).size).toBe(42);
+  it('offers fifty-two unique kitchens, including stacked collections and all three wall layouts', () => {
+    expect(KITCHEN_DESIGNS).toHaveLength(52);
+    expect(new Set(KITCHEN_DESIGNS.map((kitchen) => kitchen.id)).size).toBe(52);
     expect(KITCHEN_DESIGNS.filter((kitchen) => 'layered' in kitchen)).toHaveLength(4);
     expect(new Set(KITCHEN_DESIGNS.map(kitchenCategory))).toEqual(new Set(['straight', 'l-shape', 'u-shape', 'island']));
+  });
+
+  it('frames the reference-inspired work zones with continuous deep ceiling cupboards, recessed uppers and real timber side panels', () => {
+    for (const preset of FRAMED_KITCHENS) {
+      const design = createKitchenDesign(preset, preset.id);
+      const ceiling = design.room.height - CEILING_GAP;
+      const canopy = design.items.filter((item) => item.kind === 'wall' && item.elevation + item.height === ceiling).sort((a, b) => a.x - b.x);
+      expect(canopy[0].x).toBe(Math.min(...design.items.filter((item) => item.kind === 'ovenTower' || item.kind === 'integratedFridge').map((item) => item.x)));
+      expect(canopy.at(-1)!.x + canopy.at(-1)!.width).toBe(design.room.width);
+      expect(canopy.every((item, index) => item.depth === 600 && (!index || item.x === canopy[index - 1].x + canopy[index - 1].width))).toBe(true);
+      const middle = design.items.filter((item) => item.kind === 'wall' && item.elevation === 1700);
+      expect(middle).toHaveLength(6);
+      expect(middle.every((item) => item.depth === 320 && item.frontFinish === preset.middleFinish && item.elevation + item.height === canopy[0].elevation)).toBe(true);
+      const panels = design.items.filter((item) => item.kind === 'endPanel');
+      expect(panels).toHaveLength(2);
+      const panelParts = buildCuttingList(design).units.filter(({ item }) => item.kind === 'endPanel');
+      expect(panelParts.every(({ item, parts }) => parts.length === 1 && parts[0].thickness === item.width && parts[0].length === item.height && parts[0].width === item.depth)).toBe(true);
+      expect(panels[0].x + panels[0].width).toBe(middle[0].x);
+      expect(middle.at(-1)!.x + middle.at(-1)!.width).toBe(panels[1].x);
+      const base = design.items.find((item) => hasWorktop(item))!;
+      expect(panels.every((item) => item.elevation === base.elevation + base.height + WORKTOP_THICKNESS && item.elevation + item.height === canopy[0].elevation)).toBe(true);
+      expect(design.items.some((item) => item.kind === 'ovenTower')).toBe(true);
+      expect(design.items.some((item) => ['shelf', 'glassWall'].includes(item.kind))).toBe(false);
+      expect(design.style.handles).toBe('none');
+      expect(design.style.appliances).toBe('black');
+      expect(en.kitchens.names[preset.id]).toBeTruthy();
+      expect(sr.kitchens.names[preset.id]).toBeTruthy();
+    }
+  });
+
+  it('keeps reference-specific appliance, wood-backsplash and island choices editable', () => {
+    const designs = FRAMED_KITCHENS.map((preset) => createKitchenDesign(preset, preset.id));
+    expect(designs[0].items.find((item) => item.kind === 'fridge')?.x).toBe(3600);
+    expect(designs[1].items.find((item) => item.kind === 'ovenTower')?.x).toBe(3600);
+    expect(designs[1].room.treatments?.[0].finish).toBe('oak');
+    const island = designs[3].items.filter((item) => item.y === 2200);
+    expect(island).toHaveLength(3);
+    expect(island.reduce((width, item) => width + item.width, 0)).toBe(1800);
+    expect(island.every((item) => item.frontFinish === 'oak' && item.depth === 800)).toBe(true);
+  });
+
+  it('adds contrasting walnut and ash islands with full working aisles', () => {
+    for (const [id, finish] of [['walnut-frame-island', 'walnut'], ['ash-frame-island', 'ash']]) {
+      const preset = FRAMED_KITCHENS.find((entry) => entry.id === id)!;
+      const design = createKitchenDesign(preset, id);
+      const island = design.items.filter((item) => item.y === 2200);
+      expect(island).toHaveLength(3);
+      expect(island.reduce((width, item) => width + item.width, 0)).toBe(1800);
+      expect(island.every((item) => item.frontFinish === finish && item.depth === 800)).toBe(true);
+      expect(island[0].y - 600).toBeGreaterThanOrEqual(1000);
+      expect(design.room.depth - island[0].y - island[0].depth).toBeGreaterThanOrEqual(1000);
+    }
+  });
+
+  it('keeps every cabinet clear of the chimney while preserving its warning and excluding it from cut parts', () => {
+    const preset = FRAMED_KITCHENS.find((entry) => entry.id === 'chimney-frame')!;
+    const design = createKitchenDesign(preset, preset.id);
+    const chimney = design.room.features![0];
+    expect(design.items.every((item) => item.x >= chimney.x + chimney.width + 150)).toBe(true);
+    expect(checkDesign(design).filter((issue) => issue.severity === 'error')).toEqual([]);
+    expect(checkDesign(design).some((issue) => issue.key === `chimney-clearance-${chimney.id}` && issue.severity === 'warning')).toBe(true);
+    expect(buildCuttingList(design).pieceCount).toBe(buildCuttingList({ ...design, room: { ...design.room, features: [] } }).pieceCount);
+    const second = createKitchenDesign(preset, preset.id);
+    design.room.features![0].width = 900;
+    expect(second.room.features![0].width).toBe(450);
+  });
+
+  it('cuts the framed drawer cabinet to its actual carcass thickness and four-millimetre front reveals', () => {
+    const design = createKitchenDesign(FRAMED_KITCHENS[0], 'Cut-size check');
+    const cabinet = buildCuttingList(design).units.find(({ item }) => item.kind === 'drawer' && item.width === 900)!;
+    expect(cabinet.parts).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'Side', quantity: 2, length: 720, width: 560, thickness: 18 }),
+      expect.objectContaining({ name: 'Bottom', quantity: 1, length: 864, width: 560, thickness: 18 }),
+      expect.objectContaining({ name: 'Top', quantity: 1, length: 864, width: 560, thickness: 18 }),
+      expect.objectContaining({ name: 'Drawer front', quantity: 2, length: 896, width: 356, thickness: 18 }),
+    ]));
   });
 
   it('adds six original designs per collection, with bilingual names, public references and independently editable upper rows', () => {
@@ -85,6 +162,9 @@ describe('kitchen inspiration designs', () => {
       const list = buildCuttingList(design);
       expect(list.pieceCount).toBeGreaterThan(0);
       expect(list.rows.every((row) => row.length > 0 && row.width > 0 && row.quantity > 0)).toBe(true);
+      expect(list.pieceCount).toBe(list.units.flatMap((unit) => unit.parts).reduce((sum, part) => sum + part.quantity, 0));
+      expect(list.materials.reduce((sum, material) => sum + material.pieces, 0)).toBe(list.pieceCount);
+      expect(list.materials.reduce((sum, material) => sum + material.area, 0)).toBeCloseTo(list.units.flatMap((unit) => unit.parts).reduce((sum, part) => sum + part.area * part.quantity / 1_000_000, 0), 8);
       expect(parseDesign(JSON.parse(JSON.stringify(design)))).toEqual(design);
     });
 
@@ -97,14 +177,15 @@ describe('kitchen inspiration designs', () => {
   }
 
   it('makes independent copies, with fresh unit IDs on every load', () => {
-    const first = createKitchenDesign(KITCHEN_DESIGNS[17], 'First');
-    const second = createKitchenDesign(KITCHEN_DESIGNS[17], 'Second');
+    const preset = KITCHEN_DESIGNS.find((kitchen) => kitchen.id === 'oak-island')!;
+    const first = createKitchenDesign(preset, 'First');
+    const second = createKitchenDesign(preset, 'Second');
     expect(first.items.map((item) => item.id).some((id) => second.items.some((item) => item.id === id))).toBe(false);
     first.room.width = 1000;
     first.items[0].width = 700;
     first.style.front = 'navy';
-    expect(second.room).toEqual(KITCHEN_DESIGNS[17].room);
-    expect(second.style).toEqual(KITCHEN_DESIGNS[17].style);
+    expect(second.room).toEqual(preset.room);
+    expect(second.style).toEqual(preset.style);
     expect(second.items[0].width).toBe(900);
   });
 });

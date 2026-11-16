@@ -5,7 +5,7 @@ import type { BacksplashFinish, FrontFinish, HandleStyle, KitchenStyle, WorktopF
 import { buildLayout, type LayoutId } from './templates';
 import type { Design, KitchenItem, Room } from './types';
 import { withModuleMaterials } from '../engine/settings';
-import { createLayeredKitchen, type LayeredKitchen } from './layeredKitchens';
+import { createFramedKitchen, createLayeredKitchen, type FramedKitchen, type LayeredKitchen } from './layeredKitchens';
 import { PREMIUM_KITCHENS, premiumUpperRows, type KitchenCollection } from './premiumKitchens';
 
 export interface KitchenPreset {
@@ -22,6 +22,7 @@ export interface KitchenPreset {
   pullOut?: boolean;
   breakfastBar?: boolean;
   layered?: LayeredKitchen;
+  framed?: FramedKitchen;
   collection?: KitchenCollection;
   inspiration?: string;
   stacked?: boolean;
@@ -32,7 +33,83 @@ function warmStyle(front: FrontFinish, worktop: WorktopFinish, handles: HandleSt
   return { front, worktop, handles, backsplash, lighting: true, decor: true };
 }
 
+export const FRAMED_KITCHENS = [
+  {
+    id: 'walnut-frame', layout: 'straight', framed: 'walnut', stacked: true, collection: 'warm',
+    room: { width: 4200, depth: 3200, height: 2700 },
+    style: { ...warmStyle('cashmere', 'black', 'none'), appliances: 'black', decor: false },
+    middleFinish: 'walnut',
+  },
+  {
+    id: 'oak-frame', layout: 'straight', framed: 'oak', stacked: true, collection: 'warm',
+    room: {
+      width: 4200, depth: 3200, height: 2700,
+      treatments: [{ id: 'oak-niche-backsplash', wallId: 'top', offset: 618, width: 2964, elevation: 858, height: 842, finish: 'oak' }],
+    },
+    style: { ...warmStyle('cream', 'stone', 'none', 'stone'), appliances: 'black', decor: false },
+    middleFinish: 'oak',
+  },
+  {
+    id: 'stone-frame', layout: 'straight', framed: 'stone', stacked: true, collection: 'warm',
+    room: { width: 4200, depth: 3200, height: 2700 },
+    style: { ...warmStyle('oak', 'marble', 'none', 'marble'), appliances: 'black', decor: false },
+    middleFinish: 'cream',
+  },
+  {
+    id: 'oak-frame-island', layout: 'straight', framed: 'island', stacked: true, collection: 'japandi', islandWidth: 1800,
+    room: {
+      width: 4800, depth: 4200, height: 2700,
+      treatments: [{ id: 'island-niche-backsplash', wallId: 'top', offset: 618, width: 3564, elevation: 858, height: 842, finish: 'oak' }],
+    },
+    style: { ...warmStyle('cashmere', 'black', 'none'), appliances: 'black', decor: false },
+    middleFinish: 'oak',
+  },
+  {
+    id: 'sage-oak-frame', layout: 'straight', framed: 'oak', stacked: true, collection: 'warm',
+    room: { width: 4200, depth: 3200, height: 2700 },
+    style: { ...warmStyle('sage', 'travertine', 'none'), appliances: 'black', decor: false },
+    middleFinish: 'oak',
+  },
+  {
+    id: 'noir-walnut-frame', layout: 'straight', framed: 'walnut', stacked: true, collection: 'dark',
+    room: { width: 4200, depth: 3200, height: 2700 },
+    style: { ...warmStyle('anthracite', 'marble', 'none', 'marble'), appliances: 'black', decor: false, plinthLighting: true },
+    middleFinish: 'walnut',
+  },
+  {
+    id: 'clay-oak-frame', layout: 'straight', framed: 'oak', stacked: true, collection: 'warm',
+    room: { width: 4200, depth: 3200, height: 2700 },
+    style: { ...warmStyle('clay', 'travertine', 'none'), appliances: 'black', decor: false },
+    middleFinish: 'oak',
+  },
+  {
+    id: 'walnut-frame-island', layout: 'straight', framed: 'walnut-island', stacked: true, collection: 'dark', islandWidth: 1800,
+    room: {
+      width: 4800, depth: 4200, height: 2700,
+      treatments: [{ id: 'walnut-island-backsplash', wallId: 'top', offset: 618, width: 3564, elevation: 858, height: 842, finish: 'walnut' }],
+    },
+    style: { ...warmStyle('espresso', 'marble', 'none', 'marble'), appliances: 'black', decor: false, plinthLighting: true },
+    middleFinish: 'walnut',
+  },
+  {
+    id: 'ash-frame-island', layout: 'straight', framed: 'ash-island', stacked: true, collection: 'japandi', islandWidth: 1800,
+    room: { width: 4800, depth: 4200, height: 2700 },
+    style: { ...warmStyle('sand', 'stone', 'none', 'stone'), appliances: 'black', decor: false },
+    middleFinish: 'ash',
+  },
+  {
+    id: 'chimney-frame', layout: 'straight', framed: 'chimney', stacked: true, collection: 'warm',
+    room: {
+      width: 4800, depth: 3200, height: 2700,
+      features: [{ id: 'framed-chimney', kind: 'chimney', x: 0, y: 0, width: 450, depth: 450 }],
+    },
+    style: { ...warmStyle('cashmere', 'stone', 'none', 'stone'), appliances: 'black', decor: false },
+    middleFinish: 'walnut',
+  },
+] as const satisfies readonly KitchenPreset[];
+
 export const KITCHEN_DESIGNS = [
+  ...FRAMED_KITCHENS,
   { id: 'nordic-light', layout: 'straight', room: { width: 3600, depth: 2800, height: 2600 }, style: warmStyle('ash', 'marble', 'brass', 'marble'), glassFronts: true },
   { id: 'oak-studio', layout: 'straight', room: { width: 3800, depth: 2800, height: 2600 }, style: warmStyle('oak', 'travertine', 'bronze'), openShelves: true, glassFronts: true, ovenTower: true },
   { id: 'soft-sage', layout: 'straight', room: { width: 3400, depth: 2600, height: 2600 }, style: warmStyle('sage', 'stone'), glassFronts: true, pullOut: true },
@@ -69,6 +146,7 @@ export function kitchenCategory(preset: KitchenPreset): KitchenCategory {
 
 /** Both the gallery images and the editor use this complete, independently editable design. */
 export function createKitchenDesign(preset: KitchenPreset, name: string, prefixes?: LabelPrefixes): Design {
+  if (preset.framed) return createFramedKitchen(preset.framed, preset.room, preset.style, name, prefixes);
   if (preset.layered) return createLayeredKitchen(preset.layered, preset.room, preset.style, name, prefixes);
   const room = structuredClone(preset.room);
   let upperIndex = 0;

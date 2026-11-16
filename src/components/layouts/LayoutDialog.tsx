@@ -75,10 +75,12 @@ function KitchenCard({ kitchen, onClose }: { kitchen: (typeof KITCHEN_DESIGNS)[n
           {palette.map((finish, index) => <span key={index} aria-hidden className="size-5 rounded-full border border-black/10 shadow-xs" style={{ backgroundColor: finish.color }} />)}
         </span>
         <span className="mt-3 flex flex-wrap gap-1.5">
+          {preset.framed && <span className="rounded-full border border-[#d1d9ca] bg-[#edf1e8] px-2 py-1 text-[10px] font-medium text-[#4f6249]">{t.kitchens.framed}</span>}
           {(preset.layered || preset.stacked) && <span className="inline-flex rounded-full border border-[#e1ddcf] bg-[#f3f0e7] px-2 py-1 text-[10px] font-medium text-[#5b6353]">{preset.stacked ? t.kitchens.threeTier : t.kitchens.layered}</span>}
           {preset.room.vertices && <span className="rounded-full border border-[#e1ddcf] px-2 py-1 text-[10px] text-[#625b50]">{t.kitchens.angledRoom}</span>}
           {preset.room.partitions?.some((partition) => partition.height < preset.room.height) && <span className="rounded-full border border-[#e1ddcf] px-2 py-1 text-[10px] text-[#625b50]">{t.kitchens.halfWall}</span>}
           {!!preset.room.treatments?.length && <span className="rounded-full border border-[#e1ddcf] px-2 py-1 text-[10px] text-[#625b50]">{t.kitchens.wallFinishes}</span>}
+          {[...new Set(preset.room.features?.map((feature) => feature.kind))].map((kind) => <span key={kind} className="rounded-full border border-[#e1ddcf] px-2 py-1 text-[10px] text-[#625b50]">{t.engine.roomFeatures[kind]}</span>)}
         </span>
         <span className="mt-2 flex flex-wrap justify-between gap-x-2 gap-y-1 text-xs tabular-nums text-zinc-600">
           <span>{kitchenCategory(kitchen) === 'island' ? t.kitchens.island : t.layouts.names[kitchen.layout].name}</span>
@@ -104,7 +106,7 @@ function LayoutChoices({ onClose }: { onClose: () => void }) {
   const count = useDesignStore((s) => s.design.items.length);
   const room = useDesignStore((s) => s.design.room);
   const [tab, setTab] = useState<'designs' | 'photos' | 'layouts'>('designs');
-  const [filter, setFilter] = useState<KitchenCategory | 'all' | 'layered'>('all');
+  const [filter, setFilter] = useState<KitchenCategory | 'all' | 'layered' | 'framed'>('all');
   const [collection, setCollection] = useState<KitchenCollection | 'all'>('all');
   const [query, setQuery] = useState('');
   const [withinRoom, setWithinRoom] = useState(false);
@@ -127,18 +129,21 @@ function LayoutChoices({ onClose }: { onClose: () => void }) {
       t.style.worktopFinishes[kitchen.style.worktop], t.layouts.names[kitchen.layout].name,
       preset.collection ? t.kitchens.collections[preset.collection] : '',
       preset.layered || preset.stacked ? `${t.kitchens.layered} ${t.kitchens.threeTier}` : '',
+      preset.framed ? t.kitchens.framed : '',
       kitchenCategory(kitchen) === 'island' ? t.kitchens.island : '',
       preset.room.vertices ? t.kitchens.angledRoom : '',
       preset.room.partitions?.some((partition) => partition.height < preset.room.height) ? t.kitchens.halfWall : '',
       preset.room.treatments?.length ? t.kitchens.wallFinishes : '',
+      ...(preset.room.features?.map((feature) => t.engine.roomFeatures[feature.kind]) ?? []),
     ].join(' '));
     return (collection === 'all' || preset.collection === collection)
-      && (filter === 'all' || (filter === 'layered' ? preset.layered || preset.stacked : kitchenCategory(kitchen) === filter))
+      && (filter === 'all' || (filter === 'framed' ? preset.framed : filter === 'layered' ? preset.layered || preset.stacked : kitchenCategory(kitchen) === filter))
       && (!withinRoom || (preset.room.width <= room.width && preset.room.depth <= room.depth && preset.room.height <= room.height))
       && words.every((word) => text.includes(word));
   });
-  const filters: Array<{ value: KitchenCategory | 'all' | 'layered'; label: string }> = [
+  const filters: Array<{ value: KitchenCategory | 'all' | 'layered' | 'framed'; label: string }> = [
     { value: 'all', label: t.kitchens.all },
+    { value: 'framed', label: t.kitchens.framed },
     { value: 'layered', label: t.kitchens.layered },
     ...LAYOUTS.map(({ id }) => ({ value: id, label: t.layouts.names[id].name })),
     { value: 'island', label: t.kitchens.island },

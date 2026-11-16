@@ -435,7 +435,7 @@ export function applyKitchenDesign(preset: KitchenPreset): void {
   ui.setViewFilter('all');
   ui.setView('3d');
   ui.setReferenceOpen(false);
-  ui.requestCamera('perspective');
+  ui.requestCamera(preset.framed ? 'front' : 'perspective');
 }
 
 export function openPhotoDesign(id: PhotoReferenceId): void {

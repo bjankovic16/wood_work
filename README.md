@@ -50,7 +50,7 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
   undo/redo, chained wall dimensions, floor/wall unit filter.
 - **Ready-made layouts**: straight, L-shaped or U-shaped starter kitchens
   sized to the room.
-- **42 kitchen inspiration designs**: open **Designs** (or **Kitchen designs**
+- **52 kitchen inspiration designs**: open **Designs** (or **Kitchen designs**
   in the phone's More menu), then click an image to load that exact kitchen
   in 3D. Choose straight, L-shaped, U-shaped or island kitchens in a range
   of finishes, with open-shelf and drawer variations. Every image is rendered
@@ -59,6 +59,19 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
   **Dark luxury** and **Japandi** collections, with finish swatches and public
   Pinterest inspiration links. These are style interpretations, not exact
   reconstructions of the linked photographs.
+  - **Framed kitchens** finds ten hand-composed examples inspired by warm
+    neutral/timber references: Cashmere & walnut frame, Ivory & oak frame,
+    Oak & stone frame, and Oak frame with island. Deep ceiling cupboards and
+    real timber side panels surround recessed uppers; black appliances,
+    handleless fronts and lit stone/wood backsplashes complete the niche.
+    They open at the same front view shown in the gallery, and all cabinets,
+    return panels and island modules remain individually editable. Dimensions
+    are design estimates, not measurements recovered from the reference photos.
+    Additional palettes include sage/oak, terracotta/oak, noir/walnut,
+    espresso/walnut and sand/ash, with two more contrasting timber islands.
+    **Walnut niche beside a chimney** leaves the wall structure clear of all
+    three cabinet tiers. Search `chimney` (Serbian: `dimnjak`) to find it;
+    its geometric gap is not a certified fire/heat clearance.
   - Search names, finishes and styles, combine collection/layout filters, or
     show designs no larger than your current room's width, depth and ceiling
     height. This compares dimensions, not polygon containment or automatic
@@ -73,8 +86,10 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
     choose actual materials before ordering. The separate **My room layout**
     option keeps the existing room and settings.
   - Run `npm run render:kitchens` after changing presets or the 3D renderer;
-    the 42 generated gallery images in `public/kitchens/` ship with the app.
-  - **Stacked uppers** includes all eighteen premium originals plus Greige
+    the 52 generated gallery images in `public/kitchens/` ship with the app.
+    Pass preset IDs to render only changed previews, for example
+    `npm run render:kitchens -- chimney-frame sage-oak-frame`.
+  - **Stacked uppers** includes the ten framed kitchens, all eighteen premium originals and Greige
     gallery, Ivory & oak, Olive & stone, and Walnut noir. They include two
     separately editable upper rows, full-height storage, lit display cupboards,
     handleless fronts and optional plinth lighting. They are interpretations
@@ -164,6 +179,12 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
 - **Cutting list**: every piece, identical pieces grouped, banded edges per
   piece; per board the area, sheets needed and cost; edge banding in metres;
   the hardware list (hinges, slides, handles, legs, shelf pins, hangers).
+  - *Visual overview*: the current kitchen plan and a selectable, dimensioned
+    front-view diagram of each cabinet. **By unit** pairs every cabinet's
+    diagram with its cut parts; extra pieces remain listed in both groupings.
+    Drawings follow cabinet settings, not manual panel-size overrides.
+    Overall cabinet dimensions are clearly separated from panel cut sizes,
+    and design warnings are available before manufacturing.
   - *Changes by hand*: in the "By unit" view, any piece's quantity, size or
     board can be changed (0 leaves it out); changed values are marked and can
     be put back. A change stops applying once the unit itself changes the piece.

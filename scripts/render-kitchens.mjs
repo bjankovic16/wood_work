@@ -21,13 +21,17 @@ try {
     const { KITCHEN_DESIGNS } = await import('/src/domain/kitchens.ts');
     const { PHOTO_REFERENCES } = await import('/src/domain/photoReferences.ts');
     return [
-      ...KITCHEN_DESIGNS.map((kitchen) => ({ kind: 'kitchen', id: kitchen.id, directory: 'kitchens', filename: `${kitchen.id}.jpg` })),
-      ...PHOTO_REFERENCES.map((photo) => ({ kind: 'photo', id: photo.id, directory: 'references', filename: `${photo.id}-model.jpg` })),
+      ...KITCHEN_DESIGNS.map((kitchen) => ({ kind: 'kitchen', id: kitchen.id, directory: 'kitchens', filename: `${kitchen.id}.jpg`, view: kitchen.framed ? 'front' : 'perspective' })),
+      ...PHOTO_REFERENCES.map((photo) => ({ kind: 'photo', id: photo.id, directory: 'references', filename: `${photo.id}-model.jpg`, view: 'perspective' })),
     ];
   });
 
-  for (const job of jobs) {
-    await page.evaluate(async ({ id, kind }) => {
+  const requested = new Set(process.argv.slice(2));
+  const unknown = [...requested].filter((id) => !jobs.some((job) => job.id === id));
+  if (unknown.length) throw new Error(`Unknown preview IDs: ${unknown.join(', ')}`);
+  const selected = jobs.filter((job) => requested.size === 0 || requested.has(job.id));
+  for (const job of selected) {
+    await page.evaluate(async ({ id, kind, view }) => {
       if (kind === 'photo') {
         const { createPhotoDesign } = await import('/src/domain/photoDesigns.ts');
         window.__kitchen.design.getState().load(createPhotoDesign(id, 'Preview'));
@@ -39,6 +43,7 @@ try {
       }
       window.__kitchen.ui.getState().setReferenceOpen(false);
       window.__kitchen.ui.getState().setView('3d');
+      window.__kitchen.ui.getState().requestCamera(view);
     }, job);
     await page.getByRole('button', { name: 'Reset view', exact: true, includeHidden: true }).waitFor({ state: 'attached' });
     await page.locator('main canvas').waitFor();
@@ -52,7 +57,7 @@ try {
     console.log(`Rendered ${job.id} (${Math.round(image.length / 1024)} KB)`);
   }
   if (errors.length) throw new Error(errors.join('\n'));
-  console.log(`Rendered all ${jobs.length} kitchen and photo-studio previews from the editor's 3D scene.`);
+  console.log(`Rendered ${selected.length} kitchen and photo-studio previews from the editor's 3D scene.`);
 } finally {
   await browser?.close();
   await server.close();

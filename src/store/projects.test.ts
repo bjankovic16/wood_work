@@ -68,7 +68,7 @@ describe('projects', () => {
   it('saves and restores an entire gallery kitchen without changing the open project', () => {
     initProjects();
     const activeId = projects().activeId;
-    applyKitchenDesign(KITCHEN_DESIGNS[19]);
+    applyKitchenDesign(KITCHEN_DESIGNS.find((kitchen) => kitchen.id === 'oak-frame-island')!);
     const saved = design();
     flushSave();
     resetProjectsForTests();

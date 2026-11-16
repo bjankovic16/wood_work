@@ -123,11 +123,11 @@ try {
   const gallery = page.getByRole('dialog', { name: 'Kitchen designs' });
   const kitchenCards = gallery.locator('[data-kitchen-design]');
   const beforeGallerySearch = sortedJson(await design());
-  check('the gallery offers exactly 42 kitchen images', (await kitchenCards.count()) === 42 && (await kitchenCards.locator('img').count()) === 42);
+  check('the gallery offers exactly 52 kitchen images', (await kitchenCards.count()) === 52 && (await kitchenCards.locator('img').count()) === 52);
   const collections = gallery.getByRole('group', { name: 'Design collection', exact: true });
-  for (const name of ['Warm contemporary', 'Dark luxury', 'Japandi']) {
+  for (const [name, count] of [['Warm contemporary', 12], ['Dark luxury', 8], ['Japandi', 8]]) {
     await collections.getByRole('button', { name, exact: true }).click();
-    check(`${name}: collection filtering shows six original kitchens`, (await kitchenCards.count()) === 6);
+    check(`${name}: collection filtering shows ${count} original kitchens`, (await kitchenCards.count()) === count);
   }
   const designSearch = gallery.getByRole('searchbox', { name: 'Search kitchen designs', exact: true });
   await designSearch.fill('  BIRCH   alcove  ');
@@ -135,23 +135,31 @@ try {
   await designSearch.fill('no-such-kitchen');
   check('empty searches explain how to recover', (await kitchenCards.count()) === 0 && await gallery.getByRole('heading', { name: 'No kitchens match these filters', exact: true }).isVisible());
   await gallery.getByRole('button', { name: 'Reset filters', exact: true }).click();
-  check('reset restores every design and keeps search ready for typing', (await kitchenCards.count()) === 42 && (await designSearch.inputValue()) === '' && await designSearch.evaluate((input) => input === document.activeElement));
+  check('reset restores every design and keeps search ready for typing', (await kitchenCards.count()) === 52 && (await designSearch.inputValue()) === '' && await designSearch.evaluate((input) => input === document.activeElement));
   const roomLimit = gallery.getByRole('checkbox', { name: 'No larger than my room', exact: true });
   await roomLimit.check();
   check('room-size filtering includes compact kitchens and excludes larger rooms', (await kitchenCards.count()) === 5 && (await gallery.locator('[data-kitchen-design="birch-alcove"]').count()) === 1);
   await designSearch.fill('velvet');
   check('room-size filtering also respects the ceiling height', (await kitchenCards.count()) === 0);
   await gallery.getByRole('button', { name: 'Reset filters', exact: true }).click();
-  check('reset clears the size limit as well as the query and collection', !(await roomLimit.isChecked()) && (await kitchenCards.count()) === 42);
+  check('reset clears the size limit as well as the query and collection', !(await roomLimit.isChecked()) && (await kitchenCards.count()) === 52);
   await designSearch.fill('walnut, travertine');
   check('search matches materials as well as design names', (await kitchenCards.count()) === 2);
   await gallery.getByRole('button', { name: 'Clear design search', exact: true }).click();
+  await designSearch.fill('chimney');
+  check('room structures are searchable and identified on the matching card', (await kitchenCards.count()) === 1 && await gallery.locator('[data-kitchen-design="chimney-frame"]').getByText('Chimney', { exact: true }).isVisible());
+  await gallery.getByRole('button', { name: 'Clear design search', exact: true }).click();
+  await gallery.getByRole('button', { name: 'Framed kitchens', exact: true }).click();
+  check('the framed-kitchen filter exposes ten reference-inspired examples including the chimney layout', (await kitchenCards.count()) === 10 && await gallery.locator('[data-kitchen-design="chimney-frame"]').isVisible());
+  await gallery.getByRole('button', { name: 'Stacked uppers', exact: true }).click();
+  check('the stacked filter includes all ten framed compositions', (await kitchenCards.count()) === 32);
+  await gallery.getByRole('button', { name: 'Reset filters', exact: true }).click();
   check('browsing and resetting filters never changes the saved kitchen', sortedJson(await design()) === beforeGallerySearch);
   await gallery.locator('summary').click();
   check('the replacement notice explains all changes before opening a kitchen', await gallery.locator('details p').isVisible());
   await gallery.locator('summary').click();
   await gallery.getByRole('button', { name: 'With an island', exact: true }).click();
-  check('the island filter shows eight kitchens', (await kitchenCards.count()) === 8);
+  check('the island filter shows eleven kitchens', (await kitchenCards.count()) === 11);
   await gallery.getByRole('group', { name: 'Kitchen layout', exact: true }).getByRole('button', { name: 'All designs', exact: true }).click();
   await gallery.locator('img').first().waitFor();
   await page.waitForFunction(() => document.querySelector('[data-kitchen-design] img')?.naturalWidth === 900);
@@ -161,7 +169,7 @@ try {
   await shot('01c-kitchen-gallery.png');
   const kitchenPresets = await page.evaluate(async () => {
     const { KITCHEN_DESIGNS, createKitchenDesign } = await import('/src/domain/kitchens.ts');
-    return KITCHEN_DESIGNS.map((preset) => ({ id: preset.id, design: createKitchenDesign(preset, 'Preview') }));
+    return KITCHEN_DESIGNS.map((preset) => ({ id: preset.id, framed: !!preset.framed, design: createKitchenDesign(preset, 'Preview') }));
   });
   const kitchenSnapshot = (design) => ({
     ...design,
@@ -186,6 +194,11 @@ try {
       { room: loaded.room, style: loaded.style, units: loaded.items.length },
     );
     check(`${preset.id}: the gallery closes and opens 3D`, !(await gallery.isVisible()) && (await page.getByRole('radio', { name: /^3D/ }).getAttribute('aria-checked')) === 'true');
+    if (preset.framed) {
+      await page.waitForFunction((id) => Boolean(window.__kitchen3D?.scene.getObjectByName(id)), loaded.items[0].id);
+      check(`${preset.id}: the editable 3D scene opens at the same front view as its preview`, (await page.evaluate(() => window.__kitchen.ui.getState().cameraView)) === 'front');
+      await shot(`gallery-${preset.id}.png`);
+    }
   }
   await page.locator('main canvas').waitFor();
   await page.waitForTimeout(500);
@@ -595,6 +608,24 @@ try {
 
   await page.getByRole('radio', { name: /Cutting list/ }).click();
   await page.waitForSelector('table');
+  const cutListCounts = await page.evaluate(async () => {
+    const { buildCuttingList } = await import('/src/engine/cuttingList.ts');
+    const list = buildCuttingList(window.__kitchen.design.getState().design);
+    return { rows: list.rows.length, pieces: list.pieceCount };
+  });
+  const displayedQuantities = await page.locator('table').first().locator('tbody tr').evaluateAll((rows) => rows.map((row) => Number(row.cells[1].textContent)));
+  check('the displayed grouped rows and quantities match the calculated cutting list', displayedQuantities.length === cutListCounts.rows && displayedQuantities.reduce((sum, quantity) => sum + quantity, 0) === cutListCounts.pieces, { cutListCounts, displayedQuantities });
+  const overview = page.getByTestId('cutting-overview');
+  await page.waitForFunction(() => document.querySelector('[data-testid="cutting-overview"] img')?.naturalWidth > 0);
+  check('the cut-list overview contains a real rendered kitchen plan', await overview.getByRole('img', { name: 'Kitchen plan', exact: true }).evaluate((image) => image.complete && image.naturalWidth > 0));
+  const previewCabinet = page.getByTestId('cutting-cabinet-preview');
+  const beforeCutPreview = sortedJson(await design());
+  const previewB1 = (await design()).items.find((item) => item.label === 'B1');
+  await previewCabinet.getByLabel('Preview cabinet', { exact: true }).selectOption(previewB1.id);
+  check('the cabinet image uses the selected cabinet’s real width and height', await previewCabinet.getByRole('img', { name: `Front view, ${previewB1.width} by ${previewB1.height} mm`, exact: true }).isVisible());
+  const previewW = (await design()).items.find((item) => item.kind === 'wall');
+  await previewCabinet.getByLabel('Preview cabinet', { exact: true }).selectOption(previewW.id);
+  check('changing the preview shows the matching cabinet without editing the design', await previewCabinet.getByRole('img', { name: `Front view, ${previewW.width} by ${previewW.height} mm`, exact: true }).isVisible() && sortedJson(await design()) === beforeCutPreview);
   const tableText = await page.locator('table').first().innerText();
   check('the cutting list shows sides standing on the bottom (720 − 18 = 702)', /Side\s+\d+\s+702\s+560/.test(tableText), tableText.slice(0, 200));
   check('it shows which edges are banded', tableText.includes('L1 W0'));
@@ -666,6 +697,7 @@ try {
   await shot('13-cutting-list-by-unit.png');
   const b1Id = (await byLabel('B1')).id;
   const b1Section = page.locator('section').filter({ has: page.getByRole('heading', { name: /^B1 / }) });
+  check('each unit’s parts are paired with its own dimensioned image', await b1Section.getByRole('img', { name: `Front view, ${previewB1.width} by ${previewB1.height} mm`, exact: true }).isVisible());
   await b1Section.getByRole('button', { name: 'Change Side', exact: true }).click();
   const partEditor = page.getByTestId('part-editor');
   await partEditor.getByLabel('Length', { exact: true }).fill('700');
@@ -720,6 +752,8 @@ try {
     extraPart,
   );
   await shot('13d-extra-pieces.png');
+  const extraTable = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Extra pieces', exact: true }) }).locator('table');
+  check('extra pieces also appear in the By unit tables, not only in totals', /Plinth\s+2\s+2400\s+100/.test(await extraTable.innerText()));
   await page.getByRole('radio', { name: 'Identical pieces together' }).click();
   const grouped = await page.locator('table').first().innerText();
   check('it is listed with the rest, under "Extra"', /Plinth\s+2\s+2400\s+100[^\n]*Extra/.test(grouped), grouped.split('\n').find((l) => l.startsWith('Plinth')));
@@ -936,6 +970,11 @@ try {
 
   await mobile.getByRole('radio', { name: 'Cutting list', exact: true }).tap();
   check('the cutting list opens on the phone', await mobile.locator('table').first().isVisible());
+  check('phone users can see a dimensioned image of their cabinet', await mobile.getByTestId('cutting-cabinet-preview').getByRole('img').isVisible());
+  await mobile.setViewportSize({ width: 320, height: 568 });
+  check('the cut-list overview fits a narrow phone without page-level horizontal overflow', await mobile.getByTestId('cutting-overview').evaluate((element) => element.scrollWidth <= element.clientWidth + 1));
+  await mobile.screenshot({ path: path.join(shotsDir, 'phone-cutting-overview-narrow.png') });
+  await mobile.setViewportSize({ width: 390, height: 844 });
   check('…with its Export menu and extra pieces', (await mobile.getByRole('button', { name: 'Export the cutting list' }).isVisible()) && (await mobile.getByRole('button', { name: 'Add piece' }).isVisible()));
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-04-list.png') });
   await mobile.getByRole('button', { name: 'Export the cutting list' }).tap();
@@ -960,7 +999,7 @@ try {
   await mobile.getByRole('button', { name: 'More' }).tap();
   await mobile.getByRole('button', { name: 'Kitchen designs', exact: true }).tap();
   const phoneGallery = mobile.getByRole('dialog', { name: 'Kitchen designs' });
-  check('all forty-two inspiration kitchens are available on the phone', (await phoneGallery.locator('[data-kitchen-design]').count()) === 42);
+  check('all fifty-two inspiration kitchens are available on the phone', (await phoneGallery.locator('[data-kitchen-design]').count()) === 52);
   check('phone gallery keeps advanced filters collapsed until requested', !(await phoneGallery.locator('#kitchen-design-filters').isVisible()));
   await mobile.setViewportSize({ width: 320, height: 568 });
   await mobile.evaluate(() => window.__kitchen.ui.getState().setLanguage('sr'));
@@ -968,7 +1007,7 @@ try {
   await mobile.getByRole('searchbox', { name: 'Pretraži dizajne kuhinja', exact: true }).fill('sodji');
   check('phone search matches Serbian names without diacritics', (await mobile.locator('[data-kitchen-design]').count()) === 1 && await mobile.locator('[data-kitchen-design="shoji-retreat"]').isVisible());
   await mobile.getByRole('button', { name: 'Obriši pretragu dizajna', exact: true }).tap();
-  check('phone users can clear search and recover all designs', (await mobile.locator('[data-kitchen-design]').count()) === 42);
+  check('phone users can clear search and recover all designs', (await mobile.locator('[data-kitchen-design]').count()) === 52);
   const narrowOverflow = await mobile.getByRole('dialog').evaluate((dialog) =>
     [...dialog.querySelectorAll('button, [role="radiogroup"], p, summary')]
       .filter((element) => element.scrollWidth > element.clientWidth + 1)

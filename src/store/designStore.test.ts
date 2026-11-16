@@ -112,11 +112,12 @@ describe('kitchen design gallery', () => {
       };
       store().load(original);
       useUiStore.setState({ selectedId: item.id, viewFilter: 'wall', view: 'list', language: 'en' });
-      actions.applyKitchenDesign(KITCHEN_DESIGNS[17]);
+      const preset = KITCHEN_DESIGNS.find((kitchen) => kitchen.id === 'oak-island')!;
+      actions.applyKitchenDesign(preset);
       const loaded = store().design;
       expect(loaded.name).toBe(original.name);
-      expect(loaded.room).toEqual(KITCHEN_DESIGNS[17].room);
-      expect(loaded.style).toEqual(KITCHEN_DESIGNS[17].style);
+      expect(loaded.room).toEqual(preset.room);
+      expect(loaded.style).toEqual(preset.style);
       expect(loaded.openings).toEqual([]);
       expect(loaded.customParts).toEqual([]);
       expect(loaded.partEdits).toEqual({});
@@ -132,11 +133,18 @@ describe('kitchen design gallery', () => {
     it('uses the selected language for every cabinet code, including open shelves and islands', () => {
       for (const language of ['sr', 'en'] as const) {
         useUiStore.getState().setLanguage(language);
-        actions.applyKitchenDesign(KITCHEN_DESIGNS[18]);
+        actions.applyKitchenDesign(KITCHEN_DESIGNS.find((kitchen) => kitchen.id === 'sage-island')!);
         const labels = store().design.items.map((item) => item.label);
         expect(labels).toContain(language === 'sr' ? 'FI1' : 'D1');
         expect(labels).toContain(language === 'sr' ? 'P1' : 'SH1');
         expect(new Set(labels).size).toBe(labels.length);
       }
+  });
+
+  it('opens framed examples in their preview camera and resets other examples to perspective', () => {
+    actions.applyKitchenDesign(KITCHEN_DESIGNS.find((kitchen) => kitchen.id === 'walnut-frame')!);
+    expect(useUiStore.getState().cameraView).toBe('front');
+    actions.applyKitchenDesign(KITCHEN_DESIGNS.find((kitchen) => kitchen.id === 'nordic-light')!);
+    expect(useUiStore.getState().cameraView).toBe('perspective');
   });
 });

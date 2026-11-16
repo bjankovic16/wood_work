@@ -235,7 +235,7 @@ try {
     await page.getByRole('button', { name: 'Kitchen designs', exact: true }).first().click();
     const gallery = page.getByRole('dialog', { name: 'Kitchen designs' });
     await gallery.getByRole('button', { name: 'Stacked uppers', exact: true }).click();
-    assert.equal(await gallery.locator('[data-kitchen-design]').count(), 22);
+    assert.equal(await gallery.locator('[data-kitchen-design]').count(), 32);
     await gallery.locator('img').evaluateAll((images) => {
       for (const image of images) image.loading = 'eager';
       return Promise.all(images.map((image) => image.decode()));

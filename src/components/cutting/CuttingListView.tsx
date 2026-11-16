@@ -19,15 +19,17 @@ import { evaluateExpression } from '../../domain/math';
 import type { CustomPart, Design, Material, PartEdit } from '../../domain/types';
 import { buildCuttingList, cuttingListCsv, edgeText, type CuttingList, type CuttingRow } from '../../engine/cuttingList';
 import type { Part } from '../../engine/parts';
+import { planSvg } from '../../export/planSvg';
 import { useCanSaveFiles } from '../../hooks/useCanSaveFiles';
 import { useT, type Messages } from '../../i18n';
 import { cn } from '../../lib/cn';
 import { embedded, safeFileName, saveFile } from '../../lib/platform';
 import * as actions from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
-import { useIssues } from '../../store/derived';
+import { useBuildContext, useIssues } from '../../store/derived';
 import { useUiStore } from '../../store/uiStore';
 import { NumberField, SelectField, TextField } from '../properties/NumberField';
+import { FrontPreview } from '../properties/FrontPreview';
 import { Button, Menu, Segmented } from '../ui';
 
 const th = 'px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-400';
@@ -316,12 +318,17 @@ export function CuttingListView() {
   const c = t.cutting;
   const design = useDesignStore((s) => s.design);
   const list: CuttingList = useMemo(() => buildCuttingList(design, t.engine), [design, t.engine]);
+  const ctx = useBuildContext();
+  const plan = useMemo(() => planSvg(design, t.engine), [design, t.engine]);
   const issues = useIssues();
   const errors = issues.filter((i) => i.severity === 'error');
+  const warnings = issues.filter((i) => i.severity === 'warning');
   const [grouping, setGrouping] = useState<'pieces' | 'units'>('pieces');
+  const [previewId, setPreviewId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const canSave = useCanSaveFiles();
   const unitsWithParts = list.units.filter((u) => u.parts.length > 0);
+  const preview = unitsWithParts.find(({ item }) => item.id === previewId) ?? unitsWithParts[0];
   const bandThickness = (id: string | null) => (id ? (design.edgeBands.find((b) => b.id === id)?.thickness ?? null) : null);
   const materialName = (id: string) => {
     const material = design.materials.find((m) => m.id === id);
@@ -368,8 +375,8 @@ export function CuttingListView() {
   };
 
   return (
-    <div className="h-full select-text overflow-y-auto bg-zinc-50 print:h-auto print:overflow-visible print:bg-white">
-      <div className="mx-auto max-w-5xl px-4 py-6 lg:px-8 print:max-w-none print:p-0">
+    <div className="h-full select-text overflow-y-auto bg-[#f5f2eb] print:h-auto print:overflow-visible print:bg-white">
+      <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8 print:max-w-none print:p-0">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-lg font-semibold text-zinc-900">{c.title}</h1>
@@ -437,6 +444,14 @@ export function CuttingListView() {
             </div>
           </div>
         )}
+        {warnings.length > 0 && (
+          <details className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-900">
+            <summary className="cursor-pointer font-semibold">{c.reviewWarnings(warnings.length)}</summary>
+            <ul className="mt-2 list-disc space-y-1 pl-4">
+              {warnings.map((issue) => <li key={issue.key}>{issue.message}</li>)}
+            </ul>
+          </details>
+        )}
 
         {empty ? (
           <div className="mt-8 rounded-xl border border-dashed border-zinc-300 bg-white px-6 py-12 text-center">
@@ -448,6 +463,44 @@ export function CuttingListView() {
           </div>
         ) : (
           <>
+            <section aria-label={c.overview} className="mt-5 grid gap-4 rounded-2xl border border-[#ded8ce] bg-[#fffefa] p-4 sm:p-5 lg:grid-cols-2" data-testid="cutting-overview">
+              <figure className="min-w-0">
+                <figcaption className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#625b50]">{c.planPreview}</figcaption>
+                <img
+                  src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(plan.svg)}`}
+                  alt={c.planPreview}
+                  width={plan.width}
+                  height={plan.height}
+                  className="h-52 w-full rounded-xl border border-[#e6e0d5] bg-white object-contain"
+                />
+                <p className="mt-2 text-xs tabular-nums text-zinc-500">{t.mm(design.room.width)} × {t.mm(design.room.depth)} mm · {c.pieces(list.pieceCount)}</p>
+              </figure>
+              {preview && (
+                <div className="min-w-0" data-testid="cutting-cabinet-preview">
+                  <label className="mb-3 block text-xs font-semibold text-[#625b50]">
+                    {c.previewCabinet}
+                    <select
+                      aria-label={c.previewCabinet}
+                      value={preview.item.id}
+                      onChange={(event) => setPreviewId(event.target.value)}
+                      className="mt-1.5 min-h-10 w-full rounded-lg border border-[#d6d0c4] bg-white px-3 text-base font-normal text-zinc-900 sm:text-sm print:hidden"
+                    >
+                      {unitsWithParts.map(({ item }) => <option key={item.id} value={item.id}>{item.label} · {t.kinds[item.kind]}</option>)}
+                    </select>
+                  </label>
+                  <div className="flex flex-wrap items-center gap-4">
+                    <FrontPreview item={preview.item} ctx={ctx} />
+                    <div className="min-w-0 flex-1 text-[13px] text-zinc-600">
+                      <p className="font-semibold text-zinc-900">{preview.item.label} · {t.kinds[preview.item.kind]}</p>
+                      <p className="mt-1 tabular-nums">{c.unitDimensions(t.mm(preview.item.width), t.mm(preview.item.height), t.mm(preview.item.depth))}</p>
+                      <p className="mt-2 font-medium text-[#4f6249]">{c.pieces(preview.parts.reduce((sum, part) => sum + part.quantity, 0))}</p>
+                      <p className="mt-2 text-xs leading-relaxed">{c.previewNote}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <p className="text-xs leading-relaxed text-zinc-500 lg:col-span-2">{c.verifyNote}</p>
+            </section>
             <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3" data-testid="material-totals">
               {list.materials.map((total) => (
                 <div key={`${total.materialId}-${total.thickness}`} className="rounded-xl border border-zinc-200 bg-white px-4 py-3 print:rounded-none">
@@ -488,7 +541,7 @@ export function CuttingListView() {
               <Segmented
                 ariaLabel={c.groupAria}
                 size="sm"
-                className="w-72"
+                className="w-full sm:w-80"
                 value={grouping}
                 onChange={setGrouping}
                 options={[
@@ -504,13 +557,18 @@ export function CuttingListView() {
                 <PartsTable rows={list.rows as CuttingRow[]} showUnits bandThickness={bandThickness} />
               ) : (
                 unitsWithParts.map(({ item, parts }) => (
-                  <section key={item.id} className="break-inside-avoid">
-                    <h2 className="mb-2 text-sm font-semibold text-zinc-900">
-                      {item.label}{' '}
-                      <span className="font-normal text-zinc-500">
-                        · {t.kinds[item.kind]} · {item.width} × {item.height} × {item.depth}
-                      </span>
-                    </h2>
+                  <section key={item.id} className="break-inside-avoid rounded-2xl border border-[#ded8ce] bg-[#fffefa] p-3 sm:p-4 print:rounded-none">
+                    <div className="mb-3 flex flex-wrap items-center gap-4">
+                      <FrontPreview item={item} ctx={ctx} />
+                      <div>
+                        <h2 className="text-sm font-semibold text-zinc-900">
+                          {item.label}{' '}
+                          <span className="font-normal text-zinc-500">· {t.kinds[item.kind]}</span>
+                        </h2>
+                        <p className="mt-1 text-xs tabular-nums text-zinc-600">{c.unitDimensions(t.mm(item.width), t.mm(item.height), t.mm(item.depth))}</p>
+                        <p className="mt-2 text-xs font-semibold text-[#4f6249]">{c.pieces(parts.reduce((sum, part) => sum + part.quantity, 0))}</p>
+                      </div>
+                    </div>
                     <PartsTable
                       rows={parts.map((p) => ({ ...p, materialName: materialName(p.materialId) }))}
                       showUnits={false}
@@ -519,6 +577,12 @@ export function CuttingListView() {
                     />
                   </section>
                 ))
+              )}
+              {grouping === 'units' && list.extra.length > 0 && (
+                <section>
+                  <h2 className="mb-2 text-sm font-semibold text-zinc-900">{c.extra.title}</h2>
+                  <PartsTable rows={list.extra} showUnits={false} bandThickness={bandThickness} />
+                </section>
               )}
             </div>
 

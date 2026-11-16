@@ -80,10 +80,21 @@ All dimensions should be displayed in millimeters.
 ### Premium studio and advanced room editing
 
 - The desktop and phone editor use a consistent warm-neutral studio interface.
-  The image-led gallery contains 42 editable kitchens, including 18 original
+  The image-led gallery contains 52 editable kitchens, including 18 original
   warm contemporary, dark luxury and Japandi compositions inspired by public
   Pinterest collections. Preview images are rendered from the actual preset
   model; Pinterest photographs are not copied or rehosted.
+- Ten reference-inspired framed kitchens use hand-composed
+  cabinetry rather than generic starter runs. A continuous 600 mm deep
+  ceiling row and editable timber return panels surround recessed 320 mm
+  uppers. The examples include contrasting wood/stone backsplashes, black
+  appliances and an optional timber island. Their gallery images and initial
+  editor camera both use the front view. Dimensions are approximate design
+  choices; reference photographs are not embedded or claimed as measured plans.
+  Sage, terracotta and noir palettes complement walnut and ash island variants.
+  One composition reserves a full-height chimney bay beside all cabinet tiers;
+  structures are labelled and searchable in both languages. Chimney geometry
+  does not specify safe fire/heat clearances.
 - Gallery search combines translated names, finishes, styles and feature
   labels, ignoring case and diacritics. Collection, layout and optional room
   dimension filters combine; size checks include ceiling height and compare
@@ -171,6 +182,12 @@ Make cabinet construction configurable, because different manufacturers use diff
 ## 4. Automatic cutting list
 
 Create a dedicated section called "Cutting List".
+
+The page includes the current kitchen plan and a selectable cabinet front-view
+diagram derived from the same configuration as its generated fronts. Per-unit
+groups pair these diagrams with cut tables and overall width/height/depth.
+Manual panel edits do not change the cabinet diagram. Extra pieces appear in
+both groupings, and warnings remain available for review before cutting.
 
 Whenever a cabinet is added or modified, automatically regenerate its components.
 
