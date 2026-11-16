@@ -8,8 +8,9 @@ import { setItemPlacement } from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
 import { snapSettings } from '../../store/viewport';
 
-export function DirectCabinetDrag({ item, onStart, onSelect, handleRef, overlayRef, children }: {
+export function DirectCabinetDrag({ item, onStart, onSelect, onHandleClick, handleRef, overlayRef, children }: {
   item: KitchenItem; onStart: (id: string) => void; onSelect: (id: string) => void;
+  onHandleClick: () => void;
   handleRef?: RefObject<HTMLButtonElement | null>; overlayRef?: RefObject<HTMLDivElement | null>; children: ReactNode;
 }) {
   const { camera, gl, controls, scene, events, invalidate } = useThree();
@@ -18,6 +19,7 @@ export function DirectCabinetDrag({ item, onStart, onSelect, handleRef, overlayR
     design: Design; item: KitchenItem; plane: THREE.Plane; offset: Point; wall: Wall | null;
     x: number; y: number; pointerId: number; moved: boolean; orbitEnabled: boolean;
     capture: HTMLElement;
+    origin: Point;
   } | null>(null);
 
   useEffect(() => {
@@ -37,7 +39,10 @@ export function DirectCabinetDrag({ item, onStart, onSelect, handleRef, overlayR
       restoreControls(current.orbitEnabled);
       if (current.capture.hasPointerCapture(current.pointerId)) current.capture.releasePointerCapture(current.pointerId);
       element.style.cursor = '';
-      if (!cancel && !current.moved) onSelect(current.item.id);
+      if (!cancel && !current.moved) {
+        onSelect(current.item.id);
+        if (current.capture !== element) onHandleClick();
+      }
       invalidate();
     };
     const move = (event: PointerEvent) => {
@@ -59,7 +64,10 @@ export function DirectCabinetDrag({ item, onStart, onSelect, handleRef, overlayR
       if (!hit) return;
       const placed = computeDragPlacement({
         room: store.design.room, others: store.design.items.filter((entry) => entry.id !== current.item.id), item: current.item,
-        pointer: { x: hit.x * 1000, y: hit.z * 1000 }, grabOffset: current.offset, previousWall: current.wall, snap: snapSettings(),
+        pointer: {
+          x: current.origin.x + (hit.x * 1000 - current.origin.x) * 0.6,
+          y: current.origin.y + (hit.z * 1000 - current.origin.y) * 0.6,
+        }, grabOffset: current.offset, previousWall: current.wall, snap: snapSettings(),
       });
       current.wall = placed.wall;
       setItemPlacement(current.item.id, placed);
@@ -94,7 +102,7 @@ export function DirectCabinetDrag({ item, onStart, onSelect, handleRef, overlayR
       document.removeEventListener('visibilitychange', visibility);
       cancel();
     };
-  }, [camera, controls, gl, invalidate, onStart, onSelect]);
+  }, [camera, controls, gl, invalidate, onStart, onSelect, onHandleClick]);
 
   const begin = (clientX: number, clientY: number, pointerId: number, point: THREE.Vector3, capture: HTMLElement) => {
     const design = useDesignStore.getState().design;
@@ -106,6 +114,7 @@ export function DirectCabinetDrag({ item, onStart, onSelect, handleRef, overlayR
       offset: { x: point.x * 1000 - rect.x - rect.w / 2, y: point.z * 1000 - rect.y - rect.h / 2 },
       wall: attachedWall(item, design.room), x: clientX, y: clientY,
       pointerId, moved: false, orbitEnabled, capture,
+      origin: { x: point.x * 1000, y: point.z * 1000 },
     };
     capture.setPointerCapture(pointerId);
   };

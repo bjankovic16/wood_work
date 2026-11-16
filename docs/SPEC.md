@@ -201,6 +201,11 @@ to move the unit with existing snapping and Undo, independently of resize arrows
 Double-clicking a cabinet or pressing its adjacent door icon animates its fronts
 open/closed, including sliding drawer boxes. Animation invalidates only until
 settled and never changes project data or cutting quantities.
+Cabinet dragging applies 60% of pointer travel before snapping. Clicking the
+hand opens precise room-plan directional controls below the desktop viewport
+or in the phone's selected-element bottom menu, with 10/50/100 mm steps.
+Opening a cabinet also requests the existing selected-cabinet camera focus;
+closing it retains the focused view.
 
 ## 3. Automatic cabinet calculations
 

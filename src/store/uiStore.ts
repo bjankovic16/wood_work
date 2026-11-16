@@ -24,6 +24,7 @@ export interface LibraryDrag {
 
 interface UiState {
   selectedId: string | null;
+  precisionMove: boolean;
   /** Screen pixels per millimetre. */
   zoom: number;
   /** Screen position of the plan origin, in pixels from the canvas corner. */
@@ -53,6 +54,7 @@ interface UiState {
   language: Language;
 
   select: (id: string | null) => void;
+  setPrecisionMove: (open: boolean) => void;
   setLanguage: (language: Language) => void;
   setView: (view: MainView) => void;
   setSettingsTab: (tab: SettingsTab | null) => void;
@@ -77,6 +79,7 @@ export const useUiStore = create<UiState>()(
   persist(
     (set) => ({
       selectedId: null,
+      precisionMove: false,
       zoom: 0.2,
       pan: { x: 0, y: 0 },
       snapEnabled: true,
@@ -99,9 +102,10 @@ export const useUiStore = create<UiState>()(
       cameraToken: 0,
       language: browserLanguage(),
 
-      select: (selectedId) => set({ selectedId }),
+      select: (selectedId) => set((state) => ({ selectedId, precisionMove: selectedId === state.selectedId ? state.precisionMove : false })),
+      setPrecisionMove: (precisionMove) => set({ precisionMove }),
       setLanguage: (language) => set({ language }),
-      setView: (view) => set({ view }),
+      setView: (view) => set({ view, precisionMove: false }),
       setSettingsTab: (settingsTab) => set({ settingsTab }),
       setLayoutsOpen: (layoutsOpen) => set({ layoutsOpen }),
       setProjectsOpen: (projectsOpen) => set({ projectsOpen }),

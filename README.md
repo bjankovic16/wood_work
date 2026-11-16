@@ -242,9 +242,14 @@ browsers, English otherwise. A language chosen manually is remembered.
   Drag an arrow out to expand or in to shrink. The tools panel can stay closed.
   Drags use the plan's snapping and each form one Undo step; Escape or an
   interrupted gesture cancels an unfinished move. Drag the background to orbit.
+  Cabinet dragging runs at 60% of pointer travel for finer control. Click **Move**
+  to show directional arrows in the bottom menu, starting with 10 mm steps
+  (50/100 mm are also available). Directions follow the room plan; elevation
+  stays fixed and each step supports Undo.
 - **Open a cabinet**: double-click it or use the door icon next to its hand handle.
   Doors swing open and drawers slide out; use the icon again to close them.
-  Opening is a view-only preview and does not change dimensions or cutting quantities.
+  Opening focuses the camera on that cabinet. It is a view-only preview and
+  does not change dimensions or cutting quantities.
 - **See inside cabinets**: turn on **Interior view** under **3D tools** to hide
   fronts and reveal shelves, corner compartments and drawer boxes. Toggle it off
   to restore the finished kitchen. This schematic view does not change the

@@ -568,6 +568,13 @@ export const en = {
   },
 
   view3d: {
+    preciseMove: 'Precise cabinet movement',
+    moveStep: 'Move step',
+    moveLeft: 'Move toward left wall',
+    moveRight: 'Move toward right wall',
+    moveBack: 'Move toward top wall',
+    moveForward: 'Move toward bottom wall',
+    moveDirections: 'Arrows follow the room plan. Height stays unchanged.',
     dragHandle: 'Hold and drag to move cabinet',
     openCabinet: 'Open cabinet',
     closeCabinet: 'Close cabinet',

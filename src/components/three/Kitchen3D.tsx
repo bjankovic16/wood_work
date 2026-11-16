@@ -19,6 +19,7 @@ import { createMaterials, disposeMaterials, m } from './materials';
 import { Room3D } from './Room3D';
 import { RoomObjectTools } from './RoomObjectTools';
 import { DirectCabinetDrag } from './DirectCabinetDrag';
+import { CabinetMoveControls } from './CabinetMoveControls';
 import { StylePicker } from './StylePicker';
 import { Unit3D } from './Unit3D';
 import { PhotoReferencePanel } from '../references/PhotoReferences';
@@ -66,6 +67,11 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
   const ctx = useBuildContext();
   const style = useDesignStore((s) => s.design.style);
   const selectedId = useUiStore((s) => s.selectedId);
+  const precisionMove = useUiStore((s) => s.precisionMove);
+  const togglePrecisionMove = useCallback(() => {
+    const ui = useUiStore.getState();
+    ui.setPrecisionMove(!ui.precisionMove);
+  }, []);
   const referenceOpen = useUiStore((state) => state.referenceOpen);
   const cameraView = useUiStore((state) => state.cameraView);
   const cameraFocusId = useUiStore((state) => state.cameraFocusId);
@@ -81,12 +87,15 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
   const [toolsOpen, setToolsOpen] = useState(false);
   const [interior, setInterior] = useState(false);
   const [openedCabinets, setOpenedCabinets] = useState<Set<string>>(() => new Set());
-  const toggleOpening = (id: string) => setOpenedCabinets((current) => {
-    const next = new Set(current);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    return next;
-  });
+  const toggleOpening = (id: string) => {
+    if (!openedCabinets.has(id)) useUiStore.getState().requestCamera('perspective', id);
+    setOpenedCabinets((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
   const [directDragging, setDirectDragging] = useState(false);
   const startDirectDrag = useCallback((id: string) => {
     useUiStore.getState().select(id);
@@ -216,7 +225,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
         />
         <Room3D room={room} openings={openings} items={items} materials={materials} selection={activeRoomSelection} onSelect={selectRoomObject} objectRef={setRoomObject} />
         {items.map((item) => (
-          <DirectCabinetDrag key={item.id} item={item} onStart={startDirectDrag} onSelect={select}
+          <DirectCabinetDrag key={item.id} item={item} onStart={startDirectDrag} onSelect={select} onHandleClick={togglePrecisionMove}
             handleRef={item.id === selectedId ? handRef : undefined} overlayRef={item.id === selectedId ? handlesRef : undefined}>
           <Unit3D
             item={item}
@@ -253,6 +262,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
       </Canvas>
       {selected && !moveMode && !resizeMode && !roomMoving && <div ref={handlesRef} className="absolute left-0 top-0 flex items-center gap-2 rounded-2xl border border-white/80 bg-white/95 p-1.5 shadow-lg backdrop-blur-sm" style={{ visibility: 'hidden' }}>
         <button ref={handRef} type="button" aria-label={text.view3d.dragHandle} title={text.view3d.dragHandle}
+          aria-expanded={precisionMove} onClick={(event) => { if (event.detail === 0) togglePrecisionMove(); }}
           className="group flex h-12 touch-none cursor-grab items-center justify-center gap-2 rounded-xl bg-studio-accent px-3 text-white shadow-sm transition-colors hover:bg-studio-accent/90 active:cursor-grabbing active:bg-studio-accent/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-studio-accent">
           <Hand className="size-7 stroke-[1.75]" aria-hidden="true" />
           <span className="text-xs font-semibold">{text.view3d.moveShort}</span>
@@ -324,6 +334,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
         <p role={loadingMove ? 'status' : undefined} className="max-w-xl py-2 leading-relaxed">{moving ? loadingMove ? text.view3d.loadingMove : moveHint : text.view3d.selectHint}</p>
       </details>
       </details>
+      {!compact && selected && precisionMove && <CabinetMoveControls key={selected.id} />}
 
       {compact && (
         <Dialog open={styleOpen} title={text.style.style} sheet onClose={() => setStyleOpen(false)}>

@@ -558,6 +558,13 @@ export const sr: Messages = {
   },
 
   view3d: {
+    preciseMove: 'Precizno pomeranje elementa',
+    moveStep: 'Korak pomeranja',
+    moveLeft: 'Pomeri ka levom zidu',
+    moveRight: 'Pomeri ka desnom zidu',
+    moveBack: 'Pomeri ka gornjem zidu',
+    moveForward: 'Pomeri ka donjem zidu',
+    moveDirections: 'Strelice prate osnovu prostorije. Visina ostaje ista.',
     dragHandle: 'Držite i povucite za pomeranje elementa',
     openCabinet: 'Otvorite element',
     closeCabinet: 'Zatvorite element',
