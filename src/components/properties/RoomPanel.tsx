@@ -39,7 +39,7 @@ function Shortcut({ keys, children }: { keys: string[]; children: ReactNode }) {
 
 const WALLS: Wall[] = ['top', 'right', 'bottom', 'left'];
 
-function OpeningCard({ opening, number }: { opening: Opening; number: number }) {
+export function OpeningCard({ opening, number }: { opening: Opening; number: number }) {
   const t = useT();
   const room = useDesignStore((s) => s.design.room);
   const window = opening.kind === 'window';

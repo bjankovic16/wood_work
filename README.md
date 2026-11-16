@@ -209,6 +209,13 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
   window, a fridge next to the oven.
 - **Windows and doors** in the walls, shown on the plan and in 3D; new units
   are placed clear of them.
+  - In **3D**, click a door/window or choose it from **Doors, windows & structures**,
+    then use **Move room object**. The red handle slides it along its wall;
+    windows also have a green height handle, while doors stay on the floor.
+    Angled walls and either face of an interior partition are supported.
+    **Edit room object measurements** changes exact sizes, sill, offset or wall.
+    Opening frames stay visible when the near wall is hidden so they remain
+    selectable. These diagrams are not door-swing or glazing specifications.
 - **Irregular rooms**: rectangular, L-shaped/stepped and diagonal-corner
   footprints, editable polygon rooms with multiple diagonal walls, plus
   full-height chimneys, columns and wall projections.
@@ -217,6 +224,13 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
   The plan, 3D view, PDF plan and saved project all use the same room geometry.
   Active chimney fire/heat clearances must be specified with a qualified installer;
   the room model is not a fire-safety calculation.
+  - In **3D**, select a chimney, column or wall projection, then use
+    **Move room object** to drag the X/Z floor handles with a mouse or touch.
+    Grid snapping follows the plan's Snap setting. Dragging cannot put the
+    structure outside the room outline; cabinets are not moved automatically,
+    and conflicts remain in Checks. Exact dimensions and positions are available
+    through **Edit room object measurements**. Each drag is one Undo step;
+    Escape, lost pointer capture or an interrupted gesture cancels the move.
   - Room setup includes **L-shaped room + chimney** and **Diagonal corner + column**
     examples, each opened in a new project without replacing the current one.
   - Under **Walls & angles**, select a wall to edit its length/angle or add/remove

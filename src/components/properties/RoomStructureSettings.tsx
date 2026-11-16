@@ -1,7 +1,7 @@
 import { Plus, Trash2 } from 'lucide-react';
 import { MAX_ROOM_FEATURES, ROOM_CORNERS } from '../../domain/roomGeometry';
 import { ROOM_EXAMPLES } from '../../domain/roomExamples';
-import type { RoomCorner, RoomCutout, RoomFeatureKind } from '../../domain/types';
+import type { RoomCorner, RoomCutout, RoomFeature, RoomFeatureKind } from '../../domain/types';
 import { useT } from '../../i18n';
 import * as actions from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
@@ -10,6 +10,17 @@ import { NumberField, SelectField } from './NumberField';
 import { useState } from 'react';
 
 const FEATURE_KINDS: readonly RoomFeatureKind[] = ['chimney', 'column', 'projection'];
+
+export function RoomFeatureFields({ feature }: { feature: RoomFeature }) {
+  const t = useT();
+  const room = useDesignStore((state) => state.design.room);
+  return <>
+    <NumberField label={t.roomStructure.width} value={feature.width} min={100} max={room.width} onCommit={(width) => actions.updateRoomFeature(feature.id, { width })} />
+    <NumberField label={t.roomStructure.depth} value={feature.depth} min={100} max={room.depth} onCommit={(depth) => actions.updateRoomFeature(feature.id, { depth })} />
+    <NumberField label={t.item.fromLeftWall} value={feature.x} min={0} max={room.width - feature.width} onCommit={(x) => actions.updateRoomFeature(feature.id, { x })} />
+    <NumberField label={t.item.fromTopWall} value={feature.y} min={0} max={room.depth - feature.depth} onCommit={(y) => actions.updateRoomFeature(feature.id, { y })} />
+  </>;
+}
 
 export function RoomStructureSettings() {
   const t = useT();
@@ -60,10 +71,7 @@ export function RoomStructureSettings() {
                   <span className="text-xs font-semibold text-zinc-800">{name}</span>
                   <Button aria-label={t.roomStructure.remove(name)} onClick={() => actions.removeRoomFeature(feature.id)}><Trash2 className="size-3.5" /></Button>
                 </div>
-                <NumberField label={t.roomStructure.width} value={feature.width} min={100} max={room.width} onCommit={(width) => actions.updateRoomFeature(feature.id, { width })} />
-                <NumberField label={t.roomStructure.depth} value={feature.depth} min={100} max={room.depth} onCommit={(depth) => actions.updateRoomFeature(feature.id, { depth })} />
-                <NumberField label={t.item.fromLeftWall} value={feature.x} min={0} max={room.width - feature.width} onCommit={(x) => actions.updateRoomFeature(feature.id, { x })} />
-                <NumberField label={t.item.fromTopWall} value={feature.y} min={0} max={room.depth - feature.depth} onCommit={(y) => actions.updateRoomFeature(feature.id, { y })} />
+                <RoomFeatureFields feature={feature} />
               </div>
             );
           })}

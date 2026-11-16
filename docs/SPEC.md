@@ -110,6 +110,15 @@ All dimensions should be displayed in millimeters.
   Plan, 3D, collision checks, openings and exported plans use the same local
   transforms and polygon geometry. Cabinet construction remains rectangular
   or a right-angled L; custom mitred fabrication is outside this model.
+- Doors, windows, chimneys, columns and wall projections can be selected in 3D
+  by clicking their geometry or using the room-object selector. Translation
+  handles keep openings on their existing wall (including angled/partition
+  faces); windows can move vertically, while doors remain at floor level.
+  Structure handles move only the selected structure in X/Z and reject positions
+  outside the actual room polygon. Measurements and wall attachments remain
+  editable in a focused dialog. Drags support grid snapping, single-step Undo,
+  cancellation and touch, without repositioning cabinetry or resetting the
+  camera. Opening frames remain selectable when a nearby wall is hidden.
 - Interior partitions have independent endpoints, thickness and height.
   Both faces are usable; collisions take the cabinet's vertical range into
   account. Wall panels and backsplash runs have a wall attachment, finish,

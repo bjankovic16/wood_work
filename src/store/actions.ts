@@ -289,7 +289,7 @@ export function addRoomFeature(kind: RoomFeatureKind): void {
 }
 
 export function updateRoomFeature(id: string, patch: Partial<Pick<RoomFeature, 'x' | 'y' | 'width' | 'depth'>>): void {
-  apply((design) => ops.setRoom(design, { features: (design.room.features ?? []).map((feature) => feature.id === id ? { ...feature, ...patch } : feature) }));
+  apply((design) => ops.updateRoomFeature(design, id, patch));
 }
 
 export function removeRoomFeature(id: string): void {
