@@ -142,7 +142,7 @@ try {
         shell: Boolean(shell), panels: shell?.children.filter((child) => child.isMesh).length,
         fronts: object.getObjectByName('cabinet-fronts')?.children.length,
         shelvesClear: !drawers.length || !config.shelves || shell.children.filter((child) => child.isMesh && child.geometry.parameters.height === config.carcass.thickness / 1000)
-          .slice(2).every((shelf) => shelf.position.y < drawers[0].position.y),
+          .slice(2).every((shelf) => shelf.position.y < drawers[0].parent.parent.position.y),
       };
     });
   });

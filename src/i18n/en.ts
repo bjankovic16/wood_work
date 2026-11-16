@@ -568,6 +568,9 @@ export const en = {
   },
 
   view3d: {
+    dragHandle: 'Hold and drag to move cabinet',
+    openCabinet: 'Open cabinet',
+    closeCabinet: 'Close cabinet',
     interior: 'Interior view',
     interiorHint: 'Fronts are hidden to reveal shelves and drawer boxes. This is a schematic view, not appliance or fitting detail; your design and cutting list stay unchanged.',
     camera: '3D camera',

@@ -558,6 +558,9 @@ export const sr: Messages = {
   },
 
   view3d: {
+    dragHandle: 'Držite i povucite za pomeranje elementa',
+    openCabinet: 'Otvorite element',
+    closeCabinet: 'Zatvorite element',
     interior: 'Unutrašnjost elemenata',
     interiorHint: 'Fronte su skrivene da vidite police i fioke. Prikaz je šematski, bez detalja aparata i okova; projekat i krojna lista ostaju nepromenjeni.',
     camera: '3D kamera',

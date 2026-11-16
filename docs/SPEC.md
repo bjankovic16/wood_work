@@ -196,6 +196,11 @@ It hides cabinet fronts and replaces solid bodies with panel carcasses, configur
 shelves, hollow corner compartments and schematic drawer boxes. Appliances remain
 closed; their internal mechanisms and supplier fittings are not modelled.
 Changing this view never changes project data, Undo history or cutting quantities.
+Selecting a cabinet also shows a 44px hand-shaped move handle. Hold and drag it
+to move the unit with existing snapping and Undo, independently of resize arrows.
+Double-clicking a cabinet or pressing its adjacent door icon animates its fronts
+open/closed, including sliding drawer boxes. Animation invalidates only until
+settled and never changes project data or cutting quantities.
 
 ## 3. Automatic cabinet calculations
 

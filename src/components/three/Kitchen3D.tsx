@@ -1,6 +1,6 @@
 import { Environment, Lightformer, OrbitControls } from '@react-three/drei';
 import { Canvas, useThree } from '@react-three/fiber';
-import { Copy, Image, Move, Palette, Pencil, RotateCcw, RotateCw, Ruler, Scan, Trash2, X } from 'lucide-react';
+import { Copy, DoorClosed, DoorOpen, Hand, Image, Move, Palette, Pencil, RotateCcw, RotateCw, Ruler, Scan, Trash2, X } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type RefObject } from 'react';
 import type * as THREE from 'three';
 import { isWallMounted } from '../../domain/geometry';
@@ -75,9 +75,18 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
   const invalid = useMemo(() => new Set(issues.filter((issue) => issue.severity === 'error').flatMap((issue) => issue.itemIds)), [issues]);
   const selected = items.find((item) => item.id === selectedId);
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
+  const handRef = useRef<HTMLButtonElement>(null);
+  const handlesRef = useRef<HTMLDivElement>(null);
   const [styleOpen, setStyleOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [interior, setInterior] = useState(false);
+  const [openedCabinets, setOpenedCabinets] = useState<Set<string>>(() => new Set());
+  const toggleOpening = (id: string) => setOpenedCabinets((current) => {
+    const next = new Set(current);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    return next;
+  });
   const [directDragging, setDirectDragging] = useState(false);
   const startDirectDrag = useCallback((id: string) => {
     useUiStore.getState().select(id);
@@ -169,7 +178,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
     <div className="flex h-full min-h-0 w-full flex-col bg-[#ebe8e3] lg:flex-row">
       {referenceOpen && <PhotoReferencePanel />}
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 touch-none" data-testid="three-viewport">
+      <div className="relative min-h-0 flex-1 touch-none overflow-hidden" data-testid="three-viewport">
       <Canvas
         frameloop="demand"
         shadows={compact ? false : 'percentage'}
@@ -207,7 +216,8 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
         />
         <Room3D room={room} openings={openings} items={items} materials={materials} selection={activeRoomSelection} onSelect={selectRoomObject} objectRef={setRoomObject} />
         {items.map((item) => (
-          <DirectCabinetDrag key={item.id} item={item} onStart={startDirectDrag} onSelect={select}>
+          <DirectCabinetDrag key={item.id} item={item} onStart={startDirectDrag} onSelect={select}
+            handleRef={item.id === selectedId ? handRef : undefined} overlayRef={item.id === selectedId ? handlesRef : undefined}>
           <Unit3D
             item={item}
             ctx={ctx}
@@ -219,6 +229,8 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
             invalid={invalid.has(item.id)}
             objectRef={item.id === selectedId ? setSelectedObject : undefined}
             interior={interior}
+            opened={openedCabinets.has(item.id)}
+            onToggleOpening={!interior && KIND_OPTIONS[item.kind].carcass && KIND_OPTIONS[item.kind].fronts ? () => toggleOpening(item.id) : undefined}
           />
           </DirectCabinetDrag>
         ))}
@@ -239,6 +251,19 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
         />
         <CameraRig request={request} comparison={referenceOpen} controls={controls} />
       </Canvas>
+      {selected && !moveMode && !resizeMode && !roomMoving && <div ref={handlesRef} className="absolute left-0 top-0 flex gap-2" style={{ visibility: 'hidden' }}>
+        <button ref={handRef} type="button" aria-label={text.view3d.dragHandle} title={text.view3d.dragHandle}
+          className="flex size-11 touch-none cursor-grab items-center justify-center rounded-full border-2 border-white bg-studio-accent text-white shadow-lg ring-1 ring-black/15 active:cursor-grabbing focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-studio-accent">
+          <Hand className="size-6" aria-hidden="true" />
+        </button>
+        {!interior && KIND_OPTIONS[selected.kind].carcass && KIND_OPTIONS[selected.kind].fronts && <button type="button"
+          aria-label={openedCabinets.has(selected.id) ? text.view3d.closeCabinet : text.view3d.openCabinet}
+          title={openedCabinets.has(selected.id) ? text.view3d.closeCabinet : text.view3d.openCabinet}
+          aria-pressed={openedCabinets.has(selected.id)} onClick={() => toggleOpening(selected.id)}
+          className="flex size-11 touch-none items-center justify-center rounded-full border-2 border-white bg-studio-accent text-white shadow-lg ring-1 ring-black/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-studio-accent">
+          {openedCabinets.has(selected.id) ? <DoorClosed className="size-6" aria-hidden="true" /> : <DoorOpen className="size-6" aria-hidden="true" />}
+        </button>}
+      </div>}
       </div>
 
       <details data-testid="three-tools" className="order-first shrink-0 border-b border-zinc-200 bg-[#f7f5f0]"

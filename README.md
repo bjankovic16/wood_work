@@ -235,11 +235,15 @@ browsers, English otherwise. A language chosen manually is remembered.
   and never overlays the kitchen. Instructions are under **How to use 3D**;
   selection warnings remain in the tools panel and the main Checks view.
 - **Direct 3D editing**: hold and drag a cabinet itself to move it across the
-  floor, keeping its elevation. Click or tap a cabinet to show resize arrows:
+  floor, keeping its elevation. Click or tap a cabinet to show a hand-shaped
+  move handle and resize arrows. Hold and drag the hand to move the cabinet;
   red changes width, green height, blue depth (the second arm for corner units).
   Drag an arrow out to expand or in to shrink. The tools panel can stay closed.
   Drags use the plan's snapping and each form one Undo step; Escape or an
   interrupted gesture cancels an unfinished move. Drag the background to orbit.
+- **Open a cabinet**: double-click it or use the door icon next to its hand handle.
+  Doors swing open and drawers slide out; use the icon again to close them.
+  Opening is a view-only preview and does not change dimensions or cutting quantities.
 - **See inside cabinets**: turn on **Interior view** under **3D tools** to hide
   fronts and reveal shelves, corner compartments and drawer boxes. Toggle it off
   to restore the finished kitchen. This schematic view does not change the

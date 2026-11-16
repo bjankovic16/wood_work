@@ -162,6 +162,30 @@ try {
   assert.equal((await design(page)).items[0].elevation, directBefore.items[0].elevation);
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   assert.deepEqual(await design(page), directBefore);
+  const hand = page.getByRole('button', { name: 'Hold and drag to move cabinet', exact: true });
+  const handBox = await hand.boundingBox();
+  assert.ok(handBox.width >= 44 && handBox.height >= 44);
+  await hand.click();
+  assert.deepEqual(await design(page), directBefore, 'Clicking the hand must not move or open a cabinet.');
+  await page.mouse.move(handBox.x + handBox.width / 2, handBox.y + handBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(handBox.x + handBox.width / 2 + direct.to.x - direct.from.x, handBox.y + handBox.height / 2 + direct.to.y - direct.from.y, { steps: 12 });
+  assert.notDeepEqual((await design(page)).items[0], directBefore.items[0], 'Dragging the hand must move the cabinet before release.');
+  await page.mouse.up();
+  assert.equal(await history(page), directCount + 1);
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  assert.deepEqual(await design(page), directBefore);
+  await page.mouse.dblclick(clickPoint.from.x, clickPoint.from.y);
+  await page.getByRole('button', { name: 'Close cabinet', exact: true }).waitFor();
+  await page.waitForFunction(() => Math.abs(window.__kitchen3D.scene.getObjectByName('resize-cabinet').getObjectByName('cabinet-opening').rotation.y) > 1.7);
+  await page.screenshot({ path: path.join(output, 'desktop-open-cabinet.png') });
+  assert.deepEqual(await design(page), directBefore, 'Opening a cabinet must be view-only.');
+  assert.equal(await history(page), directCount);
+  await page.getByRole('button', { name: 'Close cabinet', exact: true }).click();
+  await page.waitForFunction(() => window.__kitchen3D.scene.getObjectByName('resize-cabinet').getObjectByName('cabinet-opening').rotation.y === 0);
+  const settled = await page.evaluate(() => window.__kitchen3D.renderer.info.render.frame);
+  await page.waitForTimeout(300);
+  assert.ok(await page.evaluate(() => window.__kitchen3D.renderer.info.render.frame) - settled <= 1, 'Opening animations must stop rendering when settled.');
   for (const interruption of ['pointercancel', 'blur', 'Escape']) {
     const points = await cabinetPoints(page);
     await page.mouse.move(points.from.x, points.from.y);
@@ -268,6 +292,27 @@ try {
   assert.ok((await design(page)).items[0].width < boundary.items[0].width);
   console.log('  PASS room-boundary rejection is explained and the constrained handle remains usable');
 
+  for (const kind of ['drawer', 'corner']) {
+    await fixture(page, kind);
+    await cleanPanel.locator(':scope > summary').click();
+    const beforeOpening = await design(page);
+    await page.getByRole('button', { name: 'Open cabinet', exact: true }).click();
+    await page.waitForFunction((kind) => {
+      const object = window.__kitchen3D.scene.getObjectByName('resize-cabinet');
+      const parts = [];
+      object.traverse((child) => { if (child.name === 'cabinet-opening') parts.push(child); });
+      return kind === 'drawer' ? parts.length === 6 && parts.every((part) => part.position.z > 0.3) : parts.length === 2 && parts.every((part) => Math.abs(part.rotation.y) > 1.7);
+    }, kind);
+    assert.deepEqual(await design(page), beforeOpening);
+    await page.getByRole('button', { name: 'Close cabinet', exact: true }).click();
+    await page.waitForFunction(() => {
+      const parts = [];
+      window.__kitchen3D.scene.getObjectByName('resize-cabinet').traverse((child) => { if (child.name === 'cabinet-opening') parts.push(child); });
+      return parts.every((part) => part.rotation.y === 0 && part.position.z === 0);
+    });
+  }
+  console.log('  PASS hand handle moves cabinets; double-click and door icon animate doors, drawers and corners without editing the project');
+
   const phoneContext = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   const phone = await phoneContext.newPage();
   observe(phone);
@@ -334,6 +379,22 @@ try {
   await directTouch.detach();
   await phone.getByRole('button', { name: 'Undo', exact: true }).tap();
   assert.deepEqual(await design(phone), directTouchBefore);
+  const phoneHand = await phone.getByRole('button', { name: 'Hold and drag to move cabinet', exact: true }).boundingBox();
+  const handTouch = await phoneContext.newCDPSession(phone);
+  const handPoint = { x: phoneHand.x + phoneHand.width / 2, y: phoneHand.y + phoneHand.height / 2 };
+  await handTouch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [handPoint] });
+  for (let step = 1; step <= 12; step++) {
+    await handTouch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: handPoint.x + 55 * step / 12, y: handPoint.y }] });
+  }
+  assert.notDeepEqual((await design(phone)).items[0], directTouchBefore.items[0], 'The hand handle must support real touch movement.');
+  await handTouch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await phone.getByRole('button', { name: 'Undo', exact: true }).tap();
+  assert.deepEqual(await design(phone), directTouchBefore);
+  await handTouch.detach();
+  await phone.getByRole('button', { name: 'Open cabinet', exact: true }).tap();
+  await phone.waitForFunction(() => Math.abs(window.__kitchen3D.scene.getObjectByName('resize-cabinet').getObjectByName('cabinet-opening').rotation.y) > 1.7);
+  await phone.getByRole('button', { name: 'Close cabinet', exact: true }).tap();
+  await phone.waitForFunction(() => window.__kitchen3D.scene.getObjectByName('resize-cabinet').getObjectByName('cabinet-opening').rotation.y === 0);
   const autoWidth = (await design(phone)).items[0].width;
   await drag(phone, 0.1, true, 'X');
   assert.ok((await design(phone)).items[0].width > autoWidth, 'Tap-selected arrows must resize on a phone without opening tools.');
