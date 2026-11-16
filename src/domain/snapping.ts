@@ -13,6 +13,7 @@ import {
   type Placed,
 } from './geometry';
 import { clamp, roundTo } from './math';
+import { roomFeatureRect, roomOutline, roomWallRuns, type RoomWallRun } from './roomGeometry';
 import type { KitchenItem, Point, Room, Rotation, Wall } from './types';
 
 export interface SnapSettings {
@@ -69,6 +70,12 @@ export function pickCorner(room: Room, pointer: Point, reach: number): Corner | 
 export function snapTargets(room: Room, others: readonly Placed[]): { xs: number[]; ys: number[] } {
   const xs = [0, room.width];
   const ys = [0, room.depth];
+  for (const point of roomOutline(room)) { xs.push(point.x); ys.push(point.y); }
+  for (const feature of room.features ?? []) {
+    const rect = roomFeatureRect(feature);
+    xs.push(rect.x, rect.x + rect.w);
+    ys.push(rect.y, rect.y + rect.h);
+  }
   for (const other of others) {
     for (const r of footprintRects(other)) {
       xs.push(r.x, r.x + r.w);
@@ -76,6 +83,21 @@ export function snapTargets(room: Room, others: readonly Placed[]): { xs: number
     }
   }
   return { xs, ys };
+}
+
+function pickSurface(room: Room, pointer: Point, depth: number, previous: Wall | null): RoomWallRun | null {
+  const surfaces = roomWallRuns(room);
+  const distance = (surface: RoomWallRun) => {
+    const horizontal = surface.wall === 'top' || surface.wall === 'bottom';
+    const along = horizontal ? pointer.x : pointer.y;
+    const across = horizontal ? pointer.y : pointer.x;
+    return Math.hypot(across - surface.offset, Math.max(surface.from - along, 0, along - surface.to));
+  };
+  const ordered = [...surfaces].sort((a, b) => distance(a) - distance(b));
+  const best = ordered[0];
+  if (!best || distance(best) > depth + ATTACH_MARGIN) return null;
+  const same = ordered.find((surface) => surface.wall === previous);
+  return same && distance(same) <= depth + ATTACH_MARGIN && distance(same) <= distance(best) + WALL_HYSTERESIS ? same : best;
 }
 
 /** Moves the segment [start, start + size] so that one of its ends meets the nearest target. */
@@ -145,13 +167,19 @@ export function computeDragPlacement(input: DragInput): DragResult {
   let rotation = item.rotation;
   let wall: Wall | null = null;
   let corner: Corner | null = null;
+  let surface: RoomWallRun | null = null;
 
   if (snap.enabled) {
     if (item.kind === 'corner') {
       corner = pickCorner(room, pointer, Math.max(item.width, localDepthExtent(item)) + CORNER_REACH);
       if (corner) rotation = CORNER_ROTATION[corner];
     } else {
-      wall = pickWall(room, pointer, item.depth, input.previousWall);
+      if (room.cutout || room.features?.length) {
+        surface = pickSurface(room, pointer, item.depth, input.previousWall);
+        wall = surface?.wall ?? null;
+      } else {
+        wall = pickWall(room, pointer, item.depth, input.previousWall);
+      }
       if (wall) rotation = rotationForWall(wall);
     }
   }
@@ -167,16 +195,16 @@ export function computeDragPlacement(input: DragInput): DragResult {
     ({ x, y } = cornerPosition(room, corner, { w, h }));
     lockX = lockY = true;
   } else if (wall === 'top') {
-    y = 0;
+    y = surface?.offset ?? 0;
     lockY = true;
   } else if (wall === 'bottom') {
-    y = room.depth - h;
+    y = (surface?.offset ?? room.depth) - h;
     lockY = true;
   } else if (wall === 'left') {
-    x = 0;
+    x = surface?.offset ?? 0;
     lockX = true;
   } else if (wall === 'right') {
-    x = room.width - w;
+    x = (surface?.offset ?? room.width) - w;
     lockX = true;
   }
 

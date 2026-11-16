@@ -1,5 +1,7 @@
 import { footprintPolygon, frontEdges, isWallMounted, itemRect } from '../domain/geometry';
-import type { Design, Opening, Point, Room, Wall } from '../domain/types';
+import type { Design, KitchenItem, Opening, Point, Room, Wall } from '../domain/types';
+import { openingFitsRoomWall, roomOutline } from '../domain/roomGeometry';
+import { EN_LABELS, type EngineLabels } from '../engine/labels';
 
 const WALL = 120;
 /** Space around the room for the overall dimensions. */
@@ -52,7 +54,7 @@ function openingSvg(room: Room, opening: Opening): string {
  * A plan of the kitchen as SVG, in millimetres: walls with their windows and
  * doors, every unit with its code, wall units dashed, and the room size.
  */
-export function planSvg(design: Design): { svg: string; width: number; height: number } {
+export function planSvg(design: Design, labels: EngineLabels = EN_LABELS, items: readonly KitchenItem[] = design.items): { svg: string; width: number; height: number } {
   const { room } = design;
   const minX = -WALL - MARGIN;
   const minY = -WALL - MARGIN;
@@ -61,11 +63,18 @@ export function planSvg(design: Design): { svg: string; width: number; height: n
   const font = Math.max(70, Math.min(140, Math.min(room.width, room.depth) / 28));
   const parts: string[] = [];
 
-  parts.push(`<rect x="${-WALL}" y="${-WALL}" width="${room.width + 2 * WALL}" height="${room.depth + 2 * WALL}" fill="#d4d4d8" stroke="#a1a1aa" stroke-width="8"/>`);
-  parts.push(`<rect x="0" y="0" width="${room.width}" height="${room.depth}" fill="#ffffff" stroke="#a1a1aa" stroke-width="8"/>`);
-  for (const opening of design.openings) parts.push(openingSvg(room, opening));
+  const outline = roomOutline(room).map((point) => `${point.x},${point.y}`).join(' ');
+  parts.push(`<polygon points="${outline}" fill="#d4d4d8" stroke="#d4d4d8" stroke-width="${WALL * 2}" stroke-linejoin="miter"/>`);
+  parts.push(`<polygon points="${outline}" fill="#ffffff" stroke="#a1a1aa" stroke-width="8"/>`);
+  for (const [index, feature] of (room.features ?? []).entries()) {
+    const name = `${labels.roomFeatures[feature.kind]} ${index + 1}`;
+    const size = Math.min(font * 0.8, feature.width / Math.max(4, name.length * 0.62));
+    parts.push(`<rect x="${feature.x}" y="${feature.y}" width="${feature.width}" height="${feature.depth}" fill="#d8cdbb" stroke="#847766" stroke-width="10"/>`);
+    parts.push(`<text x="${feature.x + feature.width / 2}" y="${feature.y + feature.depth / 2 + size * 0.35}" font-size="${size}" text-anchor="middle" fill="#574b3e">${escape(name)}</text>`);
+  }
+  for (const opening of design.openings.filter((entry) => openingFitsRoomWall(room, entry.wall, entry.offset, entry.width))) parts.push(openingSvg(room, opening));
 
-  const ordered = [...design.items.filter((i) => !isWallMounted(i)), ...design.items.filter(isWallMounted)];
+  const ordered = [...items.filter((i) => !isWallMounted(i)), ...items.filter(isWallMounted)];
   for (const item of ordered) {
     const wall = isWallMounted(item);
     const points = footprintPolygon(item);

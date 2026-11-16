@@ -1,4 +1,5 @@
-import type { KitchenStyle } from './style';
+import type { FrontFinish, KitchenStyle } from './style';
+import type { PhotoReference } from './photoReferences';
 
 /**
  * Core data model. All lengths are integer millimetres.
@@ -44,6 +45,26 @@ export interface Rect {
   h: number;
 }
 
+export type RoomCorner = 'topLeft' | 'topRight' | 'bottomRight' | 'bottomLeft';
+export type RoomFeatureKind = 'chimney' | 'column' | 'projection';
+
+export interface RoomCutout {
+  kind: 'notch' | 'diagonal';
+  corner: RoomCorner;
+  width: number;
+  depth: number;
+}
+
+/** A fixed floor-to-ceiling structure, not a cabinet or a piece to manufacture. */
+export interface RoomFeature {
+  id: string;
+  kind: RoomFeatureKind;
+  x: number;
+  y: number;
+  width: number;
+  depth: number;
+}
+
 export interface Room {
   /** Inner length of the top and bottom walls. */
   width: number;
@@ -51,6 +72,8 @@ export interface Room {
   depth: number;
   /** Floor to ceiling. */
   height: number;
+  cutout?: RoomCutout;
+  features?: RoomFeature[];
 }
 
 export interface KitchenItem {
@@ -93,6 +116,8 @@ export interface KitchenItem {
   carcassMaterial?: string;
   backMaterial?: string;
   frontMaterial?: string;
+  frontFinish?: FrontFinish;
+  carcassFinish?: FrontFinish;
 }
 
 export type BottomJoint = 'between' | 'under';
@@ -231,4 +256,5 @@ export interface Design {
   customParts: CustomPart[];
   /** Changes to generated parts: by unit id, then by part key (see partKey). */
   partEdits: Record<string, Record<string, PartEdit>>;
+  referencePhoto?: PhotoReference;
 }

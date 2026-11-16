@@ -1,4 +1,5 @@
 import type { Opening, Rect, Room, Wall } from './types';
+import { outerWallRuns } from './roomGeometry';
 
 /** Doors need at least this much free floor in front of them, even when narrower. */
 const MIN_DOOR_CLEARANCE = 800;
@@ -56,11 +57,17 @@ export function openingObstacles(room: Room, openings: readonly Opening[], unitD
 
 /** Keeps an opening inside its wall and below the ceiling. */
 export function clampOpening(opening: Opening, room: Room): Opening {
-  const length = wallLength(room, opening.wall);
+  const spans = outerWallRuns(room, opening.wall);
+  const span = [...spans].sort((a, b) => {
+    const distance = (run: typeof a) => Math.abs(Math.min(Math.max(opening.offset, run.from), Math.max(run.from, run.to - opening.width)) - opening.offset);
+    return distance(a) - distance(b) || (b.to - b.from) - (a.to - a.from);
+  })[0];
+  const length = span ? span.to - span.from : wallLength(room, opening.wall);
   const width = Math.round(Math.min(Math.max(opening.width, 300), length));
   const height = Math.round(Math.min(Math.max(opening.height, 300), room.height));
   const sill = opening.kind === 'door' ? 0 : Math.round(Math.min(Math.max(opening.sill, 0), room.height - height));
-  const offset = Math.round(Math.min(Math.max(opening.offset, 0), length - width));
+  const from = span?.from ?? 0;
+  const offset = Math.round(Math.min(Math.max(opening.offset, from), from + length - width));
   return { ...opening, width, height, sill, offset };
 }
 

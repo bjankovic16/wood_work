@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BACKSPLASH_FINISHES, FRONT_FINISHES, HANDLE_STYLES, WORKTOP_FINISHES, type Finish, type KitchenStyle } from '../../domain/style';
+import { APPLIANCE_FINISHES, BACKSPLASH_FINISHES, FRONT_FINISHES, HANDLE_STYLES, WORKTOP_FINISHES, type Finish, type FrontFinish, type KitchenStyle } from '../../domain/style';
 
 /** Millimetres to scene units (metres). */
 export const m = (mm: number): number => mm / 1000;
@@ -66,6 +66,7 @@ export interface KitchenMaterials {
   dark: THREE.MeshStandardMaterial;
   displayGlass: THREE.MeshPhysicalMaterial;
   light: THREE.MeshStandardMaterial;
+  floorGlow: THREE.MeshBasicMaterial;
   ceramic: THREE.MeshStandardMaterial;
   foliage: THREE.MeshStandardMaterial;
   pot: THREE.MeshStandardMaterial;
@@ -115,14 +116,35 @@ function finishMap(finish: Finish, across = false): THREE.CanvasTexture | null {
   return finish.wood ? woodTexture(finish.color, across) : finish.texture ? stoneTexture(finish) : null;
 }
 
+function floorGlowTexture(): THREE.CanvasTexture {
+  const cached = textures.get('plinth-light');
+  if (cached) return cached;
+  const canvas = document.createElement('canvas');
+  canvas.width = 4;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('The plinth lighting texture could not be created.');
+  const gradient = ctx.createLinearGradient(0, 0, 0, 64);
+  gradient.addColorStop(0, 'rgba(255,255,255,0.65)');
+  gradient.addColorStop(0.35, 'rgba(255,255,255,0.22)');
+  gradient.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 4, 64);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  textures.set('plinth-light', texture);
+  return texture;
+}
+
 /** The shared materials for one style. Callers should dispose them when the style changes. */
-export function createMaterials(style: KitchenStyle): KitchenMaterials {
+export function createMaterials(style: KitchenStyle, carcassFinish?: FrontFinish): KitchenMaterials {
   const front = FRONT_FINISHES[style.front];
   const worktop = WORKTOP_FINISHES[style.worktop];
   const handle = HANDLE_STYLES[style.handles];
   const backsplash = BACKSPLASH_FINISHES[style.backsplash ?? 'none'];
+  const carcass: Finish = carcassFinish ? FRONT_FINISHES[carcassFinish] : { color: '#f3f2ee' };
   return {
-    carcass: new THREE.MeshStandardMaterial({ color: '#f3f2ee', roughness: 0.85 }),
+    carcass: new THREE.MeshStandardMaterial({ color: carcass.wood ? '#ffffff' : carcass.color, map: finishMap(carcass), roughness: 0.78 }),
     front: new THREE.MeshStandardMaterial({
       color: front.wood ? '#ffffff' : front.color,
       map: finishMap(front),
@@ -138,10 +160,11 @@ export function createMaterials(style: KitchenStyle): KitchenMaterials {
       : null,
     steel: new THREE.MeshStandardMaterial({ color: '#c3c7cc', metalness: 0.8, roughness: 0.32 }),
     glass: new THREE.MeshStandardMaterial({ color: '#141518', metalness: 0.2, roughness: 0.15 }),
-    appliance: new THREE.MeshStandardMaterial({ color: '#f4f5f6', metalness: 0.15, roughness: 0.4 }),
+    appliance: new THREE.MeshStandardMaterial({ color: APPLIANCE_FINISHES[style.appliances ?? 'white'].color, metalness: style.appliances === 'steel' ? 0.55 : 0.15, roughness: 0.4 }),
     dark: new THREE.MeshStandardMaterial({ color: '#4a4c50', roughness: 0.6 }),
     displayGlass: new THREE.MeshPhysicalMaterial({ color: '#e3ece5', transparent: true, opacity: 0.23, roughness: 0.08, metalness: 0.08, depthWrite: false, side: THREE.DoubleSide }),
     light: new THREE.MeshStandardMaterial({ color: '#ffe2ad', emissive: '#ffcb83', emissiveIntensity: 2, toneMapped: false }),
+    floorGlow: new THREE.MeshBasicMaterial({ color: '#ffd394', map: floorGlowTexture(), transparent: true, opacity: 0.65, depthWrite: false, toneMapped: false }),
     ceramic: new THREE.MeshStandardMaterial({ color: '#e4d7c3', roughness: 0.48 }),
     foliage: new THREE.MeshStandardMaterial({ color: '#63734b', roughness: 0.9 }),
     pot: new THREE.MeshStandardMaterial({ color: '#a66f51', roughness: 0.82 }),

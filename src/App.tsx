@@ -19,14 +19,16 @@ import { useUiStore } from './store/uiStore';
 /** Large screens: library on the left, plan or cutting list in the middle, properties on the right. */
 function DesktopLayout() {
   const view = useUiStore((s) => s.view);
+  const referenceOpen = useUiStore((state) => state.referenceOpen);
+  const studio = view === '3d' && referenceOpen;
   return (
     <div className="flex h-dvh select-none flex-col bg-white text-zinc-900 print:h-auto">
       <TopBar />
       {view !== 'list' ? (
         <div className="flex min-h-0 flex-1">
-          <LibraryPanel />
+          {!studio && <LibraryPanel />}
           <main className="relative min-w-0 flex-1">{view === 'plan' ? <DesignCanvas /> : <View3D />}</main>
-          <PropertiesPanel />
+          {!studio && <PropertiesPanel />}
         </div>
       ) : (
         <main className="min-h-0 flex-1 print:min-h-fit">

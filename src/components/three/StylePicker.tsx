@@ -1,4 +1,4 @@
-import { BACKSPLASH_FINISHES, FRONT_FINISHES, HANDLE_STYLES, WORKTOP_FINISHES, type Finish } from '../../domain/style';
+import { APPLIANCE_FINISHES, BACKSPLASH_FINISHES, FRONT_FINISHES, HANDLE_STYLES, WORKTOP_FINISHES, type Finish } from '../../domain/style';
 import { useT } from '../../i18n';
 import { cn } from '../../lib/cn';
 import { setStyle } from '../../store/actions';
@@ -60,6 +60,13 @@ export function StylePicker() {
   return (
     <div className="space-y-4">
       <Swatches label={t.style.fronts} options={FRONT_FINISHES} names={t.style.frontFinishes} value={style.front} onChange={(front) => setStyle({ front })} />
+      <div>
+        <p className="mb-1.5 text-xs font-medium text-zinc-700">{t.style.frontProfile}</p>
+        <div role="group" aria-label={t.style.frontProfile} className="grid grid-cols-2 gap-1.5">
+          {(['flat', 'shaker'] as const).map((profile) => <button key={profile} type="button" aria-pressed={(style.frontProfile ?? 'flat') === profile} onClick={() => setStyle({ frontProfile: profile })} className={cn('min-h-9 rounded-md border px-2 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500', (style.frontProfile ?? 'flat') === profile ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-zinc-200 text-zinc-700 hover:bg-zinc-50')}>{t.style.frontProfiles[profile]}</button>)}
+        </div>
+        {style.frontProfile === 'shaker' && <p className="mt-2 text-[11px] leading-relaxed text-zinc-600">{t.style.frontProfileNote}</p>}
+      </div>
       <Swatches
         label={t.style.worktop}
         options={WORKTOP_FINISHES}
@@ -67,6 +74,7 @@ export function StylePicker() {
         value={style.worktop}
         onChange={(worktop) => setStyle({ worktop })}
       />
+      <Swatches label={t.style.appliances} options={APPLIANCE_FINISHES} names={t.style.applianceFinishes} value={style.appliances ?? 'white'} onChange={(appliances) => setStyle({ appliances })} />
       <div>
         <div className="mb-1.5 text-xs font-medium text-zinc-700">{t.style.handles}</div>
         <div className="grid grid-cols-2 gap-1.5">
@@ -101,6 +109,10 @@ export function StylePicker() {
         <label className="flex cursor-pointer items-start gap-2 text-xs leading-relaxed text-zinc-700">
           <input type="checkbox" className="mt-0.5 size-4 accent-blue-600" checked={style.lighting ?? false} onChange={(event) => setStyle({ lighting: event.target.checked })} />
           {t.style.lighting}
+        </label>
+        <label className="flex cursor-pointer items-start gap-2 text-xs leading-relaxed text-zinc-700">
+          <input type="checkbox" className="mt-0.5 size-4 accent-blue-600" checked={style.plinthLighting ?? false} onChange={(event) => setStyle({ plinthLighting: event.target.checked })} />
+          {t.style.plinthLighting}
         </label>
         <label className="flex cursor-pointer items-start gap-2 text-xs leading-relaxed text-zinc-700">
           <input type="checkbox" className="mt-0.5 size-4 accent-blue-600" checked={style.decor ?? false} onChange={(event) => setStyle({ decor: event.target.checked })} />

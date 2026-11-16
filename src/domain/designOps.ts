@@ -3,19 +3,16 @@ import { BAR_MATERIAL_ID, ELEVATION_LIMITS, GLASS_MATERIAL_ID, KIND_SPECS, MODUL
 import { clampToRoom, resizeFromAnchor } from './geometry';
 import { clamp } from './math';
 import { clampOpening } from './openings';
-import { DEFAULT_STYLE, parseStyle, type KitchenStyle } from './style';
+import { normalizeRoom, parseRoom, ROOM_LIMITS } from './roomGeometry';
+export { ROOM_LIMITS } from './roomGeometry';
+import { DEFAULT_STYLE, FRONT_FINISHES, parseStyle, type FrontFinish, type KitchenStyle } from './style';
+import { parsePhotoReference } from './photoReferences';
 import type { ConstructionSettings, CustomPart, Design, EdgeBand, ItemKind, KitchenItem, Material, Opening, PartEdit, Room } from './types';
 
 /**
  * Pure operations on a design. Each returns the same object when nothing
  * changes, so callers can skip no-op history entries.
  */
-
-export const ROOM_LIMITS = {
-  width: { min: 1000, max: 20000 },
-  depth: { min: 1000, max: 20000 },
-  height: { min: 2000, max: 4000 },
-} as const;
 
 export const DEFAULT_ROOM: Room = { width: 3600, depth: 3000, height: 2600 };
 
@@ -55,12 +52,14 @@ export function setName(design: Design, name: string): Design {
 
 /** Changes the room size and pulls any unit that would end up outside back in. */
 export function setRoom(design: Design, patch: Partial<Room>): Design {
-  const room: Room = {
+  const room = normalizeRoom({
+    ...design.room,
+    ...patch,
     width: Math.round(clamp(patch.width ?? design.room.width, ROOM_LIMITS.width.min, ROOM_LIMITS.width.max)),
     depth: Math.round(clamp(patch.depth ?? design.room.depth, ROOM_LIMITS.depth.min, ROOM_LIMITS.depth.max)),
     height: Math.round(clamp(patch.height ?? design.room.height, ROOM_LIMITS.height.min, ROOM_LIMITS.height.max)),
-  };
-  if (shallowEqual(room, design.room)) return design;
+  });
+  if (shallowEqual(room, design.room) || JSON.stringify(room) === JSON.stringify(design.room)) return design;
   return {
     ...design,
     room,
@@ -164,6 +163,9 @@ function parseItem(raw: unknown): { item: KitchenItem; legacy: LegacyThickness }
   for (const key of ['carcassMaterial', 'backMaterial', 'frontMaterial'] as const) {
     if (typeof v[key] === 'string') item[key] = v[key];
   }
+  for (const key of ['frontFinish', 'carcassFinish'] as const) {
+    if (typeof v[key] === 'string' && Object.hasOwn(FRONT_FINISHES, v[key])) item[key] = v[key] as FrontFinish;
+  }
   const legacy: LegacyThickness = {};
   if (isNumber(v.carcassThickness)) legacy.carcassThickness = v.carcassThickness;
   if (isNumber(v.backThickness)) legacy.backThickness = v.backThickness;
@@ -231,10 +233,9 @@ function migrateThicknesses(
 export function parseDesign(raw: unknown): Design | null {
   if (!raw || typeof raw !== 'object') return null;
   const v = raw as Record<string, unknown>;
-  const rawRoom = v.room as Record<string, unknown> | undefined;
-  if (!rawRoom || !isNumber(rawRoom.width) || !isNumber(rawRoom.depth) || !isNumber(rawRoom.height)) return null;
+  const room = parseRoom(v.room);
+  if (!room) return null;
   if (!Array.isArray(v.items)) return null;
-  const room: Room = { width: rawRoom.width, depth: rawRoom.depth, height: rawRoom.height };
   const rawConstruction = (v.construction ?? {}) as Record<string, unknown>;
   const edgeBands = parseEdgeBands(v.edgeBands);
   const parsedItems = v.items.map(parseItem).filter((entry): entry is NonNullable<typeof entry> => entry !== null);
@@ -253,6 +254,8 @@ export function parseDesign(raw: unknown): Design | null {
     return { ...MODULE_MATERIAL_DEFAULTS[next.kind], ...next };
   });
   const itemIds = new Set(checkedItems.map((item) => item.id));
+  const referencePhoto = v.referencePhoto === undefined ? undefined : parsePhotoReference(v.referencePhoto);
+  if (referencePhoto === null) return null;
   return {
     version: 4,
     name: typeof v.name === 'string' ? v.name : 'My kitchen',
@@ -267,6 +270,7 @@ export function parseDesign(raw: unknown): Design | null {
       ? v.customParts.map((c) => parseCustomPart(c, materialIds, edgeBands, construction)).filter((c): c is CustomPart => c !== null)
       : [],
     partEdits: parsePartEdits(v.partEdits, itemIds, materialIds),
+    ...(referencePhoto ? { referencePhoto } : {}),
   };
 }
 
@@ -347,7 +351,7 @@ export function setPartEdit(design: Design, itemId: string, key: string, edit: P
 }
 
 type CountKey = 'doors' | 'drawers' | 'shelves';
-type OptionKey = 'doorType' | 'hinge' | 'drawerLayout' | 'carcassMaterial' | 'backMaterial' | 'frontMaterial';
+type OptionKey = 'doorType' | 'hinge' | 'drawerLayout' | 'carcassMaterial' | 'backMaterial' | 'frontMaterial' | 'frontFinish' | 'carcassFinish';
 
 function without<K extends keyof KitchenItem>(item: KitchenItem, key: K): KitchenItem {
   if (item[key] === undefined) return item;

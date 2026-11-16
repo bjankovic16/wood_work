@@ -100,11 +100,14 @@ describe('premium kitchen modules', () => {
 
   it('keeps old styles unchanged and preserves all premium finishes and visual options', () => {
     expect(parseStyle(DEFAULT_STYLE)).toEqual(DEFAULT_STYLE);
+    expect(parseStyle({ front: 'constructor', worktop: 'toString', appliances: '__proto__', backsplash: 'constructor' })).toEqual(DEFAULT_STYLE);
     const style = { front: 'cashmere', worktop: 'marble', handles: 'bronze', backsplash: 'travertine', lighting: true, decor: true } as const;
     expect(parseStyle(style)).toEqual(style);
+    const layeredStyle = { ...style, backsplash: 'black', plinthLighting: true } as const;
+    expect(parseStyle(layeredStyle)).toEqual(layeredStyle);
     expect(Object.keys(FRONT_FINISHES)).toHaveLength(15);
     expect(Object.keys(WORKTOP_FINISHES)).toHaveLength(7);
     expect(Object.keys(HANDLE_STYLES)).toHaveLength(6);
-    expect(Object.keys(BACKSPLASH_FINISHES)).toHaveLength(4);
+    expect(Object.keys(BACKSPLASH_FINISHES)).toHaveLength(5);
   });
 });

@@ -1,6 +1,7 @@
 import { createItem, type LabelPrefixes } from './catalog';
 import { aabbSize, rotationForWall } from './geometry';
 import type { ItemKind, KitchenItem, Room, Wall } from './types';
+import { canPlaceItem, findFreeSpot } from './placement';
 
 export type LayoutId = 'straight' | 'l-shape' | 'u-shape';
 
@@ -165,5 +166,12 @@ export function buildLayout(id: LayoutId, room: Room, prefixes?: LabelPrefixes):
       break;
     }
   }
-  return b.items;
+  if (!room.cutout && !room.features?.length) return b.items;
+  const fitted: KitchenItem[] = [];
+  for (const item of b.items) {
+    const spot = canPlaceItem(room, fitted, item) ? null : findFreeSpot(room, fitted, item);
+    // An impossible fit remains visible for the design checks, rather than silently losing a unit.
+    fitted.push(spot ? { ...item, ...spot } : item);
+  }
+  return fitted;
 }

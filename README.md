@@ -12,9 +12,19 @@ npm install
 npm run dev      # http://localhost:5173 (also reachable from other devices on the same network)
 npm test         # unit tests: geometry, snapping, layouts, construction engine, cutting list
 npm run e2e      # drives the app in the locally installed Chrome, desktop and phone; screenshots go to test-results/
+npm run e2e:rooms # room shapes, fixed structures, 3D manipulation and photo comparison
+npm run e2e:stacked # stacking, upper-row selection and layered kitchen designs
 npm run build    # static files in dist/, with relative paths so they work from any folder
 npm run render:kitchens # regenerate gallery images with the real 3D renderer (requires local Chrome)
 ```
+
+## Public app
+
+Open [Kitchen Designer](https://bjankovic16.github.io/wood_work/).
+Pushes to `main` run the unit tests, build the app and deploy it to GitHub Pages
+through [the deployment workflow](.github/workflows/deploy-pages.yml).
+The repository's Pages source must be **GitHub Actions**. Kitchen projects and
+uploaded reference photos stay in the visitor's browser, not in the deployment.
 
 ## Quick start
 
@@ -36,7 +46,7 @@ npm run render:kitchens # regenerate gallery images with the real 3D renderer (r
   undo/redo, chained wall dimensions, floor/wall unit filter.
 - **Ready-made layouts**: straight, L-shaped or U-shaped starter kitchens
   sized to the room.
-- **20 kitchen inspiration designs**: open **Designs** (or **Kitchen designs**
+- **24 kitchen inspiration designs**: open **Designs** (or **Kitchen designs**
   in the phone's More menu), then click an image to load that exact kitchen
   in 3D. Choose straight, L-shaped, U-shaped or island kitchens in a range
   of finishes, with open-shelf and drawer variations. Every image is rendered
@@ -49,13 +59,65 @@ npm run render:kitchens # regenerate gallery images with the real 3D renderer (r
     choose actual materials before ordering. The separate **My room layout**
     option keeps the existing room and settings.
   - Run `npm run render:kitchens` after changing presets or the 3D renderer;
-    the twenty generated images in `public/kitchens/` ship with the app.
+    the 24 generated gallery images in `public/kitchens/` ship with the app.
+  - **Stacked uppers** filters four original contemporary kitchens: Greige
+    gallery, Ivory & oak, Olive & stone, and Walnut noir. They include two
+    separately editable upper rows, full-height storage, lit display cupboards,
+    handleless fronts and optional plinth lighting. They are interpretations
+    of the style, not copies of reference photographs.
+- **Stacked wall cabinets**: select a wall/display cupboard, upper corner, open shelf or
+  tall housing and use **Add cabinet above** in its properties or 3D toolbar.
+  Each added cupboard is an independent unit with its own cut parts, dimensions
+  and finishes. Its back anchor stays aligned, it keeps at least 30 mm below
+  the ceiling, and the complete insertion is one Undo step.
+  - The operation explains blocked space or insufficient height rather than
+    inserting overlapping cabinets. Manual height/position changes remain
+    editable and are checked as usual. Wall fixings, opening systems, load
+    ratings and appliance ventilation still require an installer specification.
+  - In **Plan**, **Upper cabinet row** makes overlapping rows individually
+    selectable. Full-height display cupboards remain visible across their
+    height bands; selecting one in 3D preserves the active row when returning
+    to the plan. Two, three or more rows are possible when the room allows.
+    Multi-row PDF reports contain a floor plan and separate upper-row plans.
+  - **Ceiling cupboards** in the library are 400 mm high and 560 mm deep;
+    their elevation follows the room height with a 30 mm fitting gap.
 - **3D**: orbit around the kitchen; walls facing the camera are hidden.
   Choose from 15 front colors/woods, seven worktops and six handle finishes.
   Warm marble and travertine have procedural textures; choose a backsplash,
-  switch warm under-cabinet lighting on, and style open shelves or glass
+  switch warm under-cabinet or plinth lighting on, and style open shelves or glass
   cabinets with accessories. Click a unit to edit it.
-- **More kitchen parts**: 46 library choices, including wide drawer units,
+  - Quick **3D / Front / Top** views, **Focus selected cabinet**, and a compact
+    selected-cabinet toolbar for move, rotate, copy and delete. Enable **Move**
+    and drag the X/Z handles: the same grid, wall faces and snapping rules as
+    the plan apply, and a whole drag is one Undo step. Each stacked tier moves
+    independently at its existing elevation. The visible cabinet stays aligned
+    with its saved position even when snapping prevents movement. Escape,
+    interrupted touch/pointer input or leaving the window cancels an unfinished
+    drag without an Undo entry and leaves the camera usable. Invalid placements are
+    highlighted in red and reported by Checks.
+  - Style controls start closed to leave the room visible. Front and carcass
+    finishes can also be chosen per unit, making two-tone kitchens possible.
+    Appearance is not a substitute for specifying the actual purchased boards.
+    Flat and Shaker-relief fronts are available; the relief is a visual preview,
+    while the cutting list gives blanks rather than machining or joinery drawings.
+    The 3D canvas renders on demand rather than continuously while idle.
+- **Photo studio**: a separate tab in **Kitchen designs** shows credited original
+  reference photos beside the renderer-derived previews of editable interpretations.
+  Open one to compare the original photo alongside live 3D. The model's dimensions
+  and details are estimates, not an automatic or exact reconstruction.
+  Interpretations open as new projects, preserving the current kitchen and starting
+  from the perspective camera used by their previews.
+  - A photo you own or have permission to use can be attached to any kitchen,
+    with an optional original-source or Pinterest link. JPEG, PNG and WebP files
+    up to 15 MB are resized/re-encoded to a bounded browser-local image; the photo
+    is included in project JSON files, not uploaded to a service.
+    Switching projects, closing the photo panel or removing the reference cancels
+    a pending photo change, so a late upload cannot alter another kitchen.
+  - Starter photographs: [White Wooden Cupboards, Mark McCammon](https://www.pexels.com/photo/white-wooden-cupboards-2724749/)
+    and [Modern Kitchen Interior with Warm Lighting, DOAN THANH BINH](https://www.pexels.com/photo/modern-kitchen-interior-with-warm-lighting-36887742/),
+    used under the [Pexels License](https://www.pexels.com/license/). Photographer
+    credit and original-source links remain visible in the app.
+- **More kitchen parts**: 52 library choices, including ceiling cupboards, wide drawer units,
   pull-out baskets, pantry sizes, open shelves, glass display cabinets,
   oven towers, separate hob cabinets, integrated fridge housings, extractor
   hoods, island drawer units and breakfast bars. Island and bar presets try
@@ -105,6 +167,18 @@ npm run render:kitchens # regenerate gallery images with the real 3D renderer (r
   window, a fridge next to the oven.
 - **Windows and doors** in the walls, shown on the plan and in 3D; new units
   are placed clear of them.
+- **Irregular rooms**: rectangular, L-shaped/stepped and diagonal-corner
+  footprints, plus editable full-height chimneys, columns and wall projections.
+  Structures reserve space but are not cabinet parts. Automatic placement
+  avoids them; manual conflicts remain visible as explicit design-check errors.
+  The plan, 3D view, PDF plan and saved project all use the same room geometry.
+  Active chimney fire/heat clearances must be specified with a qualified installer;
+  the room model is not a fire-safety calculation.
+  - Room setup includes **L-shaped room + chimney** and **Diagonal corner + column**
+    examples, each opened in a new project without replacing the current one.
+  - Cabinets still rotate in 90-degree steps. Diagonal boundaries are modeled
+    and checked for clearance; angled cabinetry, worktop cuts and openings in
+    diagonal walls need separate specifications.
 - Works on phones: full-screen plan, pinch to zoom, panels slide up from
   the bottom.
 
@@ -126,7 +200,7 @@ npm run render:kitchens # regenerate gallery images with the real 3D renderer (r
 | `src/i18n/` | Every word of the interface, in English (`en.ts`, which defines the shape) and Serbian (`sr.ts`, `srEngine.ts`); the compiler checks that Serbian has every entry. `useT()` gives a component the words for the chosen language. |
 | `src/store/` | Zustand stores (the design with undo history, UI state), projects (saving and loading), user commands, viewport maths |
 | `src/components/` | React UI: library, plan canvas (react-konva), 3D view (react-three-fiber, loaded on demand), properties, construction dialog, cutting list, projects, phone layout |
-| `scripts/e2e.mjs` | Browser test |
+| `scripts/*.mjs` | Desktop and phone browser regression tests, gallery-image renderer |
 
 ## Conventions
 

@@ -2,9 +2,12 @@ import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { alongWall, wallLength } from '../../domain/openings';
-import { WORKTOP_KINDS, WORKTOP_THICKNESS } from '../../domain/catalog';
+import { roomOutline, roomWallRuns } from '../../domain/roomGeometry';
+import { hasWorktop, WORKTOP_THICKNESS } from '../../domain/catalog';
 import type { KitchenItem, Opening, Room, Wall } from '../../domain/types';
-import { isFlushWith, itemRect, mountingWalls, WALLS } from '../../domain/geometry';
+import { itemRect, mountingWalls } from '../../domain/geometry';
+import { backsplashTop } from '../../domain/upperCabinets';
+import { useUiStore } from '../../store/uiStore';
 import { WALL_THICKNESS } from '../../store/viewport';
 import { m, type KitchenMaterials } from './materials';
 
@@ -76,45 +79,86 @@ export function Room3D({ room, openings, items, materials }: { room: Room; openi
   const D = m(room.depth);
   const H = m(room.height);
   const T = m(WALL_THICKNESS);
-  const groups = useRef<Partial<Record<Wall, THREE.Group | null>>>({});
-  const centres = useMemo<Record<Wall, THREE.Vector3>>(
-    () => ({
-      top: new THREE.Vector3(W / 2, H / 2, -T / 2),
-      bottom: new THREE.Vector3(W / 2, H / 2, D + T / 2),
-      left: new THREE.Vector3(-T / 2, H / 2, D / 2),
-      right: new THREE.Vector3(W + T / 2, H / 2, D / 2),
-    }),
-    [W, D, H, T],
-  );
+  const groups = useRef<Array<THREE.Group | null>>([]);
+  const diagonalGroups = useRef<Array<THREE.Group | null>>([]);
+  const outline = useMemo(() => roomOutline(room), [room]);
+  const surfaces = useMemo(() => roomWallRuns(room, false), [room]);
+  const centres = useMemo(() => surfaces.map((surface) => {
+    const along = m((surface.from + surface.to) / 2);
+    const offset = m(surface.offset);
+    const normal = OUTWARD[surface.wall];
+    return new THREE.Vector3(surface.wall === 'top' || surface.wall === 'bottom' ? along : offset, H / 2, surface.wall === 'top' || surface.wall === 'bottom' ? offset : along).addScaledVector(normal, T / 2);
+  }), [surfaces, H, T]);
+  const diagonal = useMemo(() => outline.flatMap((point, index) => {
+    const end = outline[(index + 1) % outline.length];
+    const dx = m(end.x - point.x);
+    const dz = m(end.y - point.y);
+    if (!dx || !dz) return [];
+    const length = Math.hypot(dx, dz);
+    const outward = new THREE.Vector3(dz / length, 0, -dx / length);
+    const centre = new THREE.Vector3(m((point.x + end.x) / 2), H / 2, m((point.y + end.y) / 2)).addScaledVector(outward, T / 2);
+    return [{ length, outward, centre, angle: -Math.atan2(dz, dx) }];
+  }), [outline, H, T]);
+  const floor = useMemo(() => {
+    const shape = new THREE.Shape();
+    outline.forEach((point, index) => index === 0 ? shape.moveTo(m(point.x), -m(point.y)) : shape.lineTo(m(point.x), -m(point.y)));
+    shape.closePath();
+    return shape;
+  }, [outline]);
   const toCamera = useMemo(() => new THREE.Vector3(), []);
 
   useFrame(({ camera }) => {
-    for (const wall of WALLS) {
-      const group = groups.current[wall];
-      if (group) group.visible = toCamera.copy(camera.position).sub(centres[wall]).dot(OUTWARD[wall]) <= 0;
-    }
+    surfaces.forEach((surface, index) => {
+      const group = groups.current[index];
+      if (group) group.visible = toCamera.copy(camera.position).sub(centres[index]).dot(OUTWARD[surface.wall]) <= 0;
+    });
+    diagonal.forEach((surface, index) => {
+      const group = diagonalGroups.current[index];
+      if (group) group.visible = toCamera.copy(camera.position).sub(surface.centre).dot(surface.outward) <= 0;
+    });
   });
 
   const wallColor = '#f0ede7';
   const backsplash = materials.backsplash;
   return (
     <>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[W / 2, 0, D / 2]} receiveShadow>
-        <planeGeometry args={[W, D]} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <shapeGeometry args={[floor]} />
         <meshStandardMaterial color="#d8d0c4" roughness={0.92} />
       </mesh>
-      {WALLS.map((wall) => {
+      {(room.features ?? []).map((feature) => (
+        <mesh key={feature.id} position={[m(feature.x + feature.width / 2), H / 2, m(feature.y + feature.depth / 2)]} castShadow receiveShadow onClick={(event) => { event.stopPropagation(); useUiStore.getState().setRoomOpen(true); }}>
+          <boxGeometry args={[m(feature.width), H, m(feature.depth)]} />
+          <meshStandardMaterial color={feature.kind === 'chimney' ? '#d2c3ad' : '#e1dacf'} roughness={0.9} />
+        </mesh>
+      ))}
+      {diagonal.map((surface, index) => (
+        <group key={`diagonal-${index}`} ref={(group) => { diagonalGroups.current[index] = group; }}>
+          <mesh position={surface.centre} rotation={[0, surface.angle, 0]} receiveShadow>
+            <boxGeometry args={[surface.length + T, H, T]} />
+            <meshStandardMaterial color={wallColor} roughness={0.95} />
+          </mesh>
+        </group>
+      ))}
+      {surfaces.map((surface, index) => {
+        const wall = surface.wall;
         const length = m(wallLength(room, wall));
-        const own = openings.filter((o) => o.wall === wall);
-        const pieces = solidParts(length, H, own);
+        const outerOffset = wall === 'top' || wall === 'left' ? 0 : wall === 'bottom' ? room.depth : room.width;
+        const own = surface.offset === outerOffset ? openings.filter((o) => o.wall === wall && o.offset >= surface.from && o.offset + o.width <= surface.to) : [];
+        const pieces = solidParts(length, H, own).map((piece) => ({ ...piece, from: Math.max(piece.from, m(surface.from)), to: Math.min(piece.to, m(surface.to)) })).filter((piece) => piece.to > piece.from);
         const cladding = backsplash
-          ? items.filter((item) => WORKTOP_KINDS.has(item.kind) && mountingWalls(item).includes(wall) && isFlushWith(itemRect(item), wall, room))
+          ? items.filter((item) => {
+              const rect = itemRect(item);
+              const back = wall === 'top' ? rect.y : wall === 'bottom' ? rect.y + rect.h : wall === 'left' ? rect.x : rect.x + rect.w;
+              return hasWorktop(item) && mountingWalls(item).includes(wall) && Math.abs(back - surface.offset) <= 1;
+            })
             .flatMap((item) => {
               const [start, end] = alongWall(itemRect(item), wall);
               const bottom = m(item.elevation + item.height + WORKTOP_THICKNESS);
+              const top = m(backsplashTop(item, items, wall));
               return pieces.map((piece) => ({
                 from: Math.max(m(start), piece.from), to: Math.min(m(end), piece.to),
-                bottom: Math.max(bottom, piece.bottom), top: Math.min(bottom + 0.6, piece.top),
+                bottom: Math.max(bottom, piece.bottom), top: Math.min(top, piece.top),
               })).filter((piece) => piece.to > piece.from && piece.top > piece.bottom);
             })
           : [];
@@ -122,15 +166,16 @@ export function Room3D({ room, openings, items, materials }: { room: Room; openi
         const ends: Piece[] =
           wall === 'top' || wall === 'bottom'
             ? [
-                { from: -T, to: 0, bottom: 0, top: H },
-                { from: length, to: length + T, bottom: 0, top: H },
+                { from: m(surface.from) - T, to: m(surface.from), bottom: 0, top: H },
+                { from: m(surface.to), to: m(surface.to) + T, bottom: 0, top: H },
               ]
             : [];
         return (
           <group
-            key={wall}
+            key={`${wall}-${index}`}
+            position={wall === 'top' || wall === 'bottom' ? [0, 0, m(surface.offset - outerOffset)] : [m(surface.offset - outerOffset), 0, 0]}
             ref={(group) => {
-              groups.current[wall] = group;
+              groups.current[index] = group;
             }}
           >
             {[...pieces, ...ends].map((piece, i) => {
@@ -144,7 +189,7 @@ export function Room3D({ room, openings, items, materials }: { room: Room; openi
             })}
             {backsplash && cladding.map((piece, i) => {
               const box = boxFor(wall, { W, D }, T, { ...piece, inset: -0.006, depth: 0.012 });
-              return <mesh key={`cladding-${i}`} position={box.position} material={backsplash} receiveShadow><boxGeometry args={box.size} /></mesh>;
+              return <mesh key={`cladding-${i}`} name={`kitchen-backsplash-${index}-${i}`} position={box.position} material={backsplash} receiveShadow><boxGeometry args={box.size} /></mesh>;
             })}
             {own.map((o) => {
               const from = m(o.offset);

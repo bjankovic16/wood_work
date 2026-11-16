@@ -1,12 +1,13 @@
 import { Edges } from '@react-three/drei';
-import { memo, type ReactNode } from 'react';
+import { memo, useEffect, useMemo, type ReactNode, type Ref } from 'react';
 import type * as THREE from 'three';
-import { BASE_HEIGHT, PLINTH_HEIGHT, WORKTOP_KINDS } from '../../domain/catalog';
+import { BASE_HEIGHT, PLINTH_HEIGHT, hasWorktop } from '../../domain/catalog';
 import { isWallMounted, localToRoom } from '../../domain/geometry';
 import type { KitchenItem } from '../../domain/types';
+import { DEFAULT_STYLE, type FrontProfile } from '../../domain/style';
 import { KIND_OPTIONS, resolveConfig, type BuildContext } from '../../engine/config';
 import { cornerDoorWidths, frontLayout, OVEN_NICHE_HEIGHT, TOWER_OVEN_BOTTOM, type FrontRect } from '../../engine/fronts';
-import { m, type KitchenMaterials } from './materials';
+import { createMaterials, disposeMaterials, m, type KitchenMaterials } from './materials';
 
 type Vec3 = [number, number, number];
 
@@ -21,6 +22,27 @@ function Box({ size, position, material, rotation }: { size: Vec3; position: Vec
     <mesh position={position} rotation={rotation} material={material} castShadow receiveShadow>
       <boxGeometry args={size} />
     </mesh>
+  );
+}
+
+function FloorWash({ W, D, E, materials }: { W: number; D: number; E: number; materials: KitchenMaterials }) {
+  return (
+    <mesh position={[W / 2, -E + 0.003, D + 0.14]} rotation={[-Math.PI / 2, 0, 0]} material={materials.floorGlow} raycast={() => null}>
+      <planeGeometry args={[W, 0.45]} />
+    </mesh>
+  );
+}
+
+function DoorSurface({ W, H, thickness, material, profile }: { W: number; H: number; thickness: number; material: THREE.Material; profile?: FrontProfile }) {
+  if (profile !== 'shaker') return <Box size={[W, H, thickness]} position={[W / 2, H / 2, thickness / 2]} material={material} />;
+  const frame = Math.min(0.055, W * 0.18, H * 0.18);
+  const panel = Math.max(thickness * 0.55, thickness - 0.006);
+  return (
+    <>
+      <Box size={[W - 2 * frame, H - 2 * frame, panel]} position={[W / 2, H / 2, panel / 2]} material={material} />
+      {[frame / 2, W - frame / 2].map((x) => <Box key={`stile-${x}`} size={[frame, H, thickness]} position={[x, H / 2, thickness / 2]} material={material} />)}
+      {[frame / 2, H - frame / 2].map((y) => <Box key={`rail-${y}`} size={[W - 2 * frame, frame, thickness]} position={[W / 2, y, thickness / 2]} material={material} />)}
+    </>
   );
 }
 
@@ -50,9 +72,10 @@ interface FrontsProps {
   /** Handles at the bottom of doors, as on wall units. */
   lowHandles: (front: FrontRect) => boolean;
   glass?: boolean;
+  profile?: FrontProfile;
 }
 
-function Fronts({ fronts, z, thickness, materials, lowHandles, glass = false }: FrontsProps) {
+function Fronts({ fronts, z, thickness, materials, lowHandles, glass = false, profile }: FrontsProps) {
   return (
     <>
       {fronts.map((front, i) => {
@@ -61,7 +84,9 @@ function Fronts({ fronts, z, thickness, materials, lowHandles, glass = false }: 
         const handle = materials.handle ? handleBox(front, z + thickness, lowHandles(front)) : null;
         return (
           <group key={i}>
-            <Box size={[w, h, thickness]} position={[m(front.x) + w / 2, m(front.y) + h / 2, z + thickness / 2]} material={glass ? materials.displayGlass : materials.front} />
+            <group position={[m(front.x), m(front.y), z]}>
+              <DoorSurface W={w} H={h} thickness={thickness} material={glass ? materials.displayGlass : materials.front} profile={glass ? 'flat' : profile} />
+            </group>
             {glass && [0.07, h - 0.07].map((offset) => (
               <Box key={offset} size={[0.022, 0.032, 0.018]} position={[m(front.x) + (front.hinge === 'right' ? w - 0.008 : 0.008), m(front.y) + offset, z + thickness]} material={materials.steel} />
             ))}
@@ -176,12 +201,13 @@ function Fridge({ W, H, D, materials }: { W: number; H: number; D: number; mater
   );
 }
 
-function SelectionBox({ size, position }: { size: Vec3; position: Vec3 }) {
+function SelectionBox({ size, position, invalid = false }: { size: Vec3; position: Vec3; invalid?: boolean }) {
+  const color = invalid ? '#dc2626' : ACCENT;
   return (
     <mesh position={position} raycast={() => null}>
       <boxGeometry args={size} />
-      <meshBasicMaterial color={ACCENT} transparent opacity={0.07} depthWrite={false} />
-      <Edges color={ACCENT} />
+      <meshBasicMaterial color={color} transparent opacity={0.07} depthWrite={false} />
+      <Edges color={color} />
     </mesh>
   );
 }
@@ -193,6 +219,9 @@ interface UnitProps {
   selected: boolean;
   onSelect: (id: string) => void;
   accentLight?: boolean;
+  underLighting?: boolean;
+  invalid?: boolean;
+  objectRef?: Ref<THREE.Group>;
 }
 
 /**
@@ -200,7 +229,12 @@ interface UnitProps {
  * underside of the carcass; inside it, x runs along the front, y up, and z
  * from the back towards the front, matching the plan's local frame.
  */
-export const Unit3D = memo(function Unit3D({ item, ctx, materials, selected, onSelect, accentLight = false }: UnitProps) {
+export const Unit3D = memo(function Unit3D({ item, ctx, materials: sharedMaterials, selected, onSelect, accentLight = false, underLighting = true, invalid = false, objectRef }: UnitProps) {
+  const localMaterials = useMemo(() => item.frontFinish || item.carcassFinish
+    ? createMaterials({ ...(ctx.style ?? DEFAULT_STYLE), front: item.frontFinish ?? ctx.style?.front ?? DEFAULT_STYLE.front }, item.carcassFinish)
+    : null, [ctx.style, item.frontFinish, item.carcassFinish]);
+  useEffect(() => () => { if (localMaterials) disposeMaterials(localMaterials); }, [localMaterials]);
+  const materials = localMaterials ?? sharedMaterials;
   const { settings } = ctx;
   const anchor = localToRoom(item, 0, 0);
   const W = m(item.width);
@@ -213,7 +247,7 @@ export const Unit3D = memo(function Unit3D({ item, ctx, materials, selected, onS
   const fronts = frontLayout(item, config, settings);
   const wallUnit = isWallMounted(item);
   const lowHandles = (front: FrontRect) => wallUnit || (item.kind === 'tall' && front.y >= BASE_HEIGHT);
-  const worktop = WORKTOP_KINDS.has(item.kind) && !wallUnit && item.elevation + item.height <= 1000;
+  const worktop = hasWorktop(item);
   const plinth = !wallUnit && E >= 0.03 && item.kind !== 'fridge' && item.kind !== 'endPanel';
   const worktopDepth = D + tf + WORKTOP_OVERHANG;
 
@@ -262,7 +296,9 @@ export const Unit3D = memo(function Unit3D({ item, ctx, materials, selected, onS
         <>
           <Box size={[W - 0.004, H - p, D - 0.06]} position={[W / 2, p + (H - p) / 2, (D - 0.06) / 2 + 0.03]} material={materials.appliance} />
           <Box size={[W, p, 0.016]} position={[W / 2, p / 2, D - PLINTH_SETBACK]} material={materials.front} />
-          <Fronts fronts={fronts} z={D} thickness={tf} materials={materials} lowHandles={() => false} />
+          <Fronts fronts={fronts} z={D} thickness={tf} materials={materials} lowHandles={() => false} profile={ctx.style?.frontProfile} />
+          {ctx.style?.plinthLighting && <Box size={[W - 0.025, 0.006, 0.012]} position={[W / 2, p - 0.015, D - PLINTH_SETBACK + 0.01]} material={materials.light} />}
+          {ctx.style?.plinthLighting && <FloorWash W={W} D={D} E={0} materials={materials} />}
         </>
       );
       break;
@@ -275,8 +311,8 @@ export const Unit3D = memo(function Unit3D({ item, ctx, materials, selected, onS
         <>
           <Box size={[W, H, D]} position={[W / 2, H / 2, D / 2]} material={materials.carcass} />
           <Box size={[D, H, W2 - D]} position={[D / 2, H / 2, D + (W2 - D) / 2]} material={materials.carcass} />
-          <Box size={[a, doorH, tf]} position={[W - gap / 2 - a / 2, H / 2, D + tf / 2]} material={materials.front} />
-          <Box size={[tf, doorH, b]} position={[D + tf / 2, H / 2, W2 - gap / 2 - b / 2]} material={materials.front} />
+          <group position={[W - gap / 2 - a, gap / 2, D]}><DoorSurface W={a} H={doorH} thickness={tf} material={materials.front} profile={ctx.style?.frontProfile} /></group>
+          <group position={[D, gap / 2, W2 - gap / 2]} rotation={[0, Math.PI / 2, 0]}><DoorSurface W={b} H={doorH} thickness={tf} material={materials.front} profile={ctx.style?.frontProfile} /></group>
           {materials.handle && (
             <Box
               size={[0.012, Math.min(0.16, doorH * 0.5), 0.012]}
@@ -300,13 +336,28 @@ export const Unit3D = memo(function Unit3D({ item, ctx, materials, selected, onS
               <Box size={[0.016, E, W2 - D + PLINTH_SETBACK]} position={[D - PLINTH_SETBACK, -E / 2, (W2 + D - PLINTH_SETBACK) / 2]} material={materials.front} />
             </>
           )}
+          {plinth && ctx.style?.plinthLighting && (
+            <>
+              <Box size={[W - D + PLINTH_SETBACK, 0.006, 0.012]} position={[(W + D - PLINTH_SETBACK) / 2, -0.015, D - PLINTH_SETBACK + 0.01]} material={materials.light} />
+              <Box size={[0.012, 0.006, W2 - D + PLINTH_SETBACK]} position={[D - PLINTH_SETBACK + 0.01, -0.015, (W2 + D - PLINTH_SETBACK) / 2]} material={materials.light} />
+              <group position={[D, 0, 0]}><FloorWash W={W - D} D={D} E={E} materials={materials} /></group>
+              <group position={[0, 0, W2]} rotation={[0, Math.PI / 2, 0]}><FloorWash W={W2 - D} D={D} E={E} materials={materials} /></group>
+            </>
+          )}
+          {wallUnit && underLighting && ctx.style?.lighting && (
+            <>
+              <Box size={[W - D, 0.008, 0.015]} position={[(W + D) / 2, -0.008, D - 0.025]} material={materials.light} />
+              <Box size={[0.015, 0.008, W2 - D]} position={[D - 0.025, -0.008, (W2 + D) / 2]} material={materials.light} />
+              {accentLight && <pointLight position={[D + 0.05, -0.1, D + 0.05]} color="#ffd395" intensity={0.16} distance={1.6} decay={2} />}
+            </>
+          )}
         </>
       );
       bounds = { size: [W, H, W2], position: [W / 2, H / 2, W2 / 2] };
       return (
-        <UnitGroup item={item} anchor={anchor} onSelect={onSelect}>
+        <UnitGroup item={item} anchor={anchor} onSelect={onSelect} objectRef={objectRef}>
           {body}
-          {selected && <SelectionBox {...bounds} />}
+          {(selected || invalid) && <SelectionBox {...bounds} invalid={invalid} />}
         </UnitGroup>
       );
     }
@@ -330,9 +381,12 @@ export const Unit3D = memo(function Unit3D({ item, ctx, materials, selected, onS
               back={KIND_OPTIONS[item.kind].back}
             />
           ) : (
-            <Box size={[W, H, D]} position={[W / 2, H / 2, D / 2]} material={materials.carcass} />
+            <>
+              <Box size={[W, H, D]} position={[W / 2, H / 2, D / 2]} material={materials.carcass} />
+              {ctx.style?.handles === 'none' && fronts.length > 0 && <Box size={[W, H, 0.001]} position={[W / 2, H / 2, D + 0.0005]} material={materials.glass} />}
+            </>
           )}
-          <Fronts fronts={fronts} z={inset ? D - tf : D} thickness={tf} materials={materials} lowHandles={lowHandles} glass={glass} />
+          <Fronts fronts={fronts} z={inset ? D - tf : D} thickness={tf} materials={materials} lowHandles={lowHandles} glass={glass} profile={ctx.style?.frontProfile} />
           {item.kind === 'oven' && <OvenFront W={W} H={H} D={D} gap={gap} materials={materials} />}
           {item.kind === 'ovenTower' && (
             <>
@@ -345,38 +399,50 @@ export const Unit3D = memo(function Unit3D({ item, ctx, materials, selected, onS
           {ctx.style?.decor && (item.kind === 'shelf' || glass) && config.shelves > 0 && (
             <ShelfDecor W={W} H={H} D={D} t={m(config.carcass.thickness)} shelves={config.shelves} materials={materials} />
           )}
+          {glass && ctx.style?.lighting && Array.from({ length: config.shelves + 1 }, (_, index) => (
+            <Box key={index} size={[Math.max(0.1, W - 0.05), 0.006, 0.008]} position={[W / 2, H - m(config.carcass.thickness) - index * (H - 2 * m(config.carcass.thickness)) / (config.shelves + 1) - 0.01, 0.02]} material={materials.light} />
+          ))}
         </>
       );
     }
   }
 
   return (
-    <UnitGroup item={item} anchor={anchor} onSelect={onSelect}>
+    <UnitGroup item={item} anchor={anchor} onSelect={onSelect} objectRef={objectRef}>
       {body}
       {worktop && <Worktop W={W} D={worktopDepth} H={H} materials={materials} />}
       {worktop && item.kind === 'sink' && <Sink W={W} D={worktopDepth} top={H + WORKTOP} materials={materials} />}
       {worktop && (item.kind === 'oven' || item.kind === 'hob') && <Hob W={W} D={worktopDepth} top={H + WORKTOP} materials={materials} />}
       {plinth && <Box size={[W, E, 0.016]} position={[W / 2, -E / 2, D - PLINTH_SETBACK]} material={materials.front} />}
-      {item.kind === 'integratedFridge' && E > 0.04 && <Box size={[W * 0.82, Math.min(E * 0.6, 0.055), 0.008]} position={[W / 2, -E / 2, D - PLINTH_SETBACK + 0.012]} material={materials.dark} />}
-      {ctx.style?.lighting && wallUnit && KIND_OPTIONS[item.kind].carcass && (
+      {plinth && ctx.style?.plinthLighting && (
         <>
-          <Box size={[Math.max(0.1, W - 0.08), 0.008, 0.015]} position={[W / 2, -0.008, D - 0.025]} material={materials.light} />
-          {accentLight && <pointLight position={[W / 2, -0.1, D * 0.7]} color="#ffd395" intensity={0.16} distance={1.6} decay={2} />}
+          <Box size={[Math.max(0.005, W - 0.025), 0.006, 0.012]} position={[W / 2, -0.015, D - PLINTH_SETBACK + 0.01]} material={materials.light} />
+          <FloorWash W={W} D={D} E={E} materials={materials} />
         </>
       )}
-      {selected && <SelectionBox {...bounds} />}
+      {item.kind === 'integratedFridge' && E > 0.04 && <Box size={[W * 0.82, Math.min(E * 0.6, 0.055), 0.008]} position={[W / 2, -E / 2, D - PLINTH_SETBACK + 0.012]} material={materials.dark} />}
+      {ctx.style?.lighting && wallUnit && underLighting && KIND_OPTIONS[item.kind].carcass && (
+        <>
+          <Box size={[Math.max(0.1, W - 0.08), 0.008, 0.015]} position={[W / 2, -0.008, D - 0.025]} material={materials.light} />
+          {accentLight && <pointLight position={[W / 2, item.kind === 'glassWall' ? H * 0.55 : -0.1, D * 0.7]} color="#ffd395" intensity={0.16} distance={1.6} decay={2} />}
+        </>
+      )}
+      {(selected || invalid) && <SelectionBox {...bounds} invalid={invalid} />}
     </UnitGroup>
   );
 });
 
-function UnitGroup({ item, anchor, onSelect, children }: {
+function UnitGroup({ item, anchor, onSelect, children, objectRef }: {
   item: KitchenItem;
   anchor: { x: number; y: number };
   onSelect: (id: string) => void;
   children: ReactNode;
+  objectRef?: Ref<THREE.Group>;
 }) {
   return (
     <group
+      ref={objectRef}
+      name={item.id}
       position={[m(anchor.x), m(item.elevation), m(anchor.y)]}
       rotation={[0, (-item.rotation * Math.PI) / 180, 0]}
       onClick={(e) => {

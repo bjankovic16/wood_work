@@ -3,7 +3,9 @@
 export type FrontFinish = 'white' | 'cream' | 'grey' | 'sage' | 'navy' | 'anthracite' | 'oak' | 'walnut' | 'cashmere' | 'sand' | 'taupe' | 'olive' | 'clay' | 'espresso' | 'ash';
 export type WorktopFinish = 'stone' | 'oak' | 'concrete' | 'black' | 'marble' | 'travertine' | 'walnut';
 export type HandleStyle = 'steel' | 'black' | 'brass' | 'none' | 'bronze' | 'copper';
-export type BacksplashFinish = 'none' | 'stone' | 'marble' | 'travertine';
+export type BacksplashFinish = 'none' | 'stone' | 'marble' | 'travertine' | 'black';
+export type ApplianceFinish = 'white' | 'steel' | 'black';
+export type FrontProfile = 'flat' | 'shaker';
 
 export interface KitchenStyle {
   front: FrontFinish;
@@ -11,7 +13,10 @@ export interface KitchenStyle {
   handles: HandleStyle;
   backsplash?: BacksplashFinish;
   lighting?: boolean;
+  plinthLighting?: boolean;
   decor?: boolean;
+  appliances?: ApplianceFinish;
+  frontProfile?: FrontProfile;
 }
 
 /** How a finish looks; its name comes with the interface language. */
@@ -64,6 +69,11 @@ export const BACKSPLASH_FINISHES: Record<BacksplashFinish, Finish> = {
   stone: WORKTOP_FINISHES.stone,
   marble: WORKTOP_FINISHES.marble,
   travertine: WORKTOP_FINISHES.travertine,
+  black: WORKTOP_FINISHES.black,
+};
+
+export const APPLIANCE_FINISHES: Record<ApplianceFinish, Finish> = {
+  white: { color: '#f4f5f6' }, steel: { color: '#bfc2c1' }, black: { color: '#202122' },
 };
 
 export const DEFAULT_STYLE: KitchenStyle = { front: 'white', worktop: 'stone', handles: 'steel' };
@@ -71,13 +81,16 @@ export const DEFAULT_STYLE: KitchenStyle = { front: 'white', worktop: 'stone', h
 export function parseStyle(raw: unknown): KitchenStyle {
   const v = (raw ?? {}) as Record<string, unknown>;
   const pick = <T extends string>(value: unknown, options: Record<T, unknown>, fallback: T): T =>
-    typeof value === 'string' && value in options ? (value as T) : fallback;
+    typeof value === 'string' && Object.hasOwn(options, value) ? (value as T) : fallback;
   return {
     front: pick(v.front, FRONT_FINISHES, DEFAULT_STYLE.front),
     worktop: pick(v.worktop, WORKTOP_FINISHES, DEFAULT_STYLE.worktop),
     handles: pick(v.handles, HANDLE_STYLES, DEFAULT_STYLE.handles),
-    ...(typeof v.backsplash === 'string' && v.backsplash in BACKSPLASH_FINISHES ? { backsplash: v.backsplash as BacksplashFinish } : {}),
+    ...(typeof v.backsplash === 'string' && Object.hasOwn(BACKSPLASH_FINISHES, v.backsplash) ? { backsplash: v.backsplash as BacksplashFinish } : {}),
     ...(typeof v.lighting === 'boolean' ? { lighting: v.lighting } : {}),
+    ...(typeof v.plinthLighting === 'boolean' ? { plinthLighting: v.plinthLighting } : {}),
     ...(typeof v.decor === 'boolean' ? { decor: v.decor } : {}),
+    ...(typeof v.appliances === 'string' && Object.hasOwn(APPLIANCE_FINISHES, v.appliances) ? { appliances: v.appliances as ApplianceFinish } : {}),
+    ...(v.frontProfile === 'flat' || v.frontProfile === 'shaker' ? { frontProfile: v.frontProfile } : {}),
   };
 }

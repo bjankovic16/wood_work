@@ -1,0 +1,46 @@
+import assert from 'node:assert/strict';
+
+export async function movementHandle(page, axis, distance = 0) {
+  await page.waitForFunction(() => Boolean(window.__kitchen3D.scene.getObjectByName('kitchen-move-tool')));
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  return page.evaluate(({ axis, distance }) => {
+    const { scene, camera } = window.__kitchen3D;
+    scene.updateMatrixWorld(true);
+    camera.updateMatrixWorld(true);
+    const candidates = [];
+    scene.getObjectByName('kitchen-move-tool').traverse((object) => {
+      if (!object.isMesh || object.name !== axis) return;
+      for (let parent = object; parent; parent = parent.parent) if (!parent.visible) return;
+      object.geometry.computeBoundingBox();
+      const box = object.geometry.boundingBox.clone().applyMatrix4(object.matrixWorld);
+      candidates.push(box.getCenter(camera.position.clone()));
+    });
+    const coordinate = axis.toLowerCase();
+    candidates.sort((a, b) => b[coordinate] - a[coordinate]);
+    if (!candidates.length) throw new Error(`No visible ${axis} movement handle was rendered.`);
+    const start = candidates[0];
+    const end = start.clone();
+    end[coordinate] += distance;
+    const rect = document.querySelector('main canvas').getBoundingClientRect();
+    const screen = (point) => {
+      point.project(camera);
+      return { x: rect.x + (point.x + 1) * rect.width / 2, y: rect.y + (1 - point.y) * rect.height / 2 };
+    };
+    return { from: screen(start), to: screen(end) };
+  }, { axis, distance });
+}
+
+export async function assertScenePlacement(page, id) {
+  const placement = await page.evaluate(async (id) => {
+    const { localToRoom } = await import('/src/domain/geometry.ts');
+    const item = window.__kitchen.design.getState().design.items.find((candidate) => candidate.id === id);
+    const object = window.__kitchen3D.scene.getObjectByName(id);
+    const anchor = localToRoom(item, 0, 0);
+    return {
+      actual: [...object.position.toArray(), object.rotation.y],
+      expected: [anchor.x / 1000, item.elevation / 1000, anchor.y / 1000, -item.rotation * Math.PI / 180],
+    };
+  }, id);
+  assert.ok(placement.actual.every((value, index) => Math.abs(value - placement.expected[index]) < 0.000001),
+    `The rendered cabinet must match its saved placement: ${JSON.stringify(placement)}`);
+}

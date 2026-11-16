@@ -1,4 +1,4 @@
-import { WORKTOP_KINDS, WORKTOP_THICKNESS } from '../domain/catalog';
+import { hasWorktop, WORKTOP_THICKNESS } from '../domain/catalog';
 import {
   footprintRects,
   footprintsOverlap,
@@ -12,6 +12,8 @@ import {
   WALLS,
 } from '../domain/geometry';
 import { alongWall, doorClearance, wallLength } from '../domain/openings';
+import { openingFitsRoomWall, roomContainsRect, roomFeatureRect } from '../domain/roomGeometry';
+import { inUpperRow, upperCabinetRows } from '../domain/upperCabinets';
 import type { Design, KitchenItem, Material } from '../domain/types';
 import { KIND_OPTIONS, buildContext, resolveConfig } from './config';
 import { frontLayout } from './fronts';
@@ -28,6 +30,7 @@ export interface Issue {
   message: string;
   /** Units involved; the first one is shown when the issue is opened. */
   itemIds: string[];
+  roomFeatureId?: string;
 }
 
 /** Gaps narrower than this between units, or to a wall, cannot be used and should be closed or filled. */
@@ -43,7 +46,7 @@ const MIN_SLIDE_DEPTH = 260;
 
 /** Top of a floor unit, including its worktop. */
 function workingTop(item: KitchenItem): number {
-  return item.elevation + item.height + (WORKTOP_KINDS.has(item.kind) ? WORKTOP_THICKNESS : 0);
+  return item.elevation + item.height + (hasWorktop(item) ? WORKTOP_THICKNESS : 0);
 }
 
 /** Whether a piece can be cut from one sheet; with grain it cannot be turned. */
@@ -74,40 +77,57 @@ export function checkDesign(design: Design, labels: EngineLabels = EN_LABELS): I
         add('error', `overlap-${a.id}-${b.id}`, say.overlap(a.label, b.label), [a.id, b.id]);
       }
     }
-    if (!insideRoom(itemRect(a), room)) add('error', `outside-${a.id}`, say.outside(a.label), [a.id]);
+    if (!footprintRects(a).every((rect) => insideRoom(rect, room))) add('error', `outside-${a.id}`, say.outside(a.label), [a.id]);
     if (a.elevation + a.height > room.height) {
       add('error', `ceiling-${a.id}`, say.ceiling(a.label, a.elevation + a.height, room.height), [a.id]);
     }
   });
 
+  for (const [index, feature] of (room.features ?? []).entries()) {
+    const name = `${labels.roomFeatures[feature.kind]} ${index + 1}`;
+    const rect = roomFeatureRect(feature);
+    if (feature.kind === 'chimney') issues.push({ key: `chimney-clearance-${feature.id}`, severity: 'warning', message: say.chimneyClearance(name), itemIds: [], roomFeatureId: feature.id });
+    if (!roomContainsRect(rect, room)) issues.push({ key: `room-feature-${feature.id}`, severity: 'error', message: say.roomFeatureOutside(name), itemIds: [], roomFeatureId: feature.id });
+    for (const item of items) {
+      if (item.elevation < room.height && item.elevation + item.height > 0 && footprintRects(item).some((footprint) => rectsOverlap(footprint, rect))) {
+        add('error', `structure-${feature.id}-${item.id}`, say.roomFeatureCollision(item.label, name), [item.id]);
+      }
+    }
+  }
+  if (items.length > 0 && design.style.frontProfile === 'shaker') add('warning', 'front-profile', say.frontProfile);
+  if (design.style.handles === 'none' && items.some((item) => KIND_OPTIONS[item.kind].fronts)) add('warning', 'handleless', say.handleless);
+
   // Unusable gaps along each wall, between units at the same height or between a unit and the wall.
   for (const wall of WALLS) {
     const length = wallLength(room, wall);
     for (const level of ['floor', 'wall'] as const) {
-      const spans = items
-        .filter((item) => (level === 'wall') === isWallMounted(item) && mountingWalls(item).includes(wall) && isFlushWith(itemRect(item), wall, room))
-        .map((item) => {
-          const [start, end] = alongWall(itemRect(item), wall);
-          return { item, start, end };
-        })
-        .sort((a, b) => a.start - b.start);
-      if (spans.length === 0) continue;
-      let previous: { item: KitchenItem | null; end: number } = { item: null, end: 0 };
-      for (const span of [...spans, { item: null, start: length, end: length }]) {
-        const gap = Math.round(span.start - previous.end);
-        if (gap > 0 && gap < MIN_USEFUL_GAP && (previous.item || span.item)) {
-          const message =
-            previous.item && span.item
-              ? say.gap(gap, previous.item.label, span.item.label, wall)
-              : say.gap(gap, (previous.item ?? span.item)!.label, null, wall);
-          add(
-            'warning',
-            `gap-${wall}-${level}-${previous.end}`,
-            message,
-            [previous.item, span.item].filter((x): x is KitchenItem => x !== null).map((x) => x.id),
-          );
+      const rows = level === 'wall' ? upperCabinetRows(items) : [undefined];
+      for (const row of rows) {
+        const spans = items
+          .filter((item) => (level === 'wall') === isWallMounted(item) && (!row || inUpperRow(item, row)) && mountingWalls(item).includes(wall) && isFlushWith(itemRect(item), wall, room))
+          .map((item) => {
+            const [start, end] = alongWall(itemRect(item), wall);
+            return { item, start, end };
+          })
+          .sort((a, b) => a.start - b.start);
+        if (spans.length === 0) continue;
+        let previous: { item: KitchenItem | null; end: number } = { item: null, end: 0 };
+        for (const span of [...spans, { item: null, start: length, end: length }]) {
+          const gap = Math.round(span.start - previous.end);
+          if (gap > 0 && gap < MIN_USEFUL_GAP && (previous.item || span.item)) {
+            const message =
+              previous.item && span.item
+                ? say.gap(gap, previous.item.label, span.item.label, wall)
+                : say.gap(gap, (previous.item ?? span.item)!.label, null, wall);
+            add(
+              'warning',
+              `gap-${wall}-${level}${rows.length > 1 ? `-${row?.elevation}` : ''}-${previous.end}`,
+              message,
+              [previous.item, span.item].filter((x): x is KitchenItem => x !== null).map((x) => x.id),
+            );
+          }
+          if (span.end > previous.end) previous = { item: span.item, end: span.end };
         }
-        if (span.end > previous.end) previous = { item: span.item, end: span.end };
       }
     }
   }
@@ -187,7 +207,7 @@ export function checkDesign(design: Design, labels: EngineLabels = EN_LABELS): I
 
   // Windows and doors.
   for (const opening of design.openings) {
-    if (opening.offset + opening.width > wallLength(room, opening.wall) || opening.sill + opening.height > room.height) {
+    if (!openingFitsRoomWall(room, opening.wall, opening.offset, opening.width) || opening.sill + opening.height > room.height) {
       add('error', `opening-${opening.id}`, say.openingDoesNotFit(opening.kind, opening.wall));
     }
     for (const item of items) {

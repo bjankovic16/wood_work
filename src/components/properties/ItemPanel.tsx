@@ -1,9 +1,10 @@
 import { ChevronRight, Copy, RotateCcw, RotateCw, Trash2, TriangleAlert, X } from 'lucide-react';
 import { useEffect, useMemo, type ReactNode } from 'react';
 import { BAR_MATERIAL_ID, ELEVATION_LIMITS, GLASS_MATERIAL_ID, sizeLimits, type SizeField } from '../../domain/catalog';
-import { aabbSize, attachedWall, backWall, isFlushWith, itemRect, mountingWalls } from '../../domain/geometry';
+import { aabbSize, attachedRoomSurface, attachedWall, backWall, isFlushWith, itemRect, mountingWalls } from '../../domain/geometry';
 import type { KitchenItem, Material, Room } from '../../domain/types';
 import { KIND_OPTIONS, resolveConfig, type BuildContext } from '../../engine/config';
+import { FRONT_FINISHES, type FrontFinish } from '../../domain/style';
 import { edgeText } from '../../engine/cuttingList';
 import { unitParts } from '../../engine/parts';
 import { useT, type CornerName, type Messages } from '../../i18n';
@@ -17,6 +18,8 @@ import { Button, PanelSection, Segmented } from '../ui';
 import { FrontPreview } from './FrontPreview';
 import { NumberField, SelectField, TextField } from './NumberField';
 import { Stepper } from './Stepper';
+import { canStackCabinet } from '../../domain/upperCabinets';
+import { StackAboveButton } from './StackAboveButton';
 
 const CORNER_NAMES: Record<KitchenItem['rotation'], CornerName> = { 0: 'top-left', 90: 'top-right', 180: 'bottom-right', 270: 'bottom-left' };
 
@@ -27,6 +30,7 @@ function placementText(item: KitchenItem, room: Room, t: Messages): string {
     return inCorner ? t.item.inCorner(CORNER_NAMES[item.rotation]) : t.item.notInCorner;
   }
   const wall = attachedWall(item, room);
+  if (!wall && attachedRoomSurface(item, room)) return t.item.backAgainstOffset;
   return wall ? t.item.backAgainst(wall) : t.item.freeStanding(backWall(item.rotation));
 }
 
@@ -150,6 +154,17 @@ export function ItemFields({ item }: { item: KitchenItem }) {
         {sizeField('height', t.item.height)}
       </PanelSection>
 
+      {canStackCabinet(item) && (
+        <PanelSection title={t.stacking.title}>
+          <StackAboveButton item={item} />
+          <p className="text-xs leading-relaxed text-zinc-600">{t.stacking.hint}</p>
+          <details className="text-xs leading-relaxed text-zinc-600">
+            <summary className="cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">{t.stacking.installation}</summary>
+            <p className="pt-2">{t.stacking.supplierNote}</p>
+          </details>
+        </PanelSection>
+      )}
+
       <PanelSection title={hasCounts ? t.item.frontsAndShelves : t.item.frontView}>
         <FrontPreview item={item} ctx={ctx} />
         {options.doors && (
@@ -231,6 +246,21 @@ export function ItemFields({ item }: { item: KitchenItem }) {
           {options.carcass && <MaterialField item={item} field="carcassMaterial" label={item.kind === 'bar' ? t.item.barTop : t.item.carcass} kitchenWide={item.kind === 'bar' ? BAR_MATERIAL_ID : construction.carcassMaterial} />}
           {options.back && <MaterialField item={item} field="backMaterial" label={t.item.backPanel} kitchenWide={construction.backMaterial} />}
           {options.fronts && <MaterialField item={item} field="frontMaterial" label={item.kind === 'glassWall' ? t.item.glass : t.item.fronts} kitchenWide={item.kind === 'glassWall' ? GLASS_MATERIAL_ID : construction.frontMaterial} />}
+        </PanelSection>
+      )}
+      {(options.carcass || options.fronts) && (
+        <PanelSection title={t.item.appearance}>
+          <SelectField<FrontFinish | ''>
+            label={t.item.frontFinish} value={item.frontFinish ?? ''}
+            options={[{ value: '', label: t.item.inheritFinish }, ...(Object.keys(FRONT_FINISHES) as FrontFinish[]).map((value) => ({ value, label: t.style.frontFinishes[value] }))]}
+            onChange={(value) => actions.setItemOption(item.id, 'frontFinish', value || undefined)}
+          />
+          <SelectField<FrontFinish | ''>
+            label={t.item.carcassFinish} value={item.carcassFinish ?? ''}
+            options={[{ value: '', label: t.item.inheritFinish }, ...(Object.keys(FRONT_FINISHES) as FrontFinish[]).map((value) => ({ value, label: t.style.frontFinishes[value] }))]}
+            onChange={(value) => actions.setItemOption(item.id, 'carcassFinish', value || undefined)}
+          />
+          <p className="text-xs leading-relaxed text-zinc-600">{t.item.appearanceNote}</p>
         </PanelSection>
       )}
 

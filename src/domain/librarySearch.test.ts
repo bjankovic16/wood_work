@@ -10,9 +10,9 @@ const labels = (t: Messages): LibrarySearchLabels => ({
 const ids = (query: string, t: Messages = en) => searchLibrary(query, labels(t)).flatMap((section) => section.presets.map((preset) => preset.id));
 
 describe('kitchen part search', () => {
-  it('keeps all 46 choices in their original order when the search is empty', () => {
+  it('keeps all 52 choices in their original order when the search is empty', () => {
     expect(searchLibrary('   ', labels(en))).toEqual(LIBRARY);
-    expect(ids('')).toHaveLength(46);
+    expect(ids('')).toHaveLength(52);
   });
 
   it('matches widths in millimetres, including presets that use a default width', () => {

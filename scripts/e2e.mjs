@@ -10,7 +10,7 @@ import { createServer } from 'vite';
 const shotsDir = process.argv[2] ?? 'test-results';
 await mkdir(shotsDir, { recursive: true });
 
-const server = await createServer({ logLevel: 'error', server: { port: 5199 } });
+const server = await createServer({ logLevel: 'error', cacheDir: path.resolve(shotsDir, '.vite'), server: { port: 5199 } });
 await server.listen();
 const url = server.resolvedUrls.local[0];
 
@@ -122,7 +122,7 @@ try {
   await page.getByRole('button', { name: 'Choose a kitchen' }).click();
   const gallery = page.getByRole('dialog', { name: 'Kitchen designs' });
   const kitchenCards = gallery.locator('[data-kitchen-design]');
-  check('the gallery offers exactly 20 kitchen images', (await kitchenCards.count()) === 20 && (await kitchenCards.locator('img').count()) === 20);
+  check('the gallery offers exactly 24 kitchen images', (await kitchenCards.count()) === 24 && (await kitchenCards.locator('img').count()) === 24);
   await gallery.locator('summary').click();
   check('the replacement notice explains all changes before opening a kitchen', await gallery.locator('details p').isVisible());
   await gallery.locator('summary').click();
@@ -227,6 +227,7 @@ try {
   await partSearch.fill('');
   await premiumPage.getByRole('button', { name: 'Kitchen designs', exact: true }).first().click();
   await premiumPage.locator('[data-kitchen-design="oak-island"]').click();
+  await premiumPage.getByRole('button', { name: 'Style', exact: true }).click();
   await premiumPage.getByRole('button', { name: 'Fronts: Terracotta', exact: true }).click();
   await premiumPage.getByRole('button', { name: 'Worktop: Warm marble', exact: true }).click();
   await premiumPage.getByRole('button', { name: 'Copper bar', exact: true }).click();
@@ -503,6 +504,7 @@ try {
   await page.locator('main canvas').first().waitFor();
   await page.waitForTimeout(2500); // shader compilation and first frames
   await shot('14-3d.png');
+  await page.getByRole('button', { name: 'Style', exact: true }).click();
   await page.getByRole('button', { name: 'Fronts: Sage green' }).click();
   await page.getByRole('button', { name: 'Worktop: Oak' }).click();
   await page.getByRole('button', { name: 'Black bar' }).click();
@@ -931,7 +933,7 @@ try {
   await mobile.getByRole('button', { name: 'More' }).tap();
   await mobile.getByRole('button', { name: 'Kitchen designs', exact: true }).tap();
   const phoneGallery = mobile.getByRole('dialog', { name: 'Kitchen designs' });
-  check('all twenty inspiration kitchens are available on the phone', (await phoneGallery.locator('[data-kitchen-design]').count()) === 20);
+  check('all twenty-four inspiration kitchens are available on the phone', (await phoneGallery.locator('[data-kitchen-design]').count()) === 24);
   await mobile.setViewportSize({ width: 320, height: 568 });
   await mobile.evaluate(() => window.__kitchen.ui.getState().setLanguage('sr'));
   await mobile.getByRole('dialog', { name: 'Ideje za kuhinju' }).waitFor();
@@ -959,7 +961,7 @@ try {
   await phoneGallery.locator('[data-kitchen-design="monochrome-island"]').tap();
   check(
     'tapping a kitchen image on the phone opens the same editable kitchen without an underlying room sheet',
-    sortedJson(kitchenSnapshot(await mobileDesign())) === sortedJson(kitchenSnapshot(kitchenPresets.at(-1).design)) && (await mobile.getByRole('dialog').count()) === 0,
+    sortedJson(kitchenSnapshot(await mobileDesign())) === sortedJson(kitchenSnapshot(kitchenPresets.find((preset) => preset.id === 'monochrome-island').design)) && (await mobile.getByRole('dialog').count()) === 0,
   );
   check('warning counts do not overlap or hide the phone menu', await headerFits());
   await mobile.waitForTimeout(500);

@@ -109,8 +109,11 @@ function show(id: string, design: Design): void {
   useProjectsStore.setState({ activeId: id });
   const ui = useUiStore.getState();
   ui.select(null);
+  ui.setWallElevation(null);
   ui.setLibraryDrag(null);
   ui.setRoomOpen(false);
+  ui.setReferenceOpen(Boolean(design.referencePhoto));
+  ui.requestCamera('perspective');
   saveIndex();
 }
 
@@ -138,6 +141,7 @@ export function initProjects(): void {
     useDesignStore.getState().load(design);
     saveIndex();
   }
+  useUiStore.getState().setReferenceOpen(Boolean(useDesignStore.getState().design.referencePhoto));
   useDesignStore.subscribe((state, previous) => {
     if (state.design !== previous.design) scheduleSave();
   });

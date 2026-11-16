@@ -1,5 +1,6 @@
 import { newId } from './ids';
-import type { ItemKind, KitchenItem } from './types';
+import { ROOM_LIMITS } from './roomGeometry';
+import type { ItemKind, KitchenItem, Room } from './types';
 
 export interface Range {
   min: number;
@@ -29,18 +30,24 @@ export const BASE_DEPTH = 560;
 export const WALL_HEIGHT = 720;
 export const WALL_DEPTH = 320;
 export const WALL_ELEVATION = 1450;
+export const CEILING_GAP = 30;
+export const CEILING_CABINET_HEIGHT = 400;
 /** Tall units are sized so their top lines up with the top of the wall units. */
 export const TALL_HEIGHT = WALL_ELEVATION + WALL_HEIGHT - PLINTH_HEIGHT;
 export const GLASS_MATERIAL_ID = 'glass-clear-4';
 export const BAR_MATERIAL_ID = 'worktop-38';
 export const WORKTOP_KINDS = new Set<ItemKind>(['base', 'sink', 'oven', 'drawer', 'dishwasher', 'filler', 'corner', 'pullOut', 'hob']);
 
+export function hasWorktop(item: Pick<KitchenItem, 'kind' | 'elevation' | 'height'>): boolean {
+  return WORKTOP_KINDS.has(item.kind) && item.elevation + item.height <= 1000;
+}
+
 export const MODULE_MATERIAL_DEFAULTS: Partial<Record<ItemKind, Partial<Pick<KitchenItem, 'carcassMaterial' | 'frontMaterial'>>>> = {
   glassWall: { frontMaterial: GLASS_MATERIAL_ID },
   bar: { carcassMaterial: BAR_MATERIAL_ID },
 };
 
-export const ELEVATION_LIMITS: Range = { min: 0, max: 2500 };
+export const ELEVATION_LIMITS: Range = { min: 0, max: ROOM_LIMITS.height.max };
 
 /** Minimum front opening of an L-shaped corner unit (arm length minus carcass depth). */
 export const CORNER_MIN_OPENING = 200;
@@ -173,12 +180,12 @@ export interface LibraryPreset {
   /** "Custom" presets open the width field for editing right after they are added. */
   custom?: boolean;
   options?: Partial<Pick<KitchenItem, 'depth' | 'height' | 'elevation' | 'doors' | 'drawers' | 'shelves' | 'drawerLayout'>>;
-  placement?: 'centre';
+  placement?: 'centre' | 'ceiling';
   name?: 'island';
 }
 
 export interface LibrarySection {
-  id: 'base' | 'wall' | 'other' | 'storage' | 'appliances' | 'islands';
+  id: 'base' | 'wall' | 'ceiling' | 'other' | 'storage' | 'appliances' | 'islands';
   layout: 'compact' | 'regular';
   presets: LibraryPreset[];
 }
@@ -195,6 +202,14 @@ export const LIBRARY: LibrarySection[] = [
     id: 'wall',
     layout: 'compact',
     presets: [...widths('wall', [300, 400, 500, 600, 800]), { id: 'wall-custom', kind: 'wall', custom: true }],
+  },
+  {
+    id: 'ceiling',
+    layout: 'compact',
+    presets: [300, 400, 500, 600, 800, 900].map((width) => ({
+      id: `ceiling-${width}`, kind: 'wall', width, placement: 'ceiling',
+      options: { height: CEILING_CABINET_HEIGHT, depth: BASE_DEPTH, elevation: WALL_ELEVATION + WALL_HEIGHT, shelves: 0 },
+    })),
   },
   {
     id: 'other',
@@ -270,8 +285,9 @@ export function createItem(
   };
 }
 
-export function itemFromPreset(preset: LibraryPreset, existing: readonly KitchenItem[], prefixes?: LabelPrefixes): KitchenItem {
-  return createItem(preset.kind, existing, { ...preset.options, ...(preset.width !== undefined ? { width: preset.width } : {}) }, prefixes);
+export function itemFromPreset(preset: LibraryPreset, existing: readonly KitchenItem[], prefixes?: LabelPrefixes, room?: Pick<Room, 'height'>): KitchenItem {
+  const item = createItem(preset.kind, existing, { ...preset.options, ...(preset.width !== undefined ? { width: preset.width } : {}) }, prefixes);
+  return preset.placement === 'ceiling' && room ? { ...item, elevation: room.height - CEILING_GAP - item.height } : item;
 }
 
 /** Allowed range for a dimension, taking the item's other dimensions into account. */

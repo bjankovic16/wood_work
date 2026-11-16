@@ -1,5 +1,8 @@
-import { Group, Line, Rect } from 'react-konva';
+import { Group, Line, Rect, Text } from 'react-konva';
 import type { Opening, Point, Room, Wall } from '../../domain/types';
+import { openingFitsRoomWall, roomOutline } from '../../domain/roomGeometry';
+import { useT } from '../../i18n';
+import { FONT_FAMILY } from '../../lib/measureText';
 import { WALL_THICKNESS } from '../../store/viewport';
 import { ROOM_COLORS } from './theme';
 
@@ -63,7 +66,10 @@ function OpeningSymbol({ room, opening, px }: { room: Room; opening: Opening; px
 
 /** Walls with their windows and doors, floor, and a background grid that gets finer as you zoom in. */
 export function RoomShape({ room, zoom, openings = [] }: { room: Room; zoom: number; openings?: Opening[] }) {
+  const t = useT();
   const px = 1 / zoom;
+  const outline = roomOutline(room);
+  const points = outline.flatMap((point) => [point.x, point.y]);
   const step = GRID_STEPS.find((s) => s * zoom >= MIN_GRID_SPACING_PX) ?? 1000;
   const lines = [];
   for (let x = step; x < room.width; x += step) {
@@ -89,19 +95,20 @@ export function RoomShape({ room, zoom, openings = [] }: { room: Room; zoom: num
 
   return (
     <>
-      <Rect
-        x={-WALL_THICKNESS}
-        y={-WALL_THICKNESS}
-        width={room.width + 2 * WALL_THICKNESS}
-        height={room.depth + 2 * WALL_THICKNESS}
-        fill={ROOM_COLORS.wall}
-        stroke={ROOM_COLORS.wallEdge}
-        strokeWidth={px}
-      />
-      <Rect x={0} y={0} width={room.width} height={room.depth} fill={ROOM_COLORS.floor} />
-      {lines}
-      <Rect x={0} y={0} width={room.width} height={room.depth} stroke={ROOM_COLORS.wallEdge} strokeWidth={px} />
-      {openings.map((opening) => (
+      <Line points={points} closed fill={ROOM_COLORS.wall} stroke={ROOM_COLORS.wall} strokeWidth={WALL_THICKNESS * 2} lineJoin="miter" />
+      <Line points={points} closed fill={ROOM_COLORS.floor} stroke={ROOM_COLORS.wallEdge} strokeWidth={px} />
+      <Group clipFunc={(context) => {
+        context.beginPath();
+        outline.forEach((point, index) => index === 0 ? context.moveTo(point.x, point.y) : context.lineTo(point.x, point.y));
+        context.closePath();
+      }}>{lines}</Group>
+      {(room.features ?? []).map((feature, index) => (
+        <Group key={feature.id}>
+          <Rect x={feature.x} y={feature.y} width={feature.width} height={feature.depth} fill="#d8cdbb" stroke="#847766" strokeWidth={1.5 * px} />
+          {feature.width * zoom > 48 && feature.depth * zoom > 24 && <Text x={feature.x + 4 * px} y={feature.y + feature.depth / 2 - 6 * px} width={feature.width - 8 * px} text={`${t.engine.roomFeatures[feature.kind]} ${index + 1}`} fontFamily={FONT_FAMILY} fontSize={10 * px} fill="#574b3e" align="center" ellipsis wrap="none" />}
+        </Group>
+      ))}
+      {openings.filter((opening) => openingFitsRoomWall(room, opening.wall, opening.offset, opening.width)).map((opening) => (
         <OpeningSymbol key={opening.id} room={room} opening={opening} px={px} />
       ))}
     </>

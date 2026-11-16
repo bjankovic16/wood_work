@@ -33,6 +33,7 @@ const originalBoardNames = new Map([...DEFAULT_MATERIALS, ...MODULE_MATERIALS].m
 const originalBandNames = new Map(DEFAULT_EDGE_BANDS.map((b) => [b.id, b.name]));
 
 export const SR_LABELS: EngineLabels = {
+  roomFeatures: { chimney: 'Dimnjak', column: 'Stub', projection: 'Ispust zida' },
   locale: 'sr-Latn',
   part: {
     side: 'Bok',
@@ -123,6 +124,11 @@ export const SR_LABELS: EngineLabels = {
     ceiling: (unit, top, ceiling) => `${unit} doseže ${top} mm, iznad plafona na ${ceiling} mm.`,
     specialistModule: (unit) => `${unit}: pre izrade potvrditi nišu, ventilaciju, nosivost, pričvršćenja i zazore prema izabranom aparatu ili sistemu.`,
     glassSupplier: (unit) => `${unit}: mere stakla su pripremne; staklorezac potvrđuje sigurnosno staklo, obradu ivica, rupe za šarke i radne zazore.`,
+    roomFeatureCollision: (unit, feature) => `${unit} se preklapa sa strukturom „${feature}“; oslobodite fiksne delove prostorije.`,
+    roomFeatureOutside: (feature) => `${feature} izlazi van korisne osnove prostorije.`,
+    chimneyClearance: (feature) => `${feature}: obavezne protivpožarne i toplotne razmake potvrdite sa stručnim izvođačem. Modelirani blok je geometrija, ne proračun zaštite od požara.`,
+    frontProfile: 'Shaker reljef je vizuelni prikaz. Krojna lista daje pripremne fronte, ne CNC nacrte ili spojeve; izradu frontova potvrdite sa dobavljačem.',
+    handleless: 'Za fronte bez ručki izaberite push-to-open ili profilni sistem. Krojna lista daje pripremne komade, ne specifikaciju obrade ili mehanizama.',
     gap: (gap, a, b, wall) =>
       `Razmak od ${gap} mm između ${b === null ? `${a} i ugla` : `${a} i ${b}`} ${naZidu[wall]}: zatvorite ga ili ga popunite filerom.`,
     lowWallUnit: (unit, clearance) => `${unit} visi samo ${clearance} mm iznad radne ploče ispod sebe; uobičajeno je 500–650 mm.`,

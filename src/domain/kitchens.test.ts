@@ -7,9 +7,10 @@ import { parseDesign } from './designOps';
 import { createKitchenDesign, KITCHEN_DESIGNS, kitchenCategory, type KitchenPreset } from './kitchens';
 
 describe('kitchen inspiration designs', () => {
-  it('offers exactly twenty unique kitchens, including islands and all three wall layouts', () => {
-    expect(KITCHEN_DESIGNS).toHaveLength(20);
-    expect(new Set(KITCHEN_DESIGNS.map((kitchen) => kitchen.id)).size).toBe(20);
+  it('offers twenty-four unique kitchens, including four stacked collections and all three wall layouts', () => {
+    expect(KITCHEN_DESIGNS).toHaveLength(24);
+    expect(new Set(KITCHEN_DESIGNS.map((kitchen) => kitchen.id)).size).toBe(24);
+    expect(KITCHEN_DESIGNS.filter((kitchen) => 'layered' in kitchen)).toHaveLength(4);
     expect(new Set(KITCHEN_DESIGNS.map(kitchenCategory))).toEqual(new Set(['straight', 'l-shape', 'u-shape', 'island']));
   });
 

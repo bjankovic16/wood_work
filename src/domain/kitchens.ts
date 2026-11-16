@@ -5,6 +5,7 @@ import type { BacksplashFinish, FrontFinish, HandleStyle, KitchenStyle, WorktopF
 import { buildLayout, type LayoutId } from './templates';
 import type { Design, KitchenItem, Room } from './types';
 import { withModuleMaterials } from '../engine/settings';
+import { createLayeredKitchen, type LayeredKitchen } from './layeredKitchens';
 
 export interface KitchenPreset {
   id: string;
@@ -19,6 +20,7 @@ export interface KitchenPreset {
   pantry?: boolean;
   pullOut?: boolean;
   breakfastBar?: boolean;
+  layered?: LayeredKitchen;
 }
 
 function warmStyle(front: FrontFinish, worktop: WorktopFinish, handles: HandleStyle = 'brass', backsplash: BacksplashFinish = 'travertine'): KitchenStyle {
@@ -46,6 +48,10 @@ export const KITCHEN_DESIGNS = [
   { id: 'oak-island', layout: 'l-shape', room: { width: 4800, depth: 4000, height: 2600 }, style: warmStyle('oak', 'marble', 'brass', 'marble'), drawerBases: true, islandWidth: 1800, glassFronts: true, ovenTower: true, pantry: true, pullOut: true },
   { id: 'sage-island', layout: 'straight', room: { width: 4800, depth: 4000, height: 2600 }, style: warmStyle('sage', 'oak'), openShelves: true, islandWidth: 2400, glassFronts: true, pantry: true, breakfastBar: true },
   { id: 'monochrome-island', layout: 'l-shape', room: { width: 5000, depth: 4200, height: 2600 }, style: warmStyle('cream', 'black', 'bronze'), drawerBases: true, islandWidth: 1800, glassFronts: true, ovenTower: true, pantry: true },
+  { id: 'greige-gallery', layout: 'l-shape', room: { width: 3900, depth: 3000, height: 2700 }, style: { ...warmStyle('taupe', 'marble', 'none', 'marble'), appliances: 'black', plinthLighting: true }, layered: 'greige' },
+  { id: 'ivory-oak-gallery', layout: 'straight', room: { width: 4200, depth: 3000, height: 2700 }, style: { ...warmStyle('cream', 'travertine', 'none'), appliances: 'black', plinthLighting: true }, layered: 'ivory' },
+  { id: 'olive-stone-gallery', layout: 'l-shape', room: { width: 4200, depth: 3200, height: 2700 }, style: { ...warmStyle('olive', 'stone', 'none', 'stone'), appliances: 'black', plinthLighting: true }, layered: 'olive' },
+  { id: 'walnut-noir-gallery', layout: 'l-shape', room: { width: 4200, depth: 3200, height: 2700 }, style: { ...warmStyle('anthracite', 'black', 'none', 'black'), appliances: 'black', plinthLighting: true }, layered: 'graphite' },
 ] as const satisfies readonly KitchenPreset[];
 
 export type KitchenDesignId = (typeof KITCHEN_DESIGNS)[number]['id'];
@@ -57,7 +63,8 @@ export function kitchenCategory(preset: KitchenPreset): KitchenCategory {
 
 /** Both the gallery images and the editor use this complete, independently editable design. */
 export function createKitchenDesign(preset: KitchenPreset, name: string, prefixes?: LabelPrefixes): Design {
-  const room = { ...preset.room };
+  if (preset.layered) return createLayeredKitchen(preset.layered, preset.room, preset.style, name, prefixes);
+  const room = structuredClone(preset.room);
   let upperIndex = 0;
   let items = buildLayout(preset.layout, room, prefixes).map((item): KitchenItem => {
     const position = { x: item.x, y: item.y, rotation: item.rotation, width: item.width, depth: item.depth };

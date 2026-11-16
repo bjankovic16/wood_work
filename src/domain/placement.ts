@@ -6,13 +6,12 @@ import {
   cornerPosition,
   footprintRects,
   insideRoom,
-  itemRect,
   rectsOverlap,
   rotationForWall,
   verticalOverlap,
-  WALLS,
 } from './geometry';
 import { openingObstacles } from './openings';
+import { roomFeatureRect, roomWallRuns } from './roomGeometry';
 import type { KitchenItem, Opening, Rect, Room, Rotation } from './types';
 
 export type Placement = Pick<KitchenItem, 'x' | 'y' | 'rotation'>;
@@ -22,18 +21,23 @@ type Obstacle = Rect[];
 
 function fitsAt(candidate: KitchenItem, room: Room, obstacles: readonly Obstacle[]): boolean {
   const rects = footprintRects(candidate);
-  return insideRoom(itemRect(candidate), room) && !obstacles.some((o) => o.some((r) => rects.some((c) => rectsOverlap(c, r))));
+  return rects.every((rect) => insideRoom(rect, room)) && !obstacles.some((o) => o.some((r) => rects.some((c) => rectsOverlap(c, r))));
 }
 
 function obstaclesFor(item: KitchenItem, items: readonly KitchenItem[], room: Room, openings: readonly Opening[]): Obstacle[] {
   const bottom = item.elevation;
   const top = item.elevation + item.height;
   return [
+    ...(room.features ?? []).map((feature) => [roomFeatureRect(feature)]),
     ...items.filter((o) => o.id !== item.id && verticalOverlap(o, item)).map((o) => footprintRects(o)),
     ...openingObstacles(room, openings)
       .filter((o) => o.bottom < top && bottom < o.top)
       .map((o) => [o.rect]),
   ];
+}
+
+export function canPlaceItem(room: Room, items: readonly KitchenItem[], item: KitchenItem, openings: readonly Opening[] = []): boolean {
+  return fitsAt(item, room, obstaclesFor(item, items, room, openings));
 }
 
 /**
@@ -65,15 +69,15 @@ export function findFreeSpot(
     return null;
   }
 
-  for (const wall of WALLS) {
+  for (const surface of roomWallRuns(room)) {
+    const wall = surface.wall;
     const rotation = rotationForWall(wall);
     const { w, h } = aabbSize({ ...item, rotation });
     const alongX = wall === 'top' || wall === 'bottom';
-    const length = alongX ? room.width : room.depth;
     const size = alongX ? w : h;
-    const fixed = wall === 'top' || wall === 'left' ? 0 : wall === 'bottom' ? room.depth - h : room.width - w;
+    const fixed = wall === 'top' || wall === 'left' ? surface.offset : wall === 'bottom' ? surface.offset - h : surface.offset - w;
 
-    const candidates = new Set<number>([0]);
+    const candidates = new Set<number>([surface.from]);
     for (const obstacle of obstacles) {
       for (const r of obstacle) {
         const start = alongX ? r.x : r.y;
@@ -82,7 +86,7 @@ export function findFreeSpot(
         candidates.add(start - size);
       }
     }
-    const ordered = [...candidates].filter((c) => c >= 0 && c <= length - size).sort((a, b) => a - b);
+    const ordered = [...candidates].filter((c) => c >= surface.from && c <= surface.to - size).sort((a, b) => a - b);
     for (const c of ordered) {
       const candidate = { ...item, rotation, x: alongX ? c : fixed, y: alongX ? fixed : c };
       if (fitsAt(candidate, room, obstacles)) return { x: candidate.x, y: candidate.y, rotation };

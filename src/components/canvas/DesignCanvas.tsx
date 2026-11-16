@@ -6,6 +6,7 @@ import { updateItem } from '../../domain/designOps';
 import { attachedWall, isWallMounted, itemRect } from '../../domain/geometry';
 import { computeDragPlacement, computeHandleResize, type Guide, type HandleId } from '../../domain/snapping';
 import type { KitchenItem, Point, Wall } from '../../domain/types';
+import { inUpperRow, upperCabinetRows, type UpperRow } from '../../domain/upperCabinets';
 import { cn } from '../../lib/cn';
 import { clamp } from '../../domain/math';
 import { useCoarsePointer } from '../../hooks/useMediaQuery';
@@ -63,7 +64,8 @@ interface Pinch {
 
 const thresholdFor = (pointerType: string) => (pointerType === 'touch' ? DRAG_START_PX.touch : DRAG_START_PX.mouse);
 
-function isDimmed(item: KitchenItem, filter: ViewFilter): boolean {
+function isDimmed(item: KitchenItem, filter: ViewFilter, row?: UpperRow): boolean {
+  if (row && isWallMounted(item) && !inUpperRow(item, row)) return true;
   if (filter === 'all') return false;
   return filter === 'floor' ? isWallMounted(item) : !isWallMounted(item);
 }
@@ -92,6 +94,9 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
   const pan = useUiStore((s) => s.pan);
   const selectedId = useUiStore((s) => s.selectedId);
   const viewFilter = useUiStore((s) => s.viewFilter);
+  const wallElevation = useUiStore((s) => s.wallElevation);
+  const rows = upperCabinetRows(items);
+  const row = rows.find((entry) => entry.elevation === wallElevation);
   const showDimensions = useUiStore((s) => s.showDimensions);
   const libraryDrag = useUiStore((s) => s.libraryDrag);
   const openings = useDesignStore((s) => s.design.openings);
@@ -134,8 +139,8 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
 
   // On phones the view switch and the buttons at the bottom cover part of the plan.
   useLayoutEffect(() => {
-    setFitInsets(compact ? { top: 44, bottom: 72 } : { top: 0, bottom: 0 });
-  }, [compact]);
+    setFitInsets(compact ? { top: rows.length > 1 ? 88 : 44, bottom: 72 } : { top: rows.length > 1 ? 84 : 0, bottom: 0 });
+  }, [compact, rows.length]);
 
   // Fit the room into view on first layout and whenever the room size changes.
   const fittedRoom = useRef('');
@@ -357,9 +362,11 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
     [setCursor],
   );
 
-  const ordered = [...items.filter((i) => !isWallMounted(i)), ...items.filter(isWallMounted)];
+  const ordered = [...items.filter((i) => !isWallMounted(i)), ...items.filter(isWallMounted).sort((a, b) => a.elevation - b.elevation)]
+    .sort((a, b) => Number(isDimmed(b, viewFilter, row)) - Number(isDimmed(a, viewFilter, row)));
+  const visibleItems = ordered.filter((item) => !isDimmed(item, viewFilter, row));
   const selected = items.find((i) => i.id === selectedId);
-  const activeSelection = selected && !isDimmed(selected, viewFilter) ? selected : undefined;
+  const activeSelection = selected && !isDimmed(selected, viewFilter, row) ? selected : undefined;
   const ghost = libraryDrag?.ghost ?? null;
 
   return (
@@ -387,7 +394,7 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
                 key={item.id}
                 item={item}
                 px={px}
-                dimmed={isDimmed(item, viewFilter)}
+                dimmed={isDimmed(item, viewFilter, row)}
                 hovered={hoveredId === item.id}
                 onPointerDown={onItemPointerDown}
                 onHoverChange={onHoverChange}
@@ -395,8 +402,8 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
             ))}
           </Layer>
           <Layer>
-            {showDimensions && <WallDimensions room={room} items={items} px={px} />}
-            <IssueOutlines items={items} issues={issues} px={px} />
+            {showDimensions && <WallDimensions room={room} items={visibleItems} px={px} />}
+            <IssueOutlines items={visibleItems} issues={issues} px={px} />
             {(ghost ?? activeSelection) && (
               <Clearances room={room} items={items} item={(ghost ?? activeSelection)!} px={px} />
             )}
@@ -414,7 +421,7 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
           </Layer>
         </Stage>
       )}
-      <CanvasControls zoom={zoom} viewFilter={viewFilter} isEmpty={items.length === 0} compact={compact} />
+      <CanvasControls zoom={zoom} viewFilter={viewFilter} isEmpty={items.length === 0} compact={compact} rows={rows} row={row} />
     </div>
   );
 }
@@ -426,9 +433,11 @@ interface CanvasControlsProps {
   viewFilter: ViewFilter;
   isEmpty: boolean;
   compact: boolean;
+  rows: UpperRow[];
+  row?: UpperRow;
 }
 
-function CanvasControls({ zoom, viewFilter, isEmpty, compact }: CanvasControlsProps) {
+function CanvasControls({ zoom, viewFilter, isEmpty, compact, rows, row }: CanvasControlsProps) {
   const t = useT();
   const setViewFilter = useUiStore((s) => s.setViewFilter);
   const projectId = useProjectsStore((state) => state.activeId);
@@ -456,6 +465,23 @@ function CanvasControls({ zoom, viewFilter, isEmpty, compact }: CanvasControlsPr
           );
         })}
       </div>
+
+      {rows.length > 1 && viewFilter !== 'floor' && (
+        <select
+          aria-label={t.stacking.rowLabel}
+          value={row?.elevation ?? ''}
+          onChange={(event) => {
+            const ui = useUiStore.getState();
+            ui.setViewFilter('wall');
+            ui.setWallElevation(event.target.value === '' ? null : Number(event.target.value));
+            ui.select(null);
+          }}
+          className="absolute left-3 top-14 h-9 max-w-[calc(100%-24px)] rounded-md border border-zinc-300 bg-white px-2 text-xs font-medium text-zinc-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+        >
+          <option value="">{t.stacking.allRows}</option>
+          {rows.map((entry, index) => <option key={entry.elevation} value={entry.elevation}>{t.stacking.row(index + 1, t.mm(entry.elevation))}</option>)}
+        </select>
+      )}
 
       <div
         role="group"

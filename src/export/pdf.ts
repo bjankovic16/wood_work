@@ -4,6 +4,8 @@ import { edgeText, partNote, type CuttingList } from '../engine/cuttingList';
 import type { Part } from '../engine/parts';
 import { en, type Messages } from '../i18n/en';
 import { planSvg } from './planSvg';
+import { isWallMounted } from '../domain/geometry';
+import { inUpperRow, upperCabinetRows } from '../domain/upperCabinets';
 
 /* pdfmake document definitions are plain objects; these are the shapes used here. */
 type Cell = string | { text: string; [key: string]: unknown };
@@ -52,7 +54,8 @@ export function cuttingListDocument(design: Design, list: CuttingList, issues: I
     return material ? t.engine.material(material) : '';
   };
   const bandThickness = (id: string | null) => (id ? (design.edgeBands.find((b) => b.id === id)?.thickness ?? null) : null);
-  const plan = planSvg(design);
+  const rows = upperCabinetRows(design.items);
+  const plan = planSvg(design, t.engine, rows.length > 1 ? design.items.filter((item) => !isWallMounted(item)) : design.items);
   const planWidth = 400;
   const planHeight = Math.min(330, (planWidth * plan.height) / plan.width);
   const errors = issues.filter((i) => i.severity === 'error');
@@ -93,6 +96,7 @@ export function cuttingListDocument(design: Design, list: CuttingList, issues: I
       margin: [0, 0, 0, 10],
     });
   }
+  if (rows.length > 1) content.push({ text: t.stacking.floorPlan, bold: true, fontSize: 10, margin: [0, 0, 0, 6] });
   content.push({
     columns: [
       { svg: plan.svg, width: planWidth, height: planHeight },
@@ -122,6 +126,15 @@ export function cuttingListDocument(design: Design, list: CuttingList, issues: I
     columnGap: 0,
   });
 
+  if (rows.length > 1) {
+    rows.forEach((row, index) => {
+      const upperPlan = planSvg(design, t.engine, design.items.filter((item) => inUpperRow(item, row)));
+      const width = Math.min(650, 400 * upperPlan.width / upperPlan.height);
+      content.push({ text: t.stacking.exportRow(index + 1, t.mm(row.elevation), t.mm(row.top)), fontSize: 13, bold: true, pageBreak: 'before', margin: [0, 0, 0, 10] });
+      content.push({ svg: upperPlan.svg, width, height: width * upperPlan.height / upperPlan.width });
+      content.push({ text: t.stacking.supplierNote, fontSize: 8, color: MUTED, margin: [0, 8, 0, 0] });
+    });
+  }
   content.push({ text: r.parts, fontSize: 13, bold: true, margin: [0, 14, 0, 4], pageBreak: 'before' });
   content.push({
     table: {

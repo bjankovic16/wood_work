@@ -1,5 +1,5 @@
 import type { HandleStyle } from '../domain/style';
-import type { EdgeBand, Material, OpeningKind, Wall } from '../domain/types';
+import type { EdgeBand, Material, OpeningKind, RoomFeatureKind, Wall } from '../domain/types';
 import { formatMm } from './format';
 
 /**
@@ -84,6 +84,11 @@ export interface CheckLabels {
   windowBelowWorktop: (wall: Wall, sill: number, unit: string, top: number) => string;
   specialistModule: (unit: string) => string;
   glassSupplier: (unit: string) => string;
+  roomFeatureCollision: (unit: string, feature: string) => string;
+  roomFeatureOutside: (feature: string) => string;
+  chimneyClearance: (feature: string) => string;
+  frontProfile: string;
+  handleless: string;
 }
 
 /** Everything the engine says, in one language. */
@@ -109,6 +114,7 @@ export interface EngineLabels {
   mm: (value: number) => string;
   csvHeader: string[];
   checks: CheckLabels;
+  roomFeatures: Record<RoomFeatureKind, string>;
 }
 
 const HANDLES: Record<HandleStyle, string> = { steel: 'steel bar', black: 'black bar', brass: 'brass bar', none: 'no handles', bronze: 'bronze bar', copper: 'copper bar' };
@@ -116,6 +122,7 @@ const APPLIANCES = { oven: 'Built-in oven', fridge: 'Refrigerator', hob: 'Hob', 
 const wall = (w: Wall) => `${w} wall`;
 
 export const EN_LABELS: EngineLabels = {
+  roomFeatures: { chimney: 'Chimney', column: 'Column', projection: 'Wall projection' },
   locale: 'en',
   part: {
     side: 'Side',
@@ -206,6 +213,11 @@ export const EN_LABELS: EngineLabels = {
     ceiling: (unit, top, ceiling) => `${unit} reaches ${top} mm, above the ${ceiling} mm ceiling.`,
     specialistModule: (unit) => `${unit}: confirm the chosen appliance/system's niche, ventilation, load capacity, fixings and clearances with its manufacturer before production.`,
     glassSupplier: (unit) => `${unit}: glass sizes are blanks; ask the glazing supplier to confirm safety glass, polished edges, hinge holes and operating clearances.`,
+    roomFeatureCollision: (unit, feature) => `${unit} overlaps ${feature}; leave the fixed room structure clear.`,
+    roomFeatureOutside: (feature) => `${feature} extends beyond the usable room footprint.`,
+    chimneyClearance: (feature) => `${feature}: reserve the required fire/heat clearances with a qualified installer. The modeled block is geometry, not a fire-safety calculation.`,
+    frontProfile: 'Shaker relief is an appearance preview. The cutting list gives front blanks, not CNC or joinery instructions; confirm the front construction with your supplier.',
+    handleless: 'Handleless fronts need a specified push-to-open or profile system. The cutting list gives blanks, not machining or mechanism specifications.',
     gap: (gap, a, b, w) =>
       `A ${gap} mm gap between ${b === null ? `${a} and the corner` : `${a} and ${b}`} on the ${wall(w)}: close it, or fill it with a filler panel.`,
     lowWallUnit: (unit, clearance) => `${unit} hangs only ${clearance} mm above the worktop below it; 500–650 mm is usual.`,

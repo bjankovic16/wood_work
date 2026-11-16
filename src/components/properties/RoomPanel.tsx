@@ -11,6 +11,7 @@ import { useDesignStore } from '../../store/designStore';
 import { useUiStore } from '../../store/uiStore';
 import { Button, Dialog, Kbd, PanelSection } from '../ui';
 import { NumberField, SelectField } from './NumberField';
+import { RoomStructureSettings } from './RoomStructureSettings';
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
@@ -116,6 +117,7 @@ export function RoomSettings() {
         <NumberField label={t.room.ceilingHeight} value={room.height} {...ROOM_LIMITS.height} onCommit={(v) => actions.setRoomSize({ height: v })} />
       </PanelSection>
       <OpeningsSection />
+      <RoomStructureSettings />
     </>
   );
 }

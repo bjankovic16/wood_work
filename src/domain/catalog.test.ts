@@ -8,6 +8,7 @@ describe('library', () => {
     expect(ids).toEqual([
       'base-300', 'base-400', 'base-450', 'base-500', 'base-600', 'base-800', 'base-900', 'base-custom',
       'wall-300', 'wall-400', 'wall-500', 'wall-600', 'wall-800', 'wall-custom',
+      'ceiling-300', 'ceiling-400', 'ceiling-500', 'ceiling-600', 'ceiling-800', 'ceiling-900',
       'sink', 'oven', 'dishwasher', 'fridge', 'drawer', 'corner', 'tall', 'shelf', 'filler', 'endPanel',
       'drawer-800', 'drawer-900', 'drawer-1200', 'pullOut-300', 'pullOut-450', 'pullOut-600',
       'tall-450', 'tall-600', 'tall-800', 'glassWall-600', 'glassWall-800', 'glassWall-900',

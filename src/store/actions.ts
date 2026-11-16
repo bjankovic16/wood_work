@@ -1,14 +1,20 @@
-import { findPreset, itemFromPreset, nextLabel, type SizeField } from '../domain/catalog';
+import { createItem, findPreset, itemFromPreset, nextLabel, type SizeField } from '../domain/catalog';
 import * as ops from '../domain/designOps';
 import { isWallMounted, rotateItem } from '../domain/geometry';
 import { newId } from '../domain/ids';
 import { createKitchenDesign, type KitchenPreset } from '../domain/kitchens';
 import { centreOfRoom, findFreeSpot, placeCopy } from '../domain/placement';
 import { computeDragPlacement } from '../domain/snapping';
+import { planCabinetAbove, type StackPlan } from '../domain/upperCabinets';
 import { buildLayout, type LayoutId } from '../domain/templates';
 import type { KitchenStyle } from '../domain/style';
 import { OPENING_DEFAULTS, wallLength } from '../domain/openings';
-import type { ConstructionSettings, CustomPart, Design, EdgeBand, KitchenItem, Material, Opening, OpeningKind, PartEdit, Room } from '../domain/types';
+import type { ConstructionSettings, CustomPart, Design, EdgeBand, KitchenItem, Material, Opening, OpeningKind, PartEdit, Room, RoomCutout, RoomFeature, RoomFeatureKind } from '../domain/types';
+import { MAX_ROOM_FEATURES, roomContainsRect } from '../domain/roomGeometry';
+import { createRoomExample, type RoomExampleId } from '../domain/roomExamples';
+import { createPhotoDesign } from '../domain/photoDesigns';
+import type { PhotoReference, PhotoReferenceId } from '../domain/photoReferences';
+import { createProject } from './projects';
 import { DEFAULT_CONSTRUCTION } from '../engine/settings';
 import { currentMessages } from '../i18n';
 import { useDesignStore } from './designStore';
@@ -40,6 +46,7 @@ function insertAndSelect(item: KitchenItem, focusWidth = false, partEdits?: Reco
   const ui = useUiStore.getState();
   // A new unit hidden by the view filter would look as if nothing happened.
   if (ui.viewFilter !== 'all' && (ui.viewFilter === 'wall') !== isWallMounted(item)) ui.setViewFilter('all');
+  if (ui.wallElevation !== null && isWallMounted(item)) ui.setWallElevation(item.elevation);
   ui.select(item.id);
   ui.requestFocus(focusWidth ? 'width' : null);
 }
@@ -49,7 +56,7 @@ export function addPresetToPlan(presetId: string): boolean {
   const preset = findPreset(presetId);
   if (!preset) return false;
   const { room, items, openings } = current();
-  const item = itemFromPreset(preset, items, currentMessages().labelPrefix);
+  const item = itemFromPreset(preset, items, currentMessages().labelPrefix, room);
   insertAndSelect({ ...item, ...(findFreeSpot(room, items, item, openings, preset.placement === 'centre') ?? centreOfRoom(room, item)) }, preset.custom);
   return true;
 }
@@ -65,7 +72,7 @@ export function updateLibraryDrag(presetId: string, clientX: number, clientY: nu
     return;
   }
   const { room, items } = current();
-  const item = previous?.ghost ?? itemFromPreset(preset, items, currentMessages().labelPrefix);
+  const item = previous?.ghost ?? itemFromPreset(preset, items, currentMessages().labelPrefix, room);
   const result = computeDragPlacement({
     room,
     others: items,
@@ -116,6 +123,19 @@ export function duplicateSelected(): void {
   insertAndSelect({ ...copy, ...placeCopy(room, items, item, copy, openings) }, false, partEdits[item.id]);
 }
 
+export function stackCabinetAbove(id: string): StackPlan {
+  const { room, items, openings } = current();
+  const source = items.find((item) => item.id === id);
+  if (!source) return { ok: false, reason: 'noSelection' };
+  const plan = planCabinetAbove(room, items, source, openings);
+  if (!plan.ok) return plan;
+  const cabinet = createItem(plan.cabinet.kind, items, { ...plan.cabinet, shelves: 0 }, currentMessages().labelPrefix);
+  useUiStore.getState().setViewFilter('wall');
+  useUiStore.getState().setWallElevation(cabinet.elevation);
+  insertAndSelect(cabinet);
+  return plan;
+}
+
 /** Rotates the selection in 90° steps; positive is clockwise. */
 export function rotateSelected(steps: number): void {
   const item = selectedItem();
@@ -148,13 +168,60 @@ export function setRoomSize(patch: Partial<Room>): void {
   apply((design) => ops.setRoom(design, patch));
 }
 
+export function setRoomCutout(cutout: RoomCutout | undefined): void {
+  apply((design) => ops.setRoom(design, { cutout }));
+}
+
+export function addRoomFeature(kind: RoomFeatureKind): void {
+  apply((design) => {
+    const { room } = design;
+    if ((room.features?.length ?? 0) >= MAX_ROOM_FEATURES) throw new RangeError('This room already has the maximum number of fixed structures.');
+    const width = Math.min(kind === 'column' ? 400 : 500, room.width);
+    const depth = Math.min(kind === 'projection' ? 900 : 450, room.depth);
+    const positions = [
+      { x: Math.round((room.width - width) / 2), y: 0 }, { x: 0, y: 0 },
+      { x: room.width - width, y: 0 }, { x: 0, y: room.depth - depth },
+      { x: room.width - width, y: room.depth - depth },
+    ];
+    const position = positions.find((point) => roomContainsRect({ ...point, w: width, h: depth }, room));
+    if (!position) throw new Error('The room has no usable space for this structure.');
+    return ops.setRoom(design, { features: [...(room.features ?? []), { id: newId(), kind, ...position, width, depth }] });
+  });
+}
+
+export function updateRoomFeature(id: string, patch: Partial<Pick<RoomFeature, 'x' | 'y' | 'width' | 'depth'>>): void {
+  apply((design) => ops.setRoom(design, { features: (design.room.features ?? []).map((feature) => feature.id === id ? { ...feature, ...patch } : feature) }));
+}
+
+export function removeRoomFeature(id: string): void {
+  apply((design) => {
+    const features = design.room.features;
+    return features?.some((feature) => feature.id === id) ? ops.setRoom(design, { features: features.filter((feature) => feature.id !== id) }) : design;
+  });
+}
+
+export function openRoomExample(id: RoomExampleId): void {
+  const messages = currentMessages();
+  const design = createRoomExample(id, messages.roomStructure.examples[id], messages.labelPrefix);
+  createProject(design.name);
+  useDesignStore.getState().load(design);
+  const ui = useUiStore.getState();
+  ui.setView('plan');
+  ui.setRoomOpen(false);
+  ui.setLayoutsOpen(false);
+}
+
+export function setItemPlacement(id: string, placement: Pick<KitchenItem, 'x' | 'y' | 'rotation'>): void {
+  editItem(id, (item, room) => ops.withPosition({ ...item, rotation: placement.rotation }, placement.x, placement.y, room));
+}
+
 /** Door, drawer or shelf count of one unit; undefined goes back to the default. */
 export function setItemCount(id: string, key: 'doors' | 'drawers' | 'shelves', value: number | undefined): void {
   editItem(id, (item) => ops.withCount(item, key, value));
 }
 
 /** Door type, hinge side, drawer layout or material of one unit; undefined goes back to the kitchen setting. */
-export function setItemOption<K extends 'doorType' | 'hinge' | 'drawerLayout' | 'carcassMaterial' | 'backMaterial' | 'frontMaterial'>(
+export function setItemOption<K extends 'doorType' | 'hinge' | 'drawerLayout' | 'carcassMaterial' | 'backMaterial' | 'frontMaterial' | 'frontFinish' | 'carcassFinish'>(
   id: string,
   key: K,
   value: KitchenItem[K] | undefined,
@@ -267,6 +334,29 @@ export function applyKitchenDesign(preset: KitchenPreset): void {
   ui.select(null);
   ui.setViewFilter('all');
   ui.setView('3d');
+  ui.setReferenceOpen(false);
+  ui.requestCamera('perspective');
+}
+
+export function openPhotoDesign(id: PhotoReferenceId): void {
+  const messages = currentMessages();
+  const design = createPhotoDesign(id, messages.references.names[id], messages.labelPrefix);
+  createProject(design.name);
+  useDesignStore.getState().load(design);
+  const ui = useUiStore.getState();
+  ui.select(null);
+  ui.setViewFilter('all');
+  ui.setView('3d');
+  ui.setReferenceOpen(true);
+  ui.requestCamera('perspective');
+}
+
+export function setReferencePhoto(reference: PhotoReference | undefined): void {
+  apply((design) => {
+    if (JSON.stringify(design.referencePhoto) === JSON.stringify(reference)) return design;
+    const { referencePhoto: _photo, ...rest } = design;
+    return reference ? { ...rest, referencePhoto: reference } : rest;
+  });
 }
 
 /** Changes one part of a unit's cutting list by hand; undefined puts it back as the rules make it. */

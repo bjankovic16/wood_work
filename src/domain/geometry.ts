@@ -1,4 +1,5 @@
 import { clamp } from './math';
+import { roomContainsRect, roomWallRuns, type RoomWallRun } from './roomGeometry';
 import type { KitchenItem, Point, Rect, Room, Rotation, Wall } from './types';
 
 /**
@@ -141,6 +142,16 @@ export function attachedWall(item: Placed, room: Room): Wall | null {
   return isFlushWith(itemRect(item), wall, room) ? wall : null;
 }
 
+export function attachedRoomSurface(item: Placed, room: Room): RoomWallRun | null {
+  const wall = backWall(item.rotation);
+  const rect = itemRect(item);
+  const horizontal = wall === 'top' || wall === 'bottom';
+  const along = horizontal ? rect.x : rect.y;
+  const size = horizontal ? rect.w : rect.h;
+  const face = wall === 'top' ? rect.y : wall === 'bottom' ? rect.y + rect.h : wall === 'left' ? rect.x : rect.x + rect.w;
+  return roomWallRuns(room).find((surface) => surface.wall === wall && Math.abs(face - surface.offset) <= 1 && along >= surface.from - 1 && along + size <= surface.to + 1) ?? null;
+}
+
 export type Corner = 'topLeft' | 'topRight' | 'bottomRight' | 'bottomLeft';
 
 export const CORNERS: readonly Corner[] = ['topLeft', 'topRight', 'bottomRight', 'bottomLeft'];
@@ -216,5 +227,5 @@ export function footprintsOverlap(a: Placed, b: Placed): boolean {
 }
 
 export function insideRoom(rect: Rect, room: Room): boolean {
-  return rect.x >= 0 && rect.y >= 0 && rect.x + rect.w <= room.width && rect.y + rect.h <= room.depth;
+  return roomContainsRect(rect, room);
 }

@@ -13,7 +13,7 @@ import { Button } from '../ui';
 const DRAG_START_DISTANCE = 4;
 
 function presetName(preset: LibraryPreset, t: Messages): string {
-  const name = preset.name === 'island' ? t.library.island : t.kinds[preset.kind];
+  const name = preset.placement === 'ceiling' ? t.library.ceiling : preset.name === 'island' ? t.library.island : t.kinds[preset.kind];
   return preset.width !== undefined ? t.library.withWidth(name, preset.width) : preset.custom ? t.library.customSize(name) : name;
 }
 
@@ -192,6 +192,8 @@ export function LibrarySections({ onAdded, wide = false }: { onAdded?: () => voi
               {t.library.sections[section.id]}
             </button>}
             {open && (
+              <>
+              {section.id === 'ceiling' && <p className="pb-2 text-xs leading-relaxed text-zinc-600">{t.library.ceilingHint}</p>}
               <div
                 className={cn(
                   'grid gap-1.5 pb-2',
@@ -202,6 +204,7 @@ export function LibrarySections({ onAdded, wide = false }: { onAdded?: () => voi
                   <PresetTile key={preset.id} preset={preset} layout={section.layout} onAdded={onAdded} />
                 ))}
               </div>
+              </>
             )}
           </div>
         );

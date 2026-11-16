@@ -8,6 +8,7 @@ import { applyKitchenDesign, applyLayout } from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
 import { useUiStore } from '../../store/uiStore';
 import { Button, Dialog, Segmented } from '../ui';
+import { PhotoReferenceGallery } from '../references/PhotoReferences';
 
 /** Small top views of each layout: grey runs of floor units against the walls. */
 function LayoutSketch({ id }: { id: LayoutId }) {
@@ -60,6 +61,7 @@ function KitchenCard({ kitchen, onClose }: { kitchen: (typeof KITCHEN_DESIGNS)[n
         <span className="mt-1 block text-xs text-zinc-600">
           {t.style.frontFinishes[kitchen.style.front]} · {t.style.worktopFinishes[kitchen.style.worktop]}
         </span>
+        {'layered' in kitchen && <span className="mt-2 inline-flex rounded bg-stone-100 px-2 py-1 text-[11px] font-medium text-stone-700">{t.kitchens.layered}</span>}
         <span className="mt-2 flex flex-wrap justify-between gap-x-2 gap-y-1 text-xs tabular-nums text-zinc-600">
           <span>{kitchenCategory(kitchen) === 'island' ? t.kitchens.island : t.layouts.names[kitchen.layout].name}</span>
           <span>{t.kitchens.roomSize(kitchen.room.width, kitchen.room.depth)}</span>
@@ -73,11 +75,12 @@ function LayoutChoices({ onClose }: { onClose: () => void }) {
   const t = useT();
   const count = useDesignStore((s) => s.design.items.length);
   const room = useDesignStore((s) => s.design.room);
-  const [tab, setTab] = useState<'designs' | 'layouts'>('designs');
-  const [filter, setFilter] = useState<KitchenCategory | 'all'>('all');
-  const kitchens = KITCHEN_DESIGNS.filter((kitchen) => filter === 'all' || kitchenCategory(kitchen) === filter);
-  const filters: Array<{ value: KitchenCategory | 'all'; label: string }> = [
+  const [tab, setTab] = useState<'designs' | 'photos' | 'layouts'>('designs');
+  const [filter, setFilter] = useState<KitchenCategory | 'all' | 'layered'>('all');
+  const kitchens = KITCHEN_DESIGNS.filter((kitchen) => filter === 'all' || (filter === 'layered' ? 'layered' in kitchen : kitchenCategory(kitchen) === filter));
+  const filters: Array<{ value: KitchenCategory | 'all' | 'layered'; label: string }> = [
     { value: 'all', label: t.kitchens.all },
+    { value: 'layered', label: t.kitchens.layered },
     ...LAYOUTS.map(({ id }) => ({ value: id, label: t.layouts.names[id].name })),
     { value: 'island', label: t.kitchens.island },
   ];
@@ -90,8 +93,9 @@ function LayoutChoices({ onClose }: { onClose: () => void }) {
           onChange={setTab}
           ariaLabel={t.layouts.title}
           options={[
-            { value: 'designs', label: t.kitchens.gallery },
-            { value: 'layouts', label: t.kitchens.roomLayouts },
+            { value: 'designs', label: t.kitchens.browse, title: t.kitchens.gallery },
+            { value: 'photos', label: t.references.tab },
+            { value: 'layouts', label: t.kitchens.roomTab, ariaLabel: t.kitchens.roomLayouts },
           ]}
         />
       </div>
@@ -125,7 +129,7 @@ function LayoutChoices({ onClose }: { onClose: () => void }) {
             {t.kitchens.pinterest}<ExternalLink className="size-3.5" />
           </a>
         </div>
-      ) : (
+      ) : tab === 'photos' ? <PhotoReferenceGallery onClose={onClose} /> : (
         <div className="space-y-2 p-4 pb-[max(env(safe-area-inset-bottom),16px)]">
           <p className="pb-1 text-[13px] leading-relaxed text-zinc-600">
             {t.layouts.intro(room.width, room.depth)}

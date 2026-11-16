@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { Guide } from '../domain/snapping';
 import type { KitchenItem, Point, Wall } from '../domain/types';
+import type { CameraView } from '../domain/camera';
 import { DEFAULT_LANGUAGE, isLanguage, type Language } from '../i18n/language';
 import { safeStorage } from '../lib/platform';
 
@@ -31,6 +32,7 @@ interface UiState {
   gridSize: number;
   showDimensions: boolean;
   viewFilter: ViewFilter;
+  wallElevation: number | null;
   libraryDrag: LibraryDrag | null;
   /** A properties field to focus once it is on screen (used by "Custom" cabinets). */
   focusRequest: string | null;
@@ -41,6 +43,10 @@ interface UiState {
   layoutsOpen: boolean;
   projectsOpen: boolean;
   roomOpen: boolean;
+  referenceOpen: boolean;
+  cameraView: CameraView;
+  cameraFocusId: string | null;
+  cameraToken: number;
   /** Language of the interface and of everything exported. */
   language: Language;
 
@@ -51,11 +57,14 @@ interface UiState {
   setLayoutsOpen: (open: boolean) => void;
   setProjectsOpen: (open: boolean) => void;
   setRoomOpen: (open: boolean) => void;
+  setReferenceOpen: (open: boolean) => void;
+  requestCamera: (view: CameraView, focusId?: string) => void;
   setViewport: (zoom: number, pan: Point) => void;
   setSnapEnabled: (enabled: boolean) => void;
   setGridSize: (size: number) => void;
   setShowDimensions: (show: boolean) => void;
   setViewFilter: (filter: ViewFilter) => void;
+  setWallElevation: (elevation: number | null) => void;
   setLibraryDrag: (drag: LibraryDrag | null) => void;
   requestFocus: (field: string | null) => void;
 }
@@ -70,6 +79,7 @@ export const useUiStore = create<UiState>()(
       gridSize: 50,
       showDimensions: true,
       viewFilter: 'all',
+      wallElevation: null,
       libraryDrag: null,
       focusRequest: null,
       view: 'plan',
@@ -77,6 +87,10 @@ export const useUiStore = create<UiState>()(
       layoutsOpen: false,
       projectsOpen: false,
       roomOpen: false,
+      referenceOpen: false,
+      cameraView: 'perspective',
+      cameraFocusId: null,
+      cameraToken: 0,
       language: DEFAULT_LANGUAGE,
 
       select: (selectedId) => set({ selectedId }),
@@ -86,11 +100,14 @@ export const useUiStore = create<UiState>()(
       setLayoutsOpen: (layoutsOpen) => set({ layoutsOpen }),
       setProjectsOpen: (projectsOpen) => set({ projectsOpen }),
       setRoomOpen: (roomOpen) => set({ roomOpen }),
+      setReferenceOpen: (referenceOpen) => set({ referenceOpen }),
+      requestCamera: (cameraView, focusId) => set((state) => ({ cameraView, cameraFocusId: focusId ?? null, cameraToken: state.cameraToken + 1 })),
       setViewport: (zoom, pan) => set({ zoom, pan }),
       setSnapEnabled: (snapEnabled) => set({ snapEnabled }),
       setGridSize: (gridSize) => set({ gridSize }),
       setShowDimensions: (showDimensions) => set({ showDimensions }),
-      setViewFilter: (viewFilter) => set({ viewFilter }),
+      setViewFilter: (viewFilter) => set({ viewFilter, wallElevation: null }),
+      setWallElevation: (wallElevation) => set({ wallElevation }),
       setLibraryDrag: (libraryDrag) => set({ libraryDrag }),
       requestFocus: (focusRequest) => set({ focusRequest }),
     }),
