@@ -7,7 +7,7 @@ import { normalizeRoom, parseRoom, ROOM_LIMITS } from './roomGeometry';
 export { ROOM_LIMITS } from './roomGeometry';
 import { DEFAULT_STYLE, FRONT_FINISHES, parseStyle, type FrontFinish, type KitchenStyle } from './style';
 import { parsePhotoReference } from './photoReferences';
-import type { ConstructionSettings, CustomPart, Design, EdgeBand, ItemKind, KitchenItem, Material, Opening, PartEdit, Room } from './types';
+import type { ConstructionSettings, CustomPart, Design, EdgeBand, ItemKind, KitchenItem, Material, Opening, PartEdit, Room, RoomFeature } from './types';
 import { normalizeAngle, validRoomPolygon } from './polygons';
 import { roomSegments } from './walls';
 
@@ -476,6 +476,13 @@ export function removeEdgeBand(design: Design, id: string): Design {
 
 export function addOpening(design: Design, opening: Opening): Design {
   return { ...design, openings: [...design.openings, clampOpening(opening, design.room)] };
+}
+
+/** A structure edit must not reposition cabinets or openings, even when they already have errors. */
+export function updateRoomFeature(design: Design, id: string, patch: Partial<Pick<RoomFeature, 'x' | 'y' | 'width' | 'depth'>>): Design {
+  if (!design.room.features?.some((feature) => feature.id === id)) return design;
+  const room = normalizeRoom({ ...design.room, features: design.room.features.map((feature) => feature.id === id ? { ...feature, ...patch } : feature) });
+  return JSON.stringify(room) === JSON.stringify(design.room) ? design : { ...design, room };
 }
 
 export function updateOpening(design: Design, id: string, patch: Partial<Omit<Opening, 'id' | 'kind'>>): Design {

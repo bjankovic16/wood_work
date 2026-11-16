@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
 import { assertScenePlacement, movementHandle } from './three-test-helpers.mjs';
+import { roomObjectChecks } from './room-object-checks.mjs';
 
 const output = process.argv[2] ?? path.join('test-results', 'rooms');
 await mkdir(output, { recursive: true });
@@ -191,6 +192,7 @@ try {
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('canvas');
   await page.getByLabel('Jezik / Language').selectOption('en');
+  await roomObjectChecks(page, output, observe);
   await advancedRoomChecks(page);
   await page.evaluate(async () => {
     const { createDesign } = await import('/src/domain/designOps.ts');

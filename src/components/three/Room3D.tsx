@@ -1,5 +1,6 @@
 import { useFrame } from '@react-three/fiber';
-import { useEffect, useMemo, useRef } from 'react';
+import { Edges } from '@react-three/drei';
+import { useEffect, useMemo, useRef, type Ref } from 'react';
 import * as THREE from 'three';
 import { hasWorktop, WORKTOP_THICKNESS } from '../../domain/catalog';
 import { localDepthExtent, localToRoom } from '../../domain/geometry';
@@ -7,8 +8,8 @@ import { isUpperCabinet } from '../../domain/upperCabinets';
 import { roomOutline } from '../../domain/roomGeometry';
 import { FRONT_FINISHES, WORKTOP_FINISHES } from '../../domain/style';
 import type { KitchenItem, Opening, Room, WallTreatment } from '../../domain/types';
-import { openingsOnSegment, roomSegments, solidWallPieces, wallCoordinates, type WallPiece, type WallSegment } from '../../domain/walls';
-import { useUiStore } from '../../store/uiStore';
+import type { RoomObjectSelection } from '../../domain/roomObjectPlacement';
+import { openingFrame, openingsOnSegment, roomSegments, solidWallPieces, wallCoordinates, wallPoint, type WallPiece, type WallSegment } from '../../domain/walls';
 import { WALL_THICKNESS } from '../../store/viewport';
 import { createMaterials, disposeMaterials, m, type KitchenMaterials } from './materials';
 
@@ -47,7 +48,10 @@ function Treatment({ treatment, segment, holes }: { treatment: WallTreatment; se
   return <>{pieces.map((piece, i) => <WallBox key={i} name={`wall-finish-${treatment.id}-${i}`} piece={piece} thickness={12} inset={6} material={material} />)}</>;
 }
 
-export function Room3D({ room, openings, items, materials }: { room: Room; openings: Opening[]; items: KitchenItem[]; materials: KitchenMaterials }) {
+export function Room3D({ room, openings, items, materials, selection, onSelect, objectRef }: {
+  room: Room; openings: Opening[]; items: KitchenItem[]; materials: KitchenMaterials;
+  selection?: RoomObjectSelection | null; onSelect?: (selection: RoomObjectSelection) => void; objectRef?: Ref<THREE.Group>;
+}) {
   const outline = useMemo(() => roomOutline(room), [room]);
   const segments = useMemo(() => roomSegments(room), [room]);
   const groups = useRef(new Map<string, THREE.Group>());
@@ -72,12 +76,44 @@ export function Room3D({ room, openings, items, materials }: { room: Room; openi
       <shapeGeometry args={[floor]} />
       <meshStandardMaterial color="#d8d0c4" roughness={0.92} />
     </mesh>
-    {(room.features ?? []).map((feature) => <mesh key={feature.id}
+    {(room.features ?? []).map((feature) => <group key={feature.id} name={`room-feature-${feature.id}`}
+      ref={selection?.type === 'feature' && selection.id === feature.id ? objectRef : undefined}
       position={[m(feature.x + feature.width / 2), m(room.height / 2), m(feature.y + feature.depth / 2)]}
-      castShadow receiveShadow onClick={(event) => { event.stopPropagation(); useUiStore.getState().setRoomOpen(true); }}>
-      <boxGeometry args={[m(feature.width), m(room.height), m(feature.depth)]} />
-      <meshStandardMaterial color={feature.kind === 'chimney' ? '#d2c3ad' : '#e1dacf'} roughness={0.9} />
-    </mesh>)}
+      onClick={(event) => { event.stopPropagation(); onSelect?.({ type: 'feature', id: feature.id }); }}>
+      <mesh castShadow receiveShadow>
+        <boxGeometry args={[m(feature.width), m(room.height), m(feature.depth)]} />
+        <meshStandardMaterial color={feature.kind === 'chimney' ? '#d2c3ad' : '#e1dacf'} roughness={0.9} />
+        {selection?.type === 'feature' && selection.id === feature.id && <Edges color="#2563eb" raycast={() => null} />}
+      </mesh>
+    </group>)}
+    {openings.map((opening) => {
+      const frame = openingFrame(room, opening);
+      if (!frame) return null;
+      const centre = wallPoint(frame, opening.offset + opening.width / 2);
+      const thickness = room.partitions?.find((partition) => partition.id === frame.partitionId)?.thickness ?? WALL_THICKNESS;
+      const selected = selection?.type === 'opening' && selection.id === opening.id;
+      const W = m(opening.width);
+      const H = m(opening.height);
+      const frameParts: Array<{ size: [number, number, number]; at: [number, number, number] }> = [
+        { size: [0.04, H, m(thickness + 12)], at: [-W / 2 + 0.02, 0, 0] },
+        { size: [0.04, H, m(thickness + 12)], at: [W / 2 - 0.02, 0, 0] },
+        { size: [W, 0.04, m(thickness + 12)], at: [0, H / 2 - 0.02, 0] },
+      ];
+      if (opening.kind === 'window') frameParts.push({ size: [W, 0.04, m(thickness + 12)], at: [0, -H / 2 + 0.02, 0] });
+      return <group key={opening.id} name={`room-opening-${opening.id}`} ref={selected ? objectRef : undefined}
+        position={[m(centre.x), m(opening.sill + opening.height / 2), m(centre.y)]} rotation={[0, -frame.angle * Math.PI / 180, 0]}
+        onClick={(event) => { event.stopPropagation(); onSelect?.({ type: 'opening', id: opening.id }); }}>
+        <mesh position={[0, 0, 0.008]}>
+          <boxGeometry args={[W, H, 0.016]} />
+          <meshStandardMaterial color={selected ? '#93c5fd' : opening.kind === 'window' ? '#cfe6f5' : '#cbb89c'} transparent opacity={selected ? 0.45 : opening.kind === 'window' ? 0.35 : 0.16} roughness={0.2} depthWrite={false} />
+          {selected && <Edges color="#2563eb" raycast={() => null} />}
+        </mesh>
+        {frameParts.map((part, index) => <mesh key={index} position={part.at} castShadow receiveShadow>
+          <boxGeometry args={part.size} />
+          <meshStandardMaterial color={selected ? '#bfdbfe' : '#fafafa'} roughness={0.9} />
+        </mesh>)}
+      </group>;
+    })}
     {segments.map((segment) => {
       const partition = room.partitions?.find((p) => p.id === segment.partitionId);
       const physicalWall = !partition || segment.id.endsWith(':1');
@@ -100,16 +136,6 @@ export function Room3D({ room, openings, items, materials }: { room: Room; openi
       return <group key={segment.id} position={[m(segment.start.x), 0, m(segment.start.y)]} rotation={[0, -segment.angle * Math.PI / 180, 0]}
         ref={(group) => { if (group) groups.current.set(segment.id, group); else groups.current.delete(segment.id); }}>
         {physicalWall && pieces.map((piece, i) => <WallBox key={`wall-${i}`} piece={piece} thickness={thickness} />)}
-        {physicalWall && holes.map((hole, index) => <group key={`opening-${index}`}>
-          {[
-            { ...hole, to: hole.from + 40 }, { ...hole, from: hole.to - 40 },
-            { ...hole, bottom: hole.top - 40 }, ...(hole.bottom > 0 ? [{ ...hole, top: hole.bottom + 40 }] : []),
-          ].map((piece, i) => <WallBox key={i} piece={piece} thickness={thickness + 12} color="#fafafa" />)}
-          {hole.bottom > 0 && <mesh position={[m((hole.from + hole.to) / 2), m((hole.bottom + hole.top) / 2), -m(thickness / 2)]}>
-            <boxGeometry args={[m(hole.to - hole.from), m(hole.top - hole.bottom), 0.008]} />
-            <meshStandardMaterial color="#cfe6f5" transparent opacity={0.35} roughness={0.05} metalness={0.1} />
-          </mesh>}
-        </group>)}
         {materials.backsplash && cladding.map((piece, i) => <WallBox key={`cladding-${i}`} name={`kitchen-backsplash-${segment.id}-${i}`} piece={piece} thickness={12} inset={6} material={materials.backsplash!} />)}
         {treatments.map((treatment) => <Treatment key={treatment.id} treatment={treatment} segment={segment} holes={holes} />)}
       </group>;

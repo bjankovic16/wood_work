@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
 
-export async function movementHandle(page, axis, distance = 0) {
-  await page.waitForFunction(() => Boolean(window.__kitchen3D.scene.getObjectByName('kitchen-move-tool')));
+export async function movementHandle(page, axis, distance = 0, toolName = 'kitchen-move-tool') {
+  await page.waitForFunction((name) => Boolean(window.__kitchen3D.scene.getObjectByName(name)), toolName);
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-  return page.evaluate(({ axis, distance }) => {
+  return page.evaluate(({ axis, distance, toolName }) => {
     const { scene, camera } = window.__kitchen3D;
     scene.updateMatrixWorld(true);
     camera.updateMatrixWorld(true);
     const candidates = [];
-    scene.getObjectByName('kitchen-move-tool').traverse((object) => {
+    scene.getObjectByName(toolName).traverse((object) => {
       if (!object.isMesh || object.name !== axis) return;
       for (let parent = object; parent; parent = parent.parent) if (!parent.visible) return;
       object.geometry.computeBoundingBox();
@@ -27,7 +27,7 @@ export async function movementHandle(page, axis, distance = 0) {
       return { x: rect.x + (point.x + 1) * rect.width / 2, y: rect.y + (1 - point.y) * rect.height / 2 };
     };
     return { from: screen(start), to: screen(end) };
-  }, { axis, distance });
+  }, { axis, distance, toolName });
 }
 
 export async function assertScenePlacement(page, id) {

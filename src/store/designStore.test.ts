@@ -14,6 +14,32 @@ beforeEach(() => {
 });
 
 describe('design history', () => {
+  it('moves a structure as one undoable gesture without repositioning unrelated, already-invalid cabinetry', () => {
+    const original = {
+      ...ops.createDesign(),
+      room: { width: 3600, depth: 3000, height: 2600, features: [{ id: 'chimney', kind: 'chimney' as const, x: 0, y: 0, width: 450, depth: 450 }] },
+      items: [createItem('base', [], { x: -100 })],
+    };
+    store().load(original);
+    actions.updateRoomFeature('chimney', { x: 0 });
+    expect(store().past).toHaveLength(0);
+    store().beginGesture();
+    for (const x of [100, 200, 300]) actions.updateRoomFeature('chimney', { x });
+    store().endGesture();
+    expect(store().design.items).toBe(original.items);
+    expect(store().design.room.features![0].x).toBe(300);
+    expect(store().past).toHaveLength(1);
+    store().undo();
+    expect(store().design).toBe(original);
+    store().redo();
+    expect(store().design.room.features![0].x).toBe(300);
+    store().beginGesture();
+    actions.updateRoomFeature('chimney', { y: 800 });
+    store().cancelGesture();
+    expect(store().design.room.features![0]).toMatchObject({ x: 300, y: 0 });
+    expect(store().past).toHaveLength(1);
+  });
+
   it('undoes and redoes changes', () => {
     const item = createItem('base', []);
     store().apply((d) => ops.addItem(d, item));
