@@ -5,7 +5,7 @@ import { cuttingListDocument } from '../export/pdf';
 import { planSvg } from '../export/planSvg';
 import { en } from '../i18n/en';
 import { sr } from '../i18n/sr';
-import { stackCabinetAbove } from '../store/actions';
+import { stackCabinetAbove, addThreeTierRun } from '../store/actions';
 import { useDesignStore } from '../store/designStore';
 import { useUiStore } from '../store/uiStore';
 import { CEILING_GAP, createItem, findPreset, hasWorktop, itemFromPreset } from './catalog';
@@ -13,11 +13,46 @@ import { createDesign, parseDesign } from './designOps';
 import { localToRoom, verticalOverlap } from './geometry';
 import { createKitchenDesign, KITCHEN_DESIGNS } from './kitchens';
 import type { Opening } from './types';
-import { backsplashTop, canStackCabinet, exposedCabinetUnderside, inUpperRow, planCabinetAbove, upperCabinetRows } from './upperCabinets';
+import { backsplashTop, canStackCabinet, exposedCabinetUnderside, inUpperRow, planCabinetAbove, upperCabinetRows, planThreeTier, DEFAULT_THREE_TIER } from './upperCabinets';
 
 const room = { width: 4000, depth: 3200, height: 2600 };
 
 describe('stacked upper cabinetry', () => {
+  it('adds a full connected base run as two independent upper rows in one undo step', () => {
+    const first = createItem('base', [], { x: 600 });
+    const second = createItem('drawer', [first], { x: 1200 });
+    const initial = { ...createDesign(), room, items: [first, second] };
+    useDesignStore.getState().load(initial);
+    const before = useDesignStore.getState().past.length;
+    expect(addThreeTierRun(first.id, DEFAULT_THREE_TIER).ok).toBe(true);
+    const state = useDesignStore.getState();
+    expect(state.design.items).toHaveLength(6);
+    expect(upperCabinetRows(state.design.items)).toHaveLength(2);
+    expect(state.past).toHaveLength(before + 1);
+    expect(checkDesign(state.design).filter((issue) => issue.severity === 'error')).toEqual([]);
+    state.undo();
+    expect(useDesignStore.getState().design).toEqual(initial);
+  });
+
+  it('does not insert partial rows when the ceiling or another cupboard blocks the proposal', () => {
+    const source = createItem('base', []);
+    expect(planThreeTier({ ...room, height: 2200 }, [source], source, DEFAULT_THREE_TIER)).toEqual({ ok: false, reason: 'noSpace' });
+    const blocker = createItem('wall', [source], { elevation: 2170, height: 400 });
+    const design = { ...createDesign(), room, items: [source, blocker] };
+    useDesignStore.getState().load(design);
+    expect(addThreeTierRun(source.id, DEFAULT_THREE_TIER)).toEqual({ ok: false, reason: 'blocked' });
+    expect(useDesignStore.getState().design).toBe(design);
+  });
+
+  it('keeps both angled upper rows aligned to their base back anchor', () => {
+    const source = createItem('base', [], { rotation: 30, x: 1200, y: 1200 });
+    const plan = planThreeTier(room, [source], source, DEFAULT_THREE_TIER);
+    if (!plan.ok) throw new Error(plan.reason);
+    for (const cabinet of plan.cabinets) {
+      expect(localToRoom({ ...source, ...cabinet }, 0, 0).x).toBeCloseTo(localToRoom(source, 0, 0).x);
+      expect(localToRoom({ ...source, ...cabinet }, 0, 0).y).toBeCloseTo(localToRoom(source, 0, 0).y);
+    }
+  });
   it.each([0, 90, 180, 270] as const)('aligns a second row with the same back anchor at %i degrees', (rotation) => {
     const source = createItem('wall', [], { x: 1000, y: 1000, rotation });
     const plan = planCabinetAbove(room, [source], source);

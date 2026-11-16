@@ -35,7 +35,7 @@ function ProjectName({ className }: { className?: string }) {
         }
       }}
       className={cn(
-        'h-8 min-w-0 rounded-md border border-transparent bg-transparent px-2 text-base font-medium text-zinc-800 transition-colors lg:text-[13px]',
+        'h-8 min-w-0 rounded-lg border border-transparent bg-[#f3f0e8] px-2 text-base font-medium text-studio-ink transition-colors lg:text-[13px]',
         'hover:border-zinc-200 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20',
         className,
       )}
@@ -46,7 +46,7 @@ function ProjectName({ className }: { className?: string }) {
 function Logo() {
   return (
     <svg viewBox="0 0 32 32" className="size-6 shrink-0" aria-hidden>
-      <rect width="32" height="32" rx="7" fill="#18181b" />
+      <rect width="32" height="32" rx="9" fill="#52644d" />
       <path d="M8 13h16v11H8z" fill="none" stroke="#fff" strokeWidth="2" />
       <path d="M16 13v11M7 13h18" stroke="#fff" strokeWidth="2" />
     </svg>
@@ -145,8 +145,8 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
 
   if (compact) {
     return (
-      <header className="shrink-0 border-b border-zinc-200 bg-white print:hidden">
-        <div className="flex h-12 items-center gap-1 px-2">
+      <header className="studio-panel shrink-0 border-b print:hidden">
+        <div className="flex h-14 items-center gap-1 px-3">
         <Logo />
         <ProjectName className="flex-1" />
         <UndoRedo />
@@ -199,7 +199,7 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
   }
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-1 border-b border-zinc-200 bg-white px-3 print:hidden">
+    <header className="studio-panel z-20 flex h-16 shrink-0 items-center gap-1 border-b px-4 shadow-[0_1px_8px_#332f2805] print:hidden">
       <div className="flex items-center gap-2 pr-2">
         <Logo />
         <span className="hidden whitespace-nowrap text-[13px] font-semibold text-zinc-900 2xl:inline">{t.appName}</span>
@@ -209,7 +209,7 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
         <FolderOpen className="size-4" />
         {t.topBar.projects}
       </Button>
-      <Button title={t.layouts.title} aria-label={t.layouts.title} onClick={() => ui.setLayoutsOpen(true)}>
+      <Button variant="outline" title={t.layouts.title} aria-label={t.layouts.title} onClick={() => ui.setLayoutsOpen(true)}>
         <Images className="size-4" />
         <span className="hidden xl:inline">{t.kitchens.browse}</span>
       </Button>

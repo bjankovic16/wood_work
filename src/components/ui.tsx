@@ -16,14 +16,14 @@ export function Button({ active, variant = 'ghost', className, type = 'button', 
       type={type}
       aria-pressed={active}
       className={cn(
-        'inline-flex h-8 min-w-8 touch-manipulation select-none items-center justify-center gap-1.5 rounded-md px-2 text-[13px] font-medium transition-colors',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40',
+        'inline-flex h-8 min-w-8 touch-manipulation select-none items-center justify-center gap-1.5 rounded-lg px-2 text-[13px] font-medium transition-colors',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-studio-accent/50 focus-visible:ring-offset-1',
         'disabled:pointer-events-none disabled:opacity-35',
-        variant === 'ghost' && 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900',
-        variant === 'outline' && 'border border-zinc-200 bg-white text-zinc-700 shadow-xs hover:bg-zinc-50',
+        variant === 'ghost' && 'text-[#696357] hover:bg-[#ece8df] hover:text-studio-ink',
+        variant === 'outline' && 'border border-studio-line bg-studio-paper text-[#585348] shadow-xs hover:border-[#b6b09f] hover:bg-[#f4f1e9]',
         variant === 'danger' && 'border border-zinc-200 bg-white text-red-600 shadow-xs hover:border-red-200 hover:bg-red-50',
-        variant === 'primary' && 'bg-zinc-900 text-white shadow-sm hover:bg-zinc-800',
-        active && 'bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800',
+        variant === 'primary' && 'bg-studio-accent text-white shadow-sm hover:bg-[#40533d]',
+        active && 'border-[#aab69d] bg-[#e6ecdf] text-[#3e5539] hover:bg-[#dce6d3] hover:text-[#31482e]',
         className,
       )}
       {...props}
@@ -32,14 +32,14 @@ export function Button({ active, variant = 'ghost', className, type = 'button', 
 }
 
 export function Divider() {
-  return <div className="mx-1 h-5 w-px shrink-0 bg-zinc-200" />;
+  return <div className="mx-1 h-5 w-px shrink-0 bg-studio-line" />;
 }
 
 export function PanelSection({ title, children, aside }: { title: string; children: ReactNode; aside?: ReactNode }) {
   return (
-    <section className="border-b border-zinc-100 px-4 py-4 last:border-b-0">
+    <section className="border-b border-studio-line/70 px-4 py-4 last:border-b-0">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">{title}</h3>
+        <h3 className="text-[10px] font-semibold uppercase tracking-[0.13em] text-studio-muted">{title}</h3>
         {aside}
       </div>
       <div className="space-y-2">{children}</div>
@@ -67,7 +67,7 @@ interface SegmentedProps<T extends string> {
 /** A row of mutually exclusive choices. */
 export function Segmented<T extends string>({ value, options, onChange, className, size = 'md', ariaLabel }: SegmentedProps<T>) {
   return (
-    <div role="radiogroup" aria-label={ariaLabel} className={cn('flex rounded-lg bg-zinc-100 p-0.5', className)}>
+    <div role="radiogroup" aria-label={ariaLabel} className={cn('flex rounded-xl border border-studio-line/60 bg-[#efede5] p-1', className)}>
       {options.map((option) => (
         <button
           key={option.value}
@@ -78,9 +78,9 @@ export function Segmented<T extends string>({ value, options, onChange, classNam
           title={option.title}
           onClick={() => onChange(option.value)}
           className={cn(
-            'flex flex-1 touch-manipulation items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2.5 font-medium transition-colors',
+            'flex flex-1 touch-manipulation items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-studio-accent',
             size === 'sm' ? 'h-7 text-xs' : 'h-8 text-[13px]',
-            value === option.value ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-800',
+            value === option.value ? 'bg-studio-paper text-studio-ink shadow-sm' : 'text-studio-muted hover:text-studio-ink',
           )}
         >
           {option.label}
@@ -130,7 +130,7 @@ export function Dialog({ open, title, onClose, children, footer, sheet = false, 
   if (!open) return null;
   return createPortal(
     <div
-      className={cn('fixed inset-0 z-50 flex bg-zinc-900/30', sheet ? 'items-end' : 'items-center justify-center p-6')}
+      className={cn('fixed inset-0 z-50 flex bg-[#29291f]/35 backdrop-blur-[3px]', sheet ? 'items-end' : 'items-center justify-center p-6')}
       onPointerDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -142,11 +142,11 @@ export function Dialog({ open, title, onClose, children, footer, sheet = false, 
         aria-label={title}
         tabIndex={-1}
         className={cn(
-          'flex flex-col bg-white shadow-2xl outline-none',
-          sheet ? 'max-h-[85dvh] w-full rounded-t-2xl' : cn('max-h-full w-full rounded-xl', wide ? 'max-w-2xl' : 'max-w-md'),
+          'flex flex-col border border-studio-line bg-studio-paper shadow-2xl outline-none',
+          sheet ? 'max-h-[90dvh] w-full rounded-t-3xl' : cn('max-h-full w-full rounded-2xl', wide ? 'max-w-5xl' : 'max-w-md'),
         )}
       >
-        <div className="flex items-center justify-between border-b border-zinc-100 py-3 pl-5 pr-3">
+        <div className="flex items-center justify-between border-b border-studio-line py-3 pl-5 pr-3">
           <h2 className="text-sm font-semibold text-zinc-900">{title}</h2>
           <Button aria-label={t.common.close} title={t.common.closeTitle} onClick={onClose}>
             <X className="size-4" />
@@ -195,7 +195,7 @@ export function Menu({ label, icon, children, align = 'right', text, variant = '
       {open && (
         <div
           className={cn(
-            'absolute top-full z-40 mt-1 w-64 rounded-xl border border-zinc-200 bg-white p-2 shadow-xl',
+            'absolute top-full z-40 mt-2 w-64 rounded-xl border border-studio-line bg-studio-paper p-2 shadow-xl',
             align === 'right' ? 'right-0' : 'left-0',
           )}
           onClick={(e) => {

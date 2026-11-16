@@ -31,6 +31,7 @@ import { Button } from '../ui';
 import { ItemShape } from './ItemShape';
 import { Clearances, Ghost, Guides, IssueOutlines, Selection, WallDimensions } from './Overlays';
 import { RoomShape } from './RoomShape';
+import { WallCorners } from './WallCorners';
 
 /** Pointer travel (px) before a press turns into a drag; fingers wobble more than mice. */
 const DRAG_START_PX = { mouse: 3, touch: 8 };
@@ -89,6 +90,8 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
   const [, setFontVersion] = useState(0);
 
   const room = useDesignStore((s) => s.design.room);
+  const wallEditing = useUiStore((s) => s.wallEditing);
+  const t = useT();
   const items = useDesignStore((s) => s.design.items);
   const zoom = useUiStore((s) => s.zoom);
   const pan = useUiStore((s) => s.pan);
@@ -388,7 +391,7 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
           <Layer listening={false}>
             <RoomShape room={room} zoom={zoom} openings={openings} />
           </Layer>
-          <Layer>
+          <Layer listening={!wallEditing}>
             {ordered.map((item) => (
               <ItemShape
                 key={item.id}
@@ -419,9 +422,14 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
               />
             )}
           </Layer>
+          {wallEditing && <Layer><WallCorners px={px} /></Layer>}
         </Stage>
       )}
-      <CanvasControls zoom={zoom} viewFilter={viewFilter} isEmpty={items.length === 0} compact={compact} rows={rows} row={row} />
+      <CanvasControls zoom={zoom} viewFilter={viewFilter} isEmpty={items.length === 0 && !wallEditing} compact={compact} rows={rows} row={row} />
+      {wallEditing && <div className="absolute inset-x-3 top-3 flex items-center justify-between gap-2 rounded-xl border border-stone-200 bg-white/95 p-3 text-xs text-stone-700 shadow-sm">
+        <span>{t.advancedRoom.editing}</span>
+        <Button onClick={() => useUiStore.getState().setWallEditing(false)}>{t.common.done}</Button>
+      </div>}
     </div>
   );
 }

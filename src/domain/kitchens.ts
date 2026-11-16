@@ -6,6 +6,7 @@ import { buildLayout, type LayoutId } from './templates';
 import type { Design, KitchenItem, Room } from './types';
 import { withModuleMaterials } from '../engine/settings';
 import { createLayeredKitchen, type LayeredKitchen } from './layeredKitchens';
+import { PREMIUM_KITCHENS, premiumUpperRows, type KitchenCollection } from './premiumKitchens';
 
 export interface KitchenPreset {
   id: string;
@@ -21,6 +22,10 @@ export interface KitchenPreset {
   pullOut?: boolean;
   breakfastBar?: boolean;
   layered?: LayeredKitchen;
+  collection?: KitchenCollection;
+  inspiration?: string;
+  stacked?: boolean;
+  middleFinish?: FrontFinish;
 }
 
 function warmStyle(front: FrontFinish, worktop: WorktopFinish, handles: HandleStyle = 'brass', backsplash: BacksplashFinish = 'travertine'): KitchenStyle {
@@ -52,6 +57,7 @@ export const KITCHEN_DESIGNS = [
   { id: 'ivory-oak-gallery', layout: 'straight', room: { width: 4200, depth: 3000, height: 2700 }, style: { ...warmStyle('cream', 'travertine', 'none'), appliances: 'black', plinthLighting: true }, layered: 'ivory' },
   { id: 'olive-stone-gallery', layout: 'l-shape', room: { width: 4200, depth: 3200, height: 2700 }, style: { ...warmStyle('olive', 'stone', 'none', 'stone'), appliances: 'black', plinthLighting: true }, layered: 'olive' },
   { id: 'walnut-noir-gallery', layout: 'l-shape', room: { width: 4200, depth: 3200, height: 2700 }, style: { ...warmStyle('anthracite', 'black', 'none', 'black'), appliances: 'black', plinthLighting: true }, layered: 'graphite' },
+  ...PREMIUM_KITCHENS,
 ] as const satisfies readonly KitchenPreset[];
 
 export type KitchenDesignId = (typeof KITCHEN_DESIGNS)[number]['id'];
@@ -116,6 +122,7 @@ export function createKitchenDesign(preset: KitchenPreset, name: string, prefixe
   }
 
   // Changing a cabinet's kind must also give it the right, unique code in the chosen language.
+  if (preset.stacked) items = premiumUpperRows(items, room, preset.style.front, preset.middleFinish ?? preset.style.front, prefixes);
   const labelled: KitchenItem[] = [];
   for (const item of items) labelled.push({ ...item, label: nextLabel(item.kind, labelled, prefixes) });
 

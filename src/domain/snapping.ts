@@ -7,6 +7,8 @@ import {
   itemRect,
   localDepthExtent,
   localToRoom,
+  roomToLocal,
+  resizeFromAnchor,
   rotationForWall,
   WALLS,
   type Corner,
@@ -15,6 +17,8 @@ import {
 import { clamp, roundTo } from './math';
 import { roomFeatureRect, roomOutline, roomWallRuns, type RoomWallRun } from './roomGeometry';
 import type { KitchenItem, Point, Room, Rotation, Wall } from './types';
+import { normalizeAngle } from './polygons';
+import { mountingSegments, wallCoordinates, wallPoint } from './walls';
 
 export interface SnapSettings {
   enabled: boolean;
@@ -169,6 +173,32 @@ export function computeDragPlacement(input: DragInput): DragResult {
   let corner: Corner | null = null;
   let surface: RoomWallRun | null = null;
 
+  if (snap.enabled && item.kind !== 'corner' && (room.vertices || room.partitions?.length || room.cutout?.kind === 'diagonal')) {
+    const candidates = mountingSegments(room).filter((s) => s.length >= item.width && (!s.partitionId || item.elevation < s.height));
+    const ordered = candidates.map((segment) => {
+      const local = wallCoordinates(segment, pointer);
+      return { segment, local, distance: Math.hypot(local.y, Math.max(-local.x, 0, local.x - segment.length)) };
+    }).filter((entry) => entry.local.y >= -snap.threshold).sort((a, b) => a.distance - b.distance);
+    let best = ordered[0];
+    const previous = ordered.find((entry) => Math.abs(entry.segment.angle - item.rotation) < 0.1);
+    if (previous && best && previous.distance <= best.distance + WALL_HYSTERESIS) best = previous;
+    if (best && best.local.y >= -snap.threshold && best.distance <= item.depth + ATTACH_MARGIN) {
+      const { segment } = best;
+      rotation = segment.angle;
+      let along = clamp(best.local.x - item.width / 2, 0, segment.length - item.width);
+      const targets = [0, segment.length - item.width];
+      for (const other of others.filter((o) => o.elevation < item.elevation + item.height && item.elevation < o.elevation + o.height)) {
+        const start = wallCoordinates(segment, localToRoom(other, 0, 0));
+        if (Math.abs(start.y) < 1 && Math.abs(normalizeAngle(other.rotation) - rotation) < 0.1) targets.push(start.x + other.width, start.x - item.width);
+      }
+      along = snapValue(along, targets, snap.threshold) ?? roundTo(along, snap.grid);
+      along = clamp(along, 0, segment.length - item.width);
+      const anchor = wallPoint(segment, along);
+      const offset = localToRoom({ ...item, rotation, x: 0, y: 0 }, 0, 0);
+      return { x: anchor.x - offset.x, y: anchor.y - offset.y, rotation, wall: null, guides: [] };
+    }
+  }
+
   if (snap.enabled) {
     if (item.kind === 'corner') {
       corner = pickCorner(room, pointer, Math.max(item.width, localDepthExtent(item)) + CORNER_REACH);
@@ -260,7 +290,7 @@ const LOCAL_EDGE_SIDE: Record<Rotation, Record<LocalEdge, Wall>> = {
 export function itemHandles(item: Placed): ItemHandle[] {
   const lw = item.width;
   const lh = localDepthExtent(item);
-  const side = LOCAL_EDGE_SIDE[item.rotation];
+  const side = LOCAL_EDGE_SIDE[(Math.round(normalizeAngle(item.rotation) / 90) * 90) % 360];
   if (item.kind === 'corner') {
     const d = item.depth;
     return [
@@ -290,6 +320,20 @@ export function computeHandleResize(input: ResizeInput): { item: KitchenItem; gu
   const { room, others, item, pointer, snap } = input;
   const handle = itemHandles(item).find((h) => h.id === input.handleId);
   if (!handle) return { item, guides: [] };
+  if (normalizeAngle(item.rotation) % 90 !== 0) {
+    const local = roomToLocal(item, pointer);
+    const limits = sizeLimits(item, handle.field);
+    const coordinate = handle.field === 'width' ? local.x : local.y;
+    const value = input.handleId === 'left' ? item.width - coordinate : coordinate;
+    const extent = Math.round(clamp(snap.enabled ? roundTo(value, snap.grid) : value, limits.min, limits.max));
+    let resized = resizeFromAnchor(item, { [handle.field]: extent });
+    if (input.handleId === 'left') {
+      const oldRight = localToRoom(item, item.width, 0);
+      const newRight = localToRoom(resized, resized.width, 0);
+      resized = { ...resized, x: resized.x + oldRight.x - newRight.x, y: resized.y + oldRight.y - newRight.y };
+    }
+    return { item: resized, guides: [] };
+  }
 
   const horizontal = handle.side === 'left' || handle.side === 'right';
   const axis = horizontal ? 'x' : 'y';

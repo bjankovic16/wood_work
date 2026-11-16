@@ -7,6 +7,7 @@ import * as actions from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
 import { Button, PanelSection } from '../ui';
 import { NumberField, SelectField } from './NumberField';
+import { useState } from 'react';
 
 const FEATURE_KINDS: readonly RoomFeatureKind[] = ['chimney', 'column', 'projection'];
 
@@ -14,24 +15,31 @@ export function RoomStructureSettings() {
   const t = useT();
   const room = useDesignStore((state) => state.design.room);
   const cut = room.cutout;
+  const [failed, setFailed] = useState(false);
+  const commit = (edit: () => void) => {
+    try { edit(); setFailed(false); }
+    catch (error) { if (!(error instanceof RangeError)) throw error; setFailed(true); }
+  };
   const changeCut = (patch: Partial<RoomCutout>) => {
-    if (cut) actions.setRoomCutout({ ...cut, ...patch });
+    if (cut) commit(() => actions.setRoomCutout({ ...cut, ...patch }));
   };
   return (
     <PanelSection title={t.roomStructure.title}>
       <SelectField
         label={t.roomStructure.shape}
-        value={cut?.kind ?? 'rectangle'}
+        value={room.vertices ? 'polygon' : cut?.kind ?? 'rectangle'}
         options={[
+          ...(room.vertices ? [{ value: 'polygon' as const, label: t.advancedRoom.polygon }] : []),
           { value: 'rectangle', label: t.roomStructure.rectangle },
           { value: 'notch', label: t.roomStructure.notch },
           { value: 'diagonal', label: t.roomStructure.diagonal },
         ]}
-        onChange={(kind) => actions.setRoomCutout(kind === 'rectangle' ? undefined : {
+        onChange={(kind) => { if (kind !== 'polygon') commit(() => actions.setRoomCutout(kind === 'rectangle' ? undefined : {
           kind, corner: cut?.corner ?? 'bottomRight',
           width: cut?.width ?? Math.round(room.width * 0.3), depth: cut?.depth ?? Math.round(room.depth * 0.3),
-        })}
+        })); }}
       />
+      {failed && <p role="alert" className="text-xs text-red-700">{t.advancedRoom.invalid}</p>}
       {cut && (
         <>
           <SelectField label={t.roomStructure.corner} value={cut.corner} options={ROOM_CORNERS.map((corner) => ({ value: corner, label: t.roomStructure.corners[corner] }))} onChange={(corner: RoomCorner) => changeCut({ corner })} />

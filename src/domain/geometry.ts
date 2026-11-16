@@ -1,13 +1,16 @@
 import { clamp } from './math';
 import { roomContainsRect, roomWallRuns, type RoomWallRun } from './roomGeometry';
 import type { KitchenItem, Point, Rect, Room, Rotation, Wall } from './types';
+import { angleBasis, normalizeAngle, polygonBounds, polygonContains, polygonsOverlap } from './polygons';
+import { roomOutline } from './roomGeometry';
+import { mountingSegments, wallCoordinates, type WallSegment } from './walls';
 
 /**
  * Plan geometry.
  *
  * Every item is described in its own local frame: u runs along the front from
  * the item's left side (seen from the front), v runs from the back (v = 0) to
- * the front. Rotation maps that frame onto the plan in 90° steps, and (x, y)
+ * the front. Rotation maps that frame onto the plan clockwise, and (x, y)
  * is the top-left corner of the resulting axis-aligned footprint.
  */
 
@@ -31,7 +34,8 @@ export function localDepthExtent(item: Placed): number {
 export function aabbSize(item: Placed): { w: number; h: number } {
   const lw = item.width;
   const lh = localDepthExtent(item);
-  return item.rotation % 180 === 0 ? { w: lw, h: lh } : { w: lh, h: lw };
+  const { c, s } = angleBasis(item.rotation);
+  return { w: Math.abs(c) * lw + Math.abs(s) * lh, h: Math.abs(s) * lw + Math.abs(c) * lh };
 }
 
 export function itemRect(item: Placed): Rect {
@@ -42,22 +46,21 @@ export function itemRect(item: Placed): Rect {
 export function localToRoom(item: Placed, u: number, v: number): Point {
   const lw = item.width;
   const lh = localDepthExtent(item);
-  switch (item.rotation) {
-    case 0:
-      return { x: item.x + u, y: item.y + v };
-    case 90:
-      return { x: item.x + lh - v, y: item.y + u };
-    case 180:
-      return { x: item.x + lw - u, y: item.y + lh - v };
-    case 270:
-      return { x: item.x + v, y: item.y + lw - u };
-  }
+  const { c, s } = angleBasis(item.rotation);
+  return { x: item.x + c * u - s * v - Math.min(0, c * lw) - Math.min(0, -s * lh),
+    y: item.y + s * u + c * v - Math.min(0, s * lw) - Math.min(0, c * lh) };
+}
+
+export function roomToLocal(item: Placed, point: Point): Point {
+  const origin = localToRoom(item, 0, 0);
+  const { c, s } = angleBasis(item.rotation);
+  const dx = point.x - origin.x;
+  const dy = point.y - origin.y;
+  return { x: c * dx + s * dy, y: -s * dx + c * dy };
 }
 
 export function localRectToRoom(item: Placed, u1: number, v1: number, u2: number, v2: number): Rect {
-  const a = localToRoom(item, u1, v1);
-  const b = localToRoom(item, u2, v2);
-  return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y) };
+  return polygonBounds([[u1, v1], [u2, v1], [u2, v2], [u1, v2]].map(([u, v]) => localToRoom(item, u, v)));
 }
 
 function localOutline(item: Placed): Array<[number, number]> {
@@ -85,7 +88,29 @@ export function footprintRects(item: Placed): Rect[] {
     const w2 = localDepthExtent(item);
     return [localRectToRoom(item, 0, 0, item.width, d), localRectToRoom(item, 0, d, d, w2)];
   }
+
   return [itemRect(item)];
+}
+
+export function footprintPieces(item: Placed): Point[][] {
+  const rectangles = item.kind === 'corner' ? [[0, 0, item.width, item.depth], [0, item.depth, item.depth, localDepthExtent(item)]]
+    : [[0, 0, item.width, item.depth]];
+  return rectangles.filter(([, v1, , v2]) => v2 > v1).map(([u1, v1, u2, v2]) =>
+    [[u1, v1], [u2, v1], [u2, v2], [u1, v2]].map(([u, v]) => localToRoom(item, u, v)));
+}
+
+export function itemInsideRoom(item: Placed, room: Room): boolean {
+  return footprintPieces(item).every((p) => polygonContains(roomOutline(room), p));
+}
+
+export function attachedSegment(item: Placed, room: Room): WallSegment | null {
+  const a = localToRoom(item, 0, 0);
+  const b = localToRoom(item, item.width, 0);
+  return mountingSegments(room).find((s) => {
+    const first = wallCoordinates(s, a);
+    const last = wallCoordinates(s, b);
+    return Math.abs(first.y) < 1.1 && Math.abs(last.y) < 1.1 && first.x >= -1 && last.x <= s.length + 1 && last.x > first.x;
+  }) ?? null;
 }
 
 /** The edges where doors and drawer fronts are. */
@@ -105,7 +130,7 @@ const BACK_WALL: Record<Rotation, Wall> = { 0: 'top', 90: 'right', 180: 'bottom'
 const WALL_ROTATION: Record<Wall, Rotation> = { top: 0, right: 90, bottom: 180, left: 270 };
 
 export function backWall(rotation: Rotation): Wall {
-  return BACK_WALL[rotation];
+  return BACK_WALL[(Math.round(normalizeAngle(rotation) / 90) * 90) % 360];
 }
 
 export function rotationForWall(wall: Wall): Rotation {
@@ -118,6 +143,7 @@ export function rotateRotation(rotation: Rotation, steps: number): Rotation {
 
 /** Walls the item is designed to stand against: its back, plus the side arm of a corner unit. */
 export function mountingWalls(item: Placed): Wall[] {
+  if (normalizeAngle(item.rotation) % 90 !== 0) return [];
   const walls = [backWall(item.rotation)];
   if (item.kind === 'corner') walls.push(backWall(rotateRotation(item.rotation, -1)));
   return walls;
@@ -138,6 +164,7 @@ export function isFlushWith(rect: Rect, wall: Wall, room: Room, tolerance = 1): 
 
 /** The wall the item's back currently stands against, if any. */
 export function attachedWall(item: Placed, room: Room): Wall | null {
+  if (normalizeAngle(item.rotation) % 90 !== 0) return null;
   const wall = backWall(item.rotation);
   return isFlushWith(itemRect(item), wall, room) ? wall : null;
 }
@@ -222,8 +249,7 @@ export function verticalOverlap(
 }
 
 export function footprintsOverlap(a: Placed, b: Placed): boolean {
-  const rb = footprintRects(b);
-  return footprintRects(a).some((ra) => rb.some((r) => rectsOverlap(ra, r)));
+  return footprintPieces(a).some((pa) => footprintPieces(b).some((pb) => polygonsOverlap(pa, pb)));
 }
 
 export function insideRoom(rect: Rect, room: Room): boolean {

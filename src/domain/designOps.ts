@@ -8,6 +8,8 @@ export { ROOM_LIMITS } from './roomGeometry';
 import { DEFAULT_STYLE, FRONT_FINISHES, parseStyle, type FrontFinish, type KitchenStyle } from './style';
 import { parsePhotoReference } from './photoReferences';
 import type { ConstructionSettings, CustomPart, Design, EdgeBand, ItemKind, KitchenItem, Material, Opening, PartEdit, Room } from './types';
+import { normalizeAngle, validRoomPolygon } from './polygons';
+import { roomSegments } from './walls';
 
 /**
  * Pure operations on a design. Each returns the same object when nothing
@@ -18,7 +20,7 @@ export const DEFAULT_ROOM: Room = { width: 3600, depth: 3000, height: 2600 };
 
 export function createDesign(name = 'My kitchen'): Design {
   return {
-    version: 4,
+    version: 5,
     name,
     room: { ...DEFAULT_ROOM },
     items: [],
@@ -59,6 +61,17 @@ export function setRoom(design: Design, patch: Partial<Room>): Design {
     depth: Math.round(clamp(patch.depth ?? design.room.depth, ROOM_LIMITS.depth.min, ROOM_LIMITS.depth.max)),
     height: Math.round(clamp(patch.height ?? design.room.height, ROOM_LIMITS.height.min, ROOM_LIMITS.height.max)),
   });
+  if (room.vertices && (!validRoomPolygon(room.vertices) || room.vertices.some((p) => p.x < 0 || p.y < 0 || p.x > room.width || p.y > room.depth))) {
+    throw new RangeError('Invalid room polygon.');
+  }
+  if ((room.partitions || room.treatments) && !parseRoom(room)) throw new RangeError('Invalid wall dimensions or position.');
+  for (const treatment of room.treatments ?? []) {
+    const frame = roomSegments(room).find((s) => s.id === treatment.wallId);
+    if (!frame || treatment.offset + treatment.width > frame.length + 0.01 || treatment.elevation + treatment.height > frame.height)
+      throw new RangeError('Wall finish does not fit its wall.');
+  }
+  const segmentIds = new Set(roomSegments(room).map((s) => s.id));
+  if (design.openings.some((o) => o.wallId && !segmentIds.has(o.wallId))) throw new RangeError('Remove openings before removing their wall.');
   if (shallowEqual(room, design.room) || JSON.stringify(room) === JSON.stringify(design.room)) return design;
   return {
     ...design,
@@ -125,8 +138,6 @@ export function withPosition(item: KitchenItem, x: number, y: number, room: Room
   return clampToRoom({ ...item, x: Math.round(x), y: Math.round(y) }, room);
 }
 
-const ROTATIONS = new Set([0, 90, 180, 270]);
-
 const isNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
 
 /** Per-unit thicknesses as designs saved before the materials library stored them. */
@@ -140,14 +151,14 @@ function parseItem(raw: unknown): { item: KitchenItem; legacy: LegacyThickness }
   const v = raw as Record<string, unknown>;
   if (typeof v.id !== 'string' || typeof v.kind !== 'string' || !(v.kind in KIND_SPECS)) return null;
   if (![v.x, v.y, v.width, v.depth, v.height, v.elevation].every(isNumber)) return null;
-  if (!ROTATIONS.has(v.rotation as number)) return null;
+  if (!isNumber(v.rotation)) return null;
   const item: KitchenItem = {
     id: v.id,
     kind: v.kind as ItemKind,
     label: typeof v.label === 'string' ? v.label : '',
     x: v.x as number,
     y: v.y as number,
-    rotation: v.rotation as KitchenItem['rotation'],
+    rotation: normalizeAngle(v.rotation),
     width: v.width as number,
     depth: v.depth as number,
     height: v.height as number,
@@ -183,6 +194,7 @@ function parseOpening(raw: unknown, room: Room): Opening | null {
       id: v.id,
       kind: v.kind,
       wall: v.wall,
+      ...(typeof v.wallId === 'string' ? { wallId: v.wallId } : {}),
       offset: v.offset as number,
       width: v.width as number,
       height: v.height as number,
@@ -235,6 +247,14 @@ export function parseDesign(raw: unknown): Design | null {
   const v = raw as Record<string, unknown>;
   const room = parseRoom(v.room);
   if (!room) return null;
+  const segments = roomSegments(room);
+  if (new Set(segments.map((s) => s.id)).size !== segments.length) return null;
+  if (room.treatments?.some((t) => {
+    const segment = segments.find((s) => s.id === t.wallId);
+    return !segment || t.offset + t.width > segment.length + 0.01 || t.elevation + t.height > segment.height;
+  })) return null;
+  if (Array.isArray(v.openings) && v.openings.some((o) => o?.wallId !== undefined
+    && (typeof o.wallId !== 'string' || !segments.some((s) => s.id === o.wallId)))) return null;
   if (!Array.isArray(v.items)) return null;
   const rawConstruction = (v.construction ?? {}) as Record<string, unknown>;
   const edgeBands = parseEdgeBands(v.edgeBands);
@@ -257,7 +277,7 @@ export function parseDesign(raw: unknown): Design | null {
   const referencePhoto = v.referencePhoto === undefined ? undefined : parsePhotoReference(v.referencePhoto);
   if (referencePhoto === null) return null;
   return {
-    version: 4,
+    version: 5,
     name: typeof v.name === 'string' ? v.name : 'My kitchen',
     room,
     items: checkedItems,

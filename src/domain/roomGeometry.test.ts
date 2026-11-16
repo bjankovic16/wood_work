@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { createItem } from './catalog';
 import { createDesign, parseDesign, setRoom } from './designOps';
-import { attachedRoomSurface, footprintRects, insideRoom, itemRect } from './geometry';
+import { attachedRoomSurface, footprintRects, insideRoom, itemRect, attachedSegment, localToRoom, itemInsideRoom } from './geometry';
 import { clampOpening } from './openings';
 import { canPlaceItem, findFreeSpot } from './placement';
 import { createRoomExample, ROOM_EXAMPLES } from './roomExamples';
 import { openingFitsRoomWall, parseRoom, ROOM_CORNERS, roomContainsPoint, roomFeatureRect, roomOutline, roomWallRuns } from './roomGeometry';
 import { computeDragPlacement } from './snapping';
-import type { Room } from './types';
+import type { Room, Opening } from './types';
+import { roomSegments, wallPoint, openingPolygon, solidWallPieces } from './walls';
+import { editableRoomVertices, editRoomWall, setRoomVertices, removeRoomCorner } from '../store/actions';
+import { useDesignStore } from '../store/designStore';
 import { checkDesign } from '../engine/checks';
 import { buildCuttingList } from '../engine/cuttingList';
 import { planSvg } from '../export/planSvg';
@@ -17,6 +20,84 @@ const base: Room = { width: 4000, depth: 3000, height: 2600 };
 const chimney = { id: 'chimney-1', kind: 'chimney' as const, x: 1000, y: 0, width: 450, depth: 450 };
 
 describe('room footprints and fixed structures', () => {
+  const angled: Room = { ...base, vertices: [
+    { id: 'diagonal', x: 1000, y: 0 }, { id: 'east', x: 4000, y: 3000 }, { id: 'south', x: 0, y: 3000 }, { id: 'west', x: 0, y: 0 },
+  ] };
+
+  it('snaps a cabinet back to a real diagonal segment and reserves its angled opening', () => {
+    const item = createItem('base', [], { width: 600 });
+    const frame = roomSegments(angled)[0];
+    const pointer = wallPoint(frame, 1600, 200);
+    const result = computeDragPlacement({ room: angled, others: [], item, pointer, grabOffset: null, previousWall: null, snap: { enabled: true, threshold: 30, grid: 10 } });
+    const placed = { ...item, ...result };
+    expect(result.rotation).toBe(45);
+    expect(attachedSegment(placed, angled)?.id).toBe('diagonal');
+    expect(itemInsideRoom(placed, angled)).toBe(true);
+    const opening: Opening = { id: 'door', kind: 'door', wall: 'top', wallId: 'diagonal', offset: 1200, width: 900, sill: 0, height: 2100 };
+    expect(openingPolygon(angled, opening, 900)).toHaveLength(4);
+    expect(canPlaceItem(angled, [], placed, [opening])).toBe(false);
+    expect(checkDesign({ ...createDesign(), room: angled, openings: [opening], items: [placed] }).some((issue) => issue.key.startsWith('door-'))).toBe(true);
+    expect(planSvg({ ...createDesign(), room: angled, openings: [opening], items: [placed] }).svg).not.toContain('NaN');
+  });
+
+  it('checks a low partition only at intersecting heights and snaps to either face', () => {
+    const room: Room = { ...base, partitions: [{ id: 'low', start: { x: 800, y: 1500 }, end: { x: 3000, y: 1500 }, thickness: 100, height: 1100 }] };
+    const baseItem = createItem('base', [], { x: 1000, y: 1400 });
+    const upper = createItem('wall', [], { x: 1000, y: 1400 });
+    expect(canPlaceItem(room, [], baseItem)).toBe(false);
+    expect(canPlaceItem(room, [], upper)).toBe(true);
+    for (const side of [-1, 1]) {
+      const frame = roomSegments(room).find((s) => s.id === `low:${side}`)!;
+      const result = computeDragPlacement({ room, others: [], item: baseItem, pointer: wallPoint(frame, 1000, 150), grabOffset: null, previousWall: null, snap: { enabled: true, threshold: 30, grid: 10 } });
+      expect(attachedSegment({ ...baseItem, ...result }, room)?.id).toBe(frame.id);
+      expect(canPlaceItem(room, [], { ...baseItem, ...result })).toBe(true);
+    }
+  });
+
+  it('detects an edge bridging a concave notch even with every cabinet vertex inside', () => {
+    const room: Room = { ...base, vertices: [
+      { id: 'a', x: 0, y: 0 }, { id: 'b', x: 4000, y: 0 }, { id: 'c', x: 4000, y: 3000 }, { id: 'd', x: 2200, y: 3000 },
+      { id: 'e', x: 2200, y: 1400 }, { id: 'f', x: 1800, y: 1400 }, { id: 'g', x: 1800, y: 3000 }, { id: 'h', x: 0, y: 3000 },
+    ] };
+    expect(insideRoom({ x: 1600, y: 1000, w: 800, h: 700 }, room)).toBe(false);
+    expect(insideRoom({ x: 200, y: 1000, w: 800, h: 700 }, room)).toBe(true);
+  });
+
+  it('clips wall and decorative rectangles around windows', () => {
+    const frame = roomSegments(angled)[0];
+    const pieces = solidWallPieces(frame, [{ from: 500, to: 1500, bottom: 900, top: 2100 }]);
+    const total = pieces.reduce((area, p) => area + (p.to - p.from) * (p.top - p.bottom), 0);
+    expect(total).toBeCloseTo(frame.length * frame.height - 1000 * 1200);
+    expect(pieces.some((p) => p.from < 1000 && p.to > 1000 && p.bottom < 1500 && p.top > 1500)).toBe(false);
+  });
+
+  it('preserves old opening world positions when converting to editable walls and makes wall edits undoable', () => {
+    const opening: Opening = { id: 'bottom-window', kind: 'window', wall: 'bottom', offset: 300, width: 1200, sill: 1000, height: 1000 };
+    const initial = { ...createDesign(), room: base, openings: [opening] };
+    useDesignStore.getState().load(initial);
+    setRoomVertices(editableRoomVertices(base));
+    const converted = useDesignStore.getState().design;
+    expect(converted.openings[0]).toMatchObject({ wallId: 'bottom', offset: 2500 });
+    expect(openingPolygon(converted.room, converted.openings[0], 500).map((p) => p.x).sort()).toEqual(openingPolygon(base, opening, 500).map((p) => p.x).sort());
+    editRoomWall('top', 3800, 0);
+    expect(useDesignStore.getState().design.room.vertices?.[1].x).toBe(3800);
+    useDesignStore.getState().undo();
+    expect(useDesignStore.getState().design).toEqual(converted);
+    expect(parseDesign(JSON.parse(JSON.stringify(converted)))).toEqual(converted);
+    expect(() => removeRoomCorner('bottom')).toThrow(RangeError);
+  });
+
+  it('rejects invalid geometry and attachments without mutating the saved room', () => {
+    expect(parseRoom({ ...base, vertices: [{ id: 'a', x: 0, y: 0 }, { id: 'b', x: 4000, y: 3000 }, { id: 'c', x: 0, y: 3000 }, { id: 'd', x: 4000, y: 0 }] })).toBeNull();
+    const design = { ...createDesign(), room: angled, items: [createItem('base', [], { rotation: 405, x: 1000, y: 1500 })] };
+    const parsed = parseDesign(JSON.parse(JSON.stringify(design)));
+    expect(parsed?.items[0].rotation).toBe(45);
+    expect(parseDesign({ ...design, room: { ...angled, treatments: [{ id: 'bad', wallId: 'missing', offset: 0, width: 100, elevation: 0, height: 100, finish: 'oak' }] } })).toBeNull();
+    useDesignStore.getState().load(design);
+    expect(() => setRoomVertices([{ id: 'a', x: 0, y: 0 }])).toThrow(RangeError);
+    expect(useDesignStore.getState().design).toBe(design);
+    expect(localToRoom(design.items[0], 0, 0).x).toBeGreaterThan(0);
+  });
   it('preserves rectangular rooms and their original wall order', () => {
     expect(parseRoom(base)).toEqual(base);
     expect(roomOutline(base)).toHaveLength(4);

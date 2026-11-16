@@ -12,7 +12,7 @@ let browser;
 const problems = [];
 let expectedImageError = false;
 let imageErrors = 0;
-const noise = /THREE.Clock: This module has been deprecated/;
+const noise = /THREE.Clock: This module has been deprecated|GL Driver Message .*GPU stall due to ReadPixels/;
 function observe(page) {
   page.on('pageerror', (error) => problems.push(error.message));
   page.on('console', (message) => {
@@ -24,6 +24,117 @@ function observe(page) {
 const design = (page) => page.evaluate(() => window.__kitchen.design.getState().design);
 const shot = (page, name) => page.screenshot({ path: path.join(output, name) });
 const pass = (name) => console.log(`  PASS ${name}`);
+
+async function advancedRoomChecks(page) {
+  console.log('Editable diagonal walls, partitions and finishes');
+  await page.evaluate(async () => {
+    const { createDesign } = await import('/src/domain/designOps.ts');
+    const { createItem } = await import('/src/domain/catalog.ts');
+    const value = createDesign('Angled cabinet');
+    value.room = { width: 4000, depth: 3000, height: 2700, vertices: [
+      { id: 'diagonal', x: 1000, y: 0 }, { id: 'east', x: 4000, y: 3000 },
+      { id: 'south', x: 0, y: 3000 }, { id: 'west', x: 0, y: 0 },
+    ] };
+    value.items = [createItem('base', [], { x: 1000, y: 1700 })];
+    window.__kitchen.design.getState().load(value);
+    const ui = window.__kitchen.ui.getState();
+    ui.select(null); ui.setView('plan'); ui.setReferenceOpen(false); ui.setViewFilter('all');
+  });
+  await page.waitForSelector('.konvajs-content');
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const drag = await page.evaluate(async () => {
+    const { localToRoom } = await import('/src/domain/geometry.ts');
+    const { roomSegments, wallPoint } = await import('/src/domain/walls.ts');
+    const { design } = window.__kitchen.design.getState();
+    const box = document.querySelector('.konvajs-content').getBoundingClientRect();
+    const { zoom, pan } = window.__kitchen.ui.getState();
+    const screen = (p) => ({ x: box.x + pan.x + p.x * zoom, y: box.y + pan.y + p.y * zoom });
+    return { from: screen(localToRoom(design.items[0], 300, 300)), to: screen(wallPoint(roomSegments(design.room)[0], 1600, 200)) };
+  });
+  await page.mouse.move(drag.from.x, drag.from.y);
+  await page.mouse.down();
+  await page.mouse.move(drag.to.x, drag.to.y, { steps: 14 });
+  await page.mouse.up();
+  const placed = (await design(page)).items[0];
+  assert.equal(placed.rotation, 45);
+  assert.equal(await page.evaluate(async () => {
+    const { attachedSegment } = await import('/src/domain/geometry.ts');
+    const value = window.__kitchen.design.getState().design;
+    return attachedSegment(value.items[0], value.room)?.id;
+  }), 'diagonal');
+  await page.getByRole('radio', { name: '3D', exact: true }).click();
+  await ready3D(page);
+  await assertScenePlacement(page, placed.id);
+  await shot(page, '11-diagonal-cabinet.png');
+  pass('a real cabinet drag turns and snaps to a diagonal wall, and 3D uses the same saved transform');
+
+  await page.evaluate(async () => {
+    const { createDesign } = await import('/src/domain/designOps.ts');
+    const fixture = createDesign('Wall editing');
+    fixture.room = { width: 4000, depth: 3000, height: 2700 };
+    window.__kitchen.design.getState().load(fixture);
+    const ui = window.__kitchen.ui.getState();
+    ui.select(null); ui.setView('plan'); ui.setSelectedWallId(null);
+  });
+  await page.getByRole('button', { name: 'Edit wall corners on plan', exact: true }).click();
+  const corner = await page.evaluate(() => {
+    const box = document.querySelector('.konvajs-content').getBoundingClientRect();
+    const { zoom, pan } = window.__kitchen.ui.getState();
+    return { x: box.x + pan.x + 4000 * zoom, y: box.y + pan.y + 3000 * zoom, zoom };
+  });
+  const history = await page.evaluate(() => window.__kitchen.design.getState().past.length);
+  await page.mouse.move(corner.x, corner.y);
+  await page.mouse.down();
+  await page.mouse.move(corner.x - 350 * corner.zoom, corner.y - 150 * corner.zoom, { steps: 12 });
+  await page.mouse.up();
+  const edited = await design(page);
+  assert.ok(edited.room.vertices);
+  assert.ok(Math.abs(edited.room.vertices[2].x - 3650) <= 1 / corner.zoom);
+  assert.ok(Math.abs(edited.room.vertices[2].y - 2850) <= 1 / corner.zoom);
+  assert.equal(await page.evaluate(() => window.__kitchen.design.getState().past.length), history + 1);
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  assert.equal((await design(page)).room.vertices, undefined);
+  await page.getByRole('button', { name: 'Redo', exact: true }).click();
+  assert.deepEqual((await design(page)).room, edited.room);
+  const movedCorner = { x: corner.x - 350 * corner.zoom, y: corner.y - 150 * corner.zoom };
+  await page.mouse.move(movedCorner.x, movedCorner.y);
+  await page.mouse.down();
+  await page.mouse.move(movedCorner.x - 30, movedCorner.y - 20, { steps: 6 });
+  await page.keyboard.press('Escape');
+  await page.mouse.up();
+  assert.deepEqual((await design(page)).room, edited.room);
+  pass('shared room corners drag in one undo step; Escape restores an unfinished wall edit');
+
+  await page.getByText('Interior & half-height walls', { exact: true }).click();
+  await page.getByRole('button', { name: 'Add partition', exact: true }).click();
+  const partition = page.locator('[data-partition]').first();
+  await partition.getByLabel('Angle', { exact: true }).fill('45');
+  await partition.getByLabel('Angle', { exact: true }).press('Enter');
+  await partition.getByLabel('Height', { exact: true }).fill('1000');
+  await partition.getByLabel('Height', { exact: true }).press('Enter');
+  const savedPartition = (await design(page)).room.partitions[0];
+  assert.equal(savedPartition.height, 1000);
+  assert.ok(savedPartition.end.y > savedPartition.start.y);
+  await page.getByText('Wall panels & backsplash', { exact: true }).click();
+  await page.getByRole('button', { name: 'Add wall finish', exact: true }).click();
+  const treatment = page.locator('[data-treatment]').first();
+  await treatment.getByLabel('Finish', { exact: true }).selectOption('walnut');
+  const finished = await design(page);
+  assert.equal(finished.room.treatments[0].finish, 'walnut');
+  await page.waitForTimeout(500);
+  await page.reload();
+  await page.waitForSelector('.konvajs-content');
+  assert.deepEqual(await design(page), finished);
+  await page.getByRole('radio', { name: '3D', exact: true }).click();
+  await ready3D(page);
+  await page.waitForFunction(() => {
+    let found = false;
+    window.__kitchen3D.scene.traverse((node) => { if (node.name.startsWith('wall-finish-')) found = true; });
+    return found;
+  });
+  await shot(page, '12-partition-and-wall-finish.png');
+  pass('angled half-height walls and visual finishes edit through real controls and survive reload');
+}
 
 async function ready3D(page) {
   await page.getByRole('button', { name: 'Reset view', exact: true }).waitFor();
@@ -80,6 +191,13 @@ try {
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('canvas');
   await page.getByLabel('Jezik / Language').selectOption('en');
+  await advancedRoomChecks(page);
+  await page.evaluate(async () => {
+    const { createDesign } = await import('/src/domain/designOps.ts');
+    window.__kitchen.design.getState().load(createDesign());
+    window.__kitchen.ui.getState().select(null);
+    window.__kitchen.ui.getState().setView('plan');
+  });
 
   console.log('Room geometry and structures');
   await page.getByRole('button', { name: 'Start with my room', exact: true }).click();
@@ -307,6 +425,37 @@ try {
   assert.equal(overflows, false);
   await shot(mobile, '10-photo-studio-phone-narrow.png');
   pass('phone photo comparison, camera presets and selected-unit actions work at narrow widths');
+  await mobile.evaluate(async () => {
+    const { createDesign } = await import('/src/domain/designOps.ts');
+    window.__kitchen.design.getState().load(createDesign('Touch walls'));
+    const ui = window.__kitchen.ui.getState();
+    ui.select(null); ui.setView('plan'); ui.setReferenceOpen(false); ui.setRoomOpen(true);
+  });
+  const wallSetup = mobile.getByRole('dialog', { name: 'Set up your room', exact: true });
+  await wallSetup.getByRole('button', { name: 'Edit wall corners on plan', exact: true }).tap();
+  await mobile.waitForSelector('.konvajs-content');
+  await mobile.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const corner = await mobile.evaluate(() => {
+    const box = document.querySelector('.konvajs-content').getBoundingClientRect();
+    const { zoom, pan } = window.__kitchen.ui.getState();
+    return { x: box.x + pan.x + 3600 * zoom, y: box.y + pan.y + 3000 * zoom, zoom };
+  });
+  const touch = await phone.newCDPSession(mobile);
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: corner.x, y: corner.y }] });
+  for (let step = 1; step <= 10; step++) {
+    await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: corner.x - 25 * step / 10, y: corner.y - 15 * step / 10 }] });
+  }
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  const touchRoom = (await design(mobile)).room;
+  assert.ok(touchRoom.vertices?.[2].x < 3500);
+  await mobile.getByRole('button', { name: 'Done', exact: true }).tap();
+  await mobile.getByRole('button', { name: 'Undo', exact: true }).tap();
+  assert.equal((await design(mobile)).room.vertices, undefined);
+  await mobile.getByRole('button', { name: 'Redo', exact: true }).tap();
+  assert.deepEqual((await design(mobile)).room, touchRoom);
+  assert.equal(await mobile.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
+  await shot(mobile, '13-touch-wall-editing.png');
+  pass('real touch gestures edit shared wall corners and support Undo/Redo at 320px');
   await phone.close();
   assert.deepEqual(problems, []);
   console.log('\nAll room, photo and direct-3D browser checks passed.');

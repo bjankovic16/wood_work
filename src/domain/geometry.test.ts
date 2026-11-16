@@ -10,6 +10,9 @@ import {
   mountingWalls,
   resizeFromAnchor,
   rotateItem,
+  footprintsOverlap,
+  roomToLocal,
+  itemInsideRoom,
 } from './geometry';
 import type { KitchenItem, Rotation } from './types';
 
@@ -17,6 +20,25 @@ const room = { width: 3600, depth: 3000, height: 2600 };
 const base = (over: Partial<KitchenItem> = {}) => createItem('base', [], { width: 600, depth: 560, ...over });
 
 describe('localToRoom', () => {
+  it.each([30, 45, 135, 225, 315])('round-trips an angled local frame and keeps its resize anchor at %i degrees', (rotation) => {
+    const item = base({ rotation, x: 900, y: 900 });
+    const point = localToRoom(item, 200, 150);
+    const local = roomToLocal(item, point);
+    expect(local.x).toBeCloseTo(200);
+    expect(local.y).toBeCloseTo(150);
+    const resized = resizeFromAnchor(item, { width: 900, depth: 320 });
+    expect(localToRoom(resized, 0, 0).x).toBeCloseTo(localToRoom(item, 0, 0).x);
+    expect(localToRoom(resized, 0, 0).y).toBeCloseTo(localToRoom(item, 0, 0).y);
+    expect(itemInsideRoom(item, room)).toBe(true);
+  });
+
+  it('does not report overlap for adjacent angled cabinets whose bounding boxes overlap', () => {
+    const a = base({ rotation: 45, x: 900, y: 900 });
+    const step = a.width / Math.sqrt(2);
+    const b = { ...a, id: 'b', x: a.x + step, y: a.y + step };
+    expect(footprintsOverlap(a, b)).toBe(false);
+    expect(footprintsOverlap(a, { ...b, x: b.x - 3, y: b.y - 3 })).toBe(true);
+  });
   it('puts the back-left corner on the correct side for every rotation', () => {
     const at = (rotation: Rotation) => localToRoom(base({ x: 100, y: 200, rotation }), 0, 0);
     expect(at(0)).toEqual({ x: 100, y: 200 });

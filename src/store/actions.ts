@@ -1,11 +1,11 @@
 import { createItem, findPreset, itemFromPreset, nextLabel, type SizeField } from '../domain/catalog';
 import * as ops from '../domain/designOps';
-import { isWallMounted, rotateItem } from '../domain/geometry';
+import { isWallMounted, rotateItem, aabbSize, clampToRoom } from '../domain/geometry';
 import { newId } from '../domain/ids';
 import { createKitchenDesign, type KitchenPreset } from '../domain/kitchens';
 import { centreOfRoom, findFreeSpot, placeCopy } from '../domain/placement';
 import { computeDragPlacement } from '../domain/snapping';
-import { planCabinetAbove, type StackPlan } from '../domain/upperCabinets';
+import { planCabinetAbove, planThreeTier, type StackPlan, type ThreeTierOptions, type ThreeTierPlan } from '../domain/upperCabinets';
 import { buildLayout, type LayoutId } from '../domain/templates';
 import type { KitchenStyle } from '../domain/style';
 import { OPENING_DEFAULTS, wallLength } from '../domain/openings';
@@ -20,6 +20,10 @@ import { currentMessages } from '../i18n';
 import { useDesignStore } from './designStore';
 import { useUiStore } from './uiStore';
 import { clientToPlan, snapSettings } from './viewport';
+import { normalizeAngle } from '../domain/polygons';
+import { roomOutline } from '../domain/roomGeometry';
+import { roomSegments } from '../domain/walls';
+import type { RoomVertex } from '../domain/types';
 
 /** User-level commands that tie the pure design operations to the stores. */
 
@@ -142,6 +146,96 @@ export function rotateSelected(steps: number): void {
   if (item) editItem(item.id, (it, room) => rotateItem(it, steps, room));
 }
 
+export function setItemAngle(id: string, angle: number): void {
+  if (!Number.isFinite(angle)) throw new RangeError('Invalid cabinet angle.');
+  editItem(id, (item, room) => {
+    const before = aabbSize(item);
+    const next = { ...item, rotation: normalizeAngle(angle) };
+    const after = aabbSize(next);
+    return clampToRoom({ ...next, x: item.x + (before.w - after.w) / 2, y: item.y + (before.h - after.h) / 2 }, room);
+  });
+}
+
+export function addThreeTierRun(id: string, options: ThreeTierOptions): ThreeTierPlan {
+  const design = current();
+  const source = design.items.find((item) => item.id === id);
+  if (!source) return { ok: false, reason: 'noSelection' };
+  const plan = planThreeTier(design.room, design.items, source, options, design.openings);
+  if (!plan.ok) return plan;
+  const items = [...design.items];
+  for (const placement of plan.cabinets) items.push(createItem(placement.kind, items, placement, currentMessages().labelPrefix));
+  apply((value) => ({ ...value, items }));
+  const selected = items.at(-1)!;
+  useUiStore.getState().setViewFilter('wall');
+  useUiStore.getState().setWallElevation(selected.elevation);
+  useUiStore.getState().select(selected.id);
+  return plan;
+}
+
+export function editableRoomVertices(room: Room): RoomVertex[] {
+  return room.vertices?.map((v) => ({ ...v })) ?? roomOutline(room).map((point, index) => ({ ...point, id: roomSegments(room, false)[index].id }));
+}
+
+export function setRoomVertices(vertices: RoomVertex[]): void {
+  apply((design) => {
+    const oldSegments = roomSegments(design.room, false);
+    const openings = design.openings.map((opening) => {
+      if (opening.wallId) return opening;
+      const segment = oldSegments.find((s) => s.id === opening.wall);
+      if (!segment) return opening;
+      return { ...opening, wallId: segment.id,
+        offset: opening.wall === 'bottom' || opening.wall === 'left' ? segment.length - opening.offset - opening.width : opening.offset };
+    });
+    const ids = new Set(vertices.map((v) => v.id));
+    if (openings.some((o) => o.wallId && !ids.has(o.wallId) && !design.room.partitions?.some((p) => o.wallId?.startsWith(`${p.id}:`)))
+      || design.room.treatments?.some((t) => !ids.has(t.wallId) && !design.room.partitions?.some((p) => t.wallId.startsWith(`${p.id}:`)))) {
+      throw new RangeError('Remove wall attachments before removing their wall.');
+    }
+    const width = Math.max(design.room.width, ...vertices.map((p) => Math.ceil(p.x)));
+    const depth = Math.max(design.room.depth, ...vertices.map((p) => Math.ceil(p.y)));
+    return ops.setRoom({ ...design, openings }, { vertices, cutout: undefined, width, depth });
+  });
+}
+
+export function editRoomWall(id: string, length: number, angle: number): void {
+  const room = current().room;
+  const vertices = editableRoomVertices(room);
+  const index = vertices.findIndex((v) => v.id === id);
+  if (index < 0) throw new RangeError('Wall not found.');
+  const frame = roomSegments({ ...room, vertices }, false)[index];
+  const radians = angle * Math.PI / 180;
+  const end = { x: Math.round(frame.start.x + length * Math.cos(radians)), y: Math.round(frame.start.y + length * Math.sin(radians)) };
+  const next = vertices.map((v, i) => i === (index + 1) % vertices.length ? { ...v, ...end } : v);
+  setRoomVertices(next);
+}
+
+export function splitRoomWall(id: string): void {
+  const vertices = editableRoomVertices(current().room);
+  const index = vertices.findIndex((v) => v.id === id);
+  if (index < 0) throw new RangeError('Wall not found.');
+  const end = vertices[(index + 1) % vertices.length];
+  vertices.splice(index + 1, 0, { id: newId(), x: Math.round((vertices[index].x + end.x) / 2), y: Math.round((vertices[index].y + end.y) / 2) });
+  setRoomVertices(vertices);
+}
+
+export function removeRoomCorner(id: string): void {
+  setRoomVertices(editableRoomVertices(current().room).filter((v) => v.id !== id));
+}
+
+export function addPartition(): void {
+  const room = current().room;
+  const start = { x: Math.round(room.width * 0.4), y: Math.round(room.depth * 0.65) };
+  const end = { x: Math.round(room.width * 0.7), y: start.y };
+  setRoomSize({ partitions: [...(room.partitions ?? []), { id: newId(), start, end, thickness: 100, height: 1100 }] });
+}
+
+export function addWallTreatment(wallId: string): void {
+  const room = current().room;
+  const segment = roomSegments(room).find((s) => s.id === wallId);
+  if (!segment) throw new RangeError('Wall not found.');
+  setRoomSize({ treatments: [...(room.treatments ?? []), { id: newId(), wallId, offset: 0, width: Math.min(1200, segment.length), elevation: 0, height: Math.min(2400, segment.height), finish: 'oak' }] });
+}
+
 export function nudgeSelected(dx: number, dy: number): void {
   const item = selectedItem();
   if (item) editItem(item.id, (it, room) => ops.withPosition(it, it.x + dx, it.y + dy, room));
@@ -169,7 +263,12 @@ export function setRoomSize(patch: Partial<Room>): void {
 }
 
 export function setRoomCutout(cutout: RoomCutout | undefined): void {
-  apply((design) => ops.setRoom(design, { cutout }));
+  apply((design) => {
+    const next = ops.setRoom(design, { cutout, vertices: undefined });
+    const ids = new Set(roomSegments(next.room).map((s) => s.id));
+    if (next.openings.some((o) => o.wallId && !ids.has(o.wallId))) throw new RangeError('Remove wall attachments before changing the room shape.');
+    return next;
+  });
 }
 
 export function addRoomFeature(kind: RoomFeatureKind): void {
@@ -285,8 +384,9 @@ export function removeEdgeBand(id: string): void {
 export function addOpening(kind: OpeningKind): void {
   const defaults = OPENING_DEFAULTS[kind];
   apply((design) => {
-    const length = wallLength(design.room, 'top');
-    const opening: Opening = { id: newId(), kind, wall: 'top', offset: Math.round((length - defaults.width) / 2), ...defaults };
+    const frame = design.room.vertices ? roomSegments(design.room, false)[0] : null;
+    const length = frame?.length ?? wallLength(design.room, 'top');
+    const opening: Opening = { id: newId(), kind, wall: 'top', ...(frame ? { wallId: frame.id } : {}), offset: Math.round((length - defaults.width) / 2), ...defaults };
     return ops.addOpening(design, opening);
   });
 }

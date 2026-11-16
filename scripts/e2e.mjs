@@ -19,7 +19,7 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, per
 const problems = [];
 page.on('pageerror', (e) => problems.push(`page error: ${e.message}`));
 // Deprecation notice printed by React Three Fiber itself with this three.js version; not caused by the app.
-const THIRD_PARTY_NOTICES = [/THREE.Clock: This module has been deprecated/];
+const THIRD_PARTY_NOTICES = [/THREE.Clock: This module has been deprecated/, /GL Driver Message .*GPU stall due to ReadPixels/];
 const isNoise = (text) => THIRD_PARTY_NOTICES.some((pattern) => pattern.test(text));
 page.on('console', (m) => {
   if ((m.type() === 'error' || m.type() === 'warning') && !isNoise(m.text())) problems.push(`${m.type()}: ${m.text()}`);
@@ -122,15 +122,42 @@ try {
   await page.getByRole('button', { name: 'Choose a kitchen' }).click();
   const gallery = page.getByRole('dialog', { name: 'Kitchen designs' });
   const kitchenCards = gallery.locator('[data-kitchen-design]');
-  check('the gallery offers exactly 24 kitchen images', (await kitchenCards.count()) === 24 && (await kitchenCards.locator('img').count()) === 24);
+  const beforeGallerySearch = sortedJson(await design());
+  check('the gallery offers exactly 42 kitchen images', (await kitchenCards.count()) === 42 && (await kitchenCards.locator('img').count()) === 42);
+  const collections = gallery.getByRole('group', { name: 'Design collection', exact: true });
+  for (const name of ['Warm contemporary', 'Dark luxury', 'Japandi']) {
+    await collections.getByRole('button', { name, exact: true }).click();
+    check(`${name}: collection filtering shows six original kitchens`, (await kitchenCards.count()) === 6);
+  }
+  const designSearch = gallery.getByRole('searchbox', { name: 'Search kitchen designs', exact: true });
+  await designSearch.fill('  BIRCH   alcove  ');
+  check('search combines words without case or whitespace sensitivity', (await kitchenCards.count()) === 1 && await gallery.locator('[data-kitchen-design="birch-alcove"]').isVisible());
+  await designSearch.fill('no-such-kitchen');
+  check('empty searches explain how to recover', (await kitchenCards.count()) === 0 && await gallery.getByRole('heading', { name: 'No kitchens match these filters', exact: true }).isVisible());
+  await gallery.getByRole('button', { name: 'Reset filters', exact: true }).click();
+  check('reset restores every design and keeps search ready for typing', (await kitchenCards.count()) === 42 && (await designSearch.inputValue()) === '' && await designSearch.evaluate((input) => input === document.activeElement));
+  const roomLimit = gallery.getByRole('checkbox', { name: 'No larger than my room', exact: true });
+  await roomLimit.check();
+  check('room-size filtering includes compact kitchens and excludes larger rooms', (await kitchenCards.count()) === 5 && (await gallery.locator('[data-kitchen-design="birch-alcove"]').count()) === 1);
+  await designSearch.fill('velvet');
+  check('room-size filtering also respects the ceiling height', (await kitchenCards.count()) === 0);
+  await gallery.getByRole('button', { name: 'Reset filters', exact: true }).click();
+  check('reset clears the size limit as well as the query and collection', !(await roomLimit.isChecked()) && (await kitchenCards.count()) === 42);
+  await designSearch.fill('walnut, travertine');
+  check('search matches materials as well as design names', (await kitchenCards.count()) === 2);
+  await gallery.getByRole('button', { name: 'Clear design search', exact: true }).click();
+  check('browsing and resetting filters never changes the saved kitchen', sortedJson(await design()) === beforeGallerySearch);
   await gallery.locator('summary').click();
   check('the replacement notice explains all changes before opening a kitchen', await gallery.locator('details p').isVisible());
   await gallery.locator('summary').click();
   await gallery.getByRole('button', { name: 'With an island', exact: true }).click();
-  check('the island filter shows three kitchens', (await kitchenCards.count()) === 3);
-  await gallery.getByRole('button', { name: 'All designs', exact: true }).click();
+  check('the island filter shows eight kitchens', (await kitchenCards.count()) === 8);
+  await gallery.getByRole('group', { name: 'Kitchen layout', exact: true }).getByRole('button', { name: 'All designs', exact: true }).click();
   await gallery.locator('img').first().waitFor();
   await page.waitForFunction(() => document.querySelector('[data-kitchen-design] img')?.naturalWidth === 900);
+  const firstPreview = await kitchenCards.first().locator('img').boundingBox();
+  const galleryBounds = await gallery.boundingBox();
+  check('desktop filters leave a complete kitchen preview visible without scrolling', firstPreview && galleryBounds && firstPreview.y + firstPreview.height <= galleryBounds.y + galleryBounds.height);
   await shot('01c-kitchen-gallery.png');
   const kitchenPresets = await page.evaluate(async () => {
     const { KITCHEN_DESIGNS, createKitchenDesign } = await import('/src/domain/kitchens.ts');
@@ -933,10 +960,15 @@ try {
   await mobile.getByRole('button', { name: 'More' }).tap();
   await mobile.getByRole('button', { name: 'Kitchen designs', exact: true }).tap();
   const phoneGallery = mobile.getByRole('dialog', { name: 'Kitchen designs' });
-  check('all twenty-four inspiration kitchens are available on the phone', (await phoneGallery.locator('[data-kitchen-design]').count()) === 24);
+  check('all forty-two inspiration kitchens are available on the phone', (await phoneGallery.locator('[data-kitchen-design]').count()) === 42);
+  check('phone gallery keeps advanced filters collapsed until requested', !(await phoneGallery.locator('#kitchen-design-filters').isVisible()));
   await mobile.setViewportSize({ width: 320, height: 568 });
   await mobile.evaluate(() => window.__kitchen.ui.getState().setLanguage('sr'));
   await mobile.getByRole('dialog', { name: 'Ideje za kuhinju' }).waitFor();
+  await mobile.getByRole('searchbox', { name: 'Pretraži dizajne kuhinja', exact: true }).fill('sodji');
+  check('phone search matches Serbian names without diacritics', (await mobile.locator('[data-kitchen-design]').count()) === 1 && await mobile.locator('[data-kitchen-design="shoji-retreat"]').isVisible());
+  await mobile.getByRole('button', { name: 'Obriši pretragu dizajna', exact: true }).tap();
+  check('phone users can clear search and recover all designs', (await mobile.locator('[data-kitchen-design]').count()) === 42);
   const narrowOverflow = await mobile.getByRole('dialog').evaluate((dialog) =>
     [...dialog.querySelectorAll('button, [role="radiogroup"], p, summary')]
       .filter((element) => element.scrollWidth > element.clientWidth + 1)
@@ -957,6 +989,8 @@ try {
   await mobile.evaluate(() => window.__kitchen.ui.getState().setLanguage('en'));
   await mobile.waitForFunction(() => document.querySelector('[data-kitchen-design] img')?.naturalWidth === 900);
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-06b-kitchen-gallery.png') });
+  await phoneGallery.getByRole('button', { name: 'Filter designs', exact: true }).tap();
+  check('phone users can reveal the style, layout and room-size filters', await phoneGallery.locator('#kitchen-design-filters').isVisible());
   await phoneGallery.getByRole('button', { name: 'With an island', exact: true }).tap();
   await phoneGallery.locator('[data-kitchen-design="monochrome-island"]').tap();
   check(

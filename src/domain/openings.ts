@@ -1,5 +1,7 @@
 import type { Opening, Rect, Room, Wall } from './types';
 import { outerWallRuns } from './roomGeometry';
+import { openingBounds, openingFrame, openingPolygon } from './walls';
+import type { Point } from './types';
 
 /** Doors need at least this much free floor in front of them, even when narrower. */
 const MIN_DOOR_CLEARANCE = 800;
@@ -29,11 +31,12 @@ export function stripAgainstWall(room: Room, wall: Wall, from: number, to: numbe
 
 /** The floor a door needs kept clear: as deep as the door is wide, at least the minimum clearance. */
 export function doorClearance(room: Room, door: Opening): Rect {
-  return stripAgainstWall(room, door.wall, door.offset, door.offset + door.width, Math.max(door.width, MIN_DOOR_CLEARANCE));
+  return openingBounds(room, door, Math.max(door.width, MIN_DOOR_CLEARANCE));
 }
 
 export interface OpeningObstacle {
   rect: Rect;
+  polygon: Point[];
   /** Floor to the bottom and top of the space it takes. */
   bottom: number;
   top: number;
@@ -46,9 +49,10 @@ export interface OpeningObstacle {
 export function openingObstacles(room: Room, openings: readonly Opening[], unitDepth = 650): OpeningObstacle[] {
   return openings.map((opening) =>
     opening.kind === 'door'
-      ? { rect: doorClearance(room, opening), bottom: 0, top: opening.height }
+      ? { rect: doorClearance(room, opening), polygon: openingPolygon(room, opening, Math.max(opening.width, MIN_DOOR_CLEARANCE)), bottom: 0, top: opening.height }
       : {
-          rect: stripAgainstWall(room, opening.wall, opening.offset, opening.offset + opening.width, unitDepth),
+          rect: openingBounds(room, opening, unitDepth),
+          polygon: openingPolygon(room, opening, unitDepth),
           bottom: opening.sill,
           top: opening.sill + opening.height,
         },
@@ -57,6 +61,14 @@ export function openingObstacles(room: Room, openings: readonly Opening[], unitD
 
 /** Keeps an opening inside its wall and below the ceiling. */
 export function clampOpening(opening: Opening, room: Room): Opening {
+  if (opening.wallId) {
+    const frame = openingFrame(room, opening);
+    if (!frame) return opening; // Retain broken attachments so Checks can explain them.
+    const width = Math.min(Math.round(Math.max(opening.width, 100)), Math.floor(frame.length));
+    const height = Math.round(Math.min(Math.max(opening.height, 100), frame.height));
+    const sill = opening.kind === 'door' ? 0 : Math.round(Math.min(Math.max(opening.sill, 0), frame.height - height));
+    return { ...opening, width, height, sill, offset: Math.max(0, Math.min(opening.offset, frame.length - width)) };
+  }
   const spans = outerWallRuns(room, opening.wall);
   const span = [...spans].sort((a, b) => {
     const distance = (run: typeof a) => Math.abs(Math.min(Math.max(opening.offset, run.from), Math.max(run.from, run.to - opening.width)) - opening.offset);

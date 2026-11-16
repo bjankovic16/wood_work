@@ -2,7 +2,6 @@ import { hasWorktop, WORKTOP_THICKNESS } from '../domain/catalog';
 import {
   footprintRects,
   footprintsOverlap,
-  insideRoom,
   isFlushWith,
   isWallMounted,
   itemRect,
@@ -10,9 +9,13 @@ import {
   rectsOverlap,
   verticalOverlap,
   WALLS,
+  footprintPieces,
+  itemInsideRoom,
 } from '../domain/geometry';
-import { alongWall, doorClearance, wallLength } from '../domain/openings';
-import { openingFitsRoomWall, roomContainsRect, roomFeatureRect } from '../domain/roomGeometry';
+import { alongWall, wallLength } from '../domain/openings';
+import { roomContainsRect, roomFeatureRect, roomOutline, openingFitsRoomWall } from '../domain/roomGeometry';
+import { polygonContains, polygonsOverlap, rectPolygon } from '../domain/polygons';
+import { openingIsValid, openingPolygon, partitionPolygon, roomSegments } from '../domain/walls';
 import { inUpperRow, upperCabinetRows } from '../domain/upperCabinets';
 import type { Design, KitchenItem, Material } from '../domain/types';
 import { KIND_OPTIONS, buildContext, resolveConfig } from './config';
@@ -77,7 +80,7 @@ export function checkDesign(design: Design, labels: EngineLabels = EN_LABELS): I
         add('error', `overlap-${a.id}-${b.id}`, say.overlap(a.label, b.label), [a.id, b.id]);
       }
     }
-    if (!footprintRects(a).every((rect) => insideRoom(rect, room))) add('error', `outside-${a.id}`, say.outside(a.label), [a.id]);
+    if (!itemInsideRoom(a, room)) add('error', `outside-${a.id}`, say.outside(a.label), [a.id]);
     if (a.elevation + a.height > room.height) {
       add('error', `ceiling-${a.id}`, say.ceiling(a.label, a.elevation + a.height, room.height), [a.id]);
     }
@@ -89,8 +92,22 @@ export function checkDesign(design: Design, labels: EngineLabels = EN_LABELS): I
     if (feature.kind === 'chimney') issues.push({ key: `chimney-clearance-${feature.id}`, severity: 'warning', message: say.chimneyClearance(name), itemIds: [], roomFeatureId: feature.id });
     if (!roomContainsRect(rect, room)) issues.push({ key: `room-feature-${feature.id}`, severity: 'error', message: say.roomFeatureOutside(name), itemIds: [], roomFeatureId: feature.id });
     for (const item of items) {
-      if (item.elevation < room.height && item.elevation + item.height > 0 && footprintRects(item).some((footprint) => rectsOverlap(footprint, rect))) {
+      if (item.elevation < room.height && item.elevation + item.height > 0 && footprintPieces(item).some((footprint) => polygonsOverlap(footprint, rectPolygon(rect)))) {
         add('error', `structure-${feature.id}-${item.id}`, say.roomFeatureCollision(item.label, name), [item.id]);
+      }
+      for (const [index, partition] of (room.partitions ?? []).entries()) {
+        const name = `${labels.roomPartition} ${index + 1}`;
+        const polygon = partitionPolygon(partition);
+        if (!polygonContains(roomOutline(room), polygon)) add('error', `partition-outside-${partition.id}`, say.roomFeatureOutside(name));
+        for (const item of items) {
+          if (item.elevation < partition.height && item.elevation + item.height > 0
+            && footprintPieces(item).some((p) => polygonsOverlap(p, polygon))) add('error', `partition-${partition.id}-${item.id}`, say.roomFeatureCollision(item.label, name), [item.id]);
+        }
+      }
+      for (const treatment of room.treatments ?? []) {
+        const segment = roomSegments(room).find((s) => s.id === treatment.wallId);
+        if (!segment || treatment.offset + treatment.width > segment.length + 0.01 || treatment.elevation + treatment.height > segment.height)
+          add('error', `treatment-${treatment.id}`, say.roomFeatureOutside(labels.roomTreatment));
       }
     }
   }
@@ -207,14 +224,23 @@ export function checkDesign(design: Design, labels: EngineLabels = EN_LABELS): I
 
   // Windows and doors.
   for (const opening of design.openings) {
-    if (!openingFitsRoomWall(room, opening.wall, opening.offset, opening.width) || opening.sill + opening.height > room.height) {
+    if (!openingIsValid(room, opening) || (!opening.wallId && !openingFitsRoomWall(room, opening.wall, opening.offset, opening.width))) {
       add('error', `opening-${opening.id}`, say.openingDoesNotFit(opening.kind, opening.wall));
     }
     for (const item of items) {
       if (opening.kind === 'door') {
-        const clear = doorClearance(room, opening);
-        if (item.elevation < opening.height && footprintRects(item).some((r) => rectsOverlap(r, clear))) {
+        const clear = openingPolygon(room, opening, Math.max(800, opening.width));
+        if (clear.length && item.elevation < opening.height && footprintPieces(item).some((p) => polygonsOverlap(p, clear))) {
           add('error', `door-${opening.id}-${item.id}`, say.blocksDoor(item.label, opening.wall), [item.id]);
+        }
+        if (opening.wallId) {
+          const clear = openingPolygon(room, opening, 650);
+          const top = workingTop(item);
+          if (clear.length && item.elevation < opening.sill + opening.height && top > opening.sill
+            && footprintPieces(item).some((p) => polygonsOverlap(p, clear))) {
+            add('warning', `window-${opening.id}-${item.id}`, say.coversWindow(item.label, opening.wall), [item.id]);
+          }
+          continue;
         }
         continue;
       }

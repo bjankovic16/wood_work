@@ -18,6 +18,10 @@ npm run build    # static files in dist/, with relative paths so they work from 
 npm run render:kitchens # regenerate gallery images with the real 3D renderer (requires local Chrome)
 ```
 
+On minimal Linux environments, use a UTF-8 locale for browser checks, for
+example `LANG=C.UTF-8 npm run e2e`. Chrome running in the POSIX locale falls
+back to `download` for filenames containing Serbian characters.
+
 ## Public app
 
 Open [Kitchen Designer](https://bjankovic16.github.io/wood_work/).
@@ -46,12 +50,22 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
   undo/redo, chained wall dimensions, floor/wall unit filter.
 - **Ready-made layouts**: straight, L-shaped or U-shaped starter kitchens
   sized to the room.
-- **24 kitchen inspiration designs**: open **Designs** (or **Kitchen designs**
+- **42 kitchen inspiration designs**: open **Designs** (or **Kitchen designs**
   in the phone's More menu), then click an image to load that exact kitchen
   in 3D. Choose straight, L-shaped, U-shaped or island kitchens in a range
   of finishes, with open-shelf and drawer variations. Every image is rendered
   from the same preset data and 3D scene used by the editor, not a stock or
-  imported Pinterest photo. The gallery also links to Pinterest for more ideas.
+  imported Pinterest photo. Eighteen premium originals form **Warm contemporary**,
+  **Dark luxury** and **Japandi** collections, with finish swatches and public
+  Pinterest inspiration links. These are style interpretations, not exact
+  reconstructions of the linked photographs.
+  - Search names, finishes and styles, combine collection/layout filters, or
+    show designs no larger than your current room's width, depth and ceiling
+    height. This compares dimensions, not polygon containment or automatic
+    adaptation: opening a design still uses its own room. **Reset filters**
+    restores the full collection. Compact options include Birch alcove and
+    Velvet apartment. On phones, **Filter designs** reveals the optional
+    controls so previews stay easy to reach.
   - A design replaces the room, units, finishes, construction settings,
     openings and extra pieces, keeping the project name. One Undo restores
     the previous kitchen. All units remain editable and generate cutting lists.
@@ -59,8 +73,8 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
     choose actual materials before ordering. The separate **My room layout**
     option keeps the existing room and settings.
   - Run `npm run render:kitchens` after changing presets or the 3D renderer;
-    the 24 generated gallery images in `public/kitchens/` ship with the app.
-  - **Stacked uppers** filters four original contemporary kitchens: Greige
+    the 42 generated gallery images in `public/kitchens/` ship with the app.
+  - **Stacked uppers** includes all eighteen premium originals plus Greige
     gallery, Ivory & oak, Olive & stone, and Walnut noir. They include two
     separately editable upper rows, full-height storage, lit display cupboards,
     handleless fronts and optional plinth lighting. They are interpretations
@@ -81,6 +95,13 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
     Multi-row PDF reports contain a floor plan and separate upper-row plans.
   - **Ceiling cupboards** in the library are 400 mm high and 560 mm deep;
     their elevation follows the room height with a 30 mm fitting gap.
+  - Select a suitable base cabinet and expand **Three-tier kitchen** to add
+    two upper rows above its connected straight run (or selected corner).
+    Preview and edit both row heights/depths before applying. The full operation
+    is one Undo step, keeps at least 450 mm above the worktop and 30 mm below
+    the ceiling, and refuses blocked space without inserting a partial row.
+    Hob/oven units are excluded from this shortcut; specify their upper cabinets
+    and extractor clearances individually.
 - **3D**: orbit around the kitchen; walls facing the camera are hidden.
   Choose from 15 front colors/woods, seven worktops and six handle finishes.
   Warm marble and travertine have procedural textures; choose a backsplash,
@@ -168,7 +189,8 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
 - **Windows and doors** in the walls, shown on the plan and in 3D; new units
   are placed clear of them.
 - **Irregular rooms**: rectangular, L-shaped/stepped and diagonal-corner
-  footprints, plus editable full-height chimneys, columns and wall projections.
+  footprints, editable polygon rooms with multiple diagonal walls, plus
+  full-height chimneys, columns and wall projections.
   Structures reserve space but are not cabinet parts. Automatic placement
   avoids them; manual conflicts remain visible as explicit design-check errors.
   The plan, 3D view, PDF plan and saved project all use the same room geometry.
@@ -176,9 +198,29 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
   the room model is not a fire-safety calculation.
   - Room setup includes **L-shaped room + chimney** and **Diagonal corner + column**
     examples, each opened in a new project without replacing the current one.
-  - Cabinets still rotate in 90-degree steps. Diagonal boundaries are modeled
-    and checked for clearance; angled cabinetry, worktop cuts and openings in
-    diagonal walls need separate specifications.
+  - Under **Walls & angles**, select a wall to edit its length/angle or add/remove
+    a corner. **Edit wall corners on plan** lets you drag shared corners;
+    Escape cancels the gesture. A length/angle change moves the wall's end
+    corner and adjoining edge, keeping the room closed. Invalid/self-crossing
+    shapes are rejected. Room width/depth bound the editing area; they do not
+    stretch a custom polygon. Existing cabinet conflicts remain visible in Checks.
+  - Cabinets accept arbitrary angles and snap their back to diagonal walls.
+    Resizing and stacking retain that back anchor. Quick rotate buttons still
+    turn by 90 degrees. L-shaped cabinet carcasses remain intrinsically
+    right-angled; custom mitres and nonrectangular worktop cuts need separate
+    fabrication drawings.
+  - **Interior & half-height walls** adds partitions with editable endpoints,
+    angle, length, thickness and height. Both faces support snapping; collision
+    checks consider height, so cupboards above a low wall remain possible.
+    Doors and windows can attach to angled outer walls and partition faces.
+  - **Wall panels & backsplash** adds independent wall-attached visual finishes
+    with a material, span, elevation and height. Wood/stone treatments are
+    clipped around openings and replace automatic backsplash where they overlap.
+    Like partitions, these are not manufactured cabinet parts or cutting-list
+    quantities. Remove a wall's attachments before deleting their wall.
+  - Existing rectangular/cut-out projects migrate when first edited as polygons,
+    preserving opening positions. New angle/wall data is saved in project format
+    version 5; older app versions cannot read all new geometry.
 - Works on phones: full-screen plan, pinch to zoom, panels slide up from
   the bottom.
 
@@ -204,11 +246,12 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
 
 ## Conventions
 
-- All lengths are integer millimetres; cut sizes are rounded to 0.1 mm.
+- Enter dimensions in integer millimetres; rotated anchors and geometric wall
+  lengths may be fractional. Cut sizes are rounded to 0.1 mm.
 - Plan coordinates start at the inner top-left corner of the room; x grows to
   the right and y grows downwards.
 - Each unit stores the top-left corner of its footprint (`x`, `y`), its
-  `rotation` (0 / 90 / 180 / 270: the wall its back faces, 0 = top wall),
+  clockwise `rotation` in degrees (0 = back parallel to the top wall),
   `width` along the front, `depth` (of the side panels) from back to front,
   `height`, and `elevation` from the floor to its underside. Corner units
   also have `width2`, the length of the arm along the second wall. Doors,

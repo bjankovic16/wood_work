@@ -1,33 +1,22 @@
 import { Group, Line, Rect, Text } from 'react-konva';
-import type { Opening, Point, Room, Wall } from '../../domain/types';
+import type { Opening, Room } from '../../domain/types';
 import { openingFitsRoomWall, roomOutline } from '../../domain/roomGeometry';
 import { useT } from '../../i18n';
 import { FONT_FAMILY } from '../../lib/measureText';
 import { WALL_THICKNESS } from '../../store/viewport';
 import { ROOM_COLORS } from './theme';
+import { openingFrame, openingIsValid, partitionPolygon, roomSegments, wallPoint } from '../../domain/walls';
 
 const GRID_STEPS = [50, 100, 250, 500, 1000];
 const MIN_GRID_SPACING_PX = 14;
 
 /** Where a wall starts, which way it runs, and which way is into the room. */
-function wallFrame(room: Room, wall: Wall): { origin: Point; along: Point; inward: Point } {
-  switch (wall) {
-    case 'top':
-      return { origin: { x: 0, y: 0 }, along: { x: 1, y: 0 }, inward: { x: 0, y: 1 } };
-    case 'bottom':
-      return { origin: { x: 0, y: room.depth }, along: { x: 1, y: 0 }, inward: { x: 0, y: -1 } };
-    case 'left':
-      return { origin: { x: 0, y: 0 }, along: { x: 0, y: 1 }, inward: { x: 1, y: 0 } };
-    case 'right':
-      return { origin: { x: room.width, y: 0 }, along: { x: 0, y: 1 }, inward: { x: -1, y: 0 } };
-  }
-}
-
 /** A window (glass lines in the wall) or a door (an opening with its swing), drawn the usual plan way. */
 function OpeningSymbol({ room, opening, px }: { room: Room; opening: Opening; px: number }) {
-  const { origin, along, inward } = wallFrame(room, opening.wall);
-  const T = WALL_THICKNESS;
-  const at = (a: number, n: number) => ({ x: origin.x + along.x * a + inward.x * n, y: origin.y + along.y * a + inward.y * n });
+  const frame = openingFrame(room, opening);
+  if (!frame) return null;
+  const T = room.partitions?.find((p) => p.id === frame.partitionId)?.thickness ?? WALL_THICKNESS;
+  const at = (a: number, n: number) => wallPoint(frame, a, n);
   const start = opening.offset;
   const end = opening.offset + opening.width;
   // The gap in the wall: from the room face (n = 0) out through the wall (n = -T).
@@ -108,7 +97,15 @@ export function RoomShape({ room, zoom, openings = [] }: { room: Room; zoom: num
           {feature.width * zoom > 48 && feature.depth * zoom > 24 && <Text x={feature.x + 4 * px} y={feature.y + feature.depth / 2 - 6 * px} width={feature.width - 8 * px} text={`${t.engine.roomFeatures[feature.kind]} ${index + 1}`} fontFamily={FONT_FAMILY} fontSize={10 * px} fill="#574b3e" align="center" ellipsis wrap="none" />}
         </Group>
       ))}
-      {openings.filter((opening) => openingFitsRoomWall(room, opening.wall, opening.offset, opening.width)).map((opening) => (
+      {(room.partitions ?? []).map((partition) => <Line key={partition.id} closed points={partitionPolygon(partition).flatMap((p) => [p.x, p.y])} fill="#d8cdbb" stroke="#847766" strokeWidth={1.5 * px} />)}
+      {(room.treatments ?? []).map((entry) => {
+        const segment = roomSegments(room).find((s) => s.id === entry.wallId);
+        if (!segment) return null;
+        const a = wallPoint(segment, entry.offset, 10);
+        const b = wallPoint(segment, Math.min(segment.length, entry.offset + entry.width), 10);
+        return <Line key={entry.id} points={[a.x, a.y, b.x, b.y]} stroke="#aa8050" strokeWidth={4 * px} />;
+      })}
+      {openings.filter((opening) => opening.wallId ? openingIsValid(room, opening) : openingFitsRoomWall(room, opening.wall, opening.offset, opening.width)).map((opening) => (
         <OpeningSymbol key={opening.id} room={room} opening={opening} px={px} />
       ))}
     </>

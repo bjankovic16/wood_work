@@ -1,18 +1,18 @@
-export const CANVAS_BACKGROUND = '#f4f4f5';
-export const ACCENT = '#2563eb';
-export const GUIDE = '#db2777';
+export const CANVAS_BACKGROUND = '#f0ede6';
+export const ACCENT = '#52644d';
+export const GUIDE = '#b26c48';
 
 export const ROOM_COLORS = {
-  wall: '#d4d4d8',
-  wallEdge: '#a1a1aa',
-  floor: '#ffffff',
-  gridMinor: '#f1f1f3',
-  gridMajor: '#e4e4e7',
+  wall: '#d7d0c3',
+  wallEdge: '#a69d8c',
+  floor: '#fffefa',
+  gridMinor: '#f0ede6',
+  gridMajor: '#e2ddd2',
 };
 
 export const DIMENSION_COLORS = {
-  floor: '#52525b',
-  wall: '#2563eb',
-  gap: '#a1a1aa',
-  room: '#18181b',
+  floor: '#6c6559',
+  wall: '#52644d',
+  gap: '#a69d8c',
+  room: '#332f28',
 };

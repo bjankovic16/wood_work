@@ -77,6 +77,44 @@ Requirements:
 
 All dimensions should be displayed in millimeters.
 
+### Premium studio and advanced room editing
+
+- The desktop and phone editor use a consistent warm-neutral studio interface.
+  The image-led gallery contains 42 editable kitchens, including 18 original
+  warm contemporary, dark luxury and Japandi compositions inspired by public
+  Pinterest collections. Preview images are rendered from the actual preset
+  model; Pinterest photographs are not copied or rehosted.
+- Gallery search combines translated names, finishes, styles and feature
+  labels, ignoring case and diacritics. Collection, layout and optional room
+  dimension filters combine; size checks include ceiling height and compare
+  width/depth without rotation. They do not promise polygon containment or
+  adapt a preset to the current room. Empty results explain recovery, and a
+  single reset clears all filters without changing the saved design.
+- Rooms support a closed, clockwise polygon with stable wall identities.
+  Individual wall lengths/angles and shared corners are editable. A wall edit
+  moves its end corner and the adjoining edge; it is not a constraint solver.
+  Self-crossing/degenerate geometry must not be committed. Existing rectangle,
+  notched and single-diagonal room projects remain readable.
+- Cabinets may rotate to arbitrary angles and align/snap to real wall segments.
+  Plan, 3D, collision checks, openings and exported plans use the same local
+  transforms and polygon geometry. Cabinet construction remains rectangular
+  or a right-angled L; custom mitred fabrication is outside this model.
+- Interior partitions have independent endpoints, thickness and height.
+  Both faces are usable; collisions take the cabinet's vertical range into
+  account. Wall panels and backsplash runs have a wall attachment, finish,
+  span, elevation and height, and are clipped around openings.
+- Partitions and decorative finishes are visual room specifications, not
+  cabinet cutting quantities, structural certification or installer drawings.
+- A guided three-tier operation places two editable upper rows above a suitable
+  base run. It previews both heights/depths, retains 450 mm minimum worktop
+  clearance and a 30 mm ceiling gap, and inserts all cupboards in one undo step
+  only if the entire proposal fits. Existing cabinets are not replaced.
+- Elevation-based row selection remains independent of that shortcut: manually
+  arranged designs may have more upper rows, and full-height displays stay
+  visible across every row they span.
+- Project format version 5 retains old project import support and persists
+  polygon walls, arbitrary cabinet angles, partitions and visual treatments.
+
 **RIGHT SIDEBAR – PROPERTIES**
 
 When selecting a cabinet, show:

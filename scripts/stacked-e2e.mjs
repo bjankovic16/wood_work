@@ -13,7 +13,7 @@ const problems = [];
 const observe = (page) => {
   page.on('pageerror', (error) => problems.push(error.message));
   page.on('console', (message) => {
-    if (['error', 'warning'].includes(message.type()) && !/THREE.Clock: This module has been deprecated/.test(message.text())) problems.push(message.text());
+    if (['error', 'warning'].includes(message.type()) && !/THREE.Clock: This module has been deprecated|GL Driver Message .*GPU stall due to ReadPixels/.test(message.text())) problems.push(message.text());
   });
 };
 const design = (page) => page.evaluate(() => window.__kitchen.design.getState().design);
@@ -69,6 +69,32 @@ try {
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('canvas');
   await page.getByLabel('Jezik / Language').selectOption('en');
+
+  console.log('Guided three-tier base run');
+  await page.locator('[data-preset="base-600"]').click();
+  await page.getByText('Set up base + two upper rows', { exact: true }).click();
+  await page.getByLabel('Middle height', { exact: true }).fill('650');
+  await page.getByLabel('Middle height', { exact: true }).press('Enter');
+  const guidedBefore = await design(page);
+  const guidedHistory = await page.evaluate(() => window.__kitchen.design.getState().past.length);
+  await page.getByRole('button', { name: 'Add two upper rows', exact: true }).click();
+  const guided = await design(page);
+  assert.equal(guided.items.length, 3);
+  assert.equal(guided.items[1].height, 650);
+  assert.equal(guided.items[2].elevation + guided.items[2].height, guided.room.height - 30);
+  assert.equal(await page.evaluate(() => window.__kitchen.design.getState().past.length), guidedHistory + 1);
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  assert.deepEqual(await design(page), guidedBefore);
+  await page.getByRole('button', { name: 'Redo', exact: true }).click();
+  assert.deepEqual(await design(page), guided);
+  await shot(page, '00-guided-three-tier.png');
+  await page.evaluate(async () => {
+    const { createDesign } = await import('/src/domain/designOps.ts');
+    window.__kitchen.design.getState().load(createDesign());
+    window.__kitchen.ui.getState().select(null);
+    window.__kitchen.ui.getState().setViewFilter('all');
+  });
+  pass('the guided setup previews editable row sizes and inserts the complete three-tier run in one undo step');
 
   console.log('Stacking and individual row selection');
   await page.locator('[data-preset="wall-600"]').click();
@@ -209,8 +235,11 @@ try {
     await page.getByRole('button', { name: 'Kitchen designs', exact: true }).first().click();
     const gallery = page.getByRole('dialog', { name: 'Kitchen designs' });
     await gallery.getByRole('button', { name: 'Stacked uppers', exact: true }).click();
-    assert.equal(await gallery.locator('[data-kitchen-design]').count(), 4);
-    await gallery.locator('img').evaluateAll((images) => Promise.all(images.map((image) => image.decode())));
+    assert.equal(await gallery.locator('[data-kitchen-design]').count(), 22);
+    await gallery.locator('img').evaluateAll((images) => {
+      for (const image of images) image.loading = 'eager';
+      return Promise.all(images.map((image) => image.decode()));
+    });
     if (index === 0) await shot(page, '04-premium-gallery.png');
     await gallery.locator(`[data-kitchen-design="${preset.id}"]`).click();
     await ready3D(page);

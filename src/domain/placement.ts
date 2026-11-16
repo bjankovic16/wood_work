@@ -4,35 +4,38 @@ import {
   aabbSize,
   clampToRoom,
   cornerPosition,
-  footprintRects,
-  insideRoom,
-  rectsOverlap,
   rotationForWall,
   verticalOverlap,
+  footprintPieces,
+  itemInsideRoom,
+  localToRoom,
 } from './geometry';
 import { openingObstacles } from './openings';
 import { roomFeatureRect, roomWallRuns } from './roomGeometry';
-import type { KitchenItem, Opening, Rect, Room, Rotation } from './types';
+import type { KitchenItem, Opening, Point, Room } from './types';
+import { angleBasis, polygonsOverlap, rectPolygon } from './polygons';
+import { partitionPolygon, mountingSegments, wallPoint } from './walls';
 
 export type Placement = Pick<KitchenItem, 'x' | 'y' | 'rotation'>;
 
 /** Floor areas a unit must not overlap: other units at the same height, and room a door or window needs. */
-type Obstacle = Rect[];
+type Obstacle = Point[][];
 
 function fitsAt(candidate: KitchenItem, room: Room, obstacles: readonly Obstacle[]): boolean {
-  const rects = footprintRects(candidate);
-  return rects.every((rect) => insideRoom(rect, room)) && !obstacles.some((o) => o.some((r) => rects.some((c) => rectsOverlap(c, r))));
+  const pieces = footprintPieces(candidate);
+  return itemInsideRoom(candidate, room) && !obstacles.some((o) => o.some((p) => pieces.some((c) => polygonsOverlap(c, p))));
 }
 
 function obstaclesFor(item: KitchenItem, items: readonly KitchenItem[], room: Room, openings: readonly Opening[]): Obstacle[] {
   const bottom = item.elevation;
   const top = item.elevation + item.height;
   return [
-    ...(room.features ?? []).map((feature) => [roomFeatureRect(feature)]),
-    ...items.filter((o) => o.id !== item.id && verticalOverlap(o, item)).map((o) => footprintRects(o)),
+    ...(room.features ?? []).map((feature) => [rectPolygon(roomFeatureRect(feature))]),
+    ...(room.partitions ?? []).filter((p) => item.elevation < p.height && item.elevation + item.height > 0).map((p) => [partitionPolygon(p)]),
+    ...items.filter((o) => o.id !== item.id && verticalOverlap(o, item)).map((o) => footprintPieces(o)),
     ...openingObstacles(room, openings)
       .filter((o) => o.bottom < top && bottom < o.top)
-      .map((o) => [o.rect]),
+      .map((o) => [o.polygon]),
   ];
 }
 
@@ -66,6 +69,18 @@ export function findFreeSpot(
       const candidate = { ...item, rotation, ...cornerPosition(room, corner, aabbSize({ ...item, rotation })) };
       if (fitsAt(candidate, room, obstacles)) return { x: candidate.x, y: candidate.y, rotation };
     }
+
+    if (room.vertices || room.partitions?.length || room.cutout?.kind === 'diagonal') {
+      for (const surface of mountingSegments(room).filter((s) => !s.partitionId || item.elevation < s.height)) {
+        for (let along = 0; along <= surface.length - item.width; along += 50) {
+          const anchor = wallPoint(surface, along);
+          const origin = localToRoom({ ...item, rotation: surface.angle, x: 0, y: 0 }, 0, 0);
+          const candidate = { ...item, rotation: surface.angle, x: anchor.x - origin.x, y: anchor.y - origin.y };
+          if (fitsAt(candidate, room, obstacles)) return { x: candidate.x, y: candidate.y, rotation: candidate.rotation };
+        }
+      }
+      return null;
+    }
     return null;
   }
 
@@ -79,7 +94,10 @@ export function findFreeSpot(
 
     const candidates = new Set<number>([surface.from]);
     for (const obstacle of obstacles) {
-      for (const r of obstacle) {
+      for (const polygon of obstacle) {
+        const xs = polygon.map((p) => p.x);
+        const ys = polygon.map((p) => p.y);
+        const r = { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
         const start = alongX ? r.x : r.y;
         const end = start + (alongX ? r.w : r.h);
         candidates.add(end);
@@ -95,13 +113,6 @@ export function findFreeSpot(
   return null;
 }
 
-const ALONG_FRONT: Record<Rotation, [number, number]> = {
-  0: [1, 0],
-  90: [0, 1],
-  180: [-1, 0],
-  270: [0, -1],
-};
-
 /** Where a copy of `source` goes: right next to it along the same wall if there is room. */
 export function placeCopy(
   room: Room,
@@ -112,7 +123,7 @@ export function placeCopy(
 ): Placement {
   const obstacles = obstaclesFor(copy, items, room, openings);
   if (source.kind !== 'corner') {
-    const [dx, dy] = ALONG_FRONT[source.rotation];
+    const { c: dx, s: dy } = angleBasis(source.rotation);
     for (const direction of [1, -1]) {
       const candidate = {
         ...copy,

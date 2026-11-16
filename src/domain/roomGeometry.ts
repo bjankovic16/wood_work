@@ -1,5 +1,6 @@
 import { clamp } from './math';
 import type { Point, Rect, Room, RoomCorner, RoomFeature, Wall } from './types';
+import { pointInPolygon, polygonContains, rectPolygon, validRoomPolygon } from './polygons';
 
 export const ROOM_CORNERS: readonly RoomCorner[] = ['topLeft', 'topRight', 'bottomRight', 'bottomLeft'];
 export const MAX_ROOM_FEATURES = 40;
@@ -18,6 +19,7 @@ export interface RoomWallRun {
 }
 
 export function roomOutline(room: Room): Point[] {
+  if (room.vertices) return room.vertices;
   const W = room.width;
   const D = room.depth;
   const cut = room.cutout;
@@ -34,6 +36,7 @@ export function roomOutline(room: Room): Point[] {
 }
 
 export function roomContainsPoint(point: Point, room: Room): boolean {
+  if (room.vertices) return pointInPolygon(point, room.vertices);
   if (point.x < -0.01 || point.y < -0.01 || point.x > room.width + 0.01 || point.y > room.depth + 0.01) return false;
   const cut = room.cutout;
   if (!cut) return true;
@@ -44,6 +47,7 @@ export function roomContainsPoint(point: Point, room: Room): boolean {
 
 /** Exact for the supported rectangular, corner-notched and diagonal-corner footprints. */
 export function roomContainsRect(rect: Rect, room: Room): boolean {
+  if (room.vertices) return polygonContains(room.vertices, rectPolygon(rect));
   return [
     { x: rect.x, y: rect.y }, { x: rect.x + rect.w, y: rect.y },
     { x: rect.x + rect.w, y: rect.y + rect.h }, { x: rect.x, y: rect.y + rect.h },
@@ -54,7 +58,7 @@ export function roomFeatureRect(feature: RoomFeature): Rect {
   return { x: feature.x, y: feature.y, w: feature.width, h: feature.depth };
 }
 
-/** Right-angle wall faces available to the existing right-angle cabinetry system. */
+/** Cardinal faces retained for simple-room placement and legacy dimensions. */
 export function roomWallRuns(room: Room, includeFeatures = true): RoomWallRun[] {
   const points = roomOutline(room);
   const runs: RoomWallRun[] = [];
@@ -105,8 +109,9 @@ export function normalizeRoom(room: Room): Room {
     });
     if (next.some((feature, index) => feature !== previous[index])) features = next;
   }
-  const { cutout: _cutout, features: _features, ...size } = room;
-  return { ...size, ...(cutout ? { cutout } : {}), ...(features ? { features } : {}) };
+  const { cutout: _cutout, features: _features, vertices, partitions, treatments, ...size } = room;
+  return { ...size, ...(cutout ? { cutout } : {}), ...(features ? { features } : {}),
+    ...(vertices ? { vertices } : {}), ...(partitions ? { partitions } : {}), ...(treatments ? { treatments } : {}) };
 }
 
 export function parseRoom(raw: unknown): Room | null {
@@ -138,6 +143,38 @@ export function parseRoom(raw: unknown): Room | null {
       features.push({ id: feature.id, kind: feature.kind as RoomFeature['kind'], x: feature.x, y: feature.y, width: feature.width, depth: feature.depth });
     }
     room.features = features;
+  }
+  if (value.vertices !== undefined) {
+    if (!Array.isArray(value.vertices) || !value.vertices.every((p) => p && typeof p.id === 'string' && p.id
+      && typeof p.x === 'number' && typeof p.y === 'number')) return null;
+    const vertices = value.vertices.map((p) => ({ id: String(p.id), x: Number(p.x), y: Number(p.y) }));
+    if (new Set(vertices.map((p) => p.id)).size !== vertices.length || !validRoomPolygon(vertices)
+      || vertices.some((p) => p.x < 0 || p.y < 0 || p.x > room.width || p.y > room.depth)) return null;
+    room.vertices = vertices;
+  }
+  if (value.partitions !== undefined) {
+    if (!Array.isArray(value.partitions)) return null;
+    const partitions: NonNullable<Room['partitions']> = [];
+    for (const p of value.partitions) {
+      if (!p || typeof p.id !== 'string' || !p.id || partitions.some((v) => v.id === p.id)
+        || !p.start || !p.end || ![p.start.x, p.start.y, p.end.x, p.end.y, p.thickness, p.height].every((n) => typeof n === 'number' && Number.isFinite(n))
+        || Math.hypot(p.end.x - p.start.x, p.end.y - p.start.y) < 100 || p.thickness < 50 || p.thickness > 600
+        || p.height < 100 || p.height > room.height || !polygonContains(roomOutline(room), [p.start, p.end])) return null;
+      partitions.push({ id: p.id, start: { ...p.start }, end: { ...p.end }, thickness: p.thickness, height: p.height });
+    }
+    room.partitions = partitions;
+  }
+  if (value.treatments !== undefined) {
+    if (!Array.isArray(value.treatments)) return null;
+    const finishes = ['white', 'cream', 'grey', 'sage', 'navy', 'anthracite', 'oak', 'walnut', 'cashmere', 'sand', 'taupe', 'olive', 'clay', 'espresso', 'ash', 'stone', 'marble', 'travertine', 'black'];
+    const treatments: NonNullable<Room['treatments']> = [];
+    for (const t of value.treatments) {
+      if (!t || typeof t.id !== 'string' || !t.id || treatments.some((v) => v.id === t.id) || typeof t.wallId !== 'string'
+        || ![t.offset, t.width, t.elevation, t.height].every((n) => typeof n === 'number' && Number.isFinite(n))
+        || t.offset < 0 || t.width <= 0 || t.elevation < 0 || t.height <= 0 || !finishes.includes(t.finish)) return null;
+      treatments.push({ id: t.id, wallId: t.wallId, offset: t.offset, width: t.width, elevation: t.elevation, height: t.height, finish: t.finish });
+    }
+    room.treatments = treatments;
   }
   return room;
 }

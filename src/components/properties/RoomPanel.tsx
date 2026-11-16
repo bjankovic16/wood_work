@@ -12,6 +12,8 @@ import { useUiStore } from '../../store/uiStore';
 import { Button, Dialog, Kbd, PanelSection } from '../ui';
 import { NumberField, SelectField } from './NumberField';
 import { RoomStructureSettings } from './RoomStructureSettings';
+import { AdvancedRoomSettings } from './AdvancedRoomSettings';
+import { openingFrame, roomSegments } from '../../domain/walls';
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
@@ -41,8 +43,8 @@ function OpeningCard({ opening, number }: { opening: Opening; number: number }) 
   const t = useT();
   const room = useDesignStore((s) => s.design.room);
   const window = opening.kind === 'window';
-  const length = wallLength(room, opening.wall);
-  const fromLabel = opening.wall === 'top' || opening.wall === 'bottom' ? t.room.fromLeft : t.room.fromTop;
+  const length = openingFrame(room, opening)?.length ?? wallLength(room, opening.wall);
+  const fromLabel = opening.wallId ? t.advancedRoom.offset : opening.wall === 'top' || opening.wall === 'bottom' ? t.room.fromLeft : t.room.fromTop;
   return (
     <div className="space-y-1.5 rounded-lg border border-zinc-200 p-3" data-testid="opening-card">
       <div className="flex items-center gap-2">
@@ -61,9 +63,9 @@ function OpeningCard({ opening, number }: { opening: Opening; number: number }) 
       </div>
       <SelectField
         label={t.room.wall}
-        value={opening.wall}
-        options={WALLS.map((wall) => ({ value: wall, label: t.walls[wall] }))}
-        onChange={(wall) => actions.updateOpening(opening.id, { wall })}
+        value={opening.wallId ?? opening.wall}
+        options={room.vertices || room.partitions?.length ? roomSegments(room).map((s, i) => ({ value: s.id, label: t.advancedRoom.wall(i + 1) })) : WALLS.map((wall) => ({ value: wall, label: t.walls[wall] }))}
+        onChange={(wall) => actions.updateOpening(opening.id, room.vertices || room.partitions?.length ? { wallId: wall } : { wall: wall as Wall, wallId: undefined })}
       />
       <NumberField label={fromLabel} value={opening.offset} min={0} max={length - opening.width} onCommit={(offset) => actions.updateOpening(opening.id, { offset })} />
       <NumberField label={t.room.width} value={opening.width} min={300} max={length} onCommit={(width) => actions.updateOpening(opening.id, { width })} />
@@ -109,15 +111,22 @@ function OpeningsSection() {
 export function RoomSettings() {
   const t = useT();
   const room = useDesignStore((s) => s.design.room);
+  const [failed, setFailed] = useState(false);
+  const resize = (patch: Partial<typeof room>) => {
+    try { actions.setRoomSize(patch); setFailed(false); }
+    catch (error) { if (!(error instanceof RangeError)) throw error; setFailed(true); }
+  };
   return (
     <>
       <PanelSection title={t.room.roomSize}>
-        <NumberField label={t.room.width} title={t.room.widthTitle} value={room.width} {...ROOM_LIMITS.width} onCommit={(v) => actions.setRoomSize({ width: v })} />
-        <NumberField label={t.room.depth} title={t.room.depthTitle} value={room.depth} {...ROOM_LIMITS.depth} onCommit={(v) => actions.setRoomSize({ depth: v })} />
-        <NumberField label={t.room.ceilingHeight} value={room.height} {...ROOM_LIMITS.height} onCommit={(v) => actions.setRoomSize({ height: v })} />
+        <NumberField label={t.room.width} title={t.room.widthTitle} value={room.width} {...ROOM_LIMITS.width} onCommit={(v) => resize({ width: v })} />
+        <NumberField label={t.room.depth} title={t.room.depthTitle} value={room.depth} {...ROOM_LIMITS.depth} onCommit={(v) => resize({ depth: v })} />
+        <NumberField label={t.room.ceilingHeight} value={room.height} {...ROOM_LIMITS.height} onCommit={(v) => resize({ height: v })} />
+        {failed && <p role="alert" className="text-xs text-red-700">{t.advancedRoom.invalid}</p>}
       </PanelSection>
       <OpeningsSection />
       <RoomStructureSettings />
+      <AdvancedRoomSettings />
     </>
   );
 }

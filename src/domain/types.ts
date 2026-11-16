@@ -2,13 +2,13 @@ import type { FrontFinish, KitchenStyle } from './style';
 import type { PhotoReference } from './photoReferences';
 
 /**
- * Core data model. All lengths are integer millimetres.
+ * Core data model. Dimensions are millimetres; rotated anchors may be fractional.
  *
  * Plan coordinates: the origin is the inner top-left corner of the room,
  * x grows to the right and y grows downwards (towards the bottom wall).
  */
 
-export type Rotation = 0 | 90 | 180 | 270;
+export type Rotation = number;
 
 export type Wall = 'top' | 'right' | 'bottom' | 'left';
 
@@ -36,6 +36,29 @@ export type ItemKind =
 export interface Point {
   x: number;
   y: number;
+}
+
+export interface RoomVertex extends Point {
+  /** Stable identity of the wall starting at this corner. */
+  id: string;
+}
+
+export interface Partition {
+  id: string;
+  start: Point;
+  end: Point;
+  thickness: number;
+  height: number;
+}
+
+export interface WallTreatment {
+  id: string;
+  wallId: string;
+  offset: number;
+  width: number;
+  elevation: number;
+  height: number;
+  finish: FrontFinish | 'stone' | 'marble' | 'travertine' | 'black';
 }
 
 export interface Rect {
@@ -66,14 +89,17 @@ export interface RoomFeature {
 }
 
 export interface Room {
-  /** Inner length of the top and bottom walls. */
+  /** Bounding width; inner wall length for a rectangular room. */
   width: number;
-  /** Inner length of the left and right walls. */
+  /** Bounding depth; inner wall length for a rectangular room. */
   depth: number;
   /** Floor to ceiling. */
   height: number;
   cutout?: RoomCutout;
   features?: RoomFeature[];
+  vertices?: RoomVertex[];
+  partitions?: Partition[];
+  treatments?: WallTreatment[];
 }
 
 export interface KitchenItem {
@@ -210,6 +236,8 @@ export interface Opening {
   id: string;
   kind: OpeningKind;
   wall: Wall;
+  /** New wall attachments use a stable segment; old cardinal-wall projects remain readable. */
+  wallId?: string;
   /** From the start of the wall: the left end of the top and bottom walls, the top end of the side walls. */
   offset: number;
   width: number;
@@ -243,7 +271,7 @@ export interface PartEdit {
 }
 
 export interface Design {
-  version: 4;
+  version: 5;
   name: string;
   room: Room;
   items: KitchenItem[];

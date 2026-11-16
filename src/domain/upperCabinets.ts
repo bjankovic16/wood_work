@@ -1,7 +1,8 @@
-import { CEILING_CABINET_HEIGHT, CEILING_GAP, ELEVATION_LIMITS, KIND_SPECS, WORKTOP_THICKNESS } from './catalog';
+import { CEILING_CABINET_HEIGHT, CEILING_GAP, ELEVATION_LIMITS, KIND_SPECS, WORKTOP_THICKNESS, hasWorktop } from './catalog';
 import { footprintRects, footprintsOverlap, isWallMounted, itemRect, localToRoom, mountingWalls, resizeFromAnchor, verticalOverlap } from './geometry';
 import { canPlaceItem } from './placement';
 import type { KitchenItem, Opening, Room, Wall } from './types';
+import { angleBasis } from './polygons';
 
 export interface UpperRow {
   elevation: number;
@@ -19,7 +20,7 @@ export function canStackCabinet(item: KitchenItem): boolean {
     && item.width >= limits.min && item.width <= limits.max;
 }
 
-function isUpperCabinet(item: KitchenItem): boolean {
+export function isUpperCabinet(item: KitchenItem): boolean {
   return isWallMounted(item) && ['wall', 'glassWall', 'shelf', 'corner'].includes(item.kind);
 }
 
@@ -55,6 +56,66 @@ export function planCabinetAbove(room: Room, items: readonly KitchenItem[], sour
   };
   if (!canPlaceItem(room, items, { ...source, ...cabinet }, openings)) return { ok: false, reason: 'blocked' };
   return { ok: true, cabinet };
+}
+
+export interface ThreeTierOptions {
+  middleHeight: number;
+  topHeight: number;
+  middleDepth: number;
+  topDepth: number;
+}
+
+export const DEFAULT_THREE_TIER: ThreeTierOptions = { middleHeight: 720, topHeight: 400, middleDepth: 320, topDepth: 560 };
+export type ThreeTierPlan = { ok: true; cabinets: StackPlacement[] } | { ok: false; reason: StackError };
+
+export function canBuildThreeTier(item: KitchenItem): boolean {
+  return hasWorktop(item) && !['filler', 'oven', 'hob'].includes(item.kind);
+}
+
+/** A connected straight run is planned completely before any units are inserted. */
+export function planThreeTier(room: Room, items: readonly KitchenItem[], source: KitchenItem, options: ThreeTierOptions, openings: readonly Opening[] = []): ThreeTierPlan {
+  if (!canBuildThreeTier(source)) return { ok: false, reason: 'unsupported' };
+  const limits = KIND_SPECS.wall.limits;
+  if (![options.middleHeight, options.topHeight].every((n) => Number.isFinite(n) && n >= limits.height.min && n <= limits.height.max)
+    || ![options.middleDepth, options.topDepth].every((n) => Number.isFinite(n) && n >= limits.depth.min && n <= limits.depth.max)) return { ok: false, reason: 'noSpace' };
+  const elevation = room.height - CEILING_GAP - options.middleHeight - options.topHeight;
+  if (elevation - source.elevation - source.height - WORKTOP_THICKNESS < 450) return { ok: false, reason: 'noSpace' };
+  const origin = localToRoom(source, 0, 0);
+  const { c, s } = angleBasis(source.rotation);
+  const candidates = items.filter((item) => canBuildThreeTier(item) && item.kind !== 'corner'
+    && item.rotation === source.rotation && item.elevation === source.elevation && item.height === source.height).map((item) => {
+    const anchor = localToRoom(item, 0, 0);
+    return { item, along: (anchor.x - origin.x) * c + (anchor.y - origin.y) * s, across: -(anchor.x - origin.x) * s + (anchor.y - origin.y) * c };
+  }).filter((entry) => Math.abs(entry.across) < 1).sort((a, b) => a.along - b.along);
+  let start = 0;
+  let end = source.width;
+  for (let pass = 0; pass < candidates.length; pass++) for (const candidate of candidates) {
+    if (candidate.along <= end + 1 && candidate.along + candidate.item.width >= start - 1) {
+      start = Math.min(start, candidate.along);
+      end = Math.max(end, candidate.along + candidate.item.width);
+    }
+  }
+  const run = source.kind === 'corner' ? [source] : candidates.filter((e) => e.along >= start - 1 && e.along + e.item.width <= end + 1).map((e) => e.item);
+  if (!run.length) return { ok: false, reason: 'noSelection' };
+  const cabinets: StackPlacement[] = [];
+  const planned: KitchenItem[] = [...items];
+  for (const base of run) for (const row of [
+    { height: options.middleHeight, depth: options.middleDepth, elevation },
+    { height: options.topHeight, depth: options.topDepth, elevation: elevation + options.middleHeight },
+  ]) {
+    const kind = base.kind === 'corner' ? 'corner' : 'wall';
+    const rowLimits = KIND_SPECS[kind].limits;
+    if (base.width < rowLimits.width.min || base.width > rowLimits.width.max) return { ok: false, reason: 'unsupported' };
+    const anchored = resizeFromAnchor(base, { depth: row.depth });
+    const cabinet: StackPlacement = { kind, x: anchored.x, y: anchored.y, rotation: base.rotation, width: base.width,
+      ...(kind === 'corner' ? { width2: base.width2 ?? base.width } : {}), ...row,
+      ...(base.frontFinish ? { frontFinish: base.frontFinish } : {}), ...(base.carcassFinish ? { carcassFinish: base.carcassFinish } : {}) };
+    const item = { ...base, ...cabinet, id: `planned-${cabinets.length}` };
+    if (!canPlaceItem(room, planned, item, openings)) return { ok: false, reason: 'blocked' };
+    cabinets.push(cabinet);
+    planned.push(item);
+  }
+  return { ok: true, cabinets };
 }
 
 /** Cladding meets the actual lowest cupboard, not a fixed-height strip under taller rows. */

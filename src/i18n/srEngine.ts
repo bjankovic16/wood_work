@@ -34,6 +34,8 @@ const originalBandNames = new Map(DEFAULT_EDGE_BANDS.map((b) => [b.id, b.name]))
 
 export const SR_LABELS: EngineLabels = {
   roomFeatures: { chimney: 'Dimnjak', column: 'Stub', projection: 'Ispust zida' },
+  roomPartition: 'Pregradni zid',
+  roomTreatment: 'Zidna obloga',
   locale: 'sr-Latn',
   part: {
     side: 'Bok',

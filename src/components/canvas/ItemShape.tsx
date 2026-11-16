@@ -83,7 +83,9 @@ function ItemSymbol({ item, px, color }: { item: KitchenItem; px: number; color:
             height={bowl.h}
             cornerRadius={Math.min(bowl.w, bowl.h) * 0.16}
             {...stroke}
+            visible={item.rotation % 90 === 0}
           />
+          {item.rotation % 90 !== 0 && <Line points={[[margin, d * 0.2], [w - margin, d * 0.2], [w - margin, d * 0.82], [margin, d * 0.82]].flatMap(([u, v]) => { const p = at(u, v); return [p.x, p.y]; })} closed {...stroke} />}
           <Circle x={drain.x} y={drain.y} radius={Math.min(bowl.w, bowl.h) * 0.07} {...stroke} />
         </>
       );
@@ -123,7 +125,8 @@ function ItemSymbol({ item, px, color }: { item: KitchenItem; px: number; color:
     case 'dishwasher': {
       const inset = Math.min(w, d) * 0.1;
       const r = localRectToRoom(item, inset, inset, w - inset, d - inset);
-      return <Rect x={r.x} y={r.y} width={r.w} height={r.h} dash={[4 * px, 3 * px]} {...stroke} />;
+      return item.rotation % 90 === 0 ? <Rect x={r.x} y={r.y} width={r.w} height={r.h} dash={[4 * px, 3 * px]} {...stroke} />
+        : <Line points={[[inset, inset], [w - inset, inset], [w - inset, d - inset], [inset, d - inset]].flatMap(([u, v]) => { const p = at(u, v); return [p.x, p.y]; })} closed dash={[4 * px, 3 * px]} {...stroke} />;
     }
     case 'shelf':
     case 'glassWall':

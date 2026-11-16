@@ -43,6 +43,8 @@ interface UiState {
   layoutsOpen: boolean;
   projectsOpen: boolean;
   roomOpen: boolean;
+  wallEditing: boolean;
+  selectedWallId: string | null;
   referenceOpen: boolean;
   cameraView: CameraView;
   cameraFocusId: string | null;
@@ -57,6 +59,8 @@ interface UiState {
   setLayoutsOpen: (open: boolean) => void;
   setProjectsOpen: (open: boolean) => void;
   setRoomOpen: (open: boolean) => void;
+  setWallEditing: (editing: boolean) => void;
+  setSelectedWallId: (id: string | null) => void;
   setReferenceOpen: (open: boolean) => void;
   requestCamera: (view: CameraView, focusId?: string) => void;
   setViewport: (zoom: number, pan: Point) => void;
@@ -87,6 +91,8 @@ export const useUiStore = create<UiState>()(
       layoutsOpen: false,
       projectsOpen: false,
       roomOpen: false,
+      wallEditing: false,
+      selectedWallId: null,
       referenceOpen: false,
       cameraView: 'perspective',
       cameraFocusId: null,
@@ -100,6 +106,8 @@ export const useUiStore = create<UiState>()(
       setLayoutsOpen: (layoutsOpen) => set({ layoutsOpen }),
       setProjectsOpen: (projectsOpen) => set({ projectsOpen }),
       setRoomOpen: (roomOpen) => set({ roomOpen }),
+      setWallEditing: (wallEditing) => set({ wallEditing, selectedId: null }),
+      setSelectedWallId: (selectedWallId) => set({ selectedWallId }),
       setReferenceOpen: (referenceOpen) => set({ referenceOpen }),
       requestCamera: (cameraView, focusId) => set((state) => ({ cameraView, cameraFocusId: focusId ?? null, cameraToken: state.cameraToken + 1 })),
       setViewport: (zoom, pan) => set({ zoom, pan }),

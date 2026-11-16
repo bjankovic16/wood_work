@@ -22,7 +22,7 @@ function ItemSheet({ item }: { item: KitchenItem }) {
   const [expanded, setExpanded] = useState(false);
   return (
     <div
-      className="absolute inset-x-0 bottom-0 z-10 flex max-h-[62%] flex-col rounded-t-2xl border-t border-zinc-200 bg-white shadow-[0_-8px_30px_rgba(0,0,0,0.08)]"
+      className="studio-panel absolute inset-x-0 bottom-0 z-10 flex max-h-[62%] flex-col rounded-t-3xl border-t shadow-[0_-8px_30px_rgba(51,47,40,0.1)]"
       data-testid="item-sheet"
     >
       <ItemHeader item={item} compact />
@@ -66,14 +66,14 @@ export function CompactLayout() {
   }, [view, layoutsOpen, roomOpen]);
 
   return (
-    <div className="flex h-dvh select-none flex-col bg-white text-zinc-900">
+    <div className="flex h-dvh select-none flex-col bg-studio-canvas text-studio-ink">
       <TopBar compact />
       <main className="relative min-h-0 flex-1">
         {view === 'plan' && <DesignCanvas compact />}
         {view === '3d' && <View3D compact />}
         {view === 'list' && <CuttingListView />}
         {designing && !item && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center gap-2 px-3 pb-[max(env(safe-area-inset-bottom),14px)] pt-3">
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center gap-2 bg-gradient-to-t from-studio-canvas/90 to-transparent px-3 pb-[max(env(safe-area-inset-bottom),14px)] pt-6">
             <Button variant="primary" className="pointer-events-auto h-11 rounded-full px-5 text-sm shadow-lg" onClick={() => setSheet('add')}>
               <Plus className="size-4" />
               {t.phone.addElement}

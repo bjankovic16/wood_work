@@ -1,7 +1,7 @@
 import { ChevronRight, Copy, RotateCcw, RotateCw, Trash2, TriangleAlert, X } from 'lucide-react';
 import { useEffect, useMemo, type ReactNode } from 'react';
 import { BAR_MATERIAL_ID, ELEVATION_LIMITS, GLASS_MATERIAL_ID, sizeLimits, type SizeField } from '../../domain/catalog';
-import { aabbSize, attachedRoomSurface, attachedWall, backWall, isFlushWith, itemRect, mountingWalls } from '../../domain/geometry';
+import { aabbSize, attachedRoomSurface, attachedWall, backWall, isFlushWith, itemRect, mountingWalls, attachedSegment } from '../../domain/geometry';
 import type { KitchenItem, Material, Room } from '../../domain/types';
 import { KIND_OPTIONS, resolveConfig, type BuildContext } from '../../engine/config';
 import { FRONT_FINISHES, type FrontFinish } from '../../domain/style';
@@ -20,10 +20,12 @@ import { NumberField, SelectField, TextField } from './NumberField';
 import { Stepper } from './Stepper';
 import { canStackCabinet } from '../../domain/upperCabinets';
 import { StackAboveButton } from './StackAboveButton';
+import { ThreeTierSetup } from './ThreeTierSetup';
 
 const CORNER_NAMES: Record<KitchenItem['rotation'], CornerName> = { 0: 'top-left', 90: 'top-right', 180: 'bottom-right', 270: 'bottom-left' };
 
 function placementText(item: KitchenItem, room: Room, t: Messages): string {
+  if (item.rotation % 90 !== 0) return attachedSegment(item, room) ? t.advancedRoom.attached : `${t.advancedRoom.angle}: ${Math.round(item.rotation * 10) / 10}`;
   if (item.kind === 'corner') {
     const rect = itemRect(item);
     const inCorner = mountingWalls(item).every((wall) => isFlushWith(rect, wall, room));
@@ -152,7 +154,9 @@ export function ItemFields({ item }: { item: KitchenItem }) {
         {corner && sizeField('width2', t.item.widthWallB)}
         {sizeField('depth', t.item.depth)}
         {sizeField('height', t.item.height)}
+        <NumberField label={t.advancedRoom.angle} value={item.rotation} min={0} max={360} suffix="deg" precision={1} onCommit={(angle) => actions.setItemAngle(item.id, angle)} />
       </PanelSection>
+      <ThreeTierSetup key={item.id} item={item} />
 
       {canStackCabinet(item) && (
         <PanelSection title={t.stacking.title}>

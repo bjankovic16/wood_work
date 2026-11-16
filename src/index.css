@@ -2,6 +2,12 @@
 
 @theme {
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --color-studio-paper: #fffefa;
+  --color-studio-canvas: #f0ede6;
+  --color-studio-line: #e1dbd0;
+  --color-studio-ink: #332f28;
+  --color-studio-muted: #746d61;
+  --color-studio-accent: #52644d;
 }
 
 html,
@@ -16,10 +22,39 @@ body {
   overscroll-behavior: none;
   -webkit-font-smoothing: antialiased;
   font-feature-settings: 'cv11', 'ss01';
+  background: var(--color-studio-canvas);
+  color: var(--color-studio-ink);
 }
 
 kbd {
   font-family: inherit;
+}
+
+.studio-panel {
+  background: var(--color-studio-paper);
+  border-color: var(--color-studio-line);
+}
+
+.studio-panel :where(input, select) {
+  accent-color: var(--color-studio-accent);
+}
+
+.kitchen-card {
+  box-shadow: 0 2px 6px #332f2804;
+  transition: box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.kitchen-card:hover,
+.kitchen-card:focus-within {
+  border-color: #9caa91;
+  box-shadow: 0 8px 24px #332f2810;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kitchen-card,
+  .kitchen-card svg {
+    transition: none;
+  }
 }
 
 /* While an element is dragged from the library. */

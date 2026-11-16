@@ -1,6 +1,6 @@
 import type { KonvaEventObject } from 'konva/lib/Node';
-import { Group, Line, Rect } from 'react-konva';
-import { computeClearances, computeWallChains, type WallChain } from '../../domain/dimensions';
+import { Group, Line, Rect, Text } from 'react-konva';
+import { computeClearances, computeWallChains, computeSegmentChains, type WallChain } from '../../domain/dimensions';
 import { footprintPolygon, itemRect } from '../../domain/geometry';
 import { itemHandles, type Guide, type HandleId } from '../../domain/snapping';
 import type { KitchenItem, Room } from '../../domain/types';
@@ -80,6 +80,17 @@ function ChainDimensions({ chain, room, px }: { chain: WallChain; room: Room; px
 
 /** Chained dimensions along every wall that has units against it, plus the overall room size. */
 export function WallDimensions({ room, items, px }: { room: Room; items: KitchenItem[]; px: number }) {
+  if (room.vertices || room.partitions?.length) return <Group listening={false}>
+    {computeSegmentChains(room, items).map(({ segment, level, segments }) =>
+      <Group key={`${segment.id}-${level}`} x={segment.start.x} y={segment.start.y} rotation={segment.angle}>
+        {segments.map((span) => <Group key={span.from}>
+          <Line points={[span.from, -WALL_THICKNESS - (level === 'wall' ? 45 : 20) * px, span.to, -WALL_THICKNESS - (level === 'wall' ? 45 : 20) * px]}
+            stroke={span.occupied ? DIMENSION_COLORS.floor : DIMENSION_COLORS.gap} strokeWidth={px} />
+          <Text x={span.from} y={-WALL_THICKNESS - (level === 'wall' ? 58 : 33) * px} width={span.to - span.from} text={String(Math.round(span.to - span.from))}
+            fontSize={10 * px} align="center" fill={span.occupied ? DIMENSION_COLORS.floor : DIMENSION_COLORS.gap} />
+        </Group>)}
+      </Group>)}
+  </Group>;
   const chains = computeWallChains(room, items);
   const top = outsideWall('top', room, ROW_OFFSET_PX.room, px);
   const left = outsideWall('left', room, ROW_OFFSET_PX.room, px);

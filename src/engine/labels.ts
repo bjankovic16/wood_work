@@ -115,6 +115,8 @@ export interface EngineLabels {
   csvHeader: string[];
   checks: CheckLabels;
   roomFeatures: Record<RoomFeatureKind, string>;
+  roomPartition: string;
+  roomTreatment: string;
 }
 
 const HANDLES: Record<HandleStyle, string> = { steel: 'steel bar', black: 'black bar', brass: 'brass bar', none: 'no handles', bronze: 'bronze bar', copper: 'copper bar' };
@@ -123,6 +125,8 @@ const wall = (w: Wall) => `${w} wall`;
 
 export const EN_LABELS: EngineLabels = {
   roomFeatures: { chimney: 'Chimney', column: 'Column', projection: 'Wall projection' },
+  roomPartition: 'Partition',
+  roomTreatment: 'Wall finish',
   locale: 'en',
   part: {
     side: 'Side',

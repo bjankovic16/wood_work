@@ -6,9 +6,12 @@ import {
   mountingWalls,
   verticalOverlap,
   WALLS,
+  attachedSegment,
+  localToRoom,
 } from './geometry';
 import { clamp } from './math';
 import type { KitchenItem, Room, Wall } from './types';
+import { roomSegments, wallCoordinates, type WallSegment } from './walls';
 
 export interface ChainSegment {
   from: number;
@@ -22,6 +25,16 @@ export interface WallChain {
   wall: Wall;
   level: 'floor' | 'wall';
   segments: ChainSegment[];
+}
+
+export function computeSegmentChains(room: Room, items: readonly KitchenItem[]): Array<{ segment: WallSegment; level: 'floor' | 'wall'; segments: ChainSegment[] }> {
+  return roomSegments(room).flatMap((segment) => (['floor', 'wall'] as const).flatMap((level) => {
+    const spans = items.filter((item) => (level === 'wall') === isWallMounted(item) && attachedSegment(item, room)?.id === segment.id)
+      .map((item) => { const start = wallCoordinates(segment, localToRoom(item, 0, 0)).x; return [start, start + item.width]; });
+    if (level === 'wall' && !spans.length) return [];
+    const ticks = [...new Set([0, segment.length, ...spans.flat()])].sort((a, b) => a - b);
+    return [{ segment, level, segments: ticks.slice(1).map((to, i) => ({ from: ticks[i], to, occupied: spans.some(([a, b]) => a <= (to + ticks[i]) / 2 && b >= (to + ticks[i]) / 2) })) }];
+  }));
 }
 
 /**
@@ -71,6 +84,8 @@ export interface Clearance {
 }
 
 export function computeClearances(room: Room, items: readonly KitchenItem[], item: KitchenItem): Clearance[] {
+  // Axis-aligned clearance rays are not valid dimensions for an angled cabinet.
+  if (item.rotation % 90 !== 0 || room.vertices) return [];
   const r = itemRect(item);
   const obstacles = items
     .filter((o) => o.id !== item.id && verticalOverlap(o, item))

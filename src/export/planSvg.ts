@@ -1,7 +1,8 @@
 import { footprintPolygon, frontEdges, isWallMounted, itemRect } from '../domain/geometry';
-import type { Design, KitchenItem, Opening, Point, Room, Wall } from '../domain/types';
+import type { Design, KitchenItem, Opening, Room } from '../domain/types';
 import { openingFitsRoomWall, roomOutline } from '../domain/roomGeometry';
 import { EN_LABELS, type EngineLabels } from '../engine/labels';
+import { openingFrame, openingIsValid, partitionPolygon, roomSegments, wallPoint } from '../domain/walls';
 
 const WALL = 120;
 /** Space around the room for the overall dimensions. */
@@ -9,32 +10,21 @@ const MARGIN = 360;
 
 const escape = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-function wallFrame(room: Room, wall: Wall): { origin: Point; along: Point; inward: Point } {
-  switch (wall) {
-    case 'top':
-      return { origin: { x: 0, y: 0 }, along: { x: 1, y: 0 }, inward: { x: 0, y: 1 } };
-    case 'bottom':
-      return { origin: { x: 0, y: room.depth }, along: { x: 1, y: 0 }, inward: { x: 0, y: -1 } };
-    case 'left':
-      return { origin: { x: 0, y: 0 }, along: { x: 0, y: 1 }, inward: { x: 1, y: 0 } };
-    case 'right':
-      return { origin: { x: room.width, y: 0 }, along: { x: 0, y: 1 }, inward: { x: -1, y: 0 } };
-  }
-}
-
 function openingSvg(room: Room, opening: Opening): string {
-  const { origin, along, inward } = wallFrame(room, opening.wall);
-  const at = (a: number, n: number) => ({ x: origin.x + along.x * a + inward.x * n, y: origin.y + along.y * a + inward.y * n });
+  const frame = openingFrame(room, opening);
+  if (!frame) return '';
+  const thickness = room.partitions?.find((p) => p.id === frame.partitionId)?.thickness ?? WALL;
+  const at = (a: number, n: number) => wallPoint(frame, a, n);
   const start = opening.offset;
   const end = opening.offset + opening.width;
-  const gap = [at(start, 0), at(end, 0), at(end, -WALL), at(start, -WALL)].map((p) => `${p.x},${p.y}`).join(' ');
+  const gap = [at(start, 0), at(end, 0), at(end, -thickness), at(start, -thickness)].map((p) => `${p.x},${p.y}`).join(' ');
   if (opening.kind === 'window') {
     const line = (n: number) => {
       const a = at(start, n);
       const b = at(end, n);
       return `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#52525b" stroke-width="10"/>`;
     };
-    return `<polygon points="${gap}" fill="#ffffff" stroke="#52525b" stroke-width="10"/>${line(-WALL * 0.38)}${line(-WALL * 0.62)}`;
+    return `<polygon points="${gap}" fill="#ffffff" stroke="#52525b" stroke-width="10"/>${line(-thickness * 0.38)}${line(-thickness * 0.62)}`;
   }
   const hinge = at(start, 0);
   const leaf = at(start, opening.width);
@@ -72,7 +62,21 @@ export function planSvg(design: Design, labels: EngineLabels = EN_LABELS, items:
     parts.push(`<rect x="${feature.x}" y="${feature.y}" width="${feature.width}" height="${feature.depth}" fill="#d8cdbb" stroke="#847766" stroke-width="10"/>`);
     parts.push(`<text x="${feature.x + feature.width / 2}" y="${feature.y + feature.depth / 2 + size * 0.35}" font-size="${size}" text-anchor="middle" fill="#574b3e">${escape(name)}</text>`);
   }
-  for (const opening of design.openings.filter((entry) => openingFitsRoomWall(room, entry.wall, entry.offset, entry.width))) parts.push(openingSvg(room, opening));
+  for (const partition of room.partitions ?? []) {
+    parts.push(`<polygon points="${partitionPolygon(partition).map((p) => `${p.x},${p.y}`).join(' ')}" fill="#d8cdbb" stroke="#847766" stroke-width="10"/>`);
+  }
+  for (const treatment of room.treatments ?? []) {
+    const frame = roomSegments(room).find((s) => s.id === treatment.wallId);
+    if (!frame) continue;
+    const a = wallPoint(frame, treatment.offset, 10);
+    const b = wallPoint(frame, Math.min(frame.length, treatment.offset + treatment.width), 10);
+    parts.push(`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#aa8050" stroke-width="20"/>`);
+  }
+  for (const opening of design.openings.filter((entry) => entry.wallId ? openingIsValid(room, entry) : openingFitsRoomWall(room, entry.wall, entry.offset, entry.width))) parts.push(openingSvg(room, opening));
+  if (room.vertices) for (const segment of roomSegments(room, false)) {
+    const at = wallPoint(segment, segment.length / 2, -WALL / 2);
+    parts.push(`<text x="${at.x}" y="${at.y}" font-size="${font * 0.75}" text-anchor="middle" fill="#574b3e" transform="rotate(${segment.angle > 90 && segment.angle < 270 ? segment.angle + 180 : segment.angle} ${at.x} ${at.y})">${Math.round(segment.length)}</text>`);
+  }
 
   const ordered = [...items.filter((i) => !isWallMounted(i)), ...items.filter(isWallMounted)];
   for (const item of ordered) {

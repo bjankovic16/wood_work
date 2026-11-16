@@ -103,8 +103,8 @@ function PresetTile({ preset, layout, onAdded }: PresetTileProps) {
       onPointerDown={(e) => startPointerDrag(preset.id, e, onAdded)}
       onClick={onKeyboardClick}
       className={cn(
-        'group flex scroll-mt-36 cursor-grab touch-pan-y select-none flex-col items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 transition-colors',
-        'hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40',
+        'group flex scroll-mt-36 cursor-grab touch-pan-y select-none flex-col items-center justify-center rounded-xl border border-studio-line bg-studio-paper text-[#84785f] shadow-[0_1px_2px_#332f2804] transition-colors',
+        'hover:border-[#acb59e] hover:bg-[#f1f3eb] hover:text-studio-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-studio-accent/50',
         layout === 'compact' ? 'h-[58px] gap-0.5' : 'min-h-[82px] gap-1 px-1.5 py-2',
       )}
     >
@@ -141,7 +141,7 @@ export function LibrarySections({ onAdded, wide = false }: { onAdded?: () => voi
   const count = sections.reduce((total, section) => total + section.presets.length, 0);
   return (
     <>
-      <div className="sticky top-0 z-10 space-y-2 bg-white pb-3 pt-1">
+      <div className="sticky top-0 z-10 space-y-2 bg-studio-paper pb-3 pt-1">
         <div className="relative">
           <Search className="pointer-events-none absolute left-2.5 top-3 size-4 text-zinc-500" />
           <input
@@ -151,7 +151,7 @@ export function LibrarySections({ onAdded, wide = false }: { onAdded?: () => voi
             placeholder={t.library.searchPlaceholder}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            className="h-10 w-full rounded-md border border-zinc-300 bg-white pl-9 pr-9 text-base text-zinc-900 caret-blue-700 placeholder:text-zinc-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 lg:text-sm [&::-webkit-search-cancel-button]:hidden"
+            className="h-10 w-full rounded-xl border border-studio-line bg-[#f5f2eb] pl-9 pr-9 text-base text-studio-ink caret-studio-accent placeholder:text-studio-muted focus:border-studio-accent focus:outline-none focus:ring-2 focus:ring-studio-accent/20 lg:text-sm [&::-webkit-search-cancel-button]:hidden"
           />
           {query && (
             <Button className="absolute right-1 top-1 h-8 w-8 px-0" aria-label={t.library.clearSearch} onClick={() => { setQuery(''); searchRef.current?.focus(); }}>
@@ -163,7 +163,7 @@ export function LibrarySections({ onAdded, wide = false }: { onAdded?: () => voi
           aria-label={t.library.category}
           value={category}
           onChange={(event) => setCategory(event.target.value as LibraryCategory)}
-          className="h-9 w-full rounded-md border border-zinc-200 bg-white px-2 text-base text-zinc-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 lg:text-[13px]"
+          className="h-10 w-full rounded-lg border border-studio-line bg-studio-paper px-2 text-base text-[#696357] focus:border-studio-accent focus:outline-none focus:ring-2 focus:ring-studio-accent/20 lg:text-[13px]"
         >
           <option value="all">{t.library.allCategories}</option>
           {LIBRARY.map((section) => <option key={section.id} value={section.id}>{t.library.sections[section.id]}</option>)}
@@ -216,10 +216,10 @@ export function LibrarySections({ onAdded, wide = false }: { onAdded?: () => voi
 export function LibraryPanel() {
   const t = useT();
   return (
-    <aside className="flex w-[264px] shrink-0 flex-col border-r border-zinc-200 bg-white">
-      <div className="px-4 pb-2 pt-4">
+    <aside className="studio-panel flex w-[264px] shrink-0 flex-col border-r">
+      <div className="mb-2 border-b border-studio-line/60 px-4 pb-4 pt-5">
         <h2 className="text-sm font-semibold text-zinc-900">{t.library.elements}</h2>
-        <p className="mt-0.5 text-xs text-zinc-500">{t.library.hint}</p>
+        <p className="mt-1.5 text-xs leading-relaxed text-studio-muted">{t.library.hint}</p>
       </div>
       <div className="flex-1 space-y-1 overflow-y-auto px-3 pb-4">
         <LibrarySections />
