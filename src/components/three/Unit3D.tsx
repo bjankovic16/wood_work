@@ -537,7 +537,7 @@ function UnitGroup({ item, anchor, onSelect, children, objectRef, onToggleOpenin
       }}
       onPointerOver={(e) => {
         e.stopPropagation();
-        document.body.style.cursor = 'pointer';
+        document.body.style.cursor = 'grab';
       }}
       onPointerOut={() => {
         document.body.style.cursor = '';

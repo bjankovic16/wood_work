@@ -363,7 +363,7 @@ try {
       const item = window.__kitchen.design.getState().design.items.find((item) => item.id === id);
       const { camera } = window.__kitchen3D;
       camera.updateMatrixWorld(true);
-      const point = localToRoom(item, item.width * 0.2, item.depth * 0.25);
+      const point = localToRoom(item, item.width / 2, item.depth * 0.6);
       const box = document.querySelector('main canvas').getBoundingClientRect();
       const project = (x) => {
         const p = camera.position.clone().set(x / 1000, (item.elevation + item.height + 35) / 1000, point.y / 1000).project(camera);

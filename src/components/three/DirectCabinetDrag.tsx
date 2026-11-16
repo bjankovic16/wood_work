@@ -1,4 +1,4 @@
-import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
 import * as THREE from 'three';
 import { attachedWall, itemRect, localToRoom } from '../../domain/geometry';
@@ -12,7 +12,8 @@ export function DirectCabinetDrag({ item, onStart, onSelect, handleRef, overlayR
   item: KitchenItem; onStart: (id: string) => void; onSelect: (id: string) => void;
   handleRef?: RefObject<HTMLButtonElement | null>; overlayRef?: RefObject<HTMLDivElement | null>; children: ReactNode;
 }) {
-  const { camera, gl, controls, scene, invalidate } = useThree();
+  const { camera, gl, controls, scene, events, invalidate } = useThree();
+  const body = useRef<THREE.Group>(null);
   const start = useRef<{
     design: Design; item: KitchenItem; plane: THREE.Plane; offset: Point; wall: Wall | null;
     x: number; y: number; pointerId: number; moved: boolean; orbitEnabled: boolean;
@@ -66,6 +67,9 @@ export function DirectCabinetDrag({ item, onStart, onSelect, handleRef, overlayR
     };
     const up = (event: PointerEvent) => { if (event.pointerId === start.current?.pointerId) finish(false); };
     const cancel = () => finish(true);
+    const lostCapture = (event: PointerEvent) => {
+      if (event.pointerId === start.current?.pointerId && event.target === start.current.capture) cancel();
+    };
     const key = (event: KeyboardEvent) => { if (event.key === 'Escape') cancel(); };
     const visibility = () => { if (document.visibilityState === 'hidden') cancel(); };
     const unsubscribe = useDesignStore.subscribe((state) => {
@@ -77,7 +81,7 @@ export function DirectCabinetDrag({ item, onStart, onSelect, handleRef, overlayR
     window.addEventListener('pointercancel', cancel);
     window.addEventListener('blur', cancel);
     window.addEventListener('keydown', key);
-    window.addEventListener('lostpointercapture', cancel);
+    window.addEventListener('lostpointercapture', lostCapture);
     document.addEventListener('visibilitychange', visibility);
     return () => {
       unsubscribe();
@@ -86,7 +90,7 @@ export function DirectCabinetDrag({ item, onStart, onSelect, handleRef, overlayR
       window.removeEventListener('pointercancel', cancel);
       window.removeEventListener('blur', cancel);
       window.removeEventListener('keydown', key);
-      window.removeEventListener('lostpointercapture', cancel);
+      window.removeEventListener('lostpointercapture', lostCapture);
       document.removeEventListener('visibilitychange', visibility);
       cancel();
     };
@@ -106,24 +110,82 @@ export function DirectCabinetDrag({ item, onStart, onSelect, handleRef, overlayR
     capture.setPointerCapture(pointerId);
   };
 
-  const down = (event: ThreeEvent<PointerEvent>) => {
-    if (event.button !== 0 || !event.isPrimary || start.current || useDesignStore.getState().gestureBase) return;
-    if (controls && 'enabled' in controls && controls.enabled === false) return;
-    // The gizmo's native picker and R3F's cabinet events share the same canvas.
-    for (const name of ['kitchen-resize-tool', 'kitchen-move-tool']) {
-      const tool = scene.getObjectByName(name);
-      if (tool && typeof Reflect.get(tool, 'axis') === 'string') return;
-    }
-    event.stopPropagation();
-    begin(event.clientX, event.clientY, event.pointerId, event.point, gl.domElement);
-  };
+  useEffect(() => {
+    const element = gl.domElement;
+    const down = (event: PointerEvent) => {
+      if (event.button !== 0 || !event.isPrimary || start.current || useDesignStore.getState().gestureBase) return;
+      if (controls && 'enabled' in controls && controls.enabled === false) return;
+      const box = element.getBoundingClientRect();
+      const ray = new THREE.Raycaster();
+      ray.setFromCamera(new THREE.Vector2((event.clientX - box.left) / box.width * 2 - 1, -(event.clientY - box.top) / box.height * 2 + 1), camera);
+      scene.updateMatrixWorld(true);
+      if (!body.current || ray.intersectObject(body.current, true).length === 0) return;
+      const hits = ray.intersectObjects(scene.children, true).filter(({ object }) => {
+        if (!(object instanceof THREE.Mesh)) return false;
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        if (!materials.some((material) => material.visible && material.opacity > 0)) return false;
+        for (let parent: THREE.Object3D | null = object; parent; parent = parent.parent) {
+          if (!parent.visible) return false;
+        }
+        return true;
+      });
+      // Only visible arrows own a resize press, not their oversized invisible pickers.
+      if (hits.some(({ object }) => {
+        for (let parent: THREE.Object3D | null = object; parent; parent = parent.parent) {
+          if (parent.name === 'kitchen-resize-tool' || parent.name === 'kitchen-move-tool') return true;
+        }
+        return false;
+      })) return;
+      const hit = hits[0];
+      if (!hit) return;
+      for (let parent: THREE.Object3D | null = hit.object; parent; parent = parent.parent) {
+        if (parent !== body.current) continue;
+        event.stopImmediatePropagation();
+        // Keep R3F's click/double-click bookkeeping without starting native gizmos or orbit.
+        events.handlers?.onPointerDown(event);
+        begin(event.clientX, event.clientY, event.pointerId, hit.point, element);
+        return;
+      }
+    };
+    element.addEventListener('pointerdown', down, true);
+    return () => element.removeEventListener('pointerdown', down, true);
+  });
   useFrame(() => {
     const overlay = overlayRef?.current;
     if (!overlay) return;
     const centre = localToRoom(item, item.width / 2, item.depth / 2);
     const point = new THREE.Vector3(centre.x / 1000, (item.elevation + item.height) / 1000 + 0.08, centre.y / 1000).project(camera);
     const box = gl.domElement.getBoundingClientRect();
-    overlay.style.transform = `translate(${(point.x + 1) * box.width / 2}px, ${(1 - point.y) * box.height / 2}px) translate(-50%, -50%)`;
+    let top = (1 - point.y) * box.height / 2;
+    let bottom = top;
+    const includeBounds = (bounds: THREE.Box3) => {
+      for (const x of [bounds.min.x, bounds.max.x]) {
+        for (const y of [bounds.min.y, bounds.max.y]) {
+          for (const z of [bounds.min.z, bounds.max.z]) {
+            const projected = new THREE.Vector3(x, y, z).project(camera);
+            const screenY = (1 - projected.y) * box.height / 2;
+            top = Math.min(top, screenY);
+            bottom = Math.max(bottom, screenY);
+          }
+        }
+      }
+    };
+    if (body.current) includeBounds(new THREE.Box3().setFromObject(body.current));
+    const tool = scene.getObjectByName('kitchen-resize-tool');
+    tool?.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      if (!materials.some((material) => material.visible && material.opacity > 0)) return;
+      for (let parent: THREE.Object3D | null = object; parent; parent = parent.parent) if (!parent.visible) return;
+      object.geometry.computeBoundingBox();
+      if (object.geometry.boundingBox) includeBounds(object.geometry.boundingBox.clone().applyMatrix4(object.matrixWorld));
+    });
+    const width = overlay.offsetWidth;
+    const height = overlay.offsetHeight;
+    const x = THREE.MathUtils.clamp((point.x + 1) * box.width / 2, width / 2 + 8, Math.max(width / 2 + 8, box.width - width / 2 - 8));
+    const above = top - height - 12;
+    const y = above >= 8 ? above : bottom + height + 20 <= box.height ? bottom + 12 : 8;
+    overlay.style.transform = `translate(${x}px, ${y}px) translateX(-50%)`;
     overlay.style.visibility = point.z < -1 || point.z > 1 ? 'hidden' : 'visible';
   });
   useEffect(() => {
@@ -143,5 +205,5 @@ export function DirectCabinetDrag({ item, onStart, onSelect, handleRef, overlayR
     handle.addEventListener('pointerdown', press);
     return () => handle.removeEventListener('pointerdown', press);
   });
-  return <group onPointerDown={down}>{children}</group>;
+  return <group ref={body}>{children}</group>;
 }

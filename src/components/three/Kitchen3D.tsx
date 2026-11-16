@@ -251,16 +251,17 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
         />
         <CameraRig request={request} comparison={referenceOpen} controls={controls} />
       </Canvas>
-      {selected && !moveMode && !resizeMode && !roomMoving && <div ref={handlesRef} className="absolute left-0 top-0 flex gap-2" style={{ visibility: 'hidden' }}>
+      {selected && !moveMode && !resizeMode && !roomMoving && <div ref={handlesRef} className="absolute left-0 top-0 flex items-center gap-2 rounded-2xl border border-white/80 bg-white/95 p-1.5 shadow-lg backdrop-blur-sm" style={{ visibility: 'hidden' }}>
         <button ref={handRef} type="button" aria-label={text.view3d.dragHandle} title={text.view3d.dragHandle}
-          className="flex size-11 touch-none cursor-grab items-center justify-center rounded-full border-2 border-white bg-studio-accent text-white shadow-lg ring-1 ring-black/15 active:cursor-grabbing focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-studio-accent">
-          <Hand className="size-6" aria-hidden="true" />
+          className="group flex h-12 touch-none cursor-grab items-center justify-center gap-2 rounded-xl bg-studio-accent px-3 text-white shadow-sm transition-colors hover:bg-studio-accent/90 active:cursor-grabbing active:bg-studio-accent/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-studio-accent">
+          <Hand className="size-7 stroke-[1.75]" aria-hidden="true" />
+          <span className="text-xs font-semibold">{text.view3d.moveShort}</span>
         </button>
         {!interior && KIND_OPTIONS[selected.kind].carcass && KIND_OPTIONS[selected.kind].fronts && <button type="button"
           aria-label={openedCabinets.has(selected.id) ? text.view3d.closeCabinet : text.view3d.openCabinet}
           title={openedCabinets.has(selected.id) ? text.view3d.closeCabinet : text.view3d.openCabinet}
           aria-pressed={openedCabinets.has(selected.id)} onClick={() => toggleOpening(selected.id)}
-          className="flex size-11 touch-none items-center justify-center rounded-full border-2 border-white bg-studio-accent text-white shadow-lg ring-1 ring-black/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-studio-accent">
+          className="flex size-12 touch-none items-center justify-center rounded-xl text-studio-accent transition-colors hover:bg-studio-accent/10 aria-pressed:bg-studio-accent/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-studio-accent">
           {openedCabinets.has(selected.id) ? <DoorClosed className="size-6" aria-hidden="true" /> : <DoorOpen className="size-6" aria-hidden="true" />}
         </button>}
       </div>}

@@ -235,7 +235,8 @@ browsers, English otherwise. A language chosen manually is remembered.
   and never overlays the kitchen. Instructions are under **How to use 3D**;
   selection warnings remain in the tools panel and the main Checks view.
 - **Direct 3D editing**: hold and drag a cabinet itself to move it across the
-  floor, keeping its elevation. Click or tap a cabinet to show a hand-shaped
+  floor, keeping its elevation; no selection or hand activation is needed first.
+  Click or tap a cabinet to show a labelled hand-shaped
   move handle and resize arrows. Hold and drag the hand to move the cabinet;
   red changes width, green height, blue depth (the second arm for corner units).
   Drag an arrow out to expand or in to shrink. The tools panel can stay closed.

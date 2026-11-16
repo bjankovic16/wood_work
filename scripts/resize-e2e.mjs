@@ -138,6 +138,16 @@ try {
   await page.evaluate(() => window.__kitchen.ui.getState().select(null));
   const clickPoint = await cabinetPoints(page);
   const selectionHistory = await history(page);
+  const firstGrab = await design(page);
+  await page.mouse.move(clickPoint.from.x, clickPoint.from.y);
+  await page.mouse.down();
+  await page.mouse.move(clickPoint.to.x, clickPoint.to.y, { steps: 12 });
+  assert.notDeepEqual((await design(page)).items[0], firstGrab.items[0], 'The very first grab must move an unselected cabinet without using the hand.');
+  await page.mouse.up();
+  assert.equal(await history(page), selectionHistory + 1);
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  assert.deepEqual(await design(page), firstGrab);
+  await page.evaluate(() => window.__kitchen.ui.getState().select(null));
   await page.mouse.click(clickPoint.from.x, clickPoint.from.y);
   await page.waitForFunction(() => window.__kitchen.ui.getState().selectedId === 'resize-cabinet');
   assert.equal(await history(page), selectionHistory, 'Clicking must select without moving or adding history.');
@@ -331,6 +341,21 @@ try {
   await phonePanel.locator(':scope > summary').tap();
   await phone.waitForTimeout(300);
   const phoneBefore = await design(phone);
+  await phone.evaluate(() => window.__kitchen.ui.getState().select(null));
+  const firstTouchPoints = await cabinetPoints(phone, true);
+  const firstTouch = await phoneContext.newCDPSession(phone);
+  await firstTouch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [firstTouchPoints.from] });
+  for (let step = 1; step <= 12; step++) {
+    await firstTouch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{
+      x: firstTouchPoints.from.x + (firstTouchPoints.to.x - firstTouchPoints.from.x) * step / 12,
+      y: firstTouchPoints.from.y + (firstTouchPoints.to.y - firstTouchPoints.from.y) * step / 12,
+    }] });
+  }
+  assert.notDeepEqual((await design(phone)).items[0], phoneBefore.items[0], 'The first touch grab must move a cabinet without activating its hand.');
+  await firstTouch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await firstTouch.detach();
+  await phone.getByRole('button', { name: 'Undo', exact: true }).tap();
+  assert.deepEqual(await design(phone), phoneBefore);
   await drag(phone, 0.2, true);
   assert.ok((await design(phone)).items[0].width > phoneBefore.items[0].width);
   await phone.getByRole('button', { name: 'Undo', exact: true }).tap();
