@@ -5,7 +5,7 @@ import { cuttingListDocument } from '../export/pdf';
 import { planSvg } from '../export/planSvg';
 import { en } from '../i18n/en';
 import { sr } from '../i18n/sr';
-import { stackCabinetAbove, addThreeTierRun } from '../store/actions';
+import { stackCabinetAbove, addThreeTierRun, addPresetToPlan } from '../store/actions';
 import { useDesignStore } from '../store/designStore';
 import { useUiStore } from '../store/uiStore';
 import { CEILING_GAP, createItem, findPreset, hasWorktop, itemFromPreset } from './catalog';
@@ -18,6 +18,15 @@ import { backsplashTop, canStackCabinet, exposedCabinetUnderside, inUpperRow, pl
 const room = { width: 4000, depth: 3200, height: 2600 };
 
 describe('stacked upper cabinetry', () => {
+  it('reveals an added ceiling cupboard when wall mode defaults to the first upper row', () => {
+    const source = createItem('wall', []);
+    useDesignStore.getState().load({ ...createDesign(), room, items: [source] });
+    useUiStore.getState().setViewFilter('wall');
+    expect(useUiStore.getState().wallElevation).toBeNull();
+    expect(addPresetToPlan('ceiling-600')).toBe(true);
+    const added = useDesignStore.getState().design.items.at(-1)!;
+    expect(useUiStore.getState()).toMatchObject({ viewFilter: 'wall', wallElevation: added.elevation, selectedId: added.id });
+  });
   it('adds a full connected base run as two independent upper rows in one undo step', () => {
     const first = createItem('base', [], { x: 600 });
     const second = createItem('drawer', [first], { x: 1200 });

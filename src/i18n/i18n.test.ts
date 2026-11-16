@@ -12,6 +12,14 @@ import { cuttingListWorkbook } from '../export/excel';
 import { en } from './en';
 import { srPlural } from './plural';
 import { sr } from './sr';
+import { browserLanguage } from './language';
+
+describe('browser language', () => {
+  it('uses Serbian only when it is the primary browser language', () => {
+    expect(['sr', 'sr-Latn-RS', 'SR-rs', 'sr_Cyrl'].map((language) => browserLanguage([language, 'en']))).toEqual(['sr', 'sr', 'sr', 'sr']);
+    expect([['en-US', 'sr'], ['de-DE'], [], ['']].map(browserLanguage)).toEqual(['en', 'en', 'en', 'en']);
+  });
+});
 
 const kitchen = () => {
   const design = createDesign('Test');

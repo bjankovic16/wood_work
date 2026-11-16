@@ -79,7 +79,7 @@ export function Room3D({ room, openings, items, materials, selection, onSelect, 
     {(room.features ?? []).map((feature) => <group key={feature.id} name={`room-feature-${feature.id}`}
       ref={selection?.type === 'feature' && selection.id === feature.id ? objectRef : undefined}
       position={[m(feature.x + feature.width / 2), m(room.height / 2), m(feature.y + feature.depth / 2)]}
-      onClick={(event) => { event.stopPropagation(); onSelect?.({ type: 'feature', id: feature.id }); }}>
+      onClick={(event) => { event.stopPropagation(); if (event.delta <= 2) onSelect?.({ type: 'feature', id: feature.id }); }}>
       <mesh castShadow receiveShadow>
         <boxGeometry args={[m(feature.width), m(room.height), m(feature.depth)]} />
         <meshStandardMaterial color={feature.kind === 'chimney' ? '#d2c3ad' : '#e1dacf'} roughness={0.9} />
@@ -102,7 +102,7 @@ export function Room3D({ room, openings, items, materials, selection, onSelect, 
       if (opening.kind === 'window') frameParts.push({ size: [W, 0.04, m(thickness + 12)], at: [0, -H / 2 + 0.02, 0] });
       return <group key={opening.id} name={`room-opening-${opening.id}`} ref={selected ? objectRef : undefined}
         position={[m(centre.x), m(opening.sill + opening.height / 2), m(centre.y)]} rotation={[0, -frame.angle * Math.PI / 180, 0]}
-        onClick={(event) => { event.stopPropagation(); onSelect?.({ type: 'opening', id: opening.id }); }}>
+        onClick={(event) => { event.stopPropagation(); if (event.delta <= 2) onSelect?.({ type: 'opening', id: opening.id }); }}>
         <mesh position={[0, 0, 0.008]}>
           <boxGeometry args={[W, H, 0.016]} />
           <meshStandardMaterial color={selected ? '#93c5fd' : opening.kind === 'window' ? '#cfe6f5' : '#cbb89c'} transparent opacity={selected ? 0.45 : opening.kind === 'window' ? 0.35 : 0.16} roughness={0.2} depthWrite={false} />

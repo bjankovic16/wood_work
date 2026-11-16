@@ -126,6 +126,8 @@ export const sr: Messages = {
   },
 
   checks: {
+    precut: 'Pre sečenja: provera sa dobavljačem',
+    precutHint: 'Potvrdite ove detalje sa dobavljačem ili monterom. Ovo su podsetnici, a ne greške u projektu.',
     checks: 'Provere',
     summary: (summary) => `Provere: ${summary}`,
     none: 'Nema problema',
@@ -135,6 +137,8 @@ export const sr: Messages = {
   },
 
   library: {
+    mostUsed: 'Najčešće korišćeno',
+    browseAll: 'Svi elementi',
     elements: 'Elementi',
     hint: 'Prevucite na osnovu ili kliknite da dodate',
     sections: { base: 'Donji elementi', wall: 'Gornji elementi', ceiling: 'Elementi do plafona', other: 'Ostali elementi', storage: 'Odlaganje i vitrine', appliances: 'Aparati i ormari', islands: 'Ostrva i barski stolovi' },
@@ -330,6 +334,7 @@ export const sr: Messages = {
   },
 
   room: {
+    advanced: 'Napredna podešavanja sobe',
     setupTitle: 'Podesite prostoriju',
     setupIntro: 'Unesite unutrašnje mere u milimetrima: 3 metra = 3000 mm. Dodajte vrata i prozore; sve možete promeniti kasnije.',
     startAdding: 'Dodajte elemente',
@@ -553,6 +558,8 @@ export const sr: Messages = {
   },
 
   view3d: {
+    interior: 'Unutrašnjost elemenata',
+    interiorHint: 'Fronte su skrivene da vidite police i fioke. Prikaz je šematski, bez detalja aparata i okova; projekat i krojna lista ostaju nepromenjeni.',
     camera: '3D kamera',
     perspective: '3D',
     front: 'Spreda',
@@ -568,6 +575,8 @@ export const sr: Messages = {
     resize: 'Promeni dimenzije elementa',
     resizeShort: 'Dimenzije',
     resizeChoose: 'Izaberite meru za promenu',
+    tools: '3D alati',
+    help: 'Kako koristiti 3D',
     resizeRange: 'Kataloški raspon mera',
     resizeGuidance: 'Povucite ručicu napolje za povećanje ili unutra za smanjenje. Mere se menjaju tokom povlačenja. Olovkom unesite tačne vrednosti.',
     resizeHint: 'Obojenom ručicom promenite izabranu meru. Zadnji levi ugao i visina od poda ostaju isti. Escape otkazuje; „Poništi“ vraća celu promenu.',

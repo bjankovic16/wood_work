@@ -247,7 +247,8 @@ export const ItemShape = memo(function ItemShape({
   return (
     <Group
       name="item"
-      opacity={dimmed ? 0.28 : 1}
+      id={item.id}
+      opacity={dimmed ? 0.2 : 1}
       listening={interactive}
       onPointerDown={(e) => onPointerDown?.(item, e)}
       onMouseEnter={() => onHoverChange?.(item.id)}
@@ -256,18 +257,18 @@ export const ItemShape = memo(function ItemShape({
       <Line
         points={footprintPolygon(item)}
         closed
-        fill={style.fill}
-        stroke={hovered ? style.hoverStroke : style.stroke}
+        fill={dimmed ? undefined : style.fill}
+        stroke={dimmed ? '#71717a' : hovered ? style.hoverStroke : style.stroke}
         strokeWidth={(hovered ? 1.5 : 1) * px}
         dash={style.dashed ? [5 * px, 3 * px] : undefined}
         hitStrokeWidth={10 * px}
         perfectDrawEnabled={false}
       />
-      <ItemSymbol item={item} px={px} color={style.symbol} />
-      {frontEdges(item).map(([a, b], i) => (
+      {!dimmed && <ItemSymbol item={item} px={px} color={style.symbol} />}
+      {!dimmed && frontEdges(item).map(([a, b], i) => (
         <Line key={i} points={line(a, b)} stroke={style.front} strokeWidth={2 * px} listening={false} />
       ))}
-      <ItemLabel item={item} px={px} color={style.text} />
+      {!dimmed && <ItemLabel item={item} px={px} color={style.text} />}
     </Group>
   );
 });

@@ -127,6 +127,7 @@ export function LibrarySections({ onAdded, wide = false }: { onAdded?: () => voi
   const searchRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<LibraryCategory>('all');
+  const [browseAll, setBrowseAll] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ storage: true, appliances: true, islands: true });
   const focusRequest = useUiStore((state) => state.focusRequest);
   useEffect(() => {
@@ -170,13 +171,22 @@ export function LibrarySections({ onAdded, wide = false }: { onAdded?: () => voi
         </select>
         <p role="status" className="text-xs text-zinc-600">{t.library.results(count)}</p>
       </div>
+      {!filtering && !browseAll && <section aria-label={t.library.mostUsed}>
+        <h3 className="py-2 text-xs font-semibold text-zinc-700">{t.library.mostUsed}</h3>
+        <div className={cn('grid gap-2', wide ? 'grid-cols-4' : 'grid-cols-2')}>
+          {LIBRARY.flatMap((section) => section.presets).filter((preset) => ['base-600', 'wall-600', 'drawer', 'sink', 'oven', 'dishwasher', 'tall', 'corner'].includes(preset.id)).map((preset) =>
+            <PresetTile key={preset.id} preset={preset} layout="regular" onAdded={onAdded} />,
+          )}
+        </div>
+        <Button variant="outline" className="mt-3 w-full" onClick={() => setBrowseAll(true)}>{t.library.browseAll}</Button>
+      </section>}
       {count === 0 && (
         <div className="space-y-3 rounded-lg bg-zinc-50 p-3">
           <p className="text-[13px] leading-relaxed text-zinc-600">{t.library.noResults}</p>
           <Button variant="outline" className="w-full" onClick={() => { setQuery(''); setCategory('all'); searchRef.current?.focus(); }}>{t.library.resetSearch}</Button>
         </div>
       )}
-      {sections.map((section) => {
+      {(filtering || browseAll) && sections.map((section) => {
         const open = filtering || !collapsed[section.id];
         return (
           <div key={section.id}>

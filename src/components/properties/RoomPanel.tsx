@@ -108,7 +108,7 @@ function OpeningsSection() {
   );
 }
 
-export function RoomSettings() {
+export function RoomSettings({ children }: { children?: ReactNode }) {
   const t = useT();
   const room = useDesignStore((s) => s.design.room);
   const [failed, setFailed] = useState(false);
@@ -125,8 +125,12 @@ export function RoomSettings() {
         {failed && <p role="alert" className="text-xs text-red-700">{t.advancedRoom.invalid}</p>}
       </PanelSection>
       <OpeningsSection />
-      <RoomStructureSettings />
-      <AdvancedRoomSettings />
+      <details className="border-b border-zinc-100">
+        <summary className="cursor-pointer px-4 py-4 text-xs font-medium text-studio-accent">{t.room.advanced}</summary>
+        <RoomStructureSettings />
+        <AdvancedRoomSettings />
+        {children}
+      </details>
     </>
   );
 }
@@ -142,7 +146,7 @@ export function RoomPanel({ touch = false }: { touch?: boolean }) {
 
   return (
     <>
-      <RoomSettings />
+      <RoomSettings>
 
       <PanelSection title={t.room.elements}>
         <div className="grid grid-cols-2 gap-2">
@@ -208,6 +212,7 @@ export function RoomPanel({ touch = false }: { touch?: boolean }) {
           </div>
         )}
       </PanelSection>
+      </RoomSettings>
     </>
   );
 }

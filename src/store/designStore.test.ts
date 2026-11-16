@@ -149,7 +149,7 @@ describe('kitchen design gallery', () => {
       expect(loaded.partEdits).toEqual({});
       expect(loaded.construction).toEqual(DEFAULT_CONSTRUCTION);
       expect(store().past).toEqual([original]);
-      expect(useUiStore.getState()).toMatchObject({ selectedId: null, viewFilter: 'all', view: '3d' });
+      expect(useUiStore.getState()).toMatchObject({ selectedId: null, viewFilter: 'floor', view: '3d' });
       store().undo();
       expect(store().design).toBe(original);
       store().redo();

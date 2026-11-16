@@ -14,6 +14,15 @@ const unit = (kind: KitchenItem['kind'], label: string, over: Partial<KitchenIte
 const messages = (d: Design) => checkDesign(d).map((i) => `${i.severity}: ${i.message}`);
 
 describe('checkDesign', () => {
+  it('separates supplier confirmations from real geometry and clearance problems', () => {
+    const value = design([unit('hob', 'HB1'), unit('base', 'B1', { x: 300 })]);
+    value.style = { ...value.style, frontProfile: 'shaker', handles: 'none' };
+    const issues = checkDesign(value);
+    expect(issues.filter((issue) => issue.category === 'precut').map((issue) => issue.key)).toEqual(expect.arrayContaining(['front-profile', 'handleless', `manufacturer-${value.items[0].id}`]));
+    expect(issues.find((issue) => issue.severity === 'error' && issue.itemIds.length === 2)).not.toHaveProperty('category');
+    const gap = checkDesign(design([unit('base', 'B1'), unit('base', 'B2', { x: 620 })]));
+    expect(gap.some((issue) => issue.severity === 'warning' && issue.category !== 'precut')).toBe(true);
+  });
   it('passes a tidy run of units', () => {
     expect(messages(design([unit('base', 'B1', { x: 0 }), unit('base', 'B2', { x: 600 })]))).toEqual([]);
   });

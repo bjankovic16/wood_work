@@ -3,7 +3,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
-import { assertScenePlacement, movementHandle } from './three-test-helpers.mjs';
+import { assertScenePlacement, movementHandle, open3DTools } from './three-test-helpers.mjs';
 import { roomObjectChecks } from './room-object-checks.mjs';
 
 const output = process.argv[2] ?? path.join('test-results', 'rooms');
@@ -77,6 +77,7 @@ async function advancedRoomChecks(page) {
     const ui = window.__kitchen.ui.getState();
     ui.select(null); ui.setView('plan'); ui.setSelectedWallId(null);
   });
+  await openAdvancedRoom(page);
   await page.getByRole('button', { name: 'Edit wall corners on plan', exact: true }).click();
   const corner = await page.evaluate(() => {
     const box = document.querySelector('.konvajs-content').getBoundingClientRect();
@@ -138,9 +139,15 @@ async function advancedRoomChecks(page) {
 }
 
 async function ready3D(page) {
+  await open3DTools(page);
   await page.getByRole('button', { name: 'Reset view', exact: true }).waitFor();
   await page.waitForFunction(() => Boolean(window.__kitchen3D));
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+}
+
+async function openAdvancedRoom(root) {
+  const summary = root.getByText('Advanced room', { exact: true });
+  if (!await summary.locator('..').evaluate((element) => element.open)) await summary.click();
 }
 
 async function holdReferenceDecode(page) {
@@ -204,6 +211,7 @@ try {
   console.log('Room geometry and structures');
   await page.getByRole('button', { name: 'Start with my room', exact: true }).click();
   const setup = page.getByRole('dialog', { name: 'Set up your room' });
+  await openAdvancedRoom(setup);
   await setup.getByLabel('Floor shape').selectOption('notch');
   await setup.getByLabel('Cut-out width').fill('1000');
   await setup.getByLabel('Cut-out width').press('Enter');
@@ -235,6 +243,7 @@ try {
   pass('shape and chimney persist, and newly added cabinets avoid the structure');
 
   const firstProject = await page.evaluate(async () => (await import('/src/store/projects.ts')).useProjectsStore.getState().activeId);
+  await openAdvancedRoom(page);
   await page.getByText('Try an example room', { exact: true }).click();
   await page.getByRole('button', { name: 'L-shaped room + chimney', exact: true }).click();
   state = await design(page);
@@ -301,6 +310,7 @@ try {
 
   await page.getByRole('radio', { name: 'Plan', exact: true }).click();
   await page.getByRole('button', { name: 'Deselect', exact: true }).click();
+  await openAdvancedRoom(page);
   await page.getByText('Try an example room', { exact: true }).click();
   await page.getByRole('button', { name: 'Diagonal corner + column', exact: true }).click();
   assert.equal((await design(page)).room.cutout.kind, 'diagonal');
@@ -396,7 +406,7 @@ try {
   await page.close();
 
   console.log('Phone comparison and controls');
-  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'sr-Latn-RS', isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
   const mobile = await phone.newPage();
   observe(mobile);
   await mobile.goto(url, { waitUntil: 'domcontentloaded' });
@@ -414,9 +424,10 @@ try {
   await mobile.waitForTimeout(150);
   const phoneCabinet = (await design(mobile)).items.find((item) => item.kind === 'base');
   await selectCabinetInScene(mobile, phoneCabinet.id, true);
-  const phoneActions = mobile.getByRole('group', { name: 'Selected cabinet actions' });
+  assert.equal(await mobile.getByRole('group', { name: 'Selected cabinet actions' }).count(), 0);
+  const phoneActions = mobile.getByTestId('item-sheet');
   const count = (await design(mobile)).items.length;
-  await phoneActions.getByRole('button', { name: 'Duplicate selected cabinet', exact: true }).tap();
+  await phoneActions.getByRole('button', { name: 'Duplicate', exact: true }).tap();
   assert.equal((await design(mobile)).items.length, count + 1);
   await mobile.getByRole('button', { name: 'Undo', exact: true }).tap();
   assert.equal((await design(mobile)).items.length, count);
@@ -434,6 +445,7 @@ try {
     ui.select(null); ui.setView('plan'); ui.setReferenceOpen(false); ui.setRoomOpen(true);
   });
   const wallSetup = mobile.getByRole('dialog', { name: 'Set up your room', exact: true });
+  await openAdvancedRoom(wallSetup);
   await wallSetup.getByRole('button', { name: 'Edit wall corners on plan', exact: true }).tap();
   await mobile.waitForSelector('.konvajs-content');
   await mobile.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));

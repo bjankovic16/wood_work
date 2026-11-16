@@ -7,6 +7,7 @@ import type { KitchenItem } from '../../domain/types';
 import { DEFAULT_STYLE, type FrontProfile } from '../../domain/style';
 import { KIND_OPTIONS, resolveConfig, type BuildContext } from '../../engine/config';
 import { cornerDoorWidths, frontLayout, OVEN_NICHE_HEIGHT, TOWER_OVEN_BOTTOM, type FrontRect } from '../../engine/fronts';
+import { drawerBoxHeight, innerDepth, slideLength } from '../../engine/parts';
 import { createMaterials, disposeMaterials, m, type KitchenMaterials } from './materials';
 
 type Vec3 = [number, number, number];
@@ -99,8 +100,8 @@ function Fronts({ fronts, z, thickness, materials, lowHandles, glass = false, pr
 }
 
 /** A unit with no fronts, built from its panels so the shelves show. */
-function OpenCarcass({ W, H, D, t, tb, shelves, setback, materials, back = true }: {
-  W: number; H: number; D: number; t: number; tb: number; shelves: number; setback: number; materials: KitchenMaterials; back?: boolean;
+function OpenCarcass({ W, H, D, t, tb, shelves, setback, materials, back = true, shelfTop }: {
+  W: number; H: number; D: number; t: number; tb: number; shelves: number; setback: number; materials: KitchenMaterials; back?: boolean; shelfTop?: number;
 }) {
   const inner = W - 2 * t;
   return (
@@ -111,12 +112,51 @@ function OpenCarcass({ W, H, D, t, tb, shelves, setback, materials, back = true 
       <Box size={[inner, t, D]} position={[W / 2, H - t / 2, D / 2]} material={materials.carcass} />
       {back && <Box size={[inner, H - 2 * t, tb]} position={[W / 2, H / 2, tb / 2]} material={materials.carcass} />}
       {Array.from({ length: shelves }, (_, i) => {
-        const y = t + ((H - 2 * t) * (i + 1)) / (shelves + 1);
+        const y = t + (((shelfTop ?? H - t) - t) * (i + 1)) / (shelves + 1);
         const depth = D - tb - setback;
         return <Box key={i} size={[inner, t, depth]} position={[W / 2, y, tb + depth / 2]} material={materials.carcass} />;
       })}
     </>
   );
+}
+
+function DrawerInteriors({ item, ctx, materials, fronts }: { item: KitchenItem; ctx: BuildContext; materials: KitchenMaterials; fronts: FrontRect[] }) {
+  const config = resolveConfig(item, ctx);
+  const t = m(config.carcass.thickness);
+  const metal = ctx.settings.drawerSystem === 'metal';
+  const bottomThickness = m(metal ? config.carcass.thickness : config.back.thickness);
+  const inside = item.width - 2 * config.carcass.thickness;
+  const width = m(inside - (metal ? ctx.settings.metalBottomDeduction : 2 * ctx.settings.slideClearance));
+  const depth = m(slideLength(innerDepth(item, config, ctx)) - (metal ? ctx.settings.metalDepthDeduction : 0));
+  return <>{fronts.filter((front) => front.kind === 'drawer').map((front, index) => {
+    const boxHeight = drawerBoxHeight(front, ctx);
+    const height = m(boxHeight);
+    const bottom = m(front.y + (front.h - boxHeight) / 2);
+    const z = m(item.depth) - depth - (config.doorType === 'inset' ? m(config.front.thickness) : 0);
+    return <group key={index} name="cabinet-drawer" position={[(m(item.width) - width) / 2, bottom, z]}>
+      <Box size={[width, bottomThickness, depth]} position={[width / 2, -bottomThickness / 2, depth / 2]} material={materials.carcass} />
+      <Box size={[metal ? m(inside - ctx.settings.metalBackDeduction) : width - 2 * t, height, t]} position={[width / 2, height / 2, t / 2]} material={materials.carcass} />
+      {!metal && <>
+        {[t / 2, width - t / 2].map((x) => <Box key={x} size={[t, height, depth]} position={[x, height / 2, depth / 2]} material={materials.carcass} />)}
+        <Box size={[width - 2 * t, height, t]} position={[width / 2, height / 2, depth - t / 2]} material={materials.carcass} />
+      </>}
+    </group>;
+  })}</>;
+}
+
+function CornerInterior({ W, W2, H, D, t, shelves, materials }: {
+  W: number; W2: number; H: number; D: number; t: number; shelves: number; materials: KitchenMaterials;
+}) {
+  return <group name="cabinet-interior">
+    <Box size={[W, H, t]} position={[W / 2, H / 2, t / 2]} material={materials.carcass} />
+    <Box size={[t, H, W2 - t]} position={[t / 2, H / 2, (W2 + t) / 2]} material={materials.carcass} />
+    <Box size={[t, H, D - t]} position={[W - t / 2, H / 2, (D + t) / 2]} material={materials.carcass} />
+    <Box size={[D - t, H, t]} position={[(D + t) / 2, H / 2, W2 - t / 2]} material={materials.carcass} />
+    {[t / 2, ...Array.from({ length: shelves }, (_, i) => t + (H - 2 * t) * (i + 1) / (shelves + 1)), H - t / 2].map((y) => <group key={y}>
+      <Box size={[W - 2 * t, t, D - t]} position={[W / 2, y, (D + t) / 2]} material={materials.carcass} />
+      <Box size={[D - t, t, W2 - D - t]} position={[(D + t) / 2, y, (W2 + D - t) / 2]} material={materials.carcass} />
+    </group>)}
+  </group>;
 }
 
 function ShelfDecor({ W, H, D, t, shelves, materials }: { W: number; H: number; D: number; t: number; shelves: number; materials: KitchenMaterials }) {
@@ -222,6 +262,7 @@ interface UnitProps {
   underLighting?: boolean;
   invalid?: boolean;
   objectRef?: Ref<THREE.Group>;
+  interior?: boolean;
 }
 
 /**
@@ -229,7 +270,7 @@ interface UnitProps {
  * underside of the carcass; inside it, x runs along the front, y up, and z
  * from the back towards the front, matching the plan's local frame.
  */
-export const Unit3D = memo(function Unit3D({ item, ctx, materials: sharedMaterials, selected, onSelect, accentLight = false, underLighting = true, invalid = false, objectRef }: UnitProps) {
+export const Unit3D = memo(function Unit3D({ item, ctx, materials: sharedMaterials, selected, onSelect, accentLight = false, underLighting = true, invalid = false, objectRef, interior = false }: UnitProps) {
   const localMaterials = useMemo(() => item.frontFinish || item.carcassFinish
     ? createMaterials({ ...(ctx.style ?? DEFAULT_STYLE), front: item.frontFinish ?? ctx.style?.front ?? DEFAULT_STYLE.front }, item.carcassFinish)
     : null, [ctx.style, item.frontFinish, item.carcassFinish]);
@@ -309,11 +350,13 @@ export const Unit3D = memo(function Unit3D({ item, ctx, materials: sharedMateria
       const doorH = H - gap;
       body = (
         <>
-          <Box size={[W, H, D]} position={[W / 2, H / 2, D / 2]} material={materials.carcass} />
-          <Box size={[D, H, W2 - D]} position={[D / 2, H / 2, D + (W2 - D) / 2]} material={materials.carcass} />
-          <group position={[W - gap / 2 - a, gap / 2, D]}><DoorSurface W={a} H={doorH} thickness={tf} material={materials.front} profile={ctx.style?.frontProfile} /></group>
-          <group position={[D, gap / 2, W2 - gap / 2]} rotation={[0, Math.PI / 2, 0]}><DoorSurface W={b} H={doorH} thickness={tf} material={materials.front} profile={ctx.style?.frontProfile} /></group>
-          {materials.handle && (
+          {interior ? <CornerInterior W={W} W2={W2} H={H} D={D} t={m(config.carcass.thickness)} shelves={config.shelves} materials={materials} /> : <>
+            <Box size={[W, H, D]} position={[W / 2, H / 2, D / 2]} material={materials.carcass} />
+            <Box size={[D, H, W2 - D]} position={[D / 2, H / 2, D + (W2 - D) / 2]} material={materials.carcass} />
+            <group position={[W - gap / 2 - a, gap / 2, D]}><DoorSurface W={a} H={doorH} thickness={tf} material={materials.front} profile={ctx.style?.frontProfile} /></group>
+            <group position={[D, gap / 2, W2 - gap / 2]} rotation={[0, Math.PI / 2, 0]}><DoorSurface W={b} H={doorH} thickness={tf} material={materials.front} profile={ctx.style?.frontProfile} /></group>
+          </>}
+          {!interior && materials.handle && (
             <Box
               size={[0.012, Math.min(0.16, doorH * 0.5), 0.012]}
               position={[W - gap / 2 - a + 0.035, wallUnit ? 0.13 : H - 0.13, D + tf + 0.014]}
@@ -368,25 +411,31 @@ export const Unit3D = memo(function Unit3D({ item, ctx, materials: sharedMateria
       const inset = config.doorType === 'inset' && fronts.length > 0;
       body = (
         <>
-          {open || inset ? (
-            <OpenCarcass
-              W={W}
-              H={H}
-              D={D}
-              t={m(config.carcass.thickness)}
-              tb={m(config.back.thickness)}
-              shelves={inset ? 0 : config.shelves}
-              setback={m(settings.shelfSetback)}
-              materials={materials}
-              back={KIND_OPTIONS[item.kind].back}
-            />
+          {open || inset || interior ? (
+            <group name={interior ? 'cabinet-interior' : undefined}>
+              <OpenCarcass
+                W={W}
+                H={H}
+                D={D}
+                t={m(config.carcass.thickness)}
+                tb={m(config.back.thickness)}
+                shelves={inset && !interior ? 0 : config.shelves}
+                shelfTop={interior ? Math.min(H - m(config.carcass.thickness), ...fronts.filter((front) => front.kind === 'drawer').map((front) => m(front.y))) : undefined}
+                setback={m(settings.shelfSetback)}
+                materials={materials}
+                back={KIND_OPTIONS[item.kind].back}
+              />
+              {interior && <DrawerInteriors item={item} ctx={ctx} materials={materials} fronts={fronts} />}
+            </group>
           ) : (
             <>
               <Box size={[W, H, D]} position={[W / 2, H / 2, D / 2]} material={materials.carcass} />
               {ctx.style?.handles === 'none' && fronts.length > 0 && <Box size={[W, H, 0.001]} position={[W / 2, H / 2, D + 0.0005]} material={materials.glass} />}
             </>
           )}
-          <Fronts fronts={fronts} z={inset ? D - tf : D} thickness={tf} materials={materials} lowHandles={lowHandles} glass={glass} profile={ctx.style?.frontProfile} />
+          <group name="cabinet-fronts">
+            <Fronts fronts={interior ? fronts.filter((front) => front.kind === 'panel') : fronts} z={inset ? D - tf : D} thickness={tf} materials={materials} lowHandles={lowHandles} glass={glass} profile={ctx.style?.frontProfile} />
+          </group>
           {item.kind === 'oven' && <OvenFront W={W} H={H} D={D} gap={gap} materials={materials} />}
           {item.kind === 'ovenTower' && (
             <>

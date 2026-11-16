@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Issue } from '../../engine/checks';
 import { useT } from '../../i18n';
 import { cn } from '../../lib/cn';
-import { useIssues } from '../../store/derived';
+import { useIssues, usePrecutChecklist } from '../../store/derived';
 import { useUiStore } from '../../store/uiStore';
 
 /** Shows the unit an issue is about on the plan. */
@@ -18,6 +18,7 @@ function openIssue(issue: Issue) {
 export function ChecksButton({ compact = false }: { compact?: boolean }) {
   const t = useT();
   const issues = useIssues();
+  const checklist = usePrecutChecklist();
   const errors = issues.filter((i) => i.severity === 'error').length;
   const warnings = issues.length - errors;
   const [open, setOpen] = useState(false);
@@ -101,6 +102,13 @@ export function ChecksButton({ compact = false }: { compact?: boolean }) {
               ))}
             </ul>
           )}
+          {checklist.length > 0 && <details className="mt-2 border-t border-zinc-100 p-2 text-xs text-zinc-600">
+            <summary className="cursor-pointer py-2 font-medium">{t.checks.precut} ({checklist.length})</summary>
+            <p className="py-2">{t.checks.precutHint}</p>
+            <ul className="max-h-60 list-disc space-y-2 overflow-y-auto pl-4">
+              {checklist.map((issue) => <li key={issue.key}>{issue.message}</li>)}
+            </ul>
+          </details>}
         </div>
       )}
     </div>

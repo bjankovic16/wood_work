@@ -34,6 +34,7 @@ export interface Issue {
   /** Units involved; the first one is shown when the issue is opened. */
   itemIds: string[];
   roomFeatureId?: string;
+  category?: 'precut';
 }
 
 /** Gaps narrower than this between units, or to a wall, cannot be used and should be closed or filled. */
@@ -70,8 +71,8 @@ export function checkDesign(design: Design, labels: EngineLabels = EN_LABELS): I
   const ctx = buildContext(design, labels);
   const say = labels.checks;
   const issues: Issue[] = [];
-  const add = (severity: Severity, key: string, message: string, itemIds: string[] = []) =>
-    issues.push({ key, severity, message, itemIds });
+  const add = (severity: Severity, key: string, message: string, itemIds: string[] = [], category?: Issue['category']) =>
+  issues.push({ key, severity, message, itemIds, ...(category ? { category } : {}) });
 
   // Units colliding with each other or with the room.
   items.forEach((a, i) => {
@@ -89,7 +90,7 @@ export function checkDesign(design: Design, labels: EngineLabels = EN_LABELS): I
   for (const [index, feature] of (room.features ?? []).entries()) {
     const name = `${labels.roomFeatures[feature.kind]} ${index + 1}`;
     const rect = roomFeatureRect(feature);
-    if (feature.kind === 'chimney') issues.push({ key: `chimney-clearance-${feature.id}`, severity: 'warning', message: say.chimneyClearance(name), itemIds: [], roomFeatureId: feature.id });
+    if (feature.kind === 'chimney') issues.push({ key: `chimney-clearance-${feature.id}`, severity: 'warning', category: 'precut', message: say.chimneyClearance(name), itemIds: [], roomFeatureId: feature.id });
     if (!roomContainsRect(rect, room)) issues.push({ key: `room-feature-${feature.id}`, severity: 'error', message: say.roomFeatureOutside(name), itemIds: [], roomFeatureId: feature.id });
     for (const item of items) {
       if (item.elevation < room.height && item.elevation + item.height > 0 && footprintPieces(item).some((footprint) => polygonsOverlap(footprint, rectPolygon(rect)))) {
@@ -111,8 +112,8 @@ export function checkDesign(design: Design, labels: EngineLabels = EN_LABELS): I
       }
     }
   }
-  if (items.length > 0 && design.style.frontProfile === 'shaker') add('warning', 'front-profile', say.frontProfile);
-  if (design.style.handles === 'none' && items.some((item) => KIND_OPTIONS[item.kind].fronts)) add('warning', 'handleless', say.handleless);
+  if (items.length > 0 && design.style.frontProfile === 'shaker') add('warning', 'front-profile', say.frontProfile, [], 'precut');
+  if (design.style.handles === 'none' && items.some((item) => KIND_OPTIONS[item.kind].fronts)) add('warning', 'handleless', say.handleless, [], 'precut');
 
   // Unusable gaps along each wall, between units at the same height or between a unit and the wall.
   for (const wall of WALLS) {
@@ -154,9 +155,9 @@ export function checkDesign(design: Design, labels: EngineLabels = EN_LABELS): I
     const config = resolveConfig(item, ctx);
     const fronts = frontLayout(item, config, ctx.settings);
     if (['ovenTower', 'integratedFridge', 'hood', 'hob', 'pullOut', 'bar'].includes(item.kind)) {
-      add('warning', `manufacturer-${item.id}`, say.specialistModule(item.label), [item.id]);
+      add('warning', `manufacturer-${item.id}`, say.specialistModule(item.label), [item.id], 'precut');
     }
-    if (item.kind === 'glassWall') add('warning', `glass-${item.id}`, say.glassSupplier(item.label), [item.id]);
+    if (item.kind === 'glassWall') add('warning', `glass-${item.id}`, say.glassSupplier(item.label), [item.id], 'precut');
 
     // Wall units too close to the worktop under them.
     if (isWallMounted(item)) {

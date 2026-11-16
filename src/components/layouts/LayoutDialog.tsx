@@ -165,17 +165,6 @@ function LayoutChoices({ onClose }: { onClose: () => void }) {
       </div>
       {tab === 'designs' ? (
         <div className="space-y-4 bg-[#f7f5ef] p-4 pb-[max(env(safe-area-inset-bottom),16px)] sm:p-6">
-          <div className="rounded-2xl border border-[#e3ded4] bg-[#ede9df] p-4 sm:px-5">
-            <p className="hidden text-[10px] font-semibold uppercase tracking-[0.2em] text-[#6b705e] sm:block">{t.kitchens.studio}</p>
-            <h3 className="max-w-lg text-xl font-medium leading-tight tracking-tight text-[#332f28] sm:mt-1 sm:text-2xl">{t.kitchens.headline}</h3>
-            <p className="mt-2 hidden max-w-xl text-xs leading-relaxed text-[#625e53] sm:block">{collection === 'all' ? t.kitchens.intro : t.kitchens.collectionNotes[collection]}</p>
-          </div>
-          <details className="rounded-lg bg-zinc-50 p-3 text-xs leading-relaxed text-zinc-600">
-            <summary className="cursor-pointer rounded font-medium text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
-              {t.kitchens.replaceSummary}
-            </summary>
-            <p className="pt-2">{t.kitchens.replaces}</p>
-          </details>
           <div className="space-y-3">
             <label htmlFor="kitchen-design-search" className="sr-only">{t.kitchens.search}</label>
             <div className="relative">
@@ -195,26 +184,25 @@ function LayoutChoices({ onClose }: { onClose: () => void }) {
               <span className="flex items-center gap-2"><SlidersHorizontal aria-hidden className="size-4" />{t.kitchens.refine}</span>
               <ChevronDown aria-hidden className={`size-4 transition-transform ${filtersOpen ? 'rotate-180' : ''}`} />
             </Button>
-            <div id="kitchen-design-filters" className={`${filtersOpen ? '' : 'hidden '}space-y-3 sm:block`}>
+            <div id="kitchen-design-filters" className={`${filtersOpen ? 'flex ' : 'hidden '}flex-wrap items-center gap-3 sm:flex`}>
+              <select aria-label={t.kitchens.collection} value={collection} onChange={(event) => {
+                const value = event.target.value;
+                if (value === 'all' || value === 'warm' || value === 'dark' || value === 'japandi') setCollection(value);
+              }} className="h-11 rounded-lg border border-studio-line bg-studio-paper px-3 text-sm text-studio-ink">
+                <option value="all">{t.kitchens.collection}: {t.library.allCategories}</option>
+                {(['warm', 'dark', 'japandi'] as const).map((value) => <option key={value} value={value}>{t.kitchens.collections[value]}</option>)}
+              </select>
+              <select aria-label={t.kitchens.filter} value={filter} onChange={(event) => {
+                const option = filters.find((entry) => entry.value === event.target.value);
+                if (option) setFilter(option.value);
+              }} className="h-11 rounded-lg border border-studio-line bg-studio-paper px-3 text-sm text-studio-ink">
+                {filters.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
               <label className="flex min-h-11 cursor-pointer items-center gap-3 text-[13px] text-[#514c43]">
                 <input type="checkbox" checked={withinRoom} onChange={(event) => setWithinRoom(event.target.checked)} aria-describedby="kitchen-room-limit" className="size-4 shrink-0 accent-[#637362]" />
                 {t.kitchens.withinRoom}
               </label>
               <p id="kitchen-room-limit" hidden={!withinRoom} className="text-xs leading-relaxed tabular-nums text-zinc-600">{t.kitchens.roomLimit(room.width, room.depth, room.height)}</p>
-              <div role="group" aria-label={t.kitchens.collection} className="flex flex-wrap gap-2">
-                {(['all', 'warm', 'dark', 'japandi'] as const).map((value) => (
-                  <Button key={value} variant="outline" active={collection === value} className="min-h-11 rounded-full px-4" onClick={() => setCollection(value)}>
-                    {value === 'all' ? t.kitchens.all : t.kitchens.collections[value]}
-                  </Button>
-                ))}
-              </div>
-              <div role="group" aria-label={t.kitchens.filter} className="flex flex-wrap gap-1">
-                {filters.map((option) => (
-                  <Button key={option.value} active={filter === option.value} className="h-11 px-3 sm:h-8" onClick={() => setFilter(option.value)}>
-                    {option.label}
-                  </Button>
-                ))}
-              </div>
             </div>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -227,6 +215,10 @@ function LayoutChoices({ onClose }: { onClose: () => void }) {
           </div> : <div className="grid grid-cols-1 gap-5 min-[540px]:grid-cols-2 min-[1100px]:grid-cols-3">
             {kitchens.map((kitchen) => <KitchenCard key={kitchen.id} kitchen={kitchen} onClose={onClose} />)}
           </div>}
+          <details className="rounded-lg p-2 text-xs leading-relaxed text-zinc-600">
+            <summary className="cursor-pointer font-medium">{t.kitchens.replaceSummary}</summary>
+            <p className="pt-2">{t.kitchens.replaces}</p>
+          </details>
           <p className="text-xs leading-relaxed text-zinc-600">{t.kitchens.materialsNote}</p>
           <a
             href="https://www.pinterest.com/ideas/warm-contemporary-kitchen/955209864754/"

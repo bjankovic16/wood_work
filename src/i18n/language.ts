@@ -1,7 +1,11 @@
-/** Languages of the interface. Serbian (Latin script) is the default. */
+/** Languages of the interface. Saved preferences override browser detection. */
 export type Language = 'sr' | 'en';
 
-export const DEFAULT_LANGUAGE: Language = 'sr';
+export const DEFAULT_LANGUAGE: Language = 'en';
+
+export function browserLanguage(languages: readonly string[] = typeof navigator === 'undefined' ? [] : navigator.languages?.length ? navigator.languages : [navigator.language]): Language {
+  return languages[0]?.toLowerCase().split(/[-_]/)[0] === 'sr' ? 'sr' : 'en';
+}
 
 export const LANGUAGES: Array<{ value: Language; label: string; htmlLang: string }> = [
   { value: 'sr', label: 'Srpski', htmlLang: 'sr-Latn' },

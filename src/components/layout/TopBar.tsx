@@ -1,4 +1,4 @@
-import { Box, Ellipsis, FolderOpen, Hammer, Images, Languages, Layers, LayoutGrid, List, Magnet, Redo2, RulerDimensionLine, Undo2 } from 'lucide-react';
+import { Box, Ellipsis, FolderOpen, Hammer, Images, Languages, LayoutGrid, List, Magnet, Redo2, RulerDimensionLine, Undo2 } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { LANGUAGE_LABEL, LANGUAGES, useT, type Language } from '../../i18n';
 import { cn } from '../../lib/cn';
@@ -135,10 +135,24 @@ function LanguageSelect() {
   );
 }
 
-export function TopBar({ compact = false }: { compact?: boolean }) {
+function ViewOptions() {
   const t = useT();
   const snapEnabled = useUiStore((s) => s.snapEnabled);
   const showDimensions = useUiStore((s) => s.showDimensions);
+  const ui = useUiStore.getState();
+  return <div className="space-y-1">
+    <Button className="w-full justify-start" active={snapEnabled} onClick={() => ui.setSnapEnabled(!snapEnabled)}>
+      <Magnet className="size-4" />{t.topBar.snapLong}
+    </Button>
+    <GridSelect className="w-full" />
+    <Button className="w-full justify-start" active={showDimensions} onClick={() => ui.setShowDimensions(!showDimensions)}>
+      <RulerDimensionLine className="size-4" />{t.topBar.dimensionsLong}
+    </Button>
+  </div>;
+}
+
+export function TopBar({ compact = false }: { compact?: boolean }) {
+  const t = useT();
   const view = useUiStore((s) => s.view);
   const language = useUiStore((s) => s.language);
   const ui = useUiStore.getState();
@@ -161,22 +175,13 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
               <Images className="size-4" />
               {t.layouts.title}
             </Button>
-            <Button className="w-full justify-start" active={snapEnabled} onClick={() => ui.setSnapEnabled(!snapEnabled)}>
-              <Magnet className="size-4" />
-              {t.topBar.snapLong}
-            </Button>
-            <GridSelect className="w-full" />
-            <Button className="w-full justify-start" active={showDimensions} onClick={() => ui.setShowDimensions(!showDimensions)}>
-              <RulerDimensionLine className="size-4" />
-              {t.topBar.dimensionsLong}
-            </Button>
+            <details>
+              <summary className="cursor-pointer rounded-lg px-2 py-3 text-[13px] font-medium text-studio-muted">{t.topBar.view}</summary>
+              <ViewOptions />
+            </details>
             <Button className="w-full justify-start" data-close-menu onClick={() => ui.setSettingsTab('materials')}>
-              <Layers className="size-4" />
-              {t.topBar.materialsAndEdges}
-            </Button>
-            <Button className="w-full justify-start" data-close-menu onClick={() => ui.setSettingsTab('construction')}>
               <Hammer className="size-4" />
-              {t.topBar.constructionSettings}
+              {t.topBar.settings}
             </Button>
             <div className="px-1 pt-1">
               <div className="flex items-center gap-1.5 px-1 pb-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
@@ -223,18 +228,9 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
       <ChecksButton />
       <Divider />
       {view === 'plan' && (
-        <>
-          <Button active={snapEnabled} title={t.topBar.snapTitle} onClick={() => ui.setSnapEnabled(!snapEnabled)}>
-            <Magnet className="size-4" />
-            {t.topBar.snap}
-          </Button>
-          <GridSelect />
-          <Button active={showDimensions} title={t.topBar.dimensionsTitle} onClick={() => ui.setShowDimensions(!showDimensions)}>
-            <RulerDimensionLine className="size-4" />
-            {t.topBar.dimensions}
-          </Button>
-          <Divider />
-        </>
+        <Menu label={t.topBar.view} text={t.topBar.view} icon={<LayoutGrid className="size-4" />}>
+          <ViewOptions />
+        </Menu>
       )}
       <Button title={t.topBar.settingsTitle} onClick={() => ui.setSettingsTab('materials')}>
         <Hammer className="size-4" />

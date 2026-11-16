@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { createItem } from '../domain/catalog';
 import * as ops from '../domain/designOps';
 import { KITCHEN_DESIGNS } from '../domain/kitchens';
-import { DEFAULT_LANGUAGE } from '../i18n/language';
 import { useDesignStore } from './designStore';
 import { useUiStore } from './uiStore';
 import { applyKitchenDesign } from './actions';
@@ -24,7 +23,7 @@ const design = () => useDesignStore.getState().design;
 beforeEach(() => {
   localStorage.clear();
   resetProjectsForTests();
-  useUiStore.setState({ language: DEFAULT_LANGUAGE });
+  useUiStore.setState({ language: 'sr' });
   useDesignStore.getState().load(ops.createDesign());
 });
 
@@ -103,7 +102,7 @@ describe('projects', () => {
     expect(projects().projects[0].updatedAt).toBe(1);
   });
 
-  it('names new projects and copies in the interface language, Serbian by default', () => {
+  it('names new projects and copies in the selected interface language', () => {
     initProjects();
     expect(design().name).toBe('Moja kuhinja');
     useUiStore.getState().setLanguage('en');

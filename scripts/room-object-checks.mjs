@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { movementHandle } from './three-test-helpers.mjs';
+import { movementHandle, open3DTools } from './three-test-helpers.mjs';
 
 const toolName = 'kitchen-room-move-tool';
 const design = (page) => page.evaluate(() => window.__kitchen.design.getState().design);
@@ -81,6 +81,7 @@ export async function roomObjectChecks(page, output, observe) {
     ui.select(null); ui.setView('3d'); ui.setReferenceOpen(false); ui.setRoomOpen(false); ui.setSnapEnabled(true); ui.setGridSize(50); ui.requestCamera('front');
   });
   await page.waitForFunction(() => Boolean(window.__kitchen3D?.scene.getObjectByName('room-opening-moving-window')));
+  await open3DTools(page);
   await page.waitForTimeout(500);
   const tools = page.getByRole('group', { name: 'Selected room object actions' });
   await clickObject(page, 'room-opening-moving-window');
@@ -88,9 +89,11 @@ export async function roomObjectChecks(page, output, observe) {
   assert.equal(await page.getByRole('dialog').count(), 0);
   await tools.getByRole('button', { name: 'Move room object', exact: true }).click();
   for (const [axis, distance] of [['X', 0.45], ['Y', 0.3]]) {
+    assert.equal(await tools.getByRole('button', { name: 'Move room object', exact: true }).getAttribute('aria-pressed'), 'true', `Room movement must remain active before the ${axis} drag.`);
     const before = await design(page);
     const count = await history(page);
     await dragHandle(page, axis, distance);
+    assert.equal(await tools.getByRole('button', { name: 'Move room object', exact: true }).getAttribute('aria-pressed'), 'true', 'Room movement must remain active after releasing a handle.');
     const after = await design(page);
     assert.ok(after.openings[0][axis === 'X' ? 'offset' : 'sill'] > before.openings[0][axis === 'X' ? 'offset' : 'sill']);
     assert.deepEqual(after.items, before.items);
@@ -224,6 +227,7 @@ export async function roomObjectChecks(page, output, observe) {
     window.__kitchen.ui.getState().requestCamera('front');
   });
   await page.waitForFunction(() => Boolean(window.__kitchen3D?.scene.getObjectByName('room-opening-angled-window')));
+  await open3DTools(page);
   await page.waitForTimeout(300);
   await page.getByLabel('Doors, windows & structures', { exact: true }).selectOption('opening:angled-window');
   await tools.getByRole('button', { name: 'Move room object', exact: true }).click();
@@ -271,6 +275,7 @@ export async function roomObjectChecks(page, output, observe) {
 }
 
 export async function touchRoomObjectChecks(page, output) {
+  await open3DTools(page);
   await page.getByLabel('Doors, windows & structures', { exact: true }).selectOption('feature:moving-chimney');
   const tools = page.getByRole('group', { name: 'Selected room object actions' });
   await page.getByRole('group', { name: '3D camera' }).getByRole('button', { name: 'Top', exact: true }).tap();

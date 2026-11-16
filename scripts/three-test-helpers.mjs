@@ -1,5 +1,11 @@
 import assert from 'node:assert/strict';
 
+export async function open3DTools(page) {
+  const panel = page.getByTestId('three-tools');
+  await panel.waitFor();
+  if (!await panel.evaluate((element) => element.open)) await panel.locator(':scope > summary').click();
+}
+
 export async function movementHandle(page, axis, distance = 0, toolName = 'kitchen-move-tool') {
   await page.waitForFunction((name) => Boolean(window.__kitchen3D.scene.getObjectByName(name)), toolName);
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));

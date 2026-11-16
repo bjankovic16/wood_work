@@ -27,7 +27,7 @@ import {
   snapSettings,
   zoomBy,
 } from '../../store/viewport';
-import { Button } from '../ui';
+import { Button, Menu } from '../ui';
 import { ItemShape } from './ItemShape';
 import { Clearances, Ghost, Guides, IssueOutlines, Selection, WallDimensions } from './Overlays';
 import { RoomShape } from './RoomShape';
@@ -99,7 +99,7 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
   const viewFilter = useUiStore((s) => s.viewFilter);
   const wallElevation = useUiStore((s) => s.wallElevation);
   const rows = upperCabinetRows(items);
-  const row = rows.find((entry) => entry.elevation === wallElevation);
+  const row = rows.find((entry) => entry.elevation === wallElevation) ?? (viewFilter === 'wall' ? rows[0] : undefined);
   const showDimensions = useUiStore((s) => s.showDimensions);
   const libraryDrag = useUiStore((s) => s.libraryDrag);
   const openings = useDesignStore((s) => s.design.openings);
@@ -142,7 +142,7 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
 
   // On phones the view switch and the buttons at the bottom cover part of the plan.
   useLayoutEffect(() => {
-    setFitInsets(compact ? { top: rows.length > 1 ? 88 : 44, bottom: 72 } : { top: rows.length > 1 ? 84 : 0, bottom: 0 });
+    setFitInsets(compact ? { top: rows.length > 1 ? 116 : 68, bottom: 72 } : { top: rows.length > 1 ? 84 : 0, bottom: 0 });
   }, [compact, rows.length]);
 
   // Fit the room into view on first layout and whenever the room size changes.
@@ -484,9 +484,8 @@ function CanvasControls({ zoom, viewFilter, isEmpty, compact, rows, row }: Canva
             ui.setWallElevation(event.target.value === '' ? null : Number(event.target.value));
             ui.select(null);
           }}
-          className="absolute left-3 top-14 h-9 max-w-[calc(100%-24px)] rounded-md border border-zinc-300 bg-white px-2 text-xs font-medium text-zinc-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+          className="absolute left-3 top-16 h-9 max-w-[calc(100%-24px)] rounded-md border border-zinc-300 bg-white px-2 text-xs font-medium text-zinc-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
         >
-          <option value="">{t.stacking.allRows}</option>
           {rows.map((entry, index) => <option key={entry.elevation} value={entry.elevation}>{t.stacking.row(index + 1, t.mm(entry.elevation))}</option>)}
         </select>
       )}
@@ -499,6 +498,13 @@ function CanvasControls({ zoom, viewFilter, isEmpty, compact, rows, row }: Canva
           compact ? 'top-3' : 'bottom-3',
         )}
       >
+        {compact ? <Menu label={t.canvas.zoomControls} icon={null} text={`${Math.round((zoom / REFERENCE_ZOOM) * 100)}%`}>
+          <div className="flex items-center justify-between gap-2">
+            <Button aria-label={t.canvas.zoomOut} onClick={() => zoomBy(1 / 1.25)}><Minus className="size-4" /></Button>
+            <Button aria-label={t.canvas.fit} onClick={fitRoomInView}><Maximize className="size-4" /></Button>
+            <Button aria-label={t.canvas.zoomIn} onClick={() => zoomBy(1.25)}><Plus className="size-4" /></Button>
+          </div>
+        </Menu> : <>
         <Button title={t.canvas.zoomOut} aria-label={t.canvas.zoomOut} className="h-7 min-w-7 px-1.5" onClick={() => zoomBy(1 / 1.25)}>
           <Minus className="size-4" />
         </Button>
@@ -517,6 +523,7 @@ function CanvasControls({ zoom, viewFilter, isEmpty, compact, rows, row }: Canva
         <Button title={t.canvas.fit} aria-label={t.canvas.fit} className="h-7 min-w-7 px-1.5" onClick={fitRoomInView}>
           <Maximize className="size-4" />
         </Button>
+        </>}
       </div>
 
       <EmptyPlanGuide key={projectId} compact={compact} isEmpty={isEmpty} />

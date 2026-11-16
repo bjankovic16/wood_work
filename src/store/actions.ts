@@ -49,8 +49,8 @@ function insertAndSelect(item: KitchenItem, focusWidth = false, partEdits?: Reco
   });
   const ui = useUiStore.getState();
   // A new unit hidden by the view filter would look as if nothing happened.
-  if (ui.viewFilter !== 'all' && (ui.viewFilter === 'wall') !== isWallMounted(item)) ui.setViewFilter('all');
-  if (ui.wallElevation !== null && isWallMounted(item)) ui.setWallElevation(item.elevation);
+  if (ui.viewFilter !== 'all' && (ui.viewFilter === 'wall') !== isWallMounted(item)) ui.setViewFilter(isWallMounted(item) ? 'wall' : 'floor');
+  if (ui.viewFilter === 'wall' && isWallMounted(item)) ui.setWallElevation(item.elevation);
   ui.select(item.id);
   ui.requestFocus(focusWidth ? 'width' : null);
 }
@@ -432,7 +432,7 @@ export function applyKitchenDesign(preset: KitchenPreset): void {
   apply((design) => createKitchenDesign(preset, design.name, currentMessages().labelPrefix));
   const ui = useUiStore.getState();
   ui.select(null);
-  ui.setViewFilter('all');
+  ui.setViewFilter('floor');
   ui.setView('3d');
   ui.setReferenceOpen(false);
   ui.requestCamera(preset.framed ? 'front' : 'perspective');
@@ -445,7 +445,7 @@ export function openPhotoDesign(id: PhotoReferenceId): void {
   useDesignStore.getState().load(design);
   const ui = useUiStore.getState();
   ui.select(null);
-  ui.setViewFilter('all');
+  ui.setViewFilter('floor');
   ui.setView('3d');
   ui.setReferenceOpen(true);
   ui.requestCamera('perspective');

@@ -28,6 +28,9 @@ Create a clean, modern interface with three main areas:
 
 A collection of draggable kitchen elements:
 
+The initial library shows eight most-used parts, with search and **Browse all
+parts** exposing the full catalogue. In 3D it collapses to **Add element**.
+
 Base cabinets:
 - 300mm cabinet
 - 400mm cabinet
@@ -74,6 +77,21 @@ Requirements:
 - Zoom in and out.
 - Undo and redo.
 - Support straight kitchens, L-shaped kitchens, and U-shaped kitchens.
+
+The plan initially labels floor units only. Other rows are faint, noninteractive
+outlines without labels, symbols or dimensions. Wall-unit mode defaults to one
+upper height band and allows selecting another band. **View** groups snapping,
+grid size and dimensions. One **Settings** dialog contains materials and
+construction. Phones keep selected-cabinet actions only in the bottom sheet,
+with touch controls at least 44 pixels high/wide.
+
+Without a selection, room settings initially expose width, depth, ceiling height,
+windows and doors. Structures, wall geometry and expert help are behind one
+**Advanced room** disclosure. Gallery photographs precede explanatory content,
+with collection, layout and room-size filters grouped in one desktop row.
+
+The interface defaults to Serbian for a Serbian primary browser language,
+English otherwise; an explicitly saved language overrides detection.
 
 All dimensions should be displayed in millimeters.
 
@@ -125,6 +143,16 @@ All dimensions should be displayed in millimeters.
   anchor and elevation, respect catalog/grid limits, reject room-outline
   excursions and cap height at the ceiling. Each mouse/touch drag is one Undo
   step; interruption or Escape rolls back. Exact numeric editing remains available.
+- The 3D controls live in a docked, initially collapsed Tools panel outside the
+  viewport, including selection warnings. Instructions expand separately within
+  that panel. Selecting a cabinet does not open it; collapsing it cancels active
+  manipulation and leaves the kitchen unobstructed.
+- Cabinet bodies support direct mouse/touch hold-drag movement with a small
+  movement threshold to distinguish selection from dragging. Selection exposes
+  local width, height and depth resize arrows while the Tools panel is closed
+  (the blue arrow adjusts the second arm on corner units). Direct movement
+  preserves elevation, reuses plan placement/snapping and records one Undo step.
+  Pointer interruption, Escape or project changes cannot commit a partial move.
 - Interior partitions have independent endpoints, thickness and height.
   Both faces are usable; collisions take the cabinet's vertical range into
   account. Wall panels and backsplash runs have a wall attachment, finish,
@@ -156,6 +184,18 @@ When selecting a cabinet, show:
 - Edge banding configuration
 
 All properties should update the design immediately.
+
+The cutting-list screen leads with material totals and export; the plan and
+cabinet drawings sit in a collapsed overview below the list. Supplier/appliance,
+glass, front-profile, handleless-system and chimney-clearance confirmations are
+neutral pre-cutting reminders, not problem badges or canvas warning outlines.
+Collisions and actionable design/manufacturing warnings remain visible problems.
+
+The docked 3D tools include a view-only **Interior view** toggle, off by default.
+It hides cabinet fronts and replaces solid bodies with panel carcasses, configured
+shelves, hollow corner compartments and schematic drawer boxes. Appliances remain
+closed; their internal mechanisms and supplier fittings are not modelled.
+Changing this view never changes project data, Undo history or cutting quantities.
 
 ## 3. Automatic cabinet calculations
 

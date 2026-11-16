@@ -15,6 +15,7 @@ npm run e2e      # drives the app in the locally installed Chrome, desktop and p
 npm run e2e:rooms # room shapes, fixed structures, 3D manipulation and photo comparison
 npm run e2e:stacked # stacking, upper-row selection and layered kitchen designs
 npm run e2e:resize # cabinet resize handles, measurements, Undo and phone touch
+npm run e2e:ux    # desktop/phone usability, row visibility, gallery and touch targets
 npm run build    # static files in dist/, with relative paths so they work from any folder
 npm run render:kitchens # regenerate gallery images with the real 3D renderer (requires local Chrome)
 ```
@@ -22,6 +23,8 @@ npm run render:kitchens # regenerate gallery images with the real 3D renderer (r
 On minimal Linux environments, use a UTF-8 locale for browser checks, for
 example `LANG=C.UTF-8 npm run e2e`. Chrome running in the POSIX locale falls
 back to `download` for filenames containing Serbian characters.
+Set `KITCHEN_E2E_SMOKE=1` to exercise the editor/export/phone flows with one
+gallery example instead of opening all 52; normal `npm run e2e` checks them all.
 
 ## Public app
 
@@ -38,11 +41,21 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
    3 metres is 3000 mm. The start panel is optional and can be dismissed.
 2. Find parts using the library search (for example `drawers 900`, `pantry`, or
    `600`) and category filter. Serbian search also works without accents.
-   Specialist storage, appliances and island sections start collapsed; searching
-   reveals matching parts automatically, without removing any advanced choices.
+   The library starts with eight **Most used** parts. Choose **Browse all parts**
+   or search to reveal the full catalogue. In 3D, open it with **Add element**.
 3. Use **Plan**, **3D**, and **Cut list** to arrange, preview and prepare the
    cutting list. Phones show these labels in a separate navigation row and keep
    the project name visible; advanced settings remain in **More**.
+4. The plan starts with floor units; upper cabinets remain faint outlines without
+   labels. Switch to wall units and choose one upper row at a time. **View**
+   groups snapping, grid size and dimensions; **Settings** contains materials
+   and construction. Room geometry and structures are under **Advanced room**.
+5. The cut list starts with material totals and export. Supplier confirmations
+   are a neutral **Before cutting** checklist, separate from problem badges.
+   Plan and cabinet drawings are below the list in a collapsed overview.
+
+The interface follows the browser's primary language: Serbian for Serbian
+browsers, English otherwise. A language chosen manually is remembered.
 
 ## What it does
 
@@ -217,7 +230,22 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
     **Edit room object measurements** changes exact sizes, sill, offset or wall.
     Opening frames stay visible when the near wall is hidden so they remain
     selectable. These diagrams are not door-swing or glazing specifications.
-- **Resize cabinets in 3D**: select a cabinet, choose **Resize**, then choose
+- The 3D viewport stays clear: expand the docked **3D tools** panel to access
+  camera, style, selection, movement and resizing controls. It starts collapsed
+  and never overlays the kitchen. Instructions are under **How to use 3D**;
+  selection warnings remain in the tools panel and the main Checks view.
+- **Direct 3D editing**: hold and drag a cabinet itself to move it across the
+  floor, keeping its elevation. Click or tap a cabinet to show resize arrows:
+  red changes width, green height, blue depth (the second arm for corner units).
+  Drag an arrow out to expand or in to shrink. The tools panel can stay closed.
+  Drags use the plan's snapping and each form one Undo step; Escape or an
+  interrupted gesture cancels an unfinished move. Drag the background to orbit.
+- **See inside cabinets**: turn on **Interior view** under **3D tools** to hide
+  fronts and reveal shelves, corner compartments and drawer boxes. Toggle it off
+  to restore the finished kitchen. This schematic view does not change the
+  project, Undo history or cutting list; appliance interiors and fitting details
+  are not modelled.
+- **Resize cabinets in 3D**: expand **3D tools**, select a cabinet, choose **Resize**, then choose
   Width, Height or Depth (corner units also offer the second arm). Drag the
   coloured handle out to expand or in to shrink, with live measurements.
   The back-left anchor and elevation stay fixed; size limits, the room outline

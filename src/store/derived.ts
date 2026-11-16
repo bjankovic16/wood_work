@@ -15,8 +15,18 @@ export function useBuildContext(): BuildContext {
 }
 
 /** Everything the checks find in the current design, in the interface language. */
-export function useIssues(): Issue[] {
+function useDesignChecks(): Issue[] {
   const design = useDesignStore((s) => s.design);
   const labels = useT().engine;
   return useMemo(() => checkDesign(design, labels), [design, labels]);
+}
+
+export function useIssues(): Issue[] {
+  const checks = useDesignChecks();
+  return useMemo(() => checks.filter((issue) => issue.category !== 'precut'), [checks]);
+}
+
+export function usePrecutChecklist(): Issue[] {
+  const checks = useDesignChecks();
+  return useMemo(() => checks.filter((issue) => issue.category === 'precut'), [checks]);
 }

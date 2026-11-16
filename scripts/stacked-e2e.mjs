@@ -3,7 +3,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
-import { assertScenePlacement, movementHandle } from './three-test-helpers.mjs';
+import { assertScenePlacement, movementHandle, open3DTools } from './three-test-helpers.mjs';
 
 const output = process.argv[2] ?? path.join('test-results', 'stacked');
 await mkdir(output, { recursive: true });
@@ -36,6 +36,7 @@ async function clickPlanUnit(page, item, touch = false) {
 }
 
 async function ready3D(page) {
+  await open3DTools(page);
   await page.getByRole('button', { name: 'Reset view', exact: true }).waitFor();
   await page.waitForFunction(() => Boolean(window.__kitchen3D));
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
@@ -218,7 +219,8 @@ try {
   await page.reload();
   await page.waitForSelector('.konvajs-content');
   assert.deepEqual(await design(page), saved);
-  assert.equal(await page.getByLabel('Upper cabinet row', { exact: true }).locator('option').count(), 4);
+  assert.equal(await page.getByLabel('Upper cabinet row', { exact: true }).locator('option').count(), 3);
+  await page.getByRole('button', { name: 'Browse all parts', exact: true }).click();
   await page.locator('[data-preset="ceiling-600"]').click();
   const ceiling = (await design(page)).items.at(-1);
   assert.equal(ceiling.depth, 560);
@@ -234,7 +236,7 @@ try {
   for (const [index, preset] of expected.entries()) {
     await page.getByRole('button', { name: 'Kitchen designs', exact: true }).first().click();
     const gallery = page.getByRole('dialog', { name: 'Kitchen designs' });
-    await gallery.getByRole('button', { name: 'Stacked uppers', exact: true }).click();
+    await gallery.getByLabel('Kitchen layout', { exact: true }).selectOption('layered');
     assert.equal(await gallery.locator('[data-kitchen-design]').count(), 32);
     await gallery.locator('img').evaluateAll((images) => {
       for (const image of images) image.loading = 'eager';
@@ -266,6 +268,7 @@ try {
       const display = (await design(page)).items.find((item) => item.kind === 'glassWall');
       assert.ok(display);
       await page.getByRole('radio', { name: 'Plan', exact: true }).click();
+      await page.getByRole('button', { name: 'Wall units', exact: true }).click();
       const rowSelect = page.getByLabel('Upper cabinet row', { exact: true });
       const upperElevation = await rowSelect.locator('option').last().getAttribute('value');
       await rowSelect.selectOption(upperElevation);
@@ -296,8 +299,9 @@ try {
   observe(phone);
   await phone.goto(url, { waitUntil: 'domcontentloaded' });
   await phone.waitForSelector('.konvajs-content');
+  await phone.getByRole('button', { name: 'Wall units', exact: true }).tap();
   const phoneRows = await phone.getByLabel('Upper cabinet row', { exact: true }).locator('option').count();
-  assert.equal(phoneRows, 3);
+  assert.equal(phoneRows, 2);
   const current = await design(phone);
   const phoneLower = current.items.find((item) => item.kind === 'wall' && item.rotation === 0);
   assert.ok(phoneLower);
@@ -341,12 +345,36 @@ try {
   await phone.getByRole('radio', { name: '3D', exact: true }).tap();
   await ready3D(phone);
   await phone.getByRole('group', { name: '3D camera' }).getByRole('button', { name: 'Top', exact: true }).tap();
-  const phoneTools = phone.getByRole('group', { name: 'Selected cabinet actions' });
-  await phoneTools.getByRole('button', { name: 'Move cabinet', exact: true }).tap();
+  assert.equal(await phone.getByRole('group', { name: 'Selected cabinet actions' }).count(), 0);
+  await phone.getByTestId('three-tools').locator(':scope > summary').tap();
+  const less = phone.getByRole('button', { name: 'Less', exact: true });
+  if (await less.isVisible()) await less.tap();
+  await phone.waitForTimeout(300);
   const beforeTouch = await design(phone);
   const phoneUpper = beforeTouch.items[1];
   const touch = await phoneContext.newCDPSession(phone);
-  let touchHandle = await movementHandle(phone, 'X', 0.8);
+  const bodyMovement = async () => {
+    await phone.waitForFunction(() => {
+      const box = document.querySelector('main canvas').getBoundingClientRect();
+      return Math.abs(window.__kitchen3D.camera.aspect - box.width / box.height) < 0.001;
+    });
+    return phone.evaluate(async (id) => {
+      const { localToRoom } = await import('/src/domain/geometry.ts');
+      const item = window.__kitchen.design.getState().design.items.find((item) => item.id === id);
+      const { camera } = window.__kitchen3D;
+      camera.updateMatrixWorld(true);
+      const point = localToRoom(item, item.width * 0.2, item.depth * 0.25);
+      const box = document.querySelector('main canvas').getBoundingClientRect();
+      const project = (x) => {
+        const p = camera.position.clone().set(x / 1000, (item.elevation + item.height + 35) / 1000, point.y / 1000).project(camera);
+        return { x: box.x + (p.x + 1) * box.width / 2, y: box.y + (1 - p.y) * box.height / 2 };
+      };
+      const points = { from: project(point.x), to: project(point.x + 800) };
+      if (document.elementFromPoint(points.from.x, points.from.y)?.tagName !== 'CANVAS') throw new Error('The cabinet body is hidden by a phone control.');
+      return points;
+    }, phoneUpper.id);
+  };
+  let touchHandle = await bodyMovement();
   await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: touchHandle.from.x, y: touchHandle.from.y }] });
   for (let step = 1; step <= 12; step++) {
     await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{
@@ -367,7 +395,7 @@ try {
   assert.deepEqual(await design(phone), beforeTouch);
   await assertScenePlacement(phone, phoneUpper.id);
 
-  touchHandle = await movementHandle(phone, 'X', 0.8);
+  touchHandle = await bodyMovement();
   await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: touchHandle.from.x, y: touchHandle.from.y }] });
   await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: touchHandle.to.x, y: touchHandle.to.y }] });
   assert.ok(await phone.evaluate(() => window.__kitchen.design.getState().gestureBase !== null));

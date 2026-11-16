@@ -3,7 +3,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import type { Guide } from '../domain/snapping';
 import type { KitchenItem, Point, Wall } from '../domain/types';
 import type { CameraView } from '../domain/camera';
-import { DEFAULT_LANGUAGE, isLanguage, type Language } from '../i18n/language';
+import { browserLanguage, isLanguage, type Language } from '../i18n/language';
 import { safeStorage } from '../lib/platform';
 
 export type ViewFilter = 'all' | 'floor' | 'wall';
@@ -82,7 +82,7 @@ export const useUiStore = create<UiState>()(
       snapEnabled: true,
       gridSize: 50,
       showDimensions: true,
-      viewFilter: 'all',
+      viewFilter: 'floor',
       wallElevation: null,
       libraryDrag: null,
       focusRequest: null,
@@ -97,7 +97,7 @@ export const useUiStore = create<UiState>()(
       cameraView: 'perspective',
       cameraFocusId: null,
       cameraToken: 0,
-      language: DEFAULT_LANGUAGE,
+      language: browserLanguage(),
 
       select: (selectedId) => set({ selectedId }),
       setLanguage: (language) => set({ language }),
@@ -121,7 +121,11 @@ export const useUiStore = create<UiState>()(
     }),
     {
       name: 'kitchen-designer:preferences',
-      version: 1,
+      version: 2,
+      migrate: (persisted) => {
+        const stored = (persisted ?? {}) as Partial<UiState>;
+        return { ...stored, ...(stored.viewFilter === 'all' ? { viewFilter: 'floor' } : {}) };
+      },
       storage: createJSONStorage(() => safeStorage),
       partialize: (s) => ({
         snapEnabled: s.snapEnabled,

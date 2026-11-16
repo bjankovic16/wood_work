@@ -130,6 +130,8 @@ export const en = {
   },
 
   checks: {
+    precut: 'Before cutting: supplier checklist',
+    precutHint: 'Confirm these details with your supplier or installer. These are reminders, not design problems.',
     checks: 'Checks',
     summary: (summary: string) => `Checks: ${summary}`,
     none: 'No problems found',
@@ -139,6 +141,8 @@ export const en = {
   },
 
   library: {
+    mostUsed: 'Most used',
+    browseAll: 'Browse all parts',
     elements: 'Elements',
     hint: 'Drag onto the plan, or click to add',
     sections: { base: 'Base cabinets', wall: 'Wall cabinets', ceiling: 'Ceiling cupboards', other: 'Other elements', storage: 'Storage & display', appliances: 'Appliances & housings', islands: 'Islands & breakfast bars' } as Record<string, string>,
@@ -334,6 +338,7 @@ export const en = {
   },
 
   room: {
+    advanced: 'Advanced room',
     setupTitle: 'Set up your room',
     setupIntro: 'Use inside measurements in millimetres: 3 metres = 3000 mm. Add any doors and windows; everything can be changed later.',
     startAdding: 'Add kitchen parts',
@@ -563,6 +568,8 @@ export const en = {
   },
 
   view3d: {
+    interior: 'Interior view',
+    interiorHint: 'Fronts are hidden to reveal shelves and drawer boxes. This is a schematic view, not appliance or fitting detail; your design and cutting list stay unchanged.',
     camera: '3D camera',
     perspective: '3D',
     front: 'Front',
@@ -578,6 +585,8 @@ export const en = {
     resize: 'Resize cabinet',
     resizeShort: 'Resize',
     resizeChoose: 'Choose a dimension to resize',
+    tools: '3D tools',
+    help: 'How to use 3D',
     resizeRange: 'Catalog size range',
     resizeGuidance: 'Drag the handle out to expand or in to shrink. Measurements update as you drag. Use the pencil for exact values.',
     resizeHint: 'Drag the coloured handle to resize the chosen dimension. The back-left corner and elevation stay fixed. Escape cancels; Undo restores the whole resize.',

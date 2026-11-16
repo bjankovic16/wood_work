@@ -4,8 +4,6 @@ import {
   Download,
   FileSpreadsheet,
   FileText,
-  Hammer,
-  Layers,
   Pencil,
   Plus,
   Printer,
@@ -26,7 +24,7 @@ import { cn } from '../../lib/cn';
 import { embedded, safeFileName, saveFile } from '../../lib/platform';
 import * as actions from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
-import { useBuildContext, useIssues } from '../../store/derived';
+import { useBuildContext, useIssues, usePrecutChecklist } from '../../store/derived';
 import { useUiStore } from '../../store/uiStore';
 import { NumberField, SelectField, TextField } from '../properties/NumberField';
 import { FrontPreview } from '../properties/FrontPreview';
@@ -321,6 +319,7 @@ export function CuttingListView() {
   const ctx = useBuildContext();
   const plan = useMemo(() => planSvg(design, t.engine), [design, t.engine]);
   const issues = useIssues();
+  const checklist = usePrecutChecklist();
   const errors = issues.filter((i) => i.severity === 'error');
   const warnings = issues.filter((i) => i.severity === 'warning');
   const [grouping, setGrouping] = useState<'pieces' | 'units'>('pieces');
@@ -383,14 +382,6 @@ export function CuttingListView() {
             <p className="text-[13px] text-zinc-500">{c.summary(design.name, list.pieceCount, unitsWithParts.length)}</p>
           </div>
           <div className="flex flex-wrap gap-2 print:hidden">
-            <Button variant="outline" onClick={() => ui.setSettingsTab('materials')}>
-              <Layers className="size-4" />
-              {c.materials}
-            </Button>
-            <Button variant="outline" onClick={() => ui.setSettingsTab('construction')}>
-              <Hammer className="size-4" />
-              {c.construction}
-            </Button>
             {!empty && (
               <Menu label={c.exportLabel} text={c.export} icon={<Download className="size-4" />} variant="outline">
                 <div className="space-y-1">
@@ -444,15 +435,6 @@ export function CuttingListView() {
             </div>
           </div>
         )}
-        {warnings.length > 0 && (
-          <details className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-900">
-            <summary className="cursor-pointer font-semibold">{c.reviewWarnings(warnings.length)}</summary>
-            <ul className="mt-2 list-disc space-y-1 pl-4">
-              {warnings.map((issue) => <li key={issue.key}>{issue.message}</li>)}
-            </ul>
-          </details>
-        )}
-
         {empty ? (
           <div className="mt-8 rounded-xl border border-dashed border-zinc-300 bg-white px-6 py-12 text-center">
             <p className="text-sm font-medium text-zinc-700">{c.emptyTitle}</p>
@@ -463,44 +445,6 @@ export function CuttingListView() {
           </div>
         ) : (
           <>
-            <section aria-label={c.overview} className="mt-5 grid gap-4 rounded-2xl border border-[#ded8ce] bg-[#fffefa] p-4 sm:p-5 lg:grid-cols-2" data-testid="cutting-overview">
-              <figure className="min-w-0">
-                <figcaption className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#625b50]">{c.planPreview}</figcaption>
-                <img
-                  src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(plan.svg)}`}
-                  alt={c.planPreview}
-                  width={plan.width}
-                  height={plan.height}
-                  className="h-52 w-full rounded-xl border border-[#e6e0d5] bg-white object-contain"
-                />
-                <p className="mt-2 text-xs tabular-nums text-zinc-500">{t.mm(design.room.width)} × {t.mm(design.room.depth)} mm · {c.pieces(list.pieceCount)}</p>
-              </figure>
-              {preview && (
-                <div className="min-w-0" data-testid="cutting-cabinet-preview">
-                  <label className="mb-3 block text-xs font-semibold text-[#625b50]">
-                    {c.previewCabinet}
-                    <select
-                      aria-label={c.previewCabinet}
-                      value={preview.item.id}
-                      onChange={(event) => setPreviewId(event.target.value)}
-                      className="mt-1.5 min-h-10 w-full rounded-lg border border-[#d6d0c4] bg-white px-3 text-base font-normal text-zinc-900 sm:text-sm print:hidden"
-                    >
-                      {unitsWithParts.map(({ item }) => <option key={item.id} value={item.id}>{item.label} · {t.kinds[item.kind]}</option>)}
-                    </select>
-                  </label>
-                  <div className="flex flex-wrap items-center gap-4">
-                    <FrontPreview item={preview.item} ctx={ctx} />
-                    <div className="min-w-0 flex-1 text-[13px] text-zinc-600">
-                      <p className="font-semibold text-zinc-900">{preview.item.label} · {t.kinds[preview.item.kind]}</p>
-                      <p className="mt-1 tabular-nums">{c.unitDimensions(t.mm(preview.item.width), t.mm(preview.item.height), t.mm(preview.item.depth))}</p>
-                      <p className="mt-2 font-medium text-[#4f6249]">{c.pieces(preview.parts.reduce((sum, part) => sum + part.quantity, 0))}</p>
-                      <p className="mt-2 text-xs leading-relaxed">{c.previewNote}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-              <p className="text-xs leading-relaxed text-zinc-500 lg:col-span-2">{c.verifyNote}</p>
-            </section>
             <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3" data-testid="material-totals">
               {list.materials.map((total) => (
                 <div key={`${total.materialId}-${total.thickness}`} className="rounded-xl border border-zinc-200 bg-white px-4 py-3 print:rounded-none">
@@ -536,6 +480,20 @@ export function CuttingListView() {
               {c.estimateNote}
               {list.cost !== null && <span className="font-medium text-zinc-600">{c.materialCost(t.money(list.cost))}</span>}
             </p>
+
+            {warnings.length > 0 && (
+              <details className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-900">
+                <summary className="cursor-pointer font-semibold">{c.reviewWarnings(warnings.length)}</summary>
+                <ul className="mt-2 list-disc space-y-1 pl-4">
+                  {warnings.map((issue) => <li key={issue.key}>{issue.message}</li>)}
+                </ul>
+              </details>
+            )}
+            {checklist.length > 0 && <details className="mt-4 rounded-xl border border-studio-line bg-studio-paper px-4 py-3 text-[13px] text-studio-muted" data-testid="precut-checklist">
+              <summary className="cursor-pointer font-semibold">{t.checks.precut} ({checklist.length})</summary>
+              <p className="mt-2">{t.checks.precutHint}</p>
+              <ul className="mt-2 list-disc space-y-1 pl-4">{checklist.map((issue) => <li key={issue.key}>{issue.message}</li>)}</ul>
+            </details>}
 
             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 print:hidden">
               <Segmented
@@ -585,6 +543,48 @@ export function CuttingListView() {
                 </section>
               )}
             </div>
+
+            <details className="mt-6 rounded-2xl border border-studio-line bg-studio-paper p-4">
+              <summary className="cursor-pointer text-sm font-semibold text-studio-ink">{c.overview}</summary>
+              <section aria-label={c.overview} className="mt-4 grid gap-4 lg:grid-cols-2" data-testid="cutting-overview">
+                <figure className="min-w-0">
+                  <figcaption className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#625b50]">{c.planPreview}</figcaption>
+                  <img
+                    src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(plan.svg)}`}
+                    alt={c.planPreview}
+                    width={plan.width}
+                    height={plan.height}
+                    className="h-52 w-full rounded-xl border border-[#e6e0d5] bg-white object-contain"
+                  />
+                  <p className="mt-2 text-xs tabular-nums text-zinc-500">{t.mm(design.room.width)} × {t.mm(design.room.depth)} mm · {c.pieces(list.pieceCount)}</p>
+                </figure>
+                {preview && (
+                  <div className="min-w-0" data-testid="cutting-cabinet-preview">
+                    <label className="mb-3 block text-xs font-semibold text-[#625b50]">
+                      {c.previewCabinet}
+                      <select
+                        aria-label={c.previewCabinet}
+                        value={preview.item.id}
+                        onChange={(event) => setPreviewId(event.target.value)}
+                        className="mt-1.5 min-h-10 w-full rounded-lg border border-[#d6d0c4] bg-white px-3 text-base font-normal text-zinc-900 sm:text-sm print:hidden"
+                      >
+                        {unitsWithParts.map(({ item }) => <option key={item.id} value={item.id}>{item.label} · {t.kinds[item.kind]}</option>)}
+                      </select>
+                    </label>
+                    <div className="flex flex-wrap items-center gap-4">
+                      <FrontPreview item={preview.item} ctx={ctx} />
+                      <div className="min-w-0 flex-1 text-[13px] text-zinc-600">
+                        <p className="font-semibold text-zinc-900">{preview.item.label} · {t.kinds[preview.item.kind]}</p>
+                        <p className="mt-1 tabular-nums">{c.unitDimensions(t.mm(preview.item.width), t.mm(preview.item.height), t.mm(preview.item.depth))}</p>
+                        <p className="mt-2 font-medium text-[#4f6249]">{c.pieces(preview.parts.reduce((sum, part) => sum + part.quantity, 0))}</p>
+                        <p className="mt-2 text-xs leading-relaxed">{c.previewNote}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <p className="text-xs leading-relaxed text-zinc-500 lg:col-span-2">{c.verifyNote}</p>
+              </section>
+            </details>
 
             {list.hardware.length > 0 && (
               <section className="mt-8 break-inside-avoid">

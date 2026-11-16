@@ -38,21 +38,28 @@ async function fixture(page, kind = 'base', rotation = 0) {
     ui.select('resize-cabinet');
   }, { kind, rotation });
   await page.waitForFunction(() => Boolean(window.__kitchen3D?.scene.getObjectByName('resize-cabinet')));
+  const panel = page.getByTestId('three-tools');
+  if (page.viewportSize().width < 1024) {
+    if (await panel.evaluate((element) => element.open)) await panel.locator(':scope > summary').click();
+    await page.waitForTimeout(300);
+    return;
+  }
+  if (!await panel.evaluate((element) => element.open)) await panel.locator(':scope > summary').click();
   await page.waitForTimeout(300);
   const resize = tools(page).getByRole('button', { name: 'Resize cabinet', exact: true });
   if (await resize.getAttribute('aria-pressed') !== 'true') await resize.click();
   await dimensions(page).waitFor();
 }
 
-async function handle(page, distance) {
+async function handle(page, distance, requestedAxis) {
   await page.waitForFunction(() => Boolean(window.__kitchen3D?.scene.getObjectByName('kitchen-resize-tool')));
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-  return page.evaluate((distance) => {
+  return page.evaluate(({ distance, requestedAxis }) => {
     const { scene, camera } = window.__kitchen3D;
     scene.updateMatrixWorld(true);
     camera.updateMatrixWorld(true);
     const tool = scene.getObjectByName('kitchen-resize-tool');
-    const axis = tool.showX ? 'X' : tool.showY ? 'Y' : 'Z';
+    const axis = requestedAxis ?? (tool.showX ? 'X' : tool.showY ? 'Y' : 'Z');
     const direction = camera.position.clone().set(axis === 'X' ? 1 : 0, axis === 'Y' ? 1 : 0, axis === 'Z' ? 1 : 0)
       .applyQuaternion(tool.object.getWorldQuaternion(camera.quaternion.clone()));
     const points = [];
@@ -74,11 +81,11 @@ async function handle(page, distance) {
     const projected = { from: screen(from), to: screen(to) };
     if (document.elementFromPoint(projected.from.x, projected.from.y)?.tagName !== 'CANVAS') throw new Error('The resize handle is covered by a control.');
     return projected;
-  }, distance);
+  }, { distance, requestedAxis });
 }
 
-async function drag(page, distance, touch = false) {
-  const points = await handle(page, distance);
+async function drag(page, distance, touch = false, axis) {
+  const points = await handle(page, distance, axis);
   if (touch) {
     const session = await page.context().newCDPSession(page);
     await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [points.from] });
@@ -98,6 +105,26 @@ async function drag(page, distance, touch = false) {
   }
 }
 
+async function cabinetPoints(page, top = false) {
+  await page.waitForFunction(() => {
+    const box = document.querySelector('main canvas').getBoundingClientRect();
+    return Math.abs(window.__kitchen3D.camera.aspect - box.width / box.height) < 0.001;
+  });
+  return page.evaluate(async (top) => {
+    const { localToRoom } = await import('/src/domain/geometry.ts');
+    const item = window.__kitchen.design.getState().design.items[0];
+    const { camera } = window.__kitchen3D;
+    camera.updateMatrixWorld(true);
+    const p = localToRoom(item, item.width / 2, top ? item.depth / 2 : item.depth + 25);
+    const box = document.querySelector('main canvas').getBoundingClientRect();
+    const screen = (x) => {
+      const point = camera.position.clone().set(x / 1000, (item.elevation + (top ? item.height + 35 : item.height / 2)) / 1000, p.y / 1000).project(camera);
+      return { x: box.x + (point.x + 1) * box.width / 2, y: box.y + (1 - point.y) * box.height / 2 };
+    };
+    return { from: screen(p.x), to: screen(p.x + 350) };
+  }, top);
+}
+
 try {
   await server.listen();
   browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -106,6 +133,60 @@ try {
   await page.goto(server.resolvedUrls.local[0], { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('canvas');
   await fixture(page);
+  const cleanPanel = page.getByTestId('three-tools');
+  await cleanPanel.locator(':scope > summary').click();
+  await page.evaluate(() => window.__kitchen.ui.getState().select(null));
+  const clickPoint = await cabinetPoints(page);
+  const selectionHistory = await history(page);
+  await page.mouse.click(clickPoint.from.x, clickPoint.from.y);
+  await page.waitForFunction(() => window.__kitchen.ui.getState().selectedId === 'resize-cabinet');
+  assert.equal(await history(page), selectionHistory, 'Clicking must select without moving or adding history.');
+  await page.waitForFunction(() => {
+    const tool = window.__kitchen3D.scene.getObjectByName('kitchen-resize-tool');
+    return tool?.showX && tool?.showY && tool?.showZ;
+  });
+  assert.equal(await tools(page).isVisible(), false);
+  assert.equal(await page.getByRole('group', { name: '3D camera' }).isVisible(), false);
+  assert.equal(await page.getByText('Click a cabinet, door, window or structure to edit it. Drag the background to orbit; scroll or pinch to zoom.', { exact: true }).isVisible(), false);
+  await page.screenshot({ path: path.join(output, 'clean-desktop.png') });
+  const directBefore = await design(page);
+  const directCount = await history(page);
+  const direct = await cabinetPoints(page);
+  await page.mouse.move(direct.from.x, direct.from.y);
+  await page.mouse.down();
+  await page.mouse.move(direct.to.x, direct.to.y, { steps: 12 });
+  assert.notDeepEqual((await design(page)).items[0], directBefore.items[0], 'Holding and dragging the cabinet must move it before release.');
+  await page.mouse.up();
+  assert.equal(await history(page), directCount + 1);
+  assert.deepEqual((await design(page)).items[1], directBefore.items[1]);
+  assert.equal((await design(page)).items[0].elevation, directBefore.items[0].elevation);
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  assert.deepEqual(await design(page), directBefore);
+  for (const interruption of ['pointercancel', 'blur', 'Escape']) {
+    const points = await cabinetPoints(page);
+    await page.mouse.move(points.from.x, points.from.y);
+    await page.mouse.down();
+    await page.mouse.move(points.to.x, points.to.y, { steps: 10 });
+    assert.notDeepEqual(await design(page), directBefore);
+    if (interruption === 'Escape') await page.keyboard.press('Escape');
+    else await page.evaluate((type) => window.dispatchEvent(new Event(type)), interruption);
+    await page.mouse.up();
+    assert.deepEqual(await design(page), directBefore);
+    assert.equal(await history(page), directCount);
+    await page.evaluate(() => window.__kitchen.ui.getState().select('resize-cabinet'));
+  }
+  for (const [axis, field, delta] of [['X', 'width', 0.1], ['Y', 'height', 0.1], ['Z', 'depth', 0.1]]) {
+    const before = await design(page);
+    await drag(page, delta, false, axis);
+    const after = await design(page);
+    if (after.items[0][field] <= before.items[0][field]) await page.screenshot({ path: path.join(output, 'direct-arrow-failure.png') });
+    assert.ok(after.items[0][field] > before.items[0][field], `Click-selected ${axis} arrow must resize ${field} without opening tools: ${JSON.stringify({ before: before.items[0], after: after.items[0], axis: await page.evaluate(() => window.__kitchen3D.scene.getObjectByName('kitchen-resize-tool')?.axis) })}`);
+    await page.getByRole('button', { name: 'Undo', exact: true }).click();
+    assert.deepEqual(await design(page), before);
+  }
+  console.log('  PASS direct hold-drag moves the cabinet; selection exposes width/height/depth arrows without tools');
+  await cleanPanel.locator(':scope > summary').click();
+  if (await tools(page).getByRole('button', { name: 'Resize cabinet', exact: true }).getAttribute('aria-pressed') !== 'true') await tools(page).getByRole('button', { name: 'Resize cabinet', exact: true }).click();
   console.log('Friendly 3D cabinet resizing');
   for (const [label, field, delta] of [['Width', 'width', 0.2], ['Width', 'width', -0.15], ['Height', 'height', 0.1], ['Depth', 'depth', 0.1]]) {
     await dimensions(page).getByRole('button', { name: new RegExp(`^${label}`) }).click();
@@ -192,8 +273,17 @@ try {
   observe(phone);
   await phone.goto(server.resolvedUrls.local[0], { waitUntil: 'domcontentloaded' });
   await phone.waitForSelector('canvas');
+  await phone.evaluate(() => { window.__kitchen.ui.getState().setView('3d'); window.__kitchen.ui.getState().setLanguage('en'); });
+  const phonePanel = phone.getByTestId('three-tools');
+  assert.equal(await phonePanel.evaluate((element) => element.open), false);
   await fixture(phone);
+  const viewport = await phone.getByTestId('three-viewport').boundingBox();
+  const panelBox = await phonePanel.boundingBox();
+  assert.ok(panelBox.y + panelBox.height <= viewport.y + 1, 'Tools must be docked outside the 3D viewport.');
+  await phonePanel.locator(':scope > summary').tap();
+  assert.equal(await tools(phone).count(), 0, 'Phone cabinet actions must appear only in the bottom sheet.');
   await phone.getByRole('group', { name: '3D camera' }).getByRole('button', { name: 'Top', exact: true }).tap();
+  await phonePanel.locator(':scope > summary').tap();
   await phone.waitForTimeout(300);
   const phoneBefore = await design(phone);
   await drag(phone, 0.2, true);
@@ -208,11 +298,11 @@ try {
   await touch.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
   await touch.detach();
   assert.deepEqual(await design(phone), phoneBefore);
-  await tools(phone).getByRole('button', { name: 'Resize cabinet', exact: true }).tap();
   assert.ok(await phone.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
   await phone.screenshot({ path: path.join(output, 'phone-resize.png') });
-  await dimensions(phone).getByRole('button', { name: /^Width/ }).tap();
-  await dimensions(phone).getByRole('button', { name: /^Width/ }).tap();
+  await phone.getByTestId('item-sheet').getByRole('button', { name: 'Edit', exact: true }).tap();
+  await phone.getByLabel('Width', { exact: true }).waitFor();
+  await phone.getByTestId('item-sheet').getByRole('button', { name: 'Less', exact: true }).tap();
   assert.equal(await phone.getByText('Loading movement handles…', { exact: true }).count(), 0);
   await phone.setViewportSize({ width: 320, height: 844 });
   await phone.evaluate(() => window.__kitchen.ui.getState().setLanguage('sr'));
@@ -222,7 +312,32 @@ try {
   assert.ok((await design(phone)).items[0].width > narrowBefore.items[0].width);
   await phone.screenshot({ path: path.join(output, 'phone-resize-sr.png') });
   await phone.evaluate(() => window.__kitchen.ui.getState().setLanguage('en'));
-  await phone.getByRole('button', { name: 'Done', exact: true }).tap();
+  assert.equal(await tools(phone).isVisible(), false);
+  assert.equal(await phone.getByRole('group', { name: '3D camera' }).isVisible(), false);
+  await phone.screenshot({ path: path.join(output, 'clean-phone.png') });
+  await phone.evaluate(() => window.__kitchen.ui.getState().select(null));
+  const tapPoint = await cabinetPoints(phone, true);
+  await phone.touchscreen.tap(tapPoint.from.x, tapPoint.from.y);
+  await phone.waitForFunction(() => window.__kitchen.ui.getState().selectedId === 'resize-cabinet');
+  const directTouchBefore = await design(phone);
+  const touchPosition = await cabinetPoints(phone, true);
+  const directTouch = await phoneContext.newCDPSession(phone);
+  await directTouch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [touchPosition.from] });
+  for (let step = 1; step <= 12; step++) {
+    await directTouch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{
+      x: touchPosition.from.x + (touchPosition.to.x - touchPosition.from.x) * step / 12,
+      y: touchPosition.from.y + (touchPosition.to.y - touchPosition.from.y) * step / 12,
+    }] });
+  }
+  assert.notDeepEqual((await design(phone)).items[0], directTouchBefore.items[0], 'Touch hold-drag must move the cabinet before release.');
+  await directTouch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await directTouch.detach();
+  await phone.getByRole('button', { name: 'Undo', exact: true }).tap();
+  assert.deepEqual(await design(phone), directTouchBefore);
+  const autoWidth = (await design(phone)).items[0].width;
+  await drag(phone, 0.1, true, 'X');
+  assert.ok((await design(phone)).items[0].width > autoWidth, 'Tap-selected arrows must resize on a phone without opening tools.');
+  console.log('  PASS direct touch hold-drag movement and automatic resize arrows work with the tools closed');
   await phone.waitForTimeout(600);
   const idle = await phone.evaluate(() => window.__kitchen3D.renderer.info.render.frame);
   await phone.waitForTimeout(300);
