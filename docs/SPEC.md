@@ -119,6 +119,12 @@ All dimensions should be displayed in millimeters.
   editable in a focused dialog. Drags support grid snapping, single-step Undo,
   cancellation and touch, without repositioning cabinetry or resetting the
   camera. Opening frames remain selectable when a nearby wall is hidden.
+- Selected cabinets have separate Move and Resize modes. Resize offers labelled
+  dimension selectors with live millimetre values and one local-axis handle,
+  including the second arm of corner cabinets. Drags preserve the back-left
+  anchor and elevation, respect catalog/grid limits, reject room-outline
+  excursions and cap height at the ceiling. Each mouse/touch drag is one Undo
+  step; interruption or Escape rolls back. Exact numeric editing remains available.
 - Interior partitions have independent endpoints, thickness and height.
   Both faces are usable; collisions take the cabinet's vertical range into
   account. Wall panels and backsplash runs have a wall attachment, finish,

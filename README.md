@@ -14,6 +14,7 @@ npm test         # unit tests: geometry, snapping, layouts, construction engine,
 npm run e2e      # drives the app in the locally installed Chrome, desktop and phone; screenshots go to test-results/
 npm run e2e:rooms # room shapes, fixed structures, 3D manipulation and photo comparison
 npm run e2e:stacked # stacking, upper-row selection and layered kitchen designs
+npm run e2e:resize # cabinet resize handles, measurements, Undo and phone touch
 npm run build    # static files in dist/, with relative paths so they work from any folder
 npm run render:kitchens # regenerate gallery images with the real 3D renderer (requires local Chrome)
 ```
@@ -216,6 +217,14 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
     **Edit room object measurements** changes exact sizes, sill, offset or wall.
     Opening frames stay visible when the near wall is hidden so they remain
     selectable. These diagrams are not door-swing or glazing specifications.
+- **Resize cabinets in 3D**: select a cabinet, choose **Resize**, then choose
+  Width, Height or Depth (corner units also offer the second arm). Drag the
+  coloured handle out to expand or in to shrink, with live measurements.
+  The back-left anchor and elevation stay fixed; size limits, the room outline
+  and ceiling constrain the change. Grid snapping follows the plan setting.
+  Use the pencil for exact dimensions, **Done** to exit, **Undo** to restore a
+  completed drag, or Escape to cancel an unfinished drag. Mouse and touch work.
+  Other cabinets are not moved; review collision warnings before cutting.
 - **Irregular rooms**: rectangular, L-shaped/stepped and diagonal-corner
   footprints, editable polygon rooms with multiple diagonal walls, plus
   full-height chimneys, columns and wall projections.

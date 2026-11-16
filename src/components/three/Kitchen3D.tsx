@@ -1,9 +1,10 @@
 import { Environment, Lightformer, OrbitControls } from '@react-three/drei';
 import { Canvas, useThree } from '@react-three/fiber';
-import { Copy, Image, Move, Palette, Pencil, RotateCcw, RotateCw, Scan, Trash2, X } from 'lucide-react';
+import { Copy, Image, Move, Palette, Pencil, RotateCcw, RotateCw, Ruler, Scan, Trash2, X } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type RefObject } from 'react';
 import type * as THREE from 'three';
 import { isWallMounted } from '../../domain/geometry';
+import { sizeLimits, type SizeField } from '../../domain/catalog';
 import { CAMERA_FOV, kitchenCameraPose, type CameraView } from '../../domain/camera';
 import { KIND_OPTIONS } from '../../engine/config';
 import type { KitchenItem } from '../../domain/types';
@@ -27,6 +28,7 @@ import { exposedCabinetUnderside, inUpperRow, upperCabinetRows } from '../../dom
 interface CameraRequest { view: CameraView; focusId?: string; token: number }
 const CabinetTransform = lazy(() => import('./CabinetTransform').then((module) => ({ default: module.CabinetTransform })));
 const RoomObjectTransform = lazy(() => import('./RoomObjectTransform').then((module) => ({ default: module.RoomObjectTransform })));
+const CabinetResize = lazy(() => import('./CabinetResize').then((module) => ({ default: module.CabinetResize })));
 
 /** Puts the camera at the starting view when the room changes size or the viewer asks for it. */
 function CameraRig({ request, comparison, controls }: { request: CameraRequest; comparison: boolean; controls: RefObject<ComponentRef<typeof OrbitControls> | null> }) {
@@ -77,6 +79,12 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
   const [moveReady, setMoveReady] = useState(false);
   const readyMove = useCallback(() => setMoveReady(true), []);
   const cancelMove = useCallback(() => { setMoveMode(false); setMoveReady(false); }, []);
+  const [resizeMode, setResizeMode] = useState(false);
+  const [resizeField, setResizeField] = useState<SizeField>('width');
+  const [resizeReady, setResizeReady] = useState(false);
+  const [resizeBlocked, setResizeBlocked] = useState(false);
+  const readyResize = useCallback(() => setResizeReady(true), []);
+  const cancelResize = useCallback(() => { setResizeMode(false); setResizeReady(false); setResizeBlocked(false); }, []);
   const [selectedObject, setSelectedObject] = useState<THREE.Group | null>(null);
   const [roomSelection, setRoomSelection] = useState<RoomObjectSelection | null>(null);
   const [roomObject, setRoomObject] = useState<THREE.Group | null>(null);
@@ -91,6 +99,8 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
     setRoomBlocked(false);
     setRoomSelection(selection);
     setMoveMode(false);
+    setResizeMode(false);
+    setResizeField('width');
     if (selection) useUiStore.getState().select(null);
   }, []);
   const roomOptions = [
@@ -98,9 +108,9 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
     ...(room.features ?? []).map((feature, index) => ({ type: 'feature' as const, id: feature.id, name: `${text.engine.roomFeatures[feature.kind]} ${index + 1}` })),
   ];
   const activeRoomSelection = roomSelection && roomOptions.some((option) => option.type === roomSelection.type && option.id === roomSelection.id) ? roomSelection : null;
-  const moving = !!(moveMode && selected || roomMoving && activeRoomSelection);
-  const loadingMove = moving && (roomMoving ? !roomMoveReady : !moveReady);
-  const moveHint = roomMoving && activeRoomSelection
+  const moving = !!((moveMode || resizeMode) && selected || roomMoving && activeRoomSelection);
+  const loadingMove = moving && (roomMoving ? !roomMoveReady : resizeMode ? !resizeReady : !moveReady);
+  const moveHint = resizeMode ? compact ? text.view3d.resizeTouchHint : text.view3d.resizeHint : roomMoving && activeRoomSelection
     ? activeRoomSelection.type === 'opening' ? text.view3d.moveOpeningHint : text.view3d.moveFeatureHint
     : text.view3d.moveHint;
 
@@ -115,7 +125,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
   useEffect(() => {
     if (!selectedId) { setMoveMode(false); setMoveReady(false); }
     else selectRoomObject(null);
-  }, [selectedId, selectRoomObject]);
+  }, [selectedId, selected?.kind, selectRoomObject]);
   useEffect(() => {
     const escape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.target instanceof HTMLElement && (event.target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName))) return;
@@ -128,8 +138,9 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
   useEffect(() => () => { if (import.meta.env.DEV) Reflect.deleteProperty(window, '__kitchen3D'); }, []);
 
   const select = useCallback((id: string) => {
-    selectRoomObject(null);
     const ui = useUiStore.getState();
+    if (ui.selectedId === id) return;
+    selectRoomObject(null);
     const items = useDesignStore.getState().design.items;
     const item = items.find((candidate) => candidate.id === id);
     if (item && ui.wallElevation !== null) {
@@ -152,7 +163,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
         camera={{ fov: CAMERA_FOV, near: 0.05, far: 200 }}
         onCreated={({ camera, scene, gl }) => { if (import.meta.env.DEV) Object.assign(window, { __kitchen3D: { camera, scene, renderer: gl } }); }}
         onPointerMissed={(event) => {
-          if (event.type === 'click' && !moveMode && !roomMoving) {
+          if (event.type === 'click' && !moveMode && !resizeMode && !roomMoving) {
             useUiStore.getState().select(null);
             selectRoomObject(null);
           }
@@ -196,6 +207,9 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
           />
         ))}
         {moveMode && selected && selectedObject?.name === selected.id && <Suspense fallback={null}><CabinetTransform key={selected.id} item={selected} object={selectedObject} onReady={readyMove} onCancel={cancelMove} /></Suspense>}
+        {resizeMode && selected && <Suspense fallback={null}>
+          <CabinetResize key={`${selected.id}-${resizeField}`} item={selected} field={resizeField} onReady={readyResize} onCancel={cancelResize} onBlocked={setResizeBlocked} />
+        </Suspense>}
         {roomMoving && activeRoomSelection && roomObject?.name === `room-${activeRoomSelection.type}-${activeRoomSelection.id}` && <Suspense fallback={null}>
           <RoomObjectTransform key={`${activeRoomSelection.type}-${activeRoomSelection.id}`} selection={activeRoomSelection} object={roomObject} onReady={readyRoomMove} onCancel={cancelRoomMove} onBlocked={setRoomBlocked} />
         </Suspense>}
@@ -231,7 +245,10 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
             {roomOptions.map((option) => <option key={`${option.type}:${option.id}`} value={`${option.type}:${option.id}`}>{option.name}</option>)}
           </select>}
         </div>
-        {selected && <SelectedCabinetTools key={selected.id} item={selected} compact={compact} studio={referenceOpen} moving={moveMode} invalid={invalid.has(selected.id)} onMove={() => { setMoveReady(false); setMoveMode((active) => !active); }} onFocus={() => useUiStore.getState().requestCamera('perspective', selected.id)} />}
+        {selected && <SelectedCabinetTools key={selected.id} item={selected} compact={compact} moving={moveMode} resizing={resizeMode} resizeField={resizeField} resizeBlocked={resizeBlocked}
+          onResizeField={(field) => { if (field !== resizeField) { setResizeReady(false); setResizeBlocked(false); setResizeField(field); } }}
+          onResize={() => { setMoveMode(false); setResizeReady(false); setResizeBlocked(false); setResizeMode((active) => !active); }}
+          invalid={invalid.has(selected.id)} onMove={() => { cancelResize(); setMoveReady(false); setMoveMode((active) => !active); }} onFocus={() => useUiStore.getState().requestCamera('perspective', selected.id)} />}
         {activeRoomSelection && <RoomObjectTools key={`${activeRoomSelection.type}-${activeRoomSelection.id}`} selection={activeRoomSelection} compact={compact} moving={roomMoving} blocked={roomBlocked}
           onMove={() => { setRoomMoveReady(false); setRoomBlocked(false); setRoomMoving((active) => !active); }} onClose={() => selectRoomObject(null)} />}
         {!compact && styleOpen && (
@@ -263,23 +280,51 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function SelectedCabinetTools({ item, compact, studio, moving, invalid, onMove, onFocus }: {
-  item: KitchenItem; compact: boolean; studio: boolean; moving: boolean; invalid: boolean; onMove: () => void; onFocus: () => void;
+function SelectedCabinetTools({ item, compact, moving, resizing, resizeField, resizeBlocked, invalid, onMove, onResize, onResizeField, onFocus }: {
+  item: KitchenItem; compact: boolean; moving: boolean; resizing: boolean; resizeField: SizeField; resizeBlocked: boolean;
+  invalid: boolean; onMove: () => void; onResize: () => void; onResizeField: (field: SizeField) => void; onFocus: () => void;
 }) {
   const t = useT();
   const [editing, setEditing] = useState(false);
+  const limits = sizeLimits(item, resizeField);
   return (
     <div className="pointer-events-auto max-w-full space-y-1">
       <div role="group" aria-label={t.view3d.selectedActions} className="flex max-w-full flex-wrap items-center gap-1 rounded-lg border border-zinc-200 bg-white p-1 shadow-sm">
         <span className="px-2 text-xs font-semibold text-zinc-800">{item.label}</span>
-        <Button active={moving} aria-label={t.view3d.move} title={t.view3d.move} onClick={onMove}><Move className="size-4" /></Button>
-        <Button aria-label={t.view3d.rotateSelected} title={t.view3d.rotateSelected} onClick={() => rotateSelected(1)}><RotateCw className="size-4" /></Button>
-        <Button aria-label={t.view3d.focusSelection} title={t.view3d.focusSelection} onClick={onFocus}><Scan className="size-4" /></Button>
-        <Button aria-label={t.view3d.copySelected} title={t.view3d.copySelected} onClick={duplicateSelected}><Copy className="size-4" /></Button>
-        <StackAboveButton key={item.id} item={item} iconOnly />
-        {(compact || studio) && <Button aria-label={t.view3d.editSelected} title={t.view3d.editSelected} onClick={() => setEditing(true)}><Pencil className="size-4" /></Button>}
-        <Button aria-label={t.view3d.deleteSelected} title={t.view3d.deleteSelected} onClick={deleteSelected}><Trash2 className="size-4" /></Button>
+        <Button active={moving} aria-pressed={moving} aria-label={t.view3d.move} title={t.view3d.move} className={compact ? 'min-h-11' : undefined} onClick={onMove}><Move className="size-4" />{t.view3d.moveShort}</Button>
+        <Button active={resizing} aria-pressed={resizing} aria-label={t.view3d.resize} title={t.view3d.resize} className={compact ? 'min-h-11' : undefined} onClick={onResize}><Ruler className="size-4" />{t.view3d.resizeShort}</Button>
+        {(!compact || !resizing) && <div className={`flex items-center gap-1 ${compact ? 'basis-full border-t border-zinc-100 pt-1 [&>button]:min-h-11 [&>button]:min-w-11' : ''}`}>
+          <Button aria-label={t.view3d.rotateSelected} title={t.view3d.rotateSelected} onClick={() => rotateSelected(1)}><RotateCw className="size-4" /></Button>
+          <Button aria-label={t.view3d.focusSelection} title={t.view3d.focusSelection} onClick={onFocus}><Scan className="size-4" /></Button>
+          <Button aria-label={t.view3d.copySelected} title={t.view3d.copySelected} onClick={duplicateSelected}><Copy className="size-4" /></Button>
+          <StackAboveButton key={item.id} item={item} iconOnly />
+          <Button aria-label={t.view3d.editSelected} title={t.view3d.editSelected} onClick={() => setEditing(true)}><Pencil className="size-4" /></Button>
+          <Button aria-label={t.view3d.deleteSelected} title={t.view3d.deleteSelected} onClick={deleteSelected}><Trash2 className="size-4" /></Button>
+        </div>}
       </div>
+      {resizing && <div className="max-w-sm rounded-lg border border-zinc-200 bg-white p-2 shadow-sm">
+        <div className="mb-1.5 flex items-center justify-between gap-2">
+          <p className="px-1 text-xs font-medium text-zinc-700">{t.view3d.resizeChoose}</p>
+          {compact && <Button className="min-h-11 shrink-0" variant="outline" onClick={onResize}>{t.common.done}</Button>}
+        </div>
+        <div role="group" aria-label={t.view3d.resizeChoose} className="flex flex-wrap gap-1">
+          {(['width', 'height', 'depth', ...(item.kind === 'corner' ? ['width2'] as const : [])] as const).map((field) => {
+            const label = field === 'width2' ? t.item.widthWallB : field === 'width' && item.kind === 'corner' ? t.item.widthWallA : t.item[field];
+            const limits = sizeLimits(item, field);
+            return <Button key={field} active={resizeField === field} aria-pressed={resizeField === field} title={`${label}: ${limits.min}-${limits.max} mm`} onClick={() => onResizeField(field)}
+              className="min-h-11 flex-col gap-0.5 px-3 py-1">
+              <span className="text-[11px]">{label}</span>
+              <span className="font-semibold tabular-nums">{t.mm(field === 'width2' ? item.width2 ?? item.width : item[field])} mm</span>
+            </Button>;
+          })}
+        </div>
+        <p className="mt-1 px-1 text-[11px] tabular-nums text-zinc-500">{t.view3d.resizeRange}: {t.mm(limits.min)}–{t.mm(limits.max)} mm</p>
+        {!compact && <>
+          <p className="mt-2 px-1 text-xs leading-relaxed text-zinc-600">{t.view3d.resizeGuidance}</p>
+          <Button className="mt-2 w-full" variant="outline" onClick={onResize}>{t.common.done}</Button>
+        </>}
+      </div>}
+      {resizing && resizeBlocked && <p role="status" className="max-w-sm rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">{t.view3d.resizeBlocked}</p>}
       {invalid && <p role="status" className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-800">{t.view3d.invalidSelection}</p>}
       <Dialog open={editing} title={`${t.kinds[item.kind]} ${item.label}`} sheet={compact} onClose={() => setEditing(false)} footer={<Button variant="primary" onClick={() => setEditing(false)}>{t.common.done}</Button>}>
         <ItemFields item={item} />

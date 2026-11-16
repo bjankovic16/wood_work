@@ -13,6 +13,7 @@
     "e2e": "node scripts/e2e.mjs",
     "e2e:rooms": "node scripts/rooms-e2e.mjs",
     "e2e:stacked": "node scripts/stacked-e2e.mjs",
+    "e2e:resize": "node scripts/resize-e2e.mjs",
     "render:kitchens": "node scripts/render-kitchens.mjs"
   },
   "dependencies": {
