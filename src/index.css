@@ -50,10 +50,47 @@ kbd {
   box-shadow: 0 8px 24px #332f2810;
 }
 
+/* Kitchens dealt by "Shuffle" settle into place, so it is clear the set has changed. */
+.start-idea {
+  animation: start-idea-in 240ms ease-out both;
+}
+
+.start-idea:nth-child(2) {
+  animation-delay: 45ms;
+}
+
+.start-idea:nth-child(3) {
+  animation-delay: 90ms;
+}
+
+@keyframes start-idea-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* Short screens keep the start card to its buttons, clear of the plan's own controls. */
+@media (max-height: 639px) {
+  .start-ideas {
+    display: none;
+  }
+}
+
+@media (min-height: 640px) and (max-width: 1023px) {
+  .start-hint {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .kitchen-card,
   .kitchen-card svg {
     transition: none;
+  }
+
+  .start-idea {
+    animation: none;
   }
 }
 

@@ -1,8 +1,13 @@
+import { Shuffle } from 'lucide-react';
+import { useRef } from 'react';
+import { hasLook, KITCHEN_LOOKS } from '../../domain/kitchens';
+import { randomSeed, shuffled } from '../../domain/shuffle';
 import { APPLIANCE_FINISHES, BACKSPLASH_FINISHES, FRONT_FINISHES, HANDLE_STYLES, WORKTOP_FINISHES, type Finish } from '../../domain/style';
 import { useT } from '../../i18n';
 import { cn } from '../../lib/cn';
 import { setStyle } from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
+import { Button } from '../ui';
 
 function swatchBackground(finish: Finish): string {
   // Wood finishes get a streaky gradient to hint at the grain.
@@ -57,8 +62,27 @@ function Swatches<K extends string>({
 export function StylePicker() {
   const t = useT();
   const style = useDesignStore((s) => s.design.style);
+  // Looks are dealt from a shuffled pack, so none repeats until all have been seen.
+  const pack = useRef<{ seed: number; next: number } | null>(null);
+  const shuffleLook = () => {
+    pack.current ??= { seed: randomSeed(), next: 0 };
+    const current = useDesignStore.getState().design.style;
+    for (let tries = 0; tries < KITCHEN_LOOKS.length; tries++) {
+      if (pack.current.next >= KITCHEN_LOOKS.length) pack.current = { seed: randomSeed(), next: 0 };
+      const look = shuffled(KITCHEN_LOOKS, pack.current.seed)[pack.current.next++];
+      if (hasLook(current, look)) continue;
+      setStyle(look);
+      return;
+    }
+  };
   return (
     <div className="space-y-4">
+      <div>
+        <Button variant="outline" className="h-10 w-full" title={t.style.shuffleTitle} onClick={shuffleLook}>
+          <Shuffle className="size-4" />{t.style.shuffle}
+        </Button>
+        <p className="mt-1.5 text-[11px] leading-relaxed text-zinc-600">{t.style.shuffleNote}</p>
+      </div>
       <Swatches label={t.style.fronts} options={FRONT_FINISHES} names={t.style.frontFinishes} value={style.front} onChange={(front) => setStyle({ front })} />
       <div>
         <p className="mb-1.5 text-xs font-medium text-zinc-700">{t.style.frontProfile}</p>
