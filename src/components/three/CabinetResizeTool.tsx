@@ -1,9 +1,7 @@
 import { Component, lazy, Suspense, useEffect, type ComponentProps, type ReactNode, type RefObject } from 'react';
-import { Grip } from 'lucide-react';
 import type { KitchenItem } from '../../domain/types';
 import { useT } from '../../i18n';
 import { Button } from '../ui';
-import type { ResizeGripApi } from './CabinetResize';
 
 const CabinetResize = lazy(() => import('./CabinetResize').then((module) => ({ default: module.CabinetResize })));
 
@@ -38,21 +36,18 @@ export function ResizeFeedback({ failed }: { failed: boolean }) {
   </div>;
 }
 
-export function CabinetResizeGrips({ item, overlay, api }: {
-  item: KitchenItem; overlay: RefObject<HTMLDivElement | null>; api: RefObject<ResizeGripApi | null>;
+export function CabinetResizeLabels({ item, overlay }: {
+  item: KitchenItem; overlay: RefObject<HTMLDivElement | null>;
 }) {
   const t = useT();
-  return <div ref={overlay} data-testid="resize-grips" className="pointer-events-none absolute inset-0 z-[5]">
+  return <div ref={overlay} data-testid="resize-labels" className="pointer-events-none absolute inset-0 z-[5]">
     {(['width', 'height', 'depth', ...(item.kind === 'corner' ? ['width2'] as const : [])] as const).map((field) => {
       const label = field === 'width2' ? t.item.widthWallB : field === 'width' && item.kind === 'corner' ? t.item.widthWallA : t.item[field];
-      return <button key={field} type="button" data-resize-field={field} style={{ visibility: 'hidden' }}
-        aria-label={`${t.view3d.resizeShort}: ${label}`} title={t.view3d.resizeGripHint}
-        onPointerDown={(event) => api.current?.begin(field, event.nativeEvent, event.currentTarget)}
-        className={`pointer-events-auto absolute left-0 top-0 flex min-h-11 touch-none items-center gap-1 rounded-xl border-2 border-blue-500 bg-white px-2 py-1 text-blue-700 shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 ${field === 'height' ? 'cursor-ns-resize' : 'cursor-ew-resize'}`}>
-        <Grip className="size-4 shrink-0" aria-hidden="true" />
+      return <span key={field} data-resize-field={field} style={{ visibility: 'hidden' }}
+        className="absolute left-0 top-0 rounded-lg border border-blue-300 bg-white/95 px-2 py-1 text-blue-700 shadow-sm">
         <span className="flex flex-col items-start whitespace-nowrap text-[11px] leading-tight"><span>{label}</span>
           <strong className="tabular-nums">{t.mm(field === 'width2' ? item.width2 ?? item.width : item[field])} mm</strong></span>
-      </button>;
+      </span>;
     })}
   </div>;
 }

@@ -3,7 +3,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
 import { createServer, preview } from 'vite';
-import { assertScenePlacement, cabinetBodyDrag, close3DTools, open3DTools, resizeGripDrag, waitForIdleRendering } from './three-test-helpers.mjs';
+import { assertScenePlacement, cabinetBodyDrag, close3DTools, open3DTools, resizeArrowDrag, waitForIdleRendering } from './three-test-helpers.mjs';
 
 const output = path.join('test-results', 'resize');
 await mkdir(output, { recursive: true });
@@ -21,7 +21,7 @@ const history = (page) => page.evaluate(() => window.__kitchen.design.getState()
 const move = (page) => page.getByRole('button', { name: 'Move cabinet', exact: true });
 const resize = (page) => page.getByRole('button', { name: 'Resize cabinet', exact: true });
 const done = (page) => page.getByTestId('cabinet-tools').getByRole('button', { name: 'Done', exact: true });
-const grip = (page, field) => page.locator(`[data-resize-field="${field}"]`);
+const resizeLabel = (page, field) => page.locator(`[data-resize-field="${field}"]`);
 const undo = (page) => page.getByRole('button', { name: 'Undo', exact: true }).click();
 const lockMessage = 'Preview only: close this cabinet and exit Interior view to move, resize or rotate it.';
 
@@ -67,7 +67,7 @@ async function drag(page, points, { touch = false, finish = true } = {}) {
 
 async function armResize(page) {
   if (await resize(page).getAttribute('aria-pressed') !== 'true') await resize(page).click();
-  await grip(page, 'width').waitFor({ state: 'visible' });
+  await resizeLabel(page, 'width').waitFor({ state: 'visible' });
   await waitForIdleRendering(page);
 }
 
@@ -134,9 +134,7 @@ try {
     for (const field of ['width', 'height', 'depth', ...(kind === 'corner' ? ['width2'] : [])]) {
       original = await design(page);
       const count = await history(page);
-      const box = await grip(page, field).boundingBox();
-      assert.ok(box.width >= 44 && box.height >= 44, 'Face grips must be large touch targets.');
-      await drag(page, await resizeGripDrag(page, field));
+      await drag(page, await resizeArrowDrag(page, field));
       after = await design(page);
       assert.ok(after.items[0][field] > original.items[0][field], `${kind} at ${rotation} degrees must resize ${field}.`);
       assert.equal(after.items[0][field] % 50, 0);
@@ -154,14 +152,14 @@ try {
       assert.deepEqual(await design(page), original);
     }
   }
-  await page.screenshot({ path: path.join(output, 'corner-face-grips.png') });
-  console.log('  PASS face grips resize every dimension at ordinary/diagonal angles, including both corner arms, without shifting anchors');
+  await page.screenshot({ path: path.join(output, 'corner-arrows.png') });
+  console.log('  PASS directional arrows resize every dimension at ordinary/diagonal angles, including both corner arms, without shifting anchors');
 
   await fixture(page);
   await armResize(page);
   await open3DTools(page);
-  await drag(page, await resizeGripDrag(page));
-  assert.ok((await design(page)).items[0].width > 600, 'Grips must work while Tools and numeric properties are visible.');
+  await drag(page, await resizeArrowDrag(page));
+  assert.ok((await design(page)).items[0].width > 600, 'Arrows must work while Tools and numeric properties are visible.');
   await undo(page);
   await page.getByLabel('Width', { exact: true }).fill('650');
   await page.getByLabel('Width', { exact: true }).press('Tab');
@@ -172,7 +170,7 @@ try {
     await armResize(page);
     original = await design(page);
     const count = await history(page);
-    await drag(page, await resizeGripDrag(page), { finish: false });
+    await drag(page, await resizeArrowDrag(page), { finish: false });
     assert.notDeepEqual(await design(page), original);
     if (interruption === 'Escape') await page.keyboard.press('Escape');
     else await page.evaluate((type) => window.dispatchEvent(type === 'pointercancel' ? new PointerEvent(type, { pointerId: 1 }) : new Event(type)), interruption);
@@ -193,23 +191,23 @@ try {
   await armResize(page);
   original = await design(page);
   let count = await history(page);
-  await drag(page, await resizeGripDrag(page, 'width', 0.3));
+  await drag(page, await resizeArrowDrag(page, 'width', 0.3));
   assert.deepEqual(await design(page), original);
   assert.equal(await history(page), count, 'Catalog-clamped no-ops must not create Undo entries.');
   await fixture(page);
   await page.evaluate(async () => (await import('/src/store/actions.ts')).setItemPosition('resize-cabinet', 3400, 1700));
   await armResize(page);
   original = await design(page);
-  await drag(page, await resizeGripDrag(page, 'width', 0.3));
+  await drag(page, await resizeArrowDrag(page, 'width', 0.3));
   await page.getByText('The cabinet must fit inside the room and below the ceiling. This size was not applied.', { exact: true }).waitFor();
   assert.deepEqual(await design(page), original);
-  await drag(page, await resizeGripDrag(page, 'width', -0.15));
+  await drag(page, await resizeArrowDrag(page, 'width', -0.15));
   assert.ok((await design(page)).items[0].width < original.items[0].width);
   await fixture(page, 'wall');
   await page.evaluate(async () => (await import('/src/store/actions.ts')).setItemElevation('resize-cabinet', 2000));
   await armResize(page);
   original = await design(page);
-  await drag(page, await resizeGripDrag(page, 'height', 0.4));
+  await drag(page, await resizeArrowDrag(page, 'height', 0.4));
   after = await design(page);
   assert.ok(after.items[0].elevation + after.items[0].height <= after.room.height);
   assert.equal(after.items[0].elevation, original.items[0].elevation);
@@ -219,7 +217,7 @@ try {
     await fixture(page);
     original = await design(page);
     if (tool === 'move') await move(page).click(); else await armResize(page);
-    await drag(page, tool === 'move' ? await cabinetBodyDrag(page, 'X', 0.35) : await resizeGripDrag(page), { finish: false });
+    await drag(page, tool === 'move' ? await cabinetBodyDrag(page, 'X', 0.35) : await resizeArrowDrag(page), { finish: false });
     assert.notDeepEqual(await design(page), original);
     await page.getByRole('button', { name: 'Open cabinet', exact: true }).evaluate((element) => element.click());
     await page.mouse.up();
@@ -260,7 +258,7 @@ try {
   });
   await armResize(page);
   original = await design(page);
-  await drag(page, await resizeGripDrag(page, 'height', -0.1));
+  await drag(page, await resizeArrowDrag(page, 'height', -0.1));
   after = await design(page);
   assert.ok(after.items.find((item) => item.id === populatedId).height < original.items.find((item) => item.id === populatedId).height);
   assert.deepEqual(after.items.filter((item) => item.id !== populatedId), original.items.filter((item) => item.id !== populatedId));
@@ -276,6 +274,36 @@ try {
   await page.evaluate(() => window.__kitchen.ui.getState().setView('3d'));
   assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().cabinetTool), null);
   console.log('  PASS populated kitchens resize one cabinet, selection/view changes disarm tools, and plan arrows still work');
+
+  await fixture(page);
+  original = await design(page);
+  const shuffle = (target) => target.getByRole('button', { name: 'Shuffle kitchen', exact: true });
+  await shuffle(page).click();
+  await page.getByRole('status').getByText(/Kitchen rearranged/).waitFor();
+  after = await design(page);
+  assert.notDeepEqual(after.items, original.items);
+  assert.equal(await history(page), 1);
+  assert.deepEqual({ ...after, items: original.items }, original);
+  await undo(page);
+  assert.deepEqual(await design(page), original);
+  await page.getByRole('status').getByRole('button', { name: 'Close', exact: true }).click();
+  await page.getByRole('button', { name: 'Open cabinet', exact: true }).click();
+  assert.equal(await shuffle(page).isDisabled(), true);
+  await page.getByRole('button', { name: 'Close cabinet', exact: true }).click();
+  await armResize(page);
+  assert.equal(await shuffle(page).isDisabled(), true);
+  await done(page).click();
+  await page.evaluate(() => {
+    const store = window.__kitchen.design.getState();
+    store.load({ ...store.design, items: [{ ...store.design.items[0], width: 5000 }] });
+  });
+  original = await design(page);
+  await shuffle(page).click();
+  await page.getByRole('alert').getByText(/No different complete arrangement was found/).waitFor();
+  assert.deepEqual(await design(page), original);
+  assert.equal(await history(page), 0);
+  await page.getByRole('alert').getByRole('button', { name: 'Close', exact: true }).click();
+  console.log('  PASS desktop Shuffle is one Undo step, respects preview/tool locks and reports failure without changing anything');
 
   const phoneContext = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
   const phone = await phoneContext.newPage();
@@ -296,11 +324,11 @@ try {
   assert.equal((await design(phone)).items[0].elevation, original.items[0].elevation);
   await undo(phone);
   await armResize(phone);
-  session = await drag(phone, await resizeGripDrag(phone), { touch: true });
+  session = await drag(phone, await resizeArrowDrag(phone), { touch: true });
   await session.detach();
   assert.ok((await design(phone)).items[0].width > original.items[0].width);
   await undo(phone);
-  session = await drag(phone, await resizeGripDrag(phone), { touch: true, finish: false });
+  session = await drag(phone, await resizeArrowDrag(phone), { touch: true, finish: false });
   assert.notDeepEqual(await design(phone), original);
   await session.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
   await session.detach();
@@ -308,13 +336,18 @@ try {
   await phone.setViewportSize({ width: 320, height: 844 });
   await phone.evaluate(() => window.__kitchen.ui.getState().setLanguage('sr'));
   await waitForIdleRendering(phone);
-  assert.match(await grip(phone, 'width').innerText(), /Širina/);
-  for (const field of ['width', 'height', 'depth']) await resizeGripDrag(phone, field);
+  assert.match(await resizeLabel(phone, 'width').innerText(), /Širina/);
+  for (const field of ['width', 'height', 'depth']) await resizeArrowDrag(phone, field);
+  assert.equal(await phone.evaluate(() => {
+    const tools = document.querySelector('[data-testid="cabinet-tools"]').getBoundingClientRect();
+    const hint = document.querySelector('[data-testid="cabinet-mode-hint"]').getBoundingClientRect();
+    return tools.left < hint.right && tools.right > hint.left && tools.top < hint.bottom && tools.bottom > hint.top;
+  }), false, 'The mobile tool buttons must not be hidden behind resize instructions.');
   assert.ok(await phone.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
-  await phone.screenshot({ path: path.join(output, 'phone-grips-sr.png') });
+  await phone.screenshot({ path: path.join(output, 'phone-arrows-sr.png') });
   await phone.evaluate(() => window.__kitchen.ui.getState().setLanguage('en'));
   await phone.getByTestId('item-sheet').getByRole('button', { name: 'Edit', exact: true }).tap();
-  for (const field of ['width', 'height', 'depth']) await resizeGripDrag(phone, field);
+  for (const field of ['width', 'height', 'depth']) await resizeArrowDrag(phone, field);
   await phone.getByTestId('item-sheet').getByRole('button', { name: 'Less', exact: true }).tap();
   await phone.getByRole('button', { name: 'Open cabinet', exact: true }).tap();
   await assertLocked(phone, original);
@@ -326,8 +359,20 @@ try {
   const idle = await phone.evaluate(() => window.__kitchen3D.renderer.info.render.frame);
   await phone.waitForTimeout(300);
   assert.ok(await phone.evaluate(() => window.__kitchen3D.renderer.info.render.frame) - idle <= 1);
+  await done(phone).tap();
+  await phone.getByRole('button', { name: 'More', exact: true }).tap();
+  assert.equal(await shuffle(phone).isEnabled(), true);
+  original = await design(phone);
+  await shuffle(phone).tap();
+  await phone.getByRole('status').getByText(/Kitchen rearranged/).waitFor();
+  assert.notDeepEqual((await design(phone)).items, original.items);
+  assert.equal(await history(phone), 1);
+  await undo(phone);
+  assert.deepEqual(await design(phone), original);
+  assert.ok(await phone.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+  await phone.getByRole('status').getByRole('button', { name: 'Close', exact: true }).tap();
   await phoneContext.close();
-  console.log('  PASS touch Move/Resize, cancellation and preview locks; labeled grips fit 320px in Serbian and rendering stops at idle');
+  console.log('  PASS touch Move/Resize, cancellation, preview locks and Shuffle/Undo; arrows fit 320px in Serbian and rendering stops at idle');
 
   const persisted = await design(page);
   await page.waitForTimeout(500);
@@ -342,9 +387,9 @@ try {
   await loadingPage.goto(server.resolvedUrls.local[0], { waitUntil: 'domcontentloaded' });
   await fixture(loadingPage);
   await resize(loadingPage).click();
-  await loadingPage.getByTestId('resize-status').getByText('Loading resize grips…', { exact: true }).waitFor();
+  await loadingPage.getByTestId('resize-status').getByText('Loading resize arrows…', { exact: true }).waitFor();
   releaseResize();
-  await grip(loadingPage, 'width').waitFor({ state: 'visible' });
+  await resizeLabel(loadingPage, 'width').waitFor({ state: 'visible' });
   await loadingPage.getByTestId('resize-status').waitFor({ state: 'detached' });
   await loadingPage.close();
   const failedPage = await browser.newPage({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
@@ -371,6 +416,8 @@ try {
     await open3DTools(page);
     const value = await design(page);
     const click = await cabinetBodyDrag(page);
+    await armResize(page);
+    const heightArrow = await resizeArrowDrag(page, 'height', 0.2);
     const production = await preview({ logLevel: 'error', preview: { host: '127.0.0.1', port: 0 } });
     const productionPage = await browser.newPage({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
     observe(productionPage);
@@ -386,10 +433,8 @@ try {
       await open3DTools(productionPage);
       await productionPage.mouse.click(click.from.x, click.from.y);
       await resize(productionPage).click();
-      await grip(productionPage, 'height').waitFor({ state: 'visible' });
-      const box = await grip(productionPage, 'height').boundingBox();
-      const from = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-      await drag(productionPage, { from, to: { x: from.x, y: from.y - 60 } });
+      await resizeLabel(productionPage, 'height').waitFor({ state: 'visible' });
+      await drag(productionPage, heightArrow);
       assert.ok(Number(await productionPage.getByLabel('Height', { exact: true }).inputValue()) > value.items[0].height);
       await undo(productionPage);
       assert.equal(Number(await productionPage.getByLabel('Height', { exact: true }).inputValue()), value.items[0].height);
@@ -398,7 +443,7 @@ try {
       await productionPage.close();
       await new Promise((resolve, reject) => production.httpServer.close((error) => error ? reject(error) : resolve()));
     }
-    console.log('  PASS production assets support real Tools-open face-grip resizing without development hooks');
+    console.log('  PASS production assets support real Tools-open arrow resizing without development hooks');
   }
   assert.deepEqual(errors, []);
   console.log('All explicit 3D manipulation browser checks passed.');

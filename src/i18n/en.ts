@@ -96,6 +96,15 @@ export const en = {
     unavailable: 'Saving files is not available here.',
   },
 
+  shuffle: {
+    title: 'Shuffle kitchen',
+    hint: 'Try another arrangement with the same room and cabinet sizes, including sinks and appliances.',
+    success: 'Kitchen rearranged. Undo restores the previous layout. Check plumbing, electrical connections and appliance clearances before using this idea.',
+    preview: 'Close all cabinets and exit Interior view before shuffling.',
+    busy: 'Finish moving or resizing before shuffling.',
+    unavailable: 'No different complete arrangement was found. Nothing was changed; try freeing some space.',
+  },
+
   topBar: {
     projectName: 'Project name',
     renameProject: 'Rename the project',
@@ -608,13 +617,12 @@ export const en = {
     tools: '3D tools',
     help: 'How to use 3D',
     moveModeHint: 'Hold the selected cabinet and drag to move it. Done finishes; Escape cancels a drag.',
-    resizeModeHint: 'Hold and drag a labeled grip to resize. Use properties for exact values. Done finishes; Escape cancels a drag.',
-    resizeGripHint: 'Hold and drag to resize this dimension.',
+    resizeModeHint: 'Drag an arrow out to grow or in to shrink its dimension. Done finishes; Escape cancels a drag.',
     previewLocked: 'Preview only: close this cabinet and exit Interior view to move, resize or rotate it.',
     resizeBlocked: 'The cabinet must fit inside the room and below the ceiling. This size was not applied.',
     loadingMove: 'Loading movement handles…',
-    loadingResize: 'Loading resize grips…',
-    resizeLoadFailed: 'Resize grips could not load. Reload the page to try again, or edit the cabinet dimensions in its properties.',
+    loadingResize: 'Loading resize arrows…',
+    resizeLoadFailed: 'Resize arrows could not load. Reload the page to try again, or edit the cabinet dimensions in its properties.',
     reloadResize: 'Reload page',
     selectHint: 'Click a cabinet, door, window or structure to edit it. Drag the background to orbit; scroll or pinch to zoom.',
     roomObjects: 'Doors, windows & structures',

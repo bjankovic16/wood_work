@@ -41,14 +41,19 @@ export function SelectionOverlay({ item, overlay }: { item: KitchenItem; overlay
     };
     const body = scene.getObjectByName(item.id);
     if (body) includeBounds(new THREE.Box3().setFromObject(body));
+    const arrows = scene.getObjectByName('kitchen-resize-tool');
+    if (arrows) includeBounds(new THREE.Box3().setFromObject(arrows));
     const width = element.offsetWidth;
     const height = element.offsetHeight;
     const sheet = document.querySelector('[data-testid="item-sheet"]')?.getBoundingClientRect();
     const availableHeight = Math.min(box.height, sheet ? sheet.top - box.top - 8 : box.height);
+    const hint = document.querySelector('[data-testid="cabinet-mode-hint"]')?.getBoundingClientRect();
+    const minY = hint ? Math.max(8, hint.bottom - box.top + 8) : 8;
     const x = THREE.MathUtils.clamp((point.x + 1) * box.width / 2, width / 2 + 8, Math.max(width / 2 + 8, box.width - width / 2 - 8));
     const above = top - height - 12;
-    const y = THREE.MathUtils.clamp(above >= 8 ? above : bottom + height + 20 <= availableHeight ? bottom + 12 : 8,
-      8, Math.max(8, availableHeight - height - 8));
+    const maxY = Math.max(8, availableHeight - height - 8);
+    const y = THREE.MathUtils.clamp(above >= minY ? above : bottom + height + 20 <= availableHeight ? bottom + 12 : maxY,
+      Math.min(minY, maxY), maxY);
     element.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px) translateX(-50%)`;
     element.style.visibility = point.z < -1 || point.z > 1 ? 'hidden' : 'visible';
   });

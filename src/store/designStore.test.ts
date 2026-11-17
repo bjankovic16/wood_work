@@ -87,6 +87,53 @@ describe('explicit 3D cabinet tools', () => {
   });
 });
 
+describe('shuffle kitchen', () => {
+  it('applies the complete arrangement as one undoable change while preserving design metadata', () => {
+    const original = {
+      ...ops.createDesign(),
+      items: [createItem('sink', [], { id: 'sink', x: 1000, y: 1000 }), createItem('oven', [], { id: 'oven', x: 2000, y: 1000 })],
+    };
+    store().load(original);
+    expect(actions.shuffleKitchen()).toEqual({ ok: true });
+    const result = store().design;
+    expect(result.items).not.toEqual(original.items);
+    expect({ ...result, items: original.items }).toEqual(original);
+    expect(store().past).toHaveLength(1);
+    store().undo();
+    expect(store().design).toBe(original);
+    store().redo();
+    expect(store().design).toBe(result);
+  });
+
+  it('rejects open previews, active tools and gestures without changing the layout or history', () => {
+    const item = createItem('base', [], { x: 1000, y: 1000 });
+    const original = { ...ops.createDesign(), items: [item] };
+    store().load(original);
+    useUiStore.setState({ view: '3d', selectedId: item.id, previewLockedIds: [item.id] });
+    expect(actions.shuffleKitchen()).toEqual({ ok: false, reason: 'preview' });
+    useUiStore.setState({ previewLockedIds: [], cabinetTool: 'resize' });
+    expect(actions.shuffleKitchen()).toEqual({ ok: false, reason: 'busy' });
+    useUiStore.setState({ cabinetTool: null });
+    store().beginGesture();
+    expect(actions.shuffleKitchen()).toEqual({ ok: false, reason: 'busy' });
+    store().cancelGesture();
+    expect(store().design).toBe(original);
+    expect(store().past).toHaveLength(0);
+  });
+
+  it('reports an unsuccessful search explicitly and leaves the entire design untouched', () => {
+    const original = {
+      ...ops.createDesign(),
+      room: { width: 1000, depth: 1000, height: 2700 },
+      items: [createItem('base', [], { width: 1200 })],
+    };
+    store().load(original);
+    expect(actions.shuffleKitchen()).toEqual({ ok: false, reason: 'unavailable' });
+    expect(store().design).toBe(original);
+    expect(store().past).toHaveLength(0);
+  });
+});
+
 describe('design history', () => {
   it('moves a structure as one undoable gesture without repositioning unrelated, already-invalid cabinetry', () => {
     const original = {

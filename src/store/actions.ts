@@ -23,12 +23,28 @@ import { clientToPlan, snapSettings } from './viewport';
 import { normalizeAngle } from '../domain/polygons';
 import { roomOutline } from '../domain/roomGeometry';
 import { roomSegments } from '../domain/walls';
+import { shuffledKitchen } from '../domain/shuffleKitchen';
 import type { RoomVertex } from '../domain/types';
 
 /** User-level commands that tie the pure design operations to the stores. */
 
 const current = (): Design => useDesignStore.getState().design;
 const apply = (recipe: (design: Design) => Design): void => useDesignStore.getState().apply(recipe);
+
+export type ShuffleResult = { ok: true } | { ok: false; reason: 'preview' | 'busy' | 'unavailable' };
+
+export function shuffleKitchen(): ShuffleResult {
+  const ui = useUiStore.getState();
+  const store = useDesignStore.getState();
+  if (ui.previewLockedIds.length > 0) return { ok: false, reason: 'preview' };
+  if (ui.cabinetTool || store.gestureBase) return { ok: false, reason: 'busy' };
+  const { design } = store;
+  const items = shuffledKitchen(design.room, design.items, design.openings);
+  if (!items) return { ok: false, reason: 'unavailable' };
+  store.apply((value) => ({ ...value, items }));
+  ui.requestCamera(ui.cameraView);
+  return { ok: true };
+}
 
 function selectedItem(): KitchenItem | null {
   const id = useUiStore.getState().selectedId;

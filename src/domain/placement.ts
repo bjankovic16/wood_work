@@ -9,10 +9,11 @@ import {
   footprintPieces,
   itemInsideRoom,
   localToRoom,
+  backWall,
 } from './geometry';
 import { openingObstacles } from './openings';
 import { roomFeatureRect, roomWallRuns } from './roomGeometry';
-import type { KitchenItem, Opening, Point, Room } from './types';
+import type { KitchenItem, Opening, Point, Room, Wall } from './types';
 import { angleBasis, polygonsOverlap, rectPolygon } from './polygons';
 import { partitionPolygon, mountingSegments, wallPoint } from './walls';
 
@@ -48,6 +49,7 @@ export function canPlaceItem(room: Room, items: readonly KitchenItem[], item: Ki
  * corner; everything else goes into the first gap along the walls, clockwise
  * from the top wall. Wall units only collide with units at their own height,
  * so they line up above the base units. Returns null when nothing fits.
+ * A wall preference changes search order only, not the placement constraints.
  */
 export function findFreeSpot(
   room: Room,
@@ -55,6 +57,7 @@ export function findFreeSpot(
   item: KitchenItem,
   openings: readonly Opening[] = [],
   preferCentre = false,
+  wallOrder?: readonly Wall[],
 ): Placement | null {
   const obstacles = obstaclesFor(item, items, room, openings);
 
@@ -64,7 +67,8 @@ export function findFreeSpot(
   }
 
   if (item.kind === 'corner') {
-    for (const corner of CORNERS) {
+    const corners = wallOrder ? [...CORNERS].sort((a, b) => wallOrder.indexOf(backWall(CORNER_ROTATION[a])) - wallOrder.indexOf(backWall(CORNER_ROTATION[b]))) : CORNERS;
+    for (const corner of corners) {
       const rotation = CORNER_ROTATION[corner];
       const candidate = { ...item, rotation, ...cornerPosition(room, corner, aabbSize({ ...item, rotation })) };
       if (fitsAt(candidate, room, obstacles)) return { x: candidate.x, y: candidate.y, rotation };
@@ -84,7 +88,9 @@ export function findFreeSpot(
     return null;
   }
 
-  for (const surface of roomWallRuns(room)) {
+  const surfaces = roomWallRuns(room);
+  if (wallOrder) surfaces.sort((a, b) => wallOrder.indexOf(a.wall) - wallOrder.indexOf(b.wall));
+  for (const surface of surfaces) {
     const wall = surface.wall;
     const rotation = rotationForWall(wall);
     const { w, h } = aabbSize({ ...item, rotation });

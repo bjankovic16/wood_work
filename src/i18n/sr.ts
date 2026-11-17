@@ -92,6 +92,15 @@ export const sr: Messages = {
     unavailable: 'Čuvanje fajlova ovde nije dostupno.',
   },
 
+  shuffle: {
+    title: 'Promešaj kuhinju',
+    hint: 'Isprobajte drugi raspored u istoj prostoriji, bez promene dimenzija elemenata, uključujući sudoperu i uređaje.',
+    success: 'Kuhinja je preraspoređena. Opozovi vraća prethodni raspored. Proverite vodovodne i električne priključke i potrebne razmake za uređaje pre upotrebe ove ideje.',
+    preview: 'Zatvorite sve elemente i izađite iz prikaza unutrašnjosti pre promene rasporeda.',
+    busy: 'Završite pomeranje ili promenu dimenzija pre promene rasporeda.',
+    unavailable: 'Nije pronađen drugačiji raspored u koji staju svi elementi. Ništa nije promenjeno; pokušajte da oslobodite prostor.',
+  },
+
   topBar: {
     projectName: 'Naziv projekta',
     renameProject: 'Preimenujte projekat',
@@ -598,13 +607,12 @@ export const sr: Messages = {
     tools: '3D alati',
     help: 'Kako koristiti 3D',
     moveModeHint: 'Držite izabrani element i povucite ga. „Gotovo“ završava; Escape otkazuje povlačenje.',
-    resizeModeHint: 'Držite i povucite označenu ručicu za promenu mere. Tačne mere unesite u svojstvima. „Gotovo“ završava; Escape otkazuje povlačenje.',
-    resizeGripHint: 'Držite i povucite za promenu ove mere.',
+    resizeModeHint: 'Povucite strelicu napolje za povećanje ili unutra za smanjenje mere. „Gotovo“ završava; Escape otkazuje povlačenje.',
     previewLocked: 'Samo pregled: zatvorite element i isključite prikaz unutrašnjosti za pomeranje, promenu mera ili okretanje.',
     resizeBlocked: 'Element mora da stane u prostoriju i ispod plafona. Ova mera nije primenjena.',
     loadingMove: 'Učitavanje ručica za pomeranje…',
-    loadingResize: 'Učitavanje ručica za dimenzije…',
-    resizeLoadFailed: 'Ručice za dimenzije nisu učitane. Ponovo učitajte stranicu ili unesite mere u svojstvima elementa.',
+    loadingResize: 'Učitavanje strelica za dimenzije…',
+    resizeLoadFailed: 'Strelice za dimenzije nisu učitane. Ponovo učitajte stranicu ili unesite mere u svojstvima elementa.',
     reloadResize: 'Ponovo učitaj stranicu',
     selectHint: 'Kliknite element, vrata, prozor ili strukturu za izmenu. Povlačite pozadinu za okretanje; točkić ili dva prsta menjaju uvećanje.',
     roomObjects: 'Vrata, prozori i strukture',

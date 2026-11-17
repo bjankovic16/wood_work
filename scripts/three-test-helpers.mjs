@@ -60,32 +60,40 @@ export async function cabinetBodyDrag(page, axis = 'X', distance = 0, id) {
   }, { axis, distance, id });
 }
 
-export async function resizeGripDrag(page, field = 'width', distance = 0.15) {
-  const grip = page.locator(`[data-resize-field="${field}"]`);
-  await grip.waitFor({ state: 'visible' });
+export async function resizeArrowDrag(page, field = 'width', distance = 0.15) {
+  await page.waitForFunction((field) => Boolean(window.__kitchen3D?.scene.getObjectByName(`resize-arrow-head-${field}`)), field);
   await waitForIdleRendering(page);
-  const box = await grip.boundingBox();
-  const from = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-  const delta = await page.evaluate(({ field, distance }) => {
+  const points = await page.evaluate(({ field, distance }) => {
     const item = window.__kitchen.design.getState().design.items.find((entry) => entry.id === window.__kitchen.ui.getState().selectedId);
-    const { camera } = window.__kitchen3D;
+    const { camera, scene } = window.__kitchen3D;
+    scene.updateMatrixWorld(true);
     camera.updateMatrixWorld(true);
+    const arrow = scene.getObjectByName(`resize-arrow-${field}`);
+    const head = scene.getObjectByName(`resize-arrow-head-${field}`);
+    const axis = camera.position.clone().set(0, 1, 0).applyQuaternion(arrow.getWorldQuaternion(camera.quaternion.clone()));
     const angle = item.rotation * Math.PI / 180;
-    const axis = field === 'height' ? [0, 1, 0] : field === 'width' ? [Math.cos(angle), 0, Math.sin(angle)] : [-Math.sin(angle), 0, Math.cos(angle)];
-    const point = camera.position.clone().set((item.x + item.width / 2) / 1000, (item.elevation + item.height / 2) / 1000, (item.y + item.depth / 2) / 1000);
-    const end = point.clone().add(camera.position.clone().set(...axis).multiplyScalar(distance));
-    const startScreen = point.project(camera);
+    const expected = field === 'height' ? [0, 1, 0] : field === 'width' ? [Math.cos(angle), 0, Math.sin(angle)] : [-Math.sin(angle), 0, Math.cos(angle)];
+    if (!axis.toArray().every((value, index) => Math.abs(value - expected[index]) < 0.000001)) throw new Error(`${field} arrow points in the wrong cabinet-local direction.`);
+    const point = head.getWorldPosition(camera.position.clone());
+    const end = point.clone().addScaledVector(axis, distance);
+    const startScreen = point.clone().project(camera);
     const endScreen = end.project(camera);
     const box = document.querySelector('main canvas').getBoundingClientRect();
     const delta = { x: (endScreen.x - startScreen.x) * box.width / 2, y: -(endScreen.y - startScreen.y) * box.height / 2 };
-    return Math.hypot(delta.x, delta.y) < 3
+    const from = { x: box.x + (startScreen.x + 1) * box.width / 2, y: box.y + (1 - startScreen.y) * box.height / 2 };
+    const movement = Math.hypot(delta.x, delta.y) < 3
       ? field === 'height' ? { x: 0, y: -distance * 400 } : { x: distance * 400, y: 0 } : delta;
+    const picker = scene.getObjectByName(`resize-arrow-picker-${field}`);
+    const radius = picker.getWorldScale(camera.position.clone()).x * 26;
+    const right = camera.position.clone().setFromMatrixColumn(camera.matrixWorld, 0).multiplyScalar(radius);
+    const left = point.clone().sub(right).project(camera);
+    const rightScreen = point.clone().add(right).project(camera);
+    return { from, to: { x: from.x + movement.x, y: from.y + movement.y }, targetWidth: Math.abs(rightScreen.x - left.x) * box.width / 2 };
   }, { field, distance });
-  assert.equal(await grip.evaluate((element) => {
-    const box = element.getBoundingClientRect();
-    return document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)?.closest('button') === element;
-  }), true, `${field} grip must not be hidden behind another control.`);
-  return { from, to: { x: from.x + delta.x, y: from.y + delta.y } };
+  assert.ok(points.targetWidth >= 44, `${field} arrow needs at least a 44px touch target.`);
+  assert.equal(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.tagName, points.from), 'CANVAS',
+    `${field} arrow must not be hidden behind another control.`);
+  return points;
 }
 
 export async function movementHandle(page, axis, distance, toolName) {

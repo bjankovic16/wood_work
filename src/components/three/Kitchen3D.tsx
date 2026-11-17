@@ -19,8 +19,7 @@ import { createMaterials, disposeMaterials, m } from './materials';
 import { Room3D } from './Room3D';
 import { RoomObjectTools } from './RoomObjectTools';
 import { CabinetDragController } from './CabinetDrag';
-import { CabinetResizeGrips, CabinetResizeTool, ResizeFeedback } from './CabinetResizeTool';
-import type { ResizeGripApi } from './CabinetResize';
+import { CabinetResizeLabels, CabinetResizeTool, ResizeFeedback } from './CabinetResizeTool';
 import { MoveClearances, SelectionOverlay } from './SelectionOverlay';
 import { StylePicker } from './StylePicker';
 import { Unit3D } from './Unit3D';
@@ -174,8 +173,8 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
   const selected = items.find((item) => item.id === selectedId);
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
   const handlesRef = useRef<HTMLDivElement>(null);
-  const resizeGripsRef = useRef<HTMLDivElement>(null);
-  const resizeApi = useRef<ResizeGripApi>(null);
+  const resizeLabelsRef = useRef<HTMLDivElement>(null);
+  const [resizeInset, setResizeInset] = useState(0);
   const stopCamera = useCallback(() => {
     if (controls.current) controls.current.dispatchEvent({ type: 'start', target: controls.current });
   }, []);
@@ -255,6 +254,16 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
   const dragging = draggingId !== null;
   const selectedLocked = !!selected && previewLockedIds.includes(selected.id);
   const canResize = !!selected && cabinetTool === 'resize' && !selectedLocked && !roomMoving;
+  useLayoutEffect(() => {
+    if (!compact || !canResize) { setResizeInset(0); return; }
+    const sheet = document.querySelector('[data-testid="item-sheet"]');
+    if (!sheet) return;
+    const measure = () => setResizeInset(sheet.getBoundingClientRect().height);
+    const observer = new ResizeObserver(measure);
+    observer.observe(sheet);
+    measure();
+    return () => observer.disconnect();
+  }, [compact, canResize, selectedId]);
   const loadingMove = roomMoving && !roomMoveReady;
   const moveHint = roomMoving && activeRoomSelection
     ? activeRoomSelection.type === 'opening' ? text.view3d.moveOpeningHint : text.view3d.moveFeatureHint
@@ -395,6 +404,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
 
       <div className="relative min-h-0 flex-1 touch-none overflow-hidden" data-testid="three-viewport">
       <Canvas
+        style={{ height: resizeInset ? `calc(100% - ${resizeInset}px)` : '100%' }}
         frameloop="demand"
         shadows={compact ? false : 'percentage'}
         dpr={[1, 2]}
@@ -451,7 +461,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
         <CabinetDragController onDragStart={startDrag} onDragEnd={endDrag} onSelect={select} />
         {selected && !roomMoving && <SelectionOverlay item={selected} overlay={handlesRef} />}
         {selected && dragging && <MoveClearances room={room} items={items} item={selected} />}
-        {canResize && selected && <CabinetResizeTool key={selected.id} item={selected} overlay={resizeGripsRef} api={resizeApi} onStart={stopCamera}
+        {canResize && selected && <CabinetResizeTool key={selected.id} item={selected} overlay={resizeLabelsRef} onStart={stopCamera}
           onLoading={loadingResize} onError={failedResize} onReady={readyResize} onCancel={cancelResize} onBlocked={setResizeBlocked} />}
         {roomMoving && activeRoomSelection && roomObject?.name === `room-${activeRoomSelection.type}-${activeRoomSelection.id}` && <Suspense fallback={null}>
           <RoomObjectTransform key={`${activeRoomSelection.type}-${activeRoomSelection.id}`} selection={activeRoomSelection} object={roomObject} onReady={readyRoomMove} onCancel={cancelRoomMove} onBlocked={setRoomBlocked} />
@@ -468,7 +478,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
       </Canvas>
 
       {canResize && selected && <>
-        {resizeStatus !== 'error' && <CabinetResizeGrips item={selected} overlay={resizeGripsRef} api={resizeApi} />}
+        {resizeStatus !== 'error' && <CabinetResizeLabels item={selected} overlay={resizeLabelsRef} />}
         {resizeStatus !== 'ready' && <ResizeFeedback failed={resizeStatus === 'error'} />}
       </>}
 

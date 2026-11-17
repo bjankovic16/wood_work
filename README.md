@@ -73,6 +73,14 @@ browsers, English otherwise. A language chosen manually is remembered.
   undo/redo, chained wall dimensions, floor/wall unit filter.
 - **Ready-made layouts**: straight, L-shaped or U-shaped starter kitchens
   sized to the room.
+- **Shuffle kitchen**: try another arrangement of the existing cabinets in the
+  same room (on phones, open **More**). Sizes, elevations, finishes and cabinet
+  identities stay unchanged; sinks and appliances can move too. A shuffle is
+  one Undo step, keeps an extractor with its existing cooking cabinet, and
+  respects openings and fixed obstacles. Close previews and finish any active
+  Move/Resize tool first. If no complete different arrangement is found,
+  nothing changes. These are layout ideas: review utility connections and
+  appliance clearances before using them.
 - **52 kitchen inspiration designs**: open **Designs** (or **Kitchen designs**
   in the phone's More menu), then click an image to load that exact kitchen
   in 3D. Choose straight, L-shaped, U-shaped or island kitchens in a range
@@ -283,9 +291,11 @@ browsers, English otherwise. A language chosen manually is remembered.
   are not modelled. Interior view locks movement, resizing and rotation for
   every cabinet until the preview is turned off.
 - **Resize cabinets in 3D**: select a cabinet and press its **Resize** button.
-  Large labeled grips appear on its faces for Width, Height and Depth
-  (corner units also offer the second arm). Hold and drag a grip with a mouse
-  or finger; its measurement updates live. Move and Resize are mutually exclusive.
+  Draggable 3D arrows point outward from the appropriate faces for Width,
+  Height and Depth (corner units also offer the second arm). Drag an arrow
+  outward to grow that dimension or inward to shrink it; labels update live.
+  The arrows follow the cabinet's rotation and have enlarged touch targets.
+  Move and Resize are mutually exclusive.
   The back-left anchor and elevation stay fixed; size limits, the room outline
   and ceiling constrain the change. Grid snapping follows the plan setting.
   Use the properties/pencil for exact dimensions, **Done** to exit, **Undo** to restore a
