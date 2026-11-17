@@ -145,7 +145,7 @@ All dimensions should be displayed in millimeters.
   step; interruption or Escape rolls back. Exact numeric editing remains available.
 - The everyday 3D controls (Style, the 3D/Front/Top views, Open all, Interior
   view and Photo) live in a toolbar docked above the viewport, never over the
-  kitchen. **More** expands a docked panel with the rarely needed tools: the
+  kitchen. **Tools** expands a docked panel with the rarely needed tools: the
   selected-cabinet toolbar with handle-based Move and Resize, the list of room
   objects and the instructions. Selecting a cabinet does not open that panel;
   collapsing it cancels active manipulation. On phones the toolbar shows icons
@@ -169,7 +169,7 @@ All dimensions should be displayed in millimeters.
   next unit or wall at the same height is shown along the floor (or along the
   underside of a wall unit). Free space in front of a unit is shown up to
   1600 mm.
-- Selection exposes local width, height and depth resize arrows while the More
+- Selection exposes local width, height and depth resize arrows while the Tools
   panel is closed (the depth arrow adjusts the second arm on corner units).
   Arrows share the selection colour; each points the way it resizes. Direct
   movement preserves elevation, reuses plan placement/snapping and records one

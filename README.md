@@ -140,7 +140,7 @@ browsers, English otherwise. A language chosen manually is remembered.
   switch warm under-cabinet or plinth lighting on, and style open shelves or glass
   cabinets with accessories. Click a unit to edit it.
   - Quick **3D / Front / Top** views in the toolbar above the viewport; the
-    camera glides from one view to the next. **More** adds **Focus selected
+    camera glides from one view to the next. **Tools** adds **Focus selected
     cabinet** and a selected-cabinet toolbar for move, rotate, copy and delete.
     Enable **Move** there and drag the X/Z handles: the same grid, wall faces and snapping rules as
     the plan apply, and a whole drag is one Undo step. Each stacked tier moves
@@ -236,11 +236,11 @@ browsers, English otherwise. A language chosen manually is remembered.
     selectable. These diagrams are not door-swing or glazing specifications.
 - **3D toolbar**: a slim toolbar docked above the viewport, never over the
   kitchen, holds what is used all the time: **Style**, the **3D / Front / Top**
-  views, **Open all**, **Interior view** and **Photo**. **More** opens the
+  views, **Open all**, **Interior view** and **Photo**. **Tools** opens the
   rarely needed tools: the selected-cabinet toolbar with handle-based Move and
   Resize, the list of doors, windows and structures, and a short how-to. On
   phones the toolbar is icons only and Interior view, Photo and Reset view sit
-  under **More** (⋯). A door, window or structure selected in 3D shows its own
+  under **Tools**. A door, window or structure selected in 3D shows its own
   actions straight away.
 - **Move cabinets by dragging them** in 3D. With a mouse, press any cabinet and
   drag; an outline shows which cabinet is under the pointer. On a touch screen
@@ -270,12 +270,12 @@ browsers, English otherwise. A language chosen manually is remembered.
   is a view-only preview: it does not change dimensions or cutting quantities.
   Animations are skipped when the system asks for reduced motion.
 - **See inside cabinets**: turn on **Interior view** in the toolbar (under
-  **More** on phones) to hide
+  **Tools** on phones) to hide
   fronts and reveal shelves, corner compartments and drawer boxes. Toggle it off
   to restore the finished kitchen. This schematic view does not change the
   project, Undo history or cutting list; appliance interiors and fitting details
   are not modelled.
-- **Resize cabinets in 3D** to a chosen dimension: open **More**, select a cabinet, choose **Resize**, then choose
+- **Resize cabinets in 3D** to a chosen dimension: open **Tools**, select a cabinet, choose **Resize**, then choose
   Width, Height or Depth (corner units also offer the second arm). Drag the
   handle out to expand or in to shrink, with live measurements.
   The back-left anchor and elevation stay fixed; size limits, the room outline

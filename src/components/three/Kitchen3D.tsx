@@ -1,6 +1,6 @@
 import { Environment, Lightformer, OrbitControls } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Copy, DoorClosed, DoorOpen, Ellipsis, Hand, Image, Move, Palette, PanelsTopLeft, Pencil, RotateCcw, RotateCw, Ruler, Scan, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { Copy, DoorClosed, DoorOpen, Hand, Image, Move, Palette, PanelsTopLeft, Pencil, RotateCcw, RotateCw, Ruler, Scan, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type RefObject } from 'react';
 import * as THREE from 'three';
 import { isWallMounted } from '../../domain/geometry';
@@ -208,7 +208,8 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
   opened.current = openedCabinets;
   /** Opens one cabinet and brings the camera to it, or closes it and takes the camera back. */
   const toggleOpening = useCallback((id: string) => {
-    const next = new Set(opened.current);
+    const existing = new Set(useDesignStore.getState().design.items.map((item) => item.id));
+    const next = new Set([...opened.current].filter((entry) => existing.has(entry)));
     const ui = useUiStore.getState();
     if (next.delete(id)) {
       if (next.size === 0) ui.returnCamera();
@@ -307,7 +308,12 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
     return () => window.removeEventListener('keydown', escape);
   }, [selectRoomObject]);
   useEffect(() => () => { if (import.meta.env.DEV) Reflect.deleteProperty(window, '__kitchen3D'); }, []);
-  useEffect(() => () => { document.body.style.cursor = ''; }, []);
+  useEffect(() => () => {
+    document.body.style.cursor = '';
+    // Cabinets close when the 3D view is left, so it should not come back zoomed in on one.
+    const ui = useUiStore.getState();
+    if (ui.cameraFocusId) ui.requestCamera(ui.cameraView);
+  }, []);
   useEffect(() => {
     const timer = window.setTimeout(() => setTipTimedOut(true), TIP_MS);
     return () => window.clearTimeout(timer);
@@ -344,7 +350,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
     <div className="flex h-full min-h-0 w-full flex-col bg-[#ebe8e3] lg:flex-row">
       {referenceOpen && <PhotoReferencePanel />}
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-      <div role="toolbar" aria-label={text.view3d.tools} data-testid="three-toolbar" className="studio-panel flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b px-3 py-2">
+      <div role="toolbar" aria-label={text.view3d.toolbar} data-testid="three-toolbar" className="studio-panel flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b px-3 py-2">
         <Button variant="outline" active={styleOpen} aria-label={text.style.style} title={text.style.style} onClick={() => setStyleOpen((open) => !open)}>
           <Palette className="size-4" />
           <span className={cn(compact && 'sr-only')}>{text.style.style}</span>
@@ -362,9 +368,10 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
         {!compact && interiorButton}
         {!compact && photoButton}
         <div className="min-w-0 flex-1" />
-        <Button data-testid="three-tools-toggle" aria-expanded={toolsOpen} aria-controls={toolsId} aria-label={text.view3d.moreTools} title={text.view3d.moreTools}
+        <Button data-testid="three-tools-toggle" aria-expanded={toolsOpen} aria-controls={toolsId} aria-label={text.view3d.tools} title={text.view3d.tools}
           active={toolsOpen} onClick={() => (toolsOpen ? closeTools() : setToolsOpen(true))}>
-          {compact ? <Ellipsis className="size-4" /> : <><SlidersHorizontal className="size-4" />{text.view3d.more}</>}
+          <SlidersHorizontal className="size-4" />
+          <span className={cn(compact && 'sr-only')}>{text.view3d.toolsShort}</span>
         </Button>
       </div>
 

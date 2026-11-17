@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-/** Opens the "More" panel of the 3D toolbar, where the advanced and selected-cabinet tools live. */
+/** Opens the "Tools" panel of the 3D toolbar, where the advanced and selected-cabinet tools live. */
 export async function open3DTools(page) {
   const toggle = page.getByTestId('three-tools-toggle');
   await toggle.waitFor();
