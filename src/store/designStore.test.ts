@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createItem } from '../domain/catalog';
 import * as ops from '../domain/designOps';
-import { KITCHEN_DESIGNS } from '../domain/kitchens';
+import { createKitchenDesign, KITCHEN_DESIGNS } from '../domain/kitchens';
 import { DEFAULT_CONSTRUCTION } from '../engine/settings';
 import * as actions from './actions';
 import { useDesignStore } from './designStore';
@@ -11,7 +11,7 @@ const store = () => useDesignStore.getState();
 
 beforeEach(() => {
   useDesignStore.setState({ design: ops.createDesign(), past: [], future: [], gestureBase: null });
-  useUiStore.setState({ selectedId: null, view: 'plan', cabinetTool: null, previewLockedIds: [] });
+  useUiStore.setState({ selectedId: null, view: 'plan', cabinetTool: null, previewLockedIds: [], language: 'en' });
 });
 
 describe('explicit 3D cabinet tools', () => {
@@ -88,16 +88,21 @@ describe('explicit 3D cabinet tools', () => {
 });
 
 describe('shuffle kitchen', () => {
-  it('applies the complete arrangement as one undoable change while preserving design metadata', () => {
+  it('loads the exact prepared kitchen, including its room and finishes, as one undoable change', () => {
     const original = {
       ...ops.createDesign(),
       items: [createItem('sink', [], { id: 'sink', x: 1000, y: 1000 }), createItem('oven', [], { id: 'oven', x: 2000, y: 1000 })],
     };
     store().load(original);
-    expect(actions.shuffleKitchen()).toMatchObject({ ok: true, layout: 'straight' });
+    expect(actions.shuffleKitchen()).toEqual({ ok: true, presetId: KITCHEN_DESIGNS[0].id });
     const result = store().design;
     expect(result.items).not.toEqual(original.items);
-    expect({ ...result, items: original.items }).toEqual(original);
+    const expected = createKitchenDesign(KITCHEN_DESIGNS[0], original.name);
+    expect(result.room).toEqual(expected.room);
+    expect(result.style).toEqual(expected.style);
+    expect(result.items.map(({ id: _id, ...item }) => item)).toEqual(expected.items.map(({ id: _id, ...item }) => item));
+    expect(result.name).toBe(original.name);
+    expect(result.galleryPresetId).toBe(KITCHEN_DESIGNS[0].id);
     expect(store().past).toHaveLength(1);
     store().undo();
     expect(store().design).toBe(original);
@@ -121,16 +126,24 @@ describe('shuffle kitchen', () => {
     expect(store().past).toHaveLength(0);
   });
 
-  it('reports an unsuccessful search explicitly and leaves the entire design untouched', () => {
-    const original = {
-      ...ops.createDesign(),
-      room: { width: 1000, depth: 1000, height: 2700 },
-      items: [createItem('base', [], { width: 1200 })],
-    };
-    store().load(original);
-    expect(actions.shuffleKitchen()).toEqual({ ok: false, reason: 'unavailable' });
-    expect(store().design).toBe(original);
-    expect(store().past).toHaveLength(0);
+  it('visits the whole gallery before repeating and resumes after reload, gallery selection and Undo', () => {
+    const seen = new Set<string>();
+    for (const preset of KITCHEN_DESIGNS) {
+      expect(actions.shuffleKitchen()).toEqual({ ok: true, presetId: preset.id });
+      seen.add(store().design.galleryPresetId!);
+    }
+    expect(seen.size).toBe(KITCHEN_DESIGNS.length);
+    expect(actions.shuffleKitchen()).toEqual({ ok: true, presetId: KITCHEN_DESIGNS[0].id });
+    const loaded = ops.parseDesign(JSON.parse(JSON.stringify(store().design)))!;
+    expect(loaded.galleryPresetId).toBe(KITCHEN_DESIGNS[0].id);
+    store().load(loaded);
+    expect(actions.shuffleKitchen()).toEqual({ ok: true, presetId: KITCHEN_DESIGNS[1].id });
+    store().undo();
+    expect(actions.shuffleKitchen()).toEqual({ ok: true, presetId: KITCHEN_DESIGNS[1].id });
+    actions.applyKitchenDesign(KITCHEN_DESIGNS[15]);
+    expect(actions.shuffleKitchen()).toEqual({ ok: true, presetId: KITCHEN_DESIGNS[16].id });
+    store().load({ ...ops.createDesign(), galleryPresetId: 'removed-preset' });
+    expect(actions.shuffleKitchen()).toEqual({ ok: true, presetId: KITCHEN_DESIGNS[0].id });
   });
 });
 

@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useT } from '../i18n';
 import { cn } from '../lib/cn';
@@ -29,6 +29,76 @@ export function Button({ active, variant = 'ghost', className, type = 'button', 
       {...props}
     />
   );
+}
+
+/** Hover or keyboard focus explains an action; a long press explains it without activating it. */
+export function TooltipButton({ tooltip, ...props }: ButtonProps & { tooltip: string }) {
+  const id = useId();
+  const root = useRef<HTMLSpanElement>(null);
+  const bubble = useRef<HTMLDivElement>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touch = useRef<{ x: number; y: number } | null>(null);
+  const held = useRef(false);
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
+  const clearTimer = () => { if (timer.current) clearTimeout(timer.current); timer.current = null; };
+  useEffect(() => () => clearTimer(), []);
+  useLayoutEffect(() => {
+    if (!open || !root.current || !bubble.current) return;
+    const anchor = root.current.getBoundingClientRect();
+    const box = bubble.current.getBoundingClientRect();
+    setPosition({
+      left: Math.max(8, Math.min(innerWidth - box.width - 8, anchor.left + (anchor.width - box.width) / 2)),
+      top: anchor.bottom + box.height + 8 <= innerHeight - 8 ? anchor.bottom + 8 : Math.max(8, anchor.top - box.height - 8),
+    });
+  }, [open, tooltip]);
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    const outside = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) close(); };
+    const key = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.stopPropagation(); close(); } };
+    window.addEventListener('pointerdown', outside);
+    window.addEventListener('keydown', key, true);
+    window.addEventListener('resize', close);
+    window.addEventListener('scroll', close, true);
+    return () => {
+      window.removeEventListener('pointerdown', outside);
+      window.removeEventListener('keydown', key, true);
+      window.removeEventListener('resize', close);
+      window.removeEventListener('scroll', close, true);
+    };
+  }, [open]);
+  return <span ref={root} className="inline-flex shrink-0"
+    onPointerEnter={(event) => {
+      if (event.pointerType === 'touch') return;
+      clearTimer();
+      timer.current = setTimeout(() => setOpen(true), 400);
+    }}
+    onPointerLeave={() => { clearTimer(); if (!held.current) setOpen(false); }}
+    onFocusCapture={(event) => { if (event.target.matches(':focus-visible')) setOpen(true); }}
+    onBlurCapture={() => setOpen(false)}
+    onPointerDownCapture={(event) => {
+      clearTimer(); setOpen(false); held.current = false;
+      touch.current = event.pointerType === 'touch' ? { x: event.clientX, y: event.clientY } : null;
+      if (touch.current) timer.current = setTimeout(() => { held.current = true; setOpen(true); }, 500);
+    }}
+    onPointerMoveCapture={(event) => {
+      if (touch.current && Math.hypot(event.clientX - touch.current.x, event.clientY - touch.current.y) > 8) clearTimer();
+    }}
+    onPointerUpCapture={clearTimer}
+    onPointerCancelCapture={() => { clearTimer(); held.current = false; setOpen(false); }}
+    onContextMenu={(event) => { if (touch.current) event.preventDefault(); }}
+    onClickCapture={(event) => {
+      if (held.current) { event.preventDefault(); event.stopPropagation(); held.current = false; }
+      else setOpen(false);
+    }}
+  >
+    <Button {...props} title={undefined} aria-describedby={open ? [props['aria-describedby'], id].filter(Boolean).join(' ') : props['aria-describedby']} />
+    {open && createPortal(<div ref={bubble} id={id} role="tooltip"
+      className="pointer-events-none fixed z-[80] max-w-[min(280px,calc(100vw-16px))] rounded-xl bg-studio-ink px-3 py-2 text-xs leading-relaxed text-white shadow-lg"
+      style={{ left: position?.left ?? 8, top: position?.top ?? 8, visibility: position ? 'visible' : 'hidden' }}
+    >{tooltip}</div>, document.body)}
+  </span>;
 }
 
 export function Divider() {
@@ -188,10 +258,10 @@ export function Menu({ label, icon, children, align = 'right', text, variant = '
   }, [open]);
   return (
     <div ref={rootRef} className="relative">
-      <Button variant={variant} aria-label={label} title={label} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+      <TooltipButton tooltip={label} variant={variant} aria-label={label} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
         {icon}
         {text}
-      </Button>
+      </TooltipButton>
       {open && (
         <div
           className={cn(

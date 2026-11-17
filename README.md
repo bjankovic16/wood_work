@@ -73,18 +73,18 @@ browsers, English otherwise. A language chosen manually is remembered.
   undo/redo, chained wall dimensions, floor/wall unit filter.
 - **Ready-made layouts**: straight, L-shaped or U-shaped starter kitchens
   sized to the room.
-- **Shuffle kitchen**: beside **Open all** in the 3D toolbar on desktop and phones,
-  cycle through preplanned straight, L-shaped, U-shaped and island layouts
-  that fit the existing cabinets in the same room, rather than random placements.
-  Sizes, elevations, finishes and cabinet
-  identities stay unchanged; sinks and appliances can move too. A shuffle is
-  one Undo step, keeps an extractor with its existing cooking cabinet, and
-  respects openings and fixed obstacles. Island and opposing runs reserve at
-  least 900 mm of aisle space; this is not an appliance-specific clearance
-  certification. Close previews and finish any active
-  Move/Resize tool first. If no complete different arrangement is found,
-  nothing changes. These are layout ideas: review utility connections and
-  appliance clearances before using them.
+- **Next kitchen** (**Sledeća kuhinja** in Serbian): beside **Open all**, load
+  the next complete design from the 52-kitchen gallery, including its prepared
+  room, cabinets, materials and finishes. This replaces the current design;
+  one Undo restores it. Designs do not repeat until the whole gallery has
+  been visited, and the sequence survives reloads and direct gallery selections.
+  Close previews and finish Move/Resize first. Review utility connections and
+  appliance clearances before using any inspiration design.
+- **3D toolbar**: camera, appearance and extra tools share one group; cabinet
+  previews and **Next kitchen** sit together in another. On phones these become
+  two stable rows, with visible action labels. Hover or keyboard-focus a
+  toolbar button to read its explanation; on touch screens, hold it briefly
+  without activating it. Escape, scrolling or tapping outside dismisses the tooltip.
 - **52 kitchen inspiration designs**: open **Designs** (or **Kitchen designs**
   in the phone's More menu), then click an image to load that exact kitchen
   in 3D. Choose straight, L-shaped, U-shaped or island kitchens in a range

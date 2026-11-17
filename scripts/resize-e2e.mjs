@@ -301,26 +301,23 @@ try {
 
   await fixture(page);
   original = await design(page);
-  const shuffle = (target) => target.getByRole('button', { name: 'Shuffle kitchen', exact: true });
+  const shuffle = (target) => target.getByRole('button', { name: 'Next kitchen', exact: true });
   await shuffle(page).click();
-  await page.getByRole('status').getByText(/Kitchen rearranged/).waitFor();
+  await page.getByTestId('shuffle-feedback').getByText(/Loaded/).waitFor();
   after = await design(page);
   assert.notDeepEqual(after.items, original.items);
   assert.equal(await history(page), 1);
-  assert.deepEqual({ ...after, items: original.items }, original);
-  const expectedVariant = await page.evaluate(async () => {
-    const { nextKitchenVariant } = await import('/src/domain/shuffleKitchen.ts');
-    const { room, items, openings } = window.__kitchen.design.getState().design;
-    return nextKitchenVariant(room, items, openings);
-  });
+  assert.equal(after.galleryPresetId, 'walnut-frame');
+  assert.notDeepEqual(after.room, original.room);
   await shuffle(page).click();
-  assert.deepEqual((await design(page)).items, expectedVariant.items, 'Shuffle must advance to the next planned variant, not randomize the cabinets.');
+  assert.equal((await design(page)).galleryPresetId, 'oak-frame', 'Next kitchen must load the next prepared gallery design.');
   assert.equal(await history(page), 2);
   await undo(page);
   assert.deepEqual(await design(page), after);
   await undo(page);
   assert.deepEqual(await design(page), original);
   await page.getByRole('status').getByRole('button', { name: 'Close', exact: true }).click();
+  await fixture(page);
   await page.getByRole('button', { name: 'Open cabinet', exact: true }).click();
   assert.equal(await shuffle(page).isDisabled(), true);
   await page.getByRole('button', { name: 'Close cabinet', exact: true }).click();
@@ -333,11 +330,12 @@ try {
   });
   original = await design(page);
   await shuffle(page).click();
-  await page.getByRole('alert').getByText(/No other planned layout fits/).waitFor();
+  assert.equal((await design(page)).galleryPresetId, 'walnut-frame', 'Gallery kitchens include their own room, even if the old room does not fit.');
+  assert.equal(await history(page), 1);
+  await undo(page);
   assert.deepEqual(await design(page), original);
-  assert.equal(await history(page), 0);
-  await page.getByRole('alert').getByRole('button', { name: 'Close', exact: true }).click();
-  console.log('  PASS desktop Shuffle is one Undo step, respects preview/tool locks and reports failure without changing anything');
+  await page.getByTestId('shuffle-feedback').getByRole('button', { name: 'Close', exact: true }).click();
+  console.log('  PASS Next kitchen loads complete gallery designs in one Undo step and respects preview/tool locks');
 
   const phoneContext = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
   const phone = await phoneContext.newPage();
@@ -413,13 +411,13 @@ try {
   assert.ok(Math.abs(openAllBox.y - shuffleBox.y) < 2 && shuffleBox.x > openAllBox.x, 'Shuffle must be beside Open all, not inside More.');
   original = await design(phone);
   await shuffle(phone).tap();
-  await phone.getByRole('status').getByText(/Kitchen rearranged/).waitFor();
+  await phone.getByTestId('shuffle-feedback').getByText(/Loaded/).waitFor();
   assert.notDeepEqual((await design(phone)).items, original.items);
   assert.equal(await history(phone), 1);
   await undo(phone);
   assert.deepEqual(await design(phone), original);
   assert.ok(await phone.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
-  await phone.screenshot({ path: path.join(output, 'phone-planned-layout.png') });
+  await phone.screenshot({ path: path.join(output, 'phone-gallery-kitchen.png') });
   await phone.getByRole('status').getByRole('button', { name: 'Close', exact: true }).tap();
   await phoneContext.close();
   console.log('  PASS touch Move/Resize, cancellation, preview locks and Shuffle/Undo; arrows fit 320px in Serbian and rendering stops at idle');

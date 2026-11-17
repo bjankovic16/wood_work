@@ -93,12 +93,11 @@ export const sr: Messages = {
   },
 
   shuffle: {
-    title: 'Promešaj kuhinju',
-    hint: 'Menjajte unapred planirane ravne, L, U i ostrvske rasporede u koje staju vaši postojeći elementi u istoj prostoriji.',
-    success: (layout) => `Kuhinja je preraspoređena: ${layout}. Opozovi vraća prethodni raspored. Proverite vodovodne i električne priključke i potrebne razmake za uređaje pre upotrebe ove ideje.`,
-    preview: 'Zatvorite sve elemente i izađite iz prikaza unutrašnjosti pre promene rasporeda.',
-    busy: 'Završite pomeranje ili promenu dimenzija pre promene rasporeda.',
-    unavailable: 'Nijedan drugi planirani raspored ne odgovara svim vašim elementima i ograničenjima prostorije. Ništa nije promenjeno.',
+    title: 'Sledeća kuhinja',
+    hint: 'Učitajte sledeću gotovu kuhinju iz galerije, zajedno sa njenom prostorijom, elementima i završnim obradama. „Poništi“ vraća vaš prethodni projekat.',
+    success: (name) => `Učitana je kuhinja „${name}“, sa pripremljenom prostorijom, elementima i završnim obradama. „Poništi“ vraća prethodni projekat.`,
+    preview: 'Zatvorite sve elemente i isključite prikaz unutrašnjosti pre učitavanja druge kuhinje.',
+    busy: 'Završite pomeranje ili promenu mera pre učitavanja druge kuhinje.',
   },
 
   topBar: {
@@ -578,6 +577,16 @@ export const sr: Messages = {
   },
 
   view3d: {
+    kitchenActions: 'Gotove kuhinje i pregled elemenata',
+    appearanceHint: 'Promenite fronte, radnu ploču, ručice i osvetljenje, bez promene rasporeda.',
+    cameraHints: {
+      perspective: 'Pogledajte celu kuhinju u prostoru. Prevucite pozadinu da okrenete pogled.',
+      front: 'Pogledajte kuhinju pravo spreda, u nivou frontova.',
+      top: 'Pogledajte kuhinju odozgo radi provere rasporeda i slobodnog prostora.',
+    },
+    openAllHint: 'Otvorite sve elemente radi pregleda. Pomeranje i promena mera nisu dostupni dok su elementi otvoreni.',
+    closeAllHint: 'Zatvorite sve elemente da ponovo omogućite izmenu.',
+    toolsHint: 'Dodatni alati: otvori i strukture, poređenje sa fotografijom i uputstvo. Zadržite prst na dugmetu da pročitate objašnjenje.',
     openCabinet: 'Otvorite element',
     closeCabinet: 'Zatvorite element',
     openShort: 'Otvori',
@@ -585,7 +594,7 @@ export const sr: Messages = {
     openAll: 'Otvori sve',
     closeAll: 'Zatvori sve',
     toolbar: '3D prikaz',
-    toolsShort: 'Alati',
+    toolsShort: 'Dodatni alati',
     tipMouse: 'Izaberite element, pa „Pomeri“ ili „Dimenzije“. Dvoklik ga otvara.',
     tipTouch: 'Dodirnite element, pa „Pomeri“ ili „Dimenzije“. Prevlačenjem okrećete prikaz.',
     interior: 'Unutrašnjost elemenata',
@@ -607,7 +616,7 @@ export const sr: Messages = {
     tools: '3D alati',
     help: 'Kako koristiti 3D',
     moveModeHint: 'Držite izabrani element i povucite ga. „Gotovo“ završava; Escape otkazuje povlačenje.',
-    resizeModeHint: 'Povucite strelice za promenu mera ili telo elementa za pomeranje. Izbor ostaje zaključan do klika na X. Escape otkazuje samo trenutno povlačenje.',
+    resizeModeHint: 'Strelice menjaju mere, telo elementa pomera. X završava; Escape vraća trenutni potez.',
     previewLocked: 'Samo pregled: zatvorite element i isključite prikaz unutrašnjosti za pomeranje, promenu mera ili okretanje.',
     resizeBlocked: 'Element mora da stane u prostoriju i ispod plafona. Ova mera nije primenjena.',
     loadingMove: 'Učitavanje ručica za pomeranje…',
