@@ -34,7 +34,7 @@ interface DragState {
   capture: HTMLElement | null;
 }
 
-/** Only the selected, closed cabinet can be dragged, after explicitly enabling Move. */
+/** Only the selected, closed cabinet can be dragged, after enabling Move or Resize. */
 export function CabinetDragController({ onDragStart, onDragEnd, onSelect }: {
   onDragStart: (id: string) => void;
   onDragEnd: () => void;
@@ -163,7 +163,9 @@ export function CabinetDragController({ onDragStart, onDragEnd, onSelect }: {
       }
       if (event.button !== 0 || !event.isPrimary || drag || useDesignStore.getState().gestureBase) return;
       const ui = useUiStore.getState();
-      if (ui.view !== '3d' || ui.cabinetTool !== 'move' || !ui.selectedId || ui.previewLockedIds.includes(ui.selectedId)) return;
+      if (ui.view !== '3d' || !ui.cabinetTool || !ui.selectedId || ui.previewLockedIds.includes(ui.selectedId)) return;
+      const resizeTool = scene.getObjectByName('kitchen-resize-tool');
+      if (ui.cabinetTool === 'resize' && resizeTool && rayAt(event.clientX, event.clientY).intersectObject(resizeTool, true).length > 0) return;
       if (!orbitEnabled()) return;
       const target = cabinetAt(event.clientX, event.clientY);
       if (!target || target.item.id !== ui.selectedId) return;
@@ -189,7 +191,7 @@ export function CabinetDragController({ onDragStart, onDragEnd, onSelect }: {
       if (drag && (drag.moved ? state.gestureBase !== drag.design : state.design !== drag.design)) cancel();
     });
     const unsubscribeUi = useUiStore.subscribe((state) => {
-      if (drag && (state.view !== '3d' || state.cabinetTool !== 'move' || state.selectedId !== drag.id || state.previewLockedIds.includes(drag.id))) cancel();
+      if (drag && (state.view !== '3d' || !state.cabinetTool || state.selectedId !== drag.id || state.previewLockedIds.includes(drag.id))) cancel();
     });
     const click = (event: MouseEvent) => { if (movedPress) event.stopImmediatePropagation(); };
 

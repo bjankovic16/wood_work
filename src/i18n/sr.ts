@@ -607,7 +607,7 @@ export const sr: Messages = {
     tools: '3D alati',
     help: 'Kako koristiti 3D',
     moveModeHint: 'Držite izabrani element i povucite ga. „Gotovo“ završava; Escape otkazuje povlačenje.',
-    resizeModeHint: 'Povucite strelicu napolje za povećanje ili unutra za smanjenje mere. „Gotovo“ završava; Escape otkazuje povlačenje.',
+    resizeModeHint: 'Povucite strelice za promenu mera ili telo elementa za pomeranje. Izbor ostaje zaključan do klika na X. Escape otkazuje samo trenutno povlačenje.',
     previewLocked: 'Samo pregled: zatvorite element i isključite prikaz unutrašnjosti za pomeranje, promenu mera ili okretanje.',
     resizeBlocked: 'Element mora da stane u prostoriju i ispod plafona. Ova mera nije primenjena.',
     loadingMove: 'Učitavanje ručica za pomeranje…',

@@ -295,7 +295,9 @@ browsers, English otherwise. A language chosen manually is remembered.
   Height and Depth (corner units also offer the second arm). Drag an arrow
   outward to grow that dimension or inward to shrink it; labels update live.
   The arrows follow the cabinet's rotation and have enlarged touch targets.
-  Move and Resize are mutually exclusive.
+  While Resize is active, drag the cabinet body to move it without switching
+  tools. Clicking empty space or another cabinet keeps the current selection;
+  press **X** (Done) to exit. Escape cancels only the current drag.
   The back-left anchor and elevation stay fixed; size limits, the room outline
   and ceiling constrain the change. Grid snapping follows the plan setting.
   Use the properties/pencil for exact dimensions, **Done** to exit, **Undo** to restore a

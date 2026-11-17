@@ -63,6 +63,7 @@ export function useKeyboardShortcuts(): void {
         rotateSelected(e.shiftKey ? -1 : 1);
       } else if (e.key === 'Escape') {
         const ui = useUiStore.getState();
+        if (ui.cabinetTool === 'resize') return;
         if (ui.cabinetTool) ui.setCabinetTool(null);
         else ui.select(null);
       } else if (e.key in ARROWS && hasSelection && view === 'plan') {

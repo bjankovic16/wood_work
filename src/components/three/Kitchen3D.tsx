@@ -189,9 +189,10 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
   opened.current = openedCabinets;
   /** Opens one cabinet and brings the camera to it, or closes it and takes the camera back. */
   const toggleOpening = useCallback((id: string) => {
+    const ui = useUiStore.getState();
+    if (ui.cabinetTool === 'resize' && ui.selectedId !== id) return;
     const existing = new Set(useDesignStore.getState().design.items.map((item) => item.id));
     const next = new Set([...opened.current].filter((entry) => existing.has(entry)));
-    const ui = useUiStore.getState();
     ui.setCabinetTool(null);
     if (next.delete(id)) {
       if (next.size === 0) ui.returnCamera();
@@ -226,7 +227,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
   const readyResize = useCallback(() => setResizeStatus('ready'), []);
   const loadingResize = useCallback(() => setResizeStatus('loading'), []);
   const failedResize = useCallback(() => setResizeStatus('error'), []);
-  const cancelResize = useCallback(() => { useUiStore.getState().setCabinetTool(null); setResizeBlocked(false); }, []);
+  const cancelResize = useCallback(() => setResizeBlocked(false), []);
   const [roomSelection, setRoomSelection] = useState<RoomObjectSelection | null>(null);
   const [roomObject, setRoomObject] = useState<THREE.Group | null>(null);
   const [roomMoving, setRoomMoving] = useState(false);
@@ -235,6 +236,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
   const readyRoomMove = useCallback(() => setRoomMoveReady(true), []);
   const cancelRoomMove = useCallback(() => { setRoomMoving(false); setRoomMoveReady(false); setRoomBlocked(false); }, []);
   const selectRoomObject = useCallback((selection: RoomObjectSelection | null) => {
+    if (selection && useUiStore.getState().cabinetTool === 'resize') return;
     setRoomMoving(false);
     setRoomMoveReady(false);
     setRoomBlocked(false);
@@ -310,7 +312,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
 
   const select = useCallback((id: string) => {
     const ui = useUiStore.getState();
-    if (ui.selectedId === id) return;
+    if (ui.selectedId === id || ui.cabinetTool === 'resize') return;
     selectRoomObject(null);
     const items = useDesignStore.getState().design.items;
     const item = items.find((candidate) => candidate.id === id);
@@ -326,6 +328,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
   const selectedOpen = !!selected && openedCabinets.has(selected.id);
   const toggleTool = (tool: 'move' | 'resize') => {
     const ui = useUiStore.getState();
+    if (ui.cabinetTool === 'resize') return;
     ui.setCabinetTool(ui.cabinetTool === tool ? null : tool);
     setResizeBlocked(false);
     if (tool === 'resize' && ui.selectedId && useUiStore.getState().cabinetTool === 'resize') ui.focusCamera(ui.selectedId);
@@ -411,7 +414,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
         camera={{ fov: CAMERA_FOV, near: 0.05, far: 200 }}
         onCreated={({ camera, scene, gl }) => { if (import.meta.env.DEV) Object.assign(window, { __kitchen3D: { camera, scene, renderer: gl } }); }}
         onPointerMissed={(event) => {
-          if (event.type === 'click' && !dragging && !roomMoving) {
+          if (event.type === 'click' && !dragging && !roomMoving && useUiStore.getState().cabinetTool !== 'resize') {
             useUiStore.getState().select(null);
             selectRoomObject(null);
           }
@@ -483,7 +486,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
       </>}
 
       {selected && !roomMoving && <div ref={handlesRef} data-testid="cabinet-tools" className="studio-panel absolute left-0 top-0 z-10 flex items-center gap-1 rounded-2xl border p-1 shadow-[0_6px_24px_#332f2826]" style={{ visibility: 'hidden' }}>
-        <Button disabled={selectedLocked} active={cabinetTool === 'move'} aria-pressed={cabinetTool === 'move'} aria-label={text.view3d.move} title={selectedLocked ? text.view3d.previewLocked : text.view3d.moveModeHint}
+        <Button disabled={selectedLocked || cabinetTool === 'resize'} active={cabinetTool === 'move'} aria-pressed={cabinetTool === 'move'} aria-label={text.view3d.move} title={selectedLocked ? text.view3d.previewLocked : cabinetTool === 'resize' ? text.view3d.resizeModeHint : text.view3d.moveModeHint}
           onClick={() => toggleTool('move')} className="h-11 min-w-11 rounded-xl px-2">
           <Hand className="size-5" aria-hidden="true" />
           <span className={cn('text-[13px] font-semibold', compact && 'sr-only')}>{text.view3d.moveShort}</span>

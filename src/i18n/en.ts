@@ -617,7 +617,7 @@ export const en = {
     tools: '3D tools',
     help: 'How to use 3D',
     moveModeHint: 'Hold the selected cabinet and drag to move it. Done finishes; Escape cancels a drag.',
-    resizeModeHint: 'Drag an arrow out to grow or in to shrink its dimension. Done finishes; Escape cancels a drag.',
+    resizeModeHint: 'Drag arrows to resize or the cabinet body to move. Selection stays locked until X. Escape cancels only the current drag.',
     previewLocked: 'Preview only: close this cabinet and exit Interior view to move, resize or rotate it.',
     resizeBlocked: 'The cabinet must fit inside the room and below the ceiling. This size was not applied.',
     loadingMove: 'Loading movement handles…',

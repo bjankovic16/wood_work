@@ -122,9 +122,32 @@ try {
   assert.deepEqual(await design(page), original, 'Arrow keys must not move cabinets even with Move enabled.');
   await armResize(page);
   assert.equal(await move(page).getAttribute('aria-pressed'), 'false');
-  await move(page).click();
-  assert.equal(await page.locator('[data-resize-field]').count(), 0);
+  assert.equal(await move(page).isDisabled(), true);
+  original = await design(page);
+  await drag(page, await cabinetBodyDrag(page, 'X', 0.25));
+  assert.ok(Math.abs((await design(page)).items[0].x - original.items[0].x - 250) < 20);
+  assert.equal(await history(page), 1);
+  assert.equal(await resize(page).getAttribute('aria-pressed'), 'true');
+  await assertScenePlacement(page, 'resize-cabinet');
+  await undo(page);
+  assert.deepEqual(await design(page), original);
+  await resize(page).click();
+  await page.keyboard.press('Escape');
+  assert.equal(await resize(page).getAttribute('aria-pressed'), 'true');
+  await page.evaluate(() => window.__kitchen.ui.getState().requestCamera('top'));
+  const otherBody = await cabinetBodyDrag(page, 'X', 0, 'untouched');
+  await page.mouse.click(otherBody.from.x, otherBody.from.y);
+  const emptyCanvas = await page.locator('main canvas').boundingBox();
+  await page.mouse.click(emptyCanvas.x + emptyCanvas.width * 0.9, emptyCanvas.y + emptyCanvas.height * 0.85);
+  assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().selectedId), 'resize-cabinet');
+  assert.equal(await resize(page).getAttribute('aria-pressed'), 'true');
+  await drag(page, await resizeArrowDrag(page, 'width', 0.15));
+  assert.ok((await design(page)).items[0].width > original.items[0].width);
+  await undo(page);
   await done(page).click();
+  assert.equal(await page.locator('[data-resize-field]').count(), 0);
+  await page.mouse.click(otherBody.from.x, otherBody.from.y);
+  assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().selectedId), 'untouched');
   await page.screenshot({ path: path.join(output, 'explicit-desktop.png') });
   console.log('  PASS selection is safe; explicit Move tracks the pointer, preserves elevation and is one Undo step');
 
@@ -178,6 +201,7 @@ try {
     assert.deepEqual(await design(page), original);
     assert.equal(await history(page), count);
     assert.equal(await page.evaluate(() => window.__kitchen.design.getState().gestureBase), null);
+    assert.equal(await resize(page).getAttribute('aria-pressed'), 'true');
   }
   const beforeOrbit = await page.evaluate(() => window.__kitchen3D.camera.position.toArray());
   const canvas = await page.locator('main canvas').boundingBox();
@@ -324,6 +348,11 @@ try {
   assert.equal((await design(phone)).items[0].elevation, original.items[0].elevation);
   await undo(phone);
   await armResize(phone);
+  session = await drag(phone, await cabinetBodyDrag(phone, 'X', 0.25), { touch: true });
+  await session.detach();
+  assert.notDeepEqual((await design(phone)).items[0], original.items[0]);
+  assert.equal(await resize(phone).getAttribute('aria-pressed'), 'true');
+  await undo(phone);
   session = await drag(phone, await resizeArrowDrag(phone), { touch: true });
   await session.detach();
   assert.ok((await design(phone)).items[0].width > original.items[0].width);
