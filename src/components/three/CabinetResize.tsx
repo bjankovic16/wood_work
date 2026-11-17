@@ -66,7 +66,7 @@ export function CabinetResize({ item, overlay, onStart, onReady, onCancel, onBlo
       const pixel = 2 * depth * Math.tan(fov * Math.PI / 360) / size.height;
       arrow.position.copy(face);
       arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), resizeAxis(currentItem.current, field));
-      arrow.scale.setScalar(pixel);
+      arrow.scale.setScalar(pixel * 1.25);
       for (const mesh of arrow.children) {
         if (mesh instanceof THREE.Mesh && mesh.material instanceof THREE.MeshBasicMaterial && mesh.material.opacity > 0) {
           mesh.material.color.set(gesture.current?.field === field || hovered.current === field ? '#1d4ed8' : HANDLE_COLOR);
@@ -86,9 +86,11 @@ export function CabinetResize({ item, overlay, onStart, onReady, onCancel, onBlo
     const toolbarBox = toolbar?.getBoundingClientRect();
     const boxes: { x: number; y: number; w: number; h: number }[] = toolbar && toolbarBox && toolbar.style.visibility !== 'hidden'
       ? [{ x: toolbarBox.left - canvas.left, y: toolbarBox.top - canvas.top, w: toolbarBox.width, h: toolbarBox.height }] : [];
+    const hint = document.querySelector('[data-testid="cabinet-mode-hint"]')?.getBoundingClientRect();
+    if (hint) boxes.push({ x: hint.left - canvas.left, y: hint.top - canvas.top, w: hint.width, h: hint.height });
     for (const arrow of tool.current?.children ?? []) {
       const point = arrow.localToWorld(new THREE.Vector3(0, 58, 0)).project(camera);
-      boxes.push({ x: (point.x + 1) * size.width / 2 - 24, y: (1 - point.y) * size.height / 2 - 24, w: 48, h: 48 });
+      boxes.push({ x: (point.x + 1) * size.width / 2 - 32, y: (1 - point.y) * size.height / 2 - 32, w: 64, h: 64 });
     }
     for (const field of ['width', 'height', 'depth', 'width2'] as const) {
       const element = container.querySelector<HTMLElement>(`[data-resize-field="${field}"]`);

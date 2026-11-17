@@ -308,6 +308,16 @@ try {
   assert.notDeepEqual(after.items, original.items);
   assert.equal(await history(page), 1);
   assert.deepEqual({ ...after, items: original.items }, original);
+  const expectedVariant = await page.evaluate(async () => {
+    const { nextKitchenVariant } = await import('/src/domain/shuffleKitchen.ts');
+    const { room, items, openings } = window.__kitchen.design.getState().design;
+    return nextKitchenVariant(room, items, openings);
+  });
+  await shuffle(page).click();
+  assert.deepEqual((await design(page)).items, expectedVariant.items, 'Shuffle must advance to the next planned variant, not randomize the cabinets.');
+  assert.equal(await history(page), 2);
+  await undo(page);
+  assert.deepEqual(await design(page), after);
   await undo(page);
   assert.deepEqual(await design(page), original);
   await page.getByRole('status').getByRole('button', { name: 'Close', exact: true }).click();
@@ -323,7 +333,7 @@ try {
   });
   original = await design(page);
   await shuffle(page).click();
-  await page.getByRole('alert').getByText(/No different complete arrangement was found/).waitFor();
+  await page.getByRole('alert').getByText(/No other planned layout fits/).waitFor();
   assert.deepEqual(await design(page), original);
   assert.equal(await history(page), 0);
   await page.getByRole('alert').getByRole('button', { name: 'Close', exact: true }).click();
@@ -372,6 +382,14 @@ try {
     const hint = document.querySelector('[data-testid="cabinet-mode-hint"]').getBoundingClientRect();
     return tools.left < hint.right && tools.right > hint.left && tools.top < hint.bottom && tools.bottom > hint.top;
   }), false, 'The mobile tool buttons must not be hidden behind resize instructions.');
+  assert.equal(await phone.evaluate(() => {
+    const hint = document.querySelector('[data-testid="cabinet-mode-hint"]').getBoundingClientRect();
+    return [...document.querySelectorAll('[data-resize-field]')].some((element) => {
+      const box = element.getBoundingClientRect();
+      return getComputedStyle(element).visibility !== 'visible'
+        || box.left < hint.right && box.right > hint.left && box.top < hint.bottom && box.bottom > hint.top;
+    });
+  }), false, 'All enlarged-arrow labels must remain visible outside the instructions.');
   assert.ok(await phone.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
   await phone.screenshot({ path: path.join(output, 'phone-arrows-sr.png') });
   await phone.evaluate(() => window.__kitchen.ui.getState().setLanguage('en'));
@@ -389,8 +407,10 @@ try {
   await phone.waitForTimeout(300);
   assert.ok(await phone.evaluate(() => window.__kitchen3D.renderer.info.render.frame) - idle <= 1);
   await done(phone).tap();
-  await phone.getByRole('button', { name: 'More', exact: true }).tap();
   assert.equal(await shuffle(phone).isEnabled(), true);
+  const openAllBox = await phone.getByRole('button', { name: 'Open all', exact: true }).boundingBox();
+  const shuffleBox = await shuffle(phone).boundingBox();
+  assert.ok(Math.abs(openAllBox.y - shuffleBox.y) < 2 && shuffleBox.x > openAllBox.x, 'Shuffle must be beside Open all, not inside More.');
   original = await design(phone);
   await shuffle(phone).tap();
   await phone.getByRole('status').getByText(/Kitchen rearranged/).waitFor();
@@ -399,6 +419,7 @@ try {
   await undo(phone);
   assert.deepEqual(await design(phone), original);
   assert.ok(await phone.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+  await phone.screenshot({ path: path.join(output, 'phone-planned-layout.png') });
   await phone.getByRole('status').getByRole('button', { name: 'Close', exact: true }).tap();
   await phoneContext.close();
   console.log('  PASS touch Move/Resize, cancellation, preview locks and Shuffle/Undo; arrows fit 320px in Serbian and rendering stops at idle');

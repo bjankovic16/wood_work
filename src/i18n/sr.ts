@@ -94,11 +94,11 @@ export const sr: Messages = {
 
   shuffle: {
     title: 'Promešaj kuhinju',
-    hint: 'Isprobajte drugi raspored u istoj prostoriji, bez promene dimenzija elemenata, uključujući sudoperu i uređaje.',
-    success: 'Kuhinja je preraspoređena. Opozovi vraća prethodni raspored. Proverite vodovodne i električne priključke i potrebne razmake za uređaje pre upotrebe ove ideje.',
+    hint: 'Menjajte unapred planirane ravne, L, U i ostrvske rasporede u koje staju vaši postojeći elementi u istoj prostoriji.',
+    success: (layout) => `Kuhinja je preraspoređena: ${layout}. Opozovi vraća prethodni raspored. Proverite vodovodne i električne priključke i potrebne razmake za uređaje pre upotrebe ove ideje.`,
     preview: 'Zatvorite sve elemente i izađite iz prikaza unutrašnjosti pre promene rasporeda.',
     busy: 'Završite pomeranje ili promenu dimenzija pre promene rasporeda.',
-    unavailable: 'Nije pronađen drugačiji raspored u koji staju svi elementi. Ništa nije promenjeno; pokušajte da oslobodite prostor.',
+    unavailable: 'Nijedan drugi planirani raspored ne odgovara svim vašim elementima i ograničenjima prostorije. Ništa nije promenjeno.',
   },
 
   topBar: {

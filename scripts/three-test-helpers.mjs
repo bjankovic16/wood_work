@@ -90,7 +90,7 @@ export async function resizeArrowDrag(page, field = 'width', distance = 0.15) {
     const rightScreen = point.clone().add(right).project(camera);
     return { from, to: { x: from.x + movement.x, y: from.y + movement.y }, targetWidth: Math.abs(rightScreen.x - left.x) * box.width / 2 };
   }, { field, distance });
-  assert.ok(points.targetWidth >= 44, `${field} arrow needs at least a 44px touch target.`);
+  assert.ok(points.targetWidth >= 60, `${field} enlarged arrow needs at least a 60px touch target.`);
   assert.equal(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.tagName, points.from), 'CANVAS',
     `${field} arrow must not be hidden behind another control.`);
   return points;

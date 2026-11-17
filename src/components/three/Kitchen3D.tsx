@@ -1,6 +1,6 @@
 import { Environment, Lightformer, OrbitControls } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Copy, DoorClosed, DoorOpen, Hand, Image, Palette, PanelsTopLeft, Pencil, RotateCcw, RotateCw, Ruler, Scan, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { Copy, DoorClosed, DoorOpen, Hand, Image, Palette, PanelsTopLeft, Pencil, RotateCcw, RotateCw, Ruler, Scan, Shuffle, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type RefObject } from 'react';
 import * as THREE from 'three';
 import { isWallMounted } from '../../domain/geometry';
@@ -12,7 +12,7 @@ import { useT } from '../../i18n';
 import { cn } from '../../lib/cn';
 import { useDesignStore } from '../../store/designStore';
 import { useBuildContext, useIssues } from '../../store/derived';
-import { deleteSelected, duplicateSelected, rotateSelected } from '../../store/actions';
+import { deleteSelected, duplicateSelected, rotateSelected, shuffleKitchen, type ShuffleResult } from '../../store/actions';
 import { useUiStore } from '../../store/uiStore';
 import { Button, Dialog } from '../ui';
 import { createMaterials, disposeMaterials, m } from './materials';
@@ -161,6 +161,8 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
   const selectedId = useUiStore((s) => s.selectedId);
   const cabinetTool = useUiStore((s) => s.cabinetTool);
   const previewLockedIds = useUiStore((s) => s.previewLockedIds);
+  const editing = useDesignStore((s) => s.gestureBase !== null);
+  const [shuffleResult, setShuffleResult] = useState<ShuffleResult | null>(null);
   const moveHintSeen = useUiStore((s) => s.moveHintSeen);
   const referenceOpen = useUiStore((state) => state.referenceOpen);
   const cameraView = useUiStore((state) => state.cameraView);
@@ -343,6 +345,9 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
       <Image className="size-4" />{text.references.toggle}
     </Button>
   );
+  const shuffleDisabled = items.length === 0 || previewLockedIds.length > 0 || Boolean(cabinetTool) || editing || roomMoving;
+  const shuffleTitle = previewLockedIds.length > 0 ? text.shuffle.preview : cabinetTool || editing || roomMoving ? text.shuffle.busy : text.shuffle.hint;
+  const variantName = shuffleResult?.ok ? shuffleResult.layout === 'island' ? text.kitchens.island : text.layouts.names[shuffleResult.layout].name : '';
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col bg-[#ebe8e3] lg:flex-row">
@@ -359,10 +364,16 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
         {!compact && <Button variant="outline" aria-label={text.view3d.resetView} title={text.view3d.resetViewTitle} onClick={() => useUiStore.getState().requestCamera('perspective')}>
           <RotateCcw className="size-4" />
         </Button>}
+        <div className="flex items-center gap-2">
         <Button variant="outline" active={allOpen} disabled={interior || openable.length === 0} aria-label={allOpen ? text.view3d.closeAll : text.view3d.openAll} title={allOpen ? text.view3d.closeAll : text.view3d.openAll} onClick={toggleAll}>
           {allOpen ? <DoorClosed className="size-4" /> : <DoorOpen className="size-4" />}
           <span className={cn(compact && 'sr-only')}>{allOpen ? text.view3d.closeAll : text.view3d.openAll}</span>
         </Button>
+        <Button variant="outline" aria-label={text.shuffle.title} title={shuffleTitle} disabled={shuffleDisabled} onClick={() => setShuffleResult(shuffleKitchen())}>
+          <Shuffle className="size-4" />
+          <span>{text.shuffle.title}</span>
+        </Button>
+        </div>
         {!compact && interiorButton}
         {!compact && photoButton}
         <div className="min-w-0 flex-1" />
@@ -372,6 +383,12 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
           <span className={cn(compact && 'sr-only')}>{text.view3d.toolsShort}</span>
         </Button>
       </div>
+
+      {shuffleResult && <div role={shuffleResult.ok ? 'status' : 'alert'} data-testid="shuffle-feedback"
+        className="studio-panel flex shrink-0 items-center gap-3 border-b px-3 py-2 text-xs text-studio-ink">
+        <span className="flex-1">{shuffleResult.ok ? text.shuffle.success(variantName) : text.shuffle[shuffleResult.reason]}</span>
+        <Button aria-label={text.common.close} onClick={() => setShuffleResult(null)}><X className="size-4" /></Button>
+      </div>}
 
       {activeRoomSelection && <div className="studio-panel shrink-0 border-b px-3 py-2">
         <RoomObjectTools key={`${activeRoomSelection.type}-${activeRoomSelection.id}`} selection={activeRoomSelection} compact={compact} moving={roomMoving} blocked={roomBlocked}

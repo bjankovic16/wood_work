@@ -98,11 +98,11 @@ export const en = {
 
   shuffle: {
     title: 'Shuffle kitchen',
-    hint: 'Try another arrangement with the same room and cabinet sizes, including sinks and appliances.',
-    success: 'Kitchen rearranged. Undo restores the previous layout. Check plumbing, electrical connections and appliance clearances before using this idea.',
+    hint: 'Cycle through planned straight, L-shaped, U-shaped and island layouts that fit your existing cabinets and room.',
+    success: (layout: string) => `Kitchen rearranged: ${layout}. Undo restores the previous layout. Check plumbing, electrical connections and appliance clearances before using this idea.`,
     preview: 'Close all cabinets and exit Interior view before shuffling.',
     busy: 'Finish moving or resizing before shuffling.',
-    unavailable: 'No different complete arrangement was found. Nothing was changed; try freeing some space.',
+    unavailable: 'No other planned layout fits all your cabinets and room constraints. Nothing was changed.',
   },
 
   topBar: {

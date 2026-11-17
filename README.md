@@ -73,11 +73,15 @@ browsers, English otherwise. A language chosen manually is remembered.
   undo/redo, chained wall dimensions, floor/wall unit filter.
 - **Ready-made layouts**: straight, L-shaped or U-shaped starter kitchens
   sized to the room.
-- **Shuffle kitchen**: try another arrangement of the existing cabinets in the
-  same room (on phones, open **More**). Sizes, elevations, finishes and cabinet
+- **Shuffle kitchen**: beside **Open all** in the 3D toolbar on desktop and phones,
+  cycle through preplanned straight, L-shaped, U-shaped and island layouts
+  that fit the existing cabinets in the same room, rather than random placements.
+  Sizes, elevations, finishes and cabinet
   identities stay unchanged; sinks and appliances can move too. A shuffle is
   one Undo step, keeps an extractor with its existing cooking cabinet, and
-  respects openings and fixed obstacles. Close previews and finish any active
+  respects openings and fixed obstacles. Island and opposing runs reserve at
+  least 900 mm of aisle space; this is not an appliance-specific clearance
+  certification. Close previews and finish any active
   Move/Resize tool first. If no complete different arrangement is found,
   nothing changes. These are layout ideas: review utility connections and
   appliance clearances before using them.

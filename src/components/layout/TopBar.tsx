@@ -1,8 +1,8 @@
-import { Box, Ellipsis, FolderOpen, Hammer, Images, Languages, LayoutGrid, List, Magnet, Redo2, RulerDimensionLine, Shuffle, Undo2, X } from 'lucide-react';
+import { Box, Ellipsis, FolderOpen, Hammer, Images, Languages, LayoutGrid, List, Magnet, Redo2, RulerDimensionLine, Undo2 } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { LANGUAGE_LABEL, LANGUAGES, useT, type Language } from '../../i18n';
 import { cn } from '../../lib/cn';
-import { redo, setProjectName, shuffleKitchen, undo, type ShuffleResult } from '../../store/actions';
+import { redo, setProjectName, undo } from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
 import { GRID_SIZES, useUiStore, type MainView } from '../../store/uiStore';
 import { ChecksButton } from '../checks/ChecksButton';
@@ -155,25 +155,10 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
   const t = useT();
   const view = useUiStore((s) => s.view);
   const language = useUiStore((s) => s.language);
-  const previewLocked = useUiStore((s) => s.previewLockedIds.length > 0);
-  const cabinetTool = useUiStore((s) => s.cabinetTool);
-  const editing = useDesignStore((s) => s.gestureBase !== null);
-  const empty = useDesignStore((s) => s.design.items.length === 0);
-  const [shuffleResult, setShuffleResult] = useState<ShuffleResult | null>(null);
   const ui = useUiStore.getState();
-  const shuffleDisabled = empty || previewLocked || Boolean(cabinetTool) || editing;
-  const shuffleTitle = previewLocked ? t.shuffle.preview : cabinetTool || editing ? t.shuffle.busy : t.shuffle.hint;
-  const shuffleFeedback = shuffleResult && <div
-    role={shuffleResult.ok ? 'status' : 'alert'}
-    className="studio-panel flex shrink-0 items-center gap-3 border-b px-4 py-2 text-xs text-studio-ink print:hidden"
-  >
-    <span className="flex-1">{shuffleResult.ok ? t.shuffle.success : t.shuffle[shuffleResult.reason]}</span>
-    <Button aria-label={t.common.close} onClick={() => setShuffleResult(null)}><X className="size-4" /></Button>
-  </div>;
 
   if (compact) {
     return (
-      <>
       <header className="studio-panel shrink-0 border-b print:hidden">
         <div className="flex h-14 items-center gap-1 px-3">
         <Logo />
@@ -189,10 +174,6 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
             <Button className="w-full justify-start" data-close-menu onClick={() => ui.setLayoutsOpen(true)}>
               <Images className="size-4" />
               {t.layouts.title}
-            </Button>
-            <Button className="w-full justify-start" data-close-menu title={shuffleTitle} disabled={shuffleDisabled} onClick={() => setShuffleResult(shuffleKitchen())}>
-              <Shuffle className="size-4" />
-              {t.shuffle.title}
             </Button>
             <details>
               <summary className="cursor-pointer rounded-lg px-2 py-3 text-[13px] font-medium text-studio-muted">{t.topBar.view}</summary>
@@ -219,13 +200,10 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
         </div>
         <div className="px-2 pb-2"><ViewTabs compact /></div>
       </header>
-      {shuffleFeedback}
-      </>
     );
   }
 
   return (
-    <>
     <header className="studio-panel z-20 flex h-16 shrink-0 items-center gap-1 border-b px-4 shadow-[0_1px_8px_#332f2805] print:hidden">
       <div className="flex items-center gap-2 pr-2">
         <Logo />
@@ -239,10 +217,6 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
       <Button variant="outline" title={t.layouts.title} aria-label={t.layouts.title} onClick={() => ui.setLayoutsOpen(true)}>
         <Images className="size-4" />
         <span className="hidden xl:inline">{t.kitchens.browse}</span>
-      </Button>
-      <Button title={shuffleTitle} aria-label={t.shuffle.title} disabled={shuffleDisabled} onClick={() => setShuffleResult(shuffleKitchen())}>
-        <Shuffle className="size-4" />
-        <span className="hidden xl:inline">{t.shuffle.title}</span>
       </Button>
       <ProjectName className="w-40" />
 
@@ -264,7 +238,5 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
       </Button>
       <LanguageSelect />
     </header>
-    {shuffleFeedback}
-    </>
   );
 }

@@ -94,7 +94,7 @@ describe('shuffle kitchen', () => {
       items: [createItem('sink', [], { id: 'sink', x: 1000, y: 1000 }), createItem('oven', [], { id: 'oven', x: 2000, y: 1000 })],
     };
     store().load(original);
-    expect(actions.shuffleKitchen()).toEqual({ ok: true });
+    expect(actions.shuffleKitchen()).toMatchObject({ ok: true, layout: 'straight' });
     const result = store().design;
     expect(result.items).not.toEqual(original.items);
     expect({ ...result, items: original.items }).toEqual(original);
