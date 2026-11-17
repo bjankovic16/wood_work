@@ -1,7 +1,8 @@
-import { ArrowRight, ChevronDown, ExternalLink, Search, SlidersHorizontal, X } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { ArrowRight, ChevronDown, ExternalLink, Search, Shuffle, SlidersHorizontal, X } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
 import { KITCHEN_DESIGNS, kitchenCategory, type KitchenCategory, type KitchenPreset } from '../../domain/kitchens';
 import { normalizeSearchText } from '../../domain/librarySearch';
+import { randomSeed, shuffled } from '../../domain/shuffle';
 import type { KitchenCollection } from '../../domain/premiumKitchens';
 import { FRONT_FINISHES, WORKTOP_FINISHES } from '../../domain/style';
 import { LAYOUTS, type LayoutId } from '../../domain/templates';
@@ -111,17 +112,21 @@ function LayoutChoices({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState('');
   const [withinRoom, setWithinRoom] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  /** Seed of the order chosen with "Shuffle"; null shows the collections in their own order. */
+  const [shuffle, setShuffle] = useState<number | null>(null);
+  const ordered = useMemo(() => (shuffle === null ? KITCHEN_DESIGNS : shuffled(KITCHEN_DESIGNS, shuffle)), [shuffle]);
   const searchRef = useRef<HTMLInputElement>(null);
   const words = normalizeSearchText(query).trim().split(/[\s,]+/).filter(Boolean);
-  const filtersActive = !!query || withinRoom || collection !== 'all' || filter !== 'all';
+  const filtersActive = !!query || withinRoom || collection !== 'all' || filter !== 'all' || shuffle !== null;
   const resetFilters = () => {
     setQuery('');
     setWithinRoom(false);
     setCollection('all');
     setFilter('all');
+    setShuffle(null);
     searchRef.current?.focus();
   };
-  const kitchens = KITCHEN_DESIGNS.filter((kitchen) => {
+  const kitchens = ordered.filter((kitchen) => {
     const preset: KitchenPreset = kitchen;
     const text = normalizeSearchText([
       kitchen.id, t.kitchens.names[kitchen.id], t.style.frontFinishes[kitchen.style.front],
@@ -205,9 +210,15 @@ function LayoutChoices({ onClose }: { onClose: () => void }) {
               <p id="kitchen-room-limit" hidden={!withinRoom} className="text-xs leading-relaxed tabular-nums text-zinc-600">{t.kitchens.roomLimit(room.width, room.depth, room.height)}</p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p role="status" className="text-xs text-zinc-600">{t.kitchens.count(kitchens.length, KITCHEN_DESIGNS.length)}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p role="status" className="mr-auto text-xs text-zinc-600">
+              {t.kitchens.count(kitchens.length, KITCHEN_DESIGNS.length)}
+              {shuffle !== null && <span className="ml-2 rounded-full bg-[#e6ecdf] px-2 py-0.5 font-medium text-[#3e5539]">{t.kitchens.shuffled}</span>}
+            </p>
             {filtersActive && <Button variant="outline" className="min-h-11" onClick={resetFilters}>{t.kitchens.resetFilters}</Button>}
+            <Button variant="outline" className="min-h-11" title={t.kitchens.shuffleTitle} disabled={kitchens.length < 2} onClick={() => setShuffle(randomSeed())}>
+              <Shuffle className="size-4" />{t.kitchens.shuffle}
+            </Button>
           </div>
           {kitchens.length === 0 ? <div className="rounded-2xl border border-dashed border-[#d6d0c3] bg-[#fffefa] p-6 text-center">
             <h4 className="text-sm font-semibold text-[#332f28]">{t.kitchens.noResults}</h4>

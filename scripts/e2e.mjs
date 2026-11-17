@@ -16,7 +16,8 @@ await server.listen();
 const url = server.resolvedUrls.local[0];
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
-const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, locale: 'sr-Latn-RS', permissions: ['clipboard-read', 'clipboard-write'] });
+// Camera glides and door animations are covered by the resize checks; here every view appears at once.
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, locale: 'sr-Latn-RS', permissions: ['clipboard-read', 'clipboard-write'], reducedMotion: 'reduce' });
 const problems = [];
 page.on('pageerror', (e) => problems.push(`page error: ${e.message}`));
 // Deprecation notice printed by React Three Fiber itself with this three.js version; not caused by the app.
@@ -211,7 +212,7 @@ try {
   await page.getByRole('radio', { name: /^Plan/ }).click();
 
   console.log('Premium library and finishes');
-  const premiumContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const premiumContext = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
   const premiumPage = await premiumContext.newPage();
   premiumPage.on('pageerror', (error) => problems.push(`premium page error: ${error.message}`));
   premiumPage.on('console', (message) => {
@@ -896,7 +897,7 @@ try {
   await page.waitForSelector('canvas');
 
   console.log('Phone');
-  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'sr-Latn-RS', isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'sr-Latn-RS', isMobile: true, hasTouch: true, deviceScaleFactor: 2, reducedMotion: 'reduce' });
   const mobile = await phone.newPage();
   mobile.on('pageerror', (e) => problems.push(`phone page error: ${e.message}`));
   mobile.on('console', (m) => {

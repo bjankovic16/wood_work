@@ -31,7 +31,7 @@ try {
   assert.ok(Math.abs(filters[0].y - filters[1].y) < 2, 'Desktop filters must share one row.');
   await page.screenshot({ path: path.join(output, 'desktop-gallery.png') });
   await gallery.locator('[data-kitchen-design="chimney-frame"]').click();
-  await page.getByTestId('three-tools').waitFor();
+  await page.getByTestId('three-toolbar').waitFor();
   assert.equal(await page.locator('[data-preset]').count(), 0, 'The library must not occupy the 3D viewport.');
   await page.getByRole('button', { name: 'Add element', exact: true }).click();
   const add = page.getByRole('dialog', { name: 'Add element', exact: true });
@@ -122,7 +122,7 @@ try {
     return JSON.stringify({ design, past, future, list: buildCuttingList(design) });
   });
   const fabricationBefore = await fabricationSnapshot();
-  await page.getByTestId('three-tools').locator(':scope > summary').click();
+  await page.getByTestId('three-tools-toggle').click();
   const interiorToggle = page.getByRole('button', { name: 'Interior view', exact: true });
   assert.equal(await interiorToggle.getAttribute('aria-pressed'), 'false');
   await interiorToggle.click();
@@ -180,7 +180,7 @@ try {
   }), 'Metal drawer panels must use the construction engine dimensions, without invented hardware.');
   await interiorToggle.click();
   assert.equal(await fabricationSnapshot(), metalBefore);
-  await page.getByTestId('three-tools').locator(':scope > summary').click();
+  await page.getByTestId('three-tools-toggle').click();
   await page.evaluate((design) => window.__kitchen.design.getState().load(design), original);
   await page.setViewportSize({ width: 320, height: 740 });
   await page.evaluate(() => {
@@ -189,7 +189,7 @@ try {
     ui.select(window.__kitchen.design.getState().design.items[0].id);
   });
   await page.getByTestId('item-sheet').waitFor();
-  await page.getByTestId('three-tools').waitFor();
+  await page.getByTestId('three-toolbar').waitFor();
   await page.waitForFunction(() => window.__kitchen3D?.scene.getObjectByName(window.__kitchen.ui.getState().selectedId));
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   assert.equal(await page.getByRole('group', { name: 'Selected cabinet actions' }).count(), 0);
@@ -200,10 +200,10 @@ try {
   assert.deepEqual(smallTargets, [], 'Phone buttons must have 44px touch targets.');
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
   await page.screenshot({ path: path.join(output, 'phone-selected.png') });
-  await page.getByTestId('three-tools').locator(':scope > summary').click();
+  await page.getByTestId('three-tools-toggle').click();
   await interiorToggle.click();
   assert.equal(await interiorToggle.getAttribute('aria-pressed'), 'true');
-  await page.getByTestId('three-tools').locator(':scope > summary').click();
+  await page.getByTestId('three-tools-toggle').click();
   assert.equal(await page.getByRole('group', { name: 'Selected cabinet actions' }).count(), 0);
   await page.evaluate(() => window.__kitchen.ui.getState().select(null));
   await page.getByRole('button', { name: 'Add element', exact: true }).waitFor();
@@ -240,7 +240,7 @@ try {
     window.__kitchen.design.getState().load(fixture);
     window.__kitchen.ui.getState().setView('3d');
   });
-  await phone.getByTestId('three-tools').locator(':scope > summary').tap();
+  await phone.getByTestId('three-tools-toggle').tap();
   const phoneInterior = phone.getByRole('button', { name: 'Unutrašnjost elemenata', exact: true });
   await phoneInterior.tap();
   await phone.waitForFunction(() => window.__kitchen3D?.scene.getObjectByName('phone-interior')?.getObjectByName('cabinet-interior'));

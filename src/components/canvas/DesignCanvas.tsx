@@ -1,6 +1,6 @@
 import type { KonvaEventObject } from 'konva/lib/Node';
-import { Images, Maximize, Minus, Plus, Ruler, X } from 'lucide-react';
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { Maximize, Minus, Plus } from 'lucide-react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Layer, Stage } from 'react-konva';
 import { updateItem } from '../../domain/designOps';
 import { attachedWall, isWallMounted, itemRect } from '../../domain/geometry';
@@ -31,6 +31,7 @@ import { Button, Menu } from '../ui';
 import { ItemShape } from './ItemShape';
 import { Clearances, Ghost, Guides, IssueOutlines, Selection, WallDimensions } from './Overlays';
 import { RoomShape } from './RoomShape';
+import { StartGuide } from './StartGuide';
 import { WallCorners } from './WallCorners';
 
 /** Pointer travel (px) before a press turns into a drag; fingers wobble more than mice. */
@@ -375,7 +376,7 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
   return (
     <div
       ref={containerRef}
-      className="relative h-full w-full touch-none overflow-hidden bg-zinc-100"
+      className="relative h-full w-full touch-none overflow-hidden bg-studio-canvas"
       onContextMenu={(e) => e.preventDefault()}
     >
       {size.w > 0 && size.h > 0 && (
@@ -451,7 +452,7 @@ function CanvasControls({ zoom, viewFilter, isEmpty, compact, rows, row }: Canva
   const projectId = useProjectsStore((state) => state.activeId);
   return (
     <>
-      <div role="group" aria-label={t.canvas.filterLabel} className="absolute left-3 top-3 flex rounded-lg border border-zinc-200 bg-white p-0.5 shadow-sm">
+      <div role="group" aria-label={t.canvas.filterLabel} className="studio-panel absolute left-3 top-3 flex rounded-lg border p-0.5 shadow-sm">
         {FILTERS.map((id) => {
           const filter = t.canvas.filters[id];
           return (
@@ -465,7 +466,7 @@ function CanvasControls({ zoom, viewFilter, isEmpty, compact, rows, row }: Canva
               className={cn(
                 'h-7 touch-manipulation rounded-md text-xs font-medium transition-colors',
                 compact ? 'px-1.5' : 'px-2.5',
-                viewFilter === id ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900',
+                viewFilter === id ? 'bg-studio-accent text-white' : 'text-studio-muted hover:bg-[#ece8df] hover:text-studio-ink',
               )}
             >
               {compact ? filter.short : filter.label}
@@ -494,7 +495,7 @@ function CanvasControls({ zoom, viewFilter, isEmpty, compact, rows, row }: Canva
         role="group"
         aria-label={t.canvas.zoomControls}
         className={cn(
-          'absolute right-3 flex items-center gap-0.5 rounded-lg border border-zinc-200 bg-white p-0.5 shadow-sm',
+          'studio-panel absolute right-3 flex items-center gap-0.5 rounded-lg border p-0.5 shadow-sm',
           compact ? 'top-3' : 'bottom-3',
         )}
       >
@@ -512,7 +513,7 @@ function CanvasControls({ zoom, viewFilter, isEmpty, compact, rows, row }: Canva
           type="button"
           title={t.canvas.fit}
           onClick={fitRoomInView}
-          className={cn('h-7 rounded-md text-xs font-medium tabular-nums text-zinc-600 hover:bg-zinc-100', compact ? 'w-10' : 'w-12')}
+          className={cn('h-7 rounded-md text-xs font-medium tabular-nums text-studio-muted hover:bg-[#ece8df] hover:text-studio-ink', compact ? 'w-10' : 'w-12')}
         >
           {Math.round((zoom / REFERENCE_ZOOM) * 100)}%
         </button>
@@ -526,35 +527,7 @@ function CanvasControls({ zoom, viewFilter, isEmpty, compact, rows, row }: Canva
         </>}
       </div>
 
-      <EmptyPlanGuide key={projectId} compact={compact} isEmpty={isEmpty} />
+      <StartGuide key={projectId} compact={compact} isEmpty={isEmpty} />
     </>
-  );
-}
-
-function EmptyPlanGuide({ compact, isEmpty }: { compact: boolean; isEmpty: boolean }) {
-  const t = useT();
-  const titleId = useId();
-  const [dismissed, setDismissed] = useState(false);
-  const dragging = useUiStore((state) => state.libraryDrag !== null);
-  if (dismissed || dragging || !isEmpty) return null;
-  return (
-    <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-4 pb-20 pt-12">
-      <section aria-labelledby={titleId} className="pointer-events-auto relative w-full max-w-md rounded-xl border border-zinc-200 bg-white p-5 shadow-lg">
-        <Button aria-label={t.canvas.dismissStart} title={t.canvas.dismissStart} className="absolute right-2 top-2" onClick={() => setDismissed(true)}>
-          <X className="size-4" />
-        </Button>
-        <h2 id={titleId} className="pr-6 text-lg font-semibold text-zinc-900">{t.canvas.startTitle}</h2>
-        <p className="mt-2 text-[13px] leading-relaxed text-zinc-600">{t.canvas.startIntro}</p>
-        <div className="mt-4 grid gap-2 sm:grid-cols-2">
-          <Button variant="primary" className="h-11 px-3 text-xs" onClick={() => useUiStore.getState().setLayoutsOpen(true)}>
-            <Images className="size-4 shrink-0" />{t.canvas.startFromLayout}
-          </Button>
-          <Button variant="outline" className="h-11 px-3 text-xs" onClick={() => { setDismissed(true); useUiStore.getState().setRoomOpen(true); }}>
-            <Ruler className="size-4 shrink-0" />{t.canvas.startWithRoom}
-          </Button>
-        </div>
-        <p className="mt-3 text-xs leading-relaxed text-zinc-600">{compact ? t.canvas.emptyTouch : t.canvas.emptyDesktop}</p>
-      </section>
-    </div>
   );
 }

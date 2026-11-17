@@ -42,9 +42,28 @@ async function assertRoomObject(page, type, id) {
   assert.ok(actual.position.every((number, index) => Math.abs(number - actual.expected[index]) < 0.000001), JSON.stringify(actual));
 }
 
+/**
+ * Puts the mouse on a room-object arrow and returns where the arrow is once the pointer rests there. Hovering
+ * highlights the arrow and draws a frame, and that frame lets the camera finish its last fraction of a pan. Seen
+ * exactly from above, that can flip an arrow to the other side of the object, so aim again where it now is.
+ */
+async function aimHandle(page, axis, distance) {
+  let target = await movementHandle(page, axis, distance, toolName);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await page.mouse.move(target.from.x, target.from.y);
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    const next = await movementHandle(page, axis, distance, toolName);
+    const settled = Math.hypot(next.from.x - target.from.x, next.from.y - target.from.y) < 0.5;
+    target = next;
+    if (settled) break;
+  }
+  await page.mouse.move(target.from.x, target.from.y);
+  return target;
+}
+
 async function dragHandle(page, axis, distance, touch = false) {
-  const handle = await movementHandle(page, axis, distance, toolName);
   if (touch) {
+    const handle = await movementHandle(page, axis, distance, toolName);
     const session = await page.context().newCDPSession(page);
     await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: handle.from.x, y: handle.from.y }] });
     for (let step = 1; step <= 12; step++) {
@@ -53,7 +72,7 @@ async function dragHandle(page, axis, distance, touch = false) {
     await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     await session.detach();
   } else {
-    await page.mouse.move(handle.from.x, handle.from.y);
+    const handle = await aimHandle(page, axis, distance);
     await page.mouse.down();
     await page.mouse.move(handle.to.x, handle.to.y, { steps: 12 });
     await page.mouse.up();
@@ -156,8 +175,7 @@ export async function roomObjectChecks(page, output, observe) {
   for (const interruption of ['pointercancel', 'blur', 'Escape']) {
     const before = await design(page);
     const count = await history(page);
-    const handle = await movementHandle(page, 'X', 0.4, toolName);
-    await page.mouse.move(handle.from.x, handle.from.y);
+    const handle = await aimHandle(page, 'X', 0.4);
     await page.mouse.down();
     await page.mouse.move(handle.to.x, handle.to.y, { steps: 12 });
     assert.notDeepEqual(await design(page), before);
@@ -197,7 +215,7 @@ export async function roomObjectChecks(page, output, observe) {
   assert.deepEqual(await design(page), saved);
   console.log('  PASS columns/projections use the same controls, exact measurements apply, and all placements survive reload');
 
-  const phoneContext = await page.context().browser().newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const phoneContext = await page.context().browser().newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
   try {
     const phone = await phoneContext.newPage();
     observe(phone);

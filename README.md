@@ -36,9 +36,12 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
 
 ## Quick start
 
-1. Choose a ready-made kitchen from the start panel, or choose **Start with my
-   room** to enter inside measurements and add doors and windows. Use millimetres:
-   3 metres is 3000 mm. The start panel is optional and can be dismissed.
+1. The start panel shows three kitchens from the collection: click one to open
+   it in 3D, or press **Shuffle ideas** to see three others (every kitchen is
+   shown once before any comes back). **Choose a kitchen** opens the whole
+   gallery, and **Start with my room** lets you enter inside measurements and
+   add doors and windows. Use millimetres: 3 metres is 3000 mm. The start panel
+   is optional and can be dismissed.
 2. Find parts using the library search (for example `drawers 900`, `pantry`, or
    `600`) and category filter. Serbian search also works without accents.
    The library starts with eight **Most used** parts. Choose **Browse all parts**
@@ -136,9 +139,10 @@ browsers, English otherwise. A language chosen manually is remembered.
   Warm marble and travertine have procedural textures; choose a backsplash,
   switch warm under-cabinet or plinth lighting on, and style open shelves or glass
   cabinets with accessories. Click a unit to edit it.
-  - Quick **3D / Front / Top** views, **Focus selected cabinet**, and a compact
-    selected-cabinet toolbar for move, rotate, copy and delete. Enable **Move**
-    and drag the X/Z handles: the same grid, wall faces and snapping rules as
+  - Quick **3D / Front / Top** views in the toolbar above the viewport; the
+    camera glides from one view to the next. **Tools** adds **Focus selected
+    cabinet** and a selected-cabinet toolbar for move, rotate, copy and delete.
+    Enable **Move** there and drag the X/Z handles: the same grid, wall faces and snapping rules as
     the plan apply, and a whole drag is one Undo step. Each stacked tier moves
     independently at its existing elevation. The visible cabinet stays aligned
     with its saved position even when snapping prevents movement. Escape,
@@ -224,40 +228,56 @@ browsers, English otherwise. A language chosen manually is remembered.
 - **Windows and doors** in the walls, shown on the plan and in 3D; new units
   are placed clear of them.
   - In **3D**, click a door/window or choose it from **Doors, windows & structures**,
-    then use **Move room object**. The red handle slides it along its wall;
-    windows also have a green height handle, while doors stay on the floor.
+    then use **Move room object**. The level handle slides it along its wall;
+    windows also have an upright height handle, while doors stay on the floor.
     Angled walls and either face of an interior partition are supported.
     **Edit room object measurements** changes exact sizes, sill, offset or wall.
     Opening frames stay visible when the near wall is hidden so they remain
     selectable. These diagrams are not door-swing or glazing specifications.
-- The 3D viewport stays clear: expand the docked **3D tools** panel to access
-  camera, style, selection, movement and resizing controls. It starts collapsed
-  and never overlays the kitchen. Instructions are under **How to use 3D**;
-  selection warnings remain in the tools panel and the main Checks view.
-- **Direct 3D editing**: hold and drag a cabinet itself to move it across the
-  floor, keeping its elevation; no selection or hand activation is needed first.
-  Click or tap a cabinet to show a labelled hand-shaped
-  move handle and resize arrows. Hold and drag the hand to move the cabinet;
-  red changes width, green height, blue depth (the second arm for corner units).
-  Drag an arrow out to expand or in to shrink. The tools panel can stay closed.
-  Drags use the plan's snapping and each form one Undo step; Escape or an
-  interrupted gesture cancels an unfinished move. Drag the background to orbit.
-  Cabinet dragging runs at 60% of pointer travel for finer control. Click **Move**
-  to show directional arrows in the bottom menu, starting with 10 mm steps
-  (50/100 mm are also available). Directions follow the room plan; elevation
-  stays fixed and each step supports Undo.
-- **Open a cabinet**: double-click it or use the door icon next to its hand handle.
-  Doors swing open and drawers slide out; use the icon again to close them.
-  Opening focuses the camera on that cabinet. It is a view-only preview and
-  does not change dimensions or cutting quantities.
-- **See inside cabinets**: turn on **Interior view** under **3D tools** to hide
+- **3D toolbar**: a slim toolbar docked above the viewport, never over the
+  kitchen, holds what is used all the time: **Style**, the **3D / Front / Top**
+  views, **Open all**, **Interior view** and **Photo**. **Tools** opens the
+  rarely needed tools: the selected-cabinet toolbar with handle-based Move and
+  Resize, the list of doors, windows and structures, and a short how-to. On
+  phones the toolbar is icons only and Interior view, Photo and Reset view sit
+  under **Tools**. A door, window or structure selected in 3D shows its own
+  actions straight away.
+- **Move cabinets by dragging them** in 3D. With a mouse, press any cabinet and
+  drag; an outline shows which cabinet is under the pointer. On a touch screen
+  a swipe turns the view as it does anywhere else, so rest a finger on a
+  cabinet for a moment to pick it up, or tap it first: the selected cabinet and
+  its **Move** hand button move at once.
+  - The point you grabbed stays under the pointer. Seen from above the cabinet
+    follows freely across the floor; seen level, as with wall units at eye
+    height or the Front view, it slides sideways only, so a pixel of drift can
+    never throw it across the room.
+  - A cabinet keeps to its wall until it is clearly pulled away, and does not
+    turn onto the next wall by itself when slid into a corner.
+  - While you drag, blue measurements show the free space left on each side,
+    to the next unit or wall. Snapping and the grid are the plan's; one drag is
+    one Undo step; Escape or an interrupted gesture puts the cabinet back.
+  - Click **Move** (without dragging) for arrow buttons that move in exact 10,
+    50 or 100 mm steps. The arrows, and the keyboard's arrow keys, move the
+    cabinet the way they point on screen, however the view is turned.
+  - Click or tap a cabinet for its resize arrows as well: drag one out to
+    expand or in to shrink along the direction it points.
+- **Open a cabinet**: double-click it, or select it and press **Open**. Doors
+  swing open and drawers slide out, lower drawers further than the ones above,
+  so every drawer shows its inside. The camera glides to a three-quarter view
+  of the cabinet (from above for floor units, from eye level for wall and tall
+  units) and glides back when the last open cabinet is closed. **Open all** in
+  the toolbar opens or closes every cabinet without moving the camera. Opening
+  is a view-only preview: it does not change dimensions or cutting quantities.
+  Animations are skipped when the system asks for reduced motion.
+- **See inside cabinets**: turn on **Interior view** in the toolbar (under
+  **Tools** on phones) to hide
   fronts and reveal shelves, corner compartments and drawer boxes. Toggle it off
   to restore the finished kitchen. This schematic view does not change the
   project, Undo history or cutting list; appliance interiors and fitting details
   are not modelled.
-- **Resize cabinets in 3D**: expand **3D tools**, select a cabinet, choose **Resize**, then choose
+- **Resize cabinets in 3D** to a chosen dimension: open **Tools**, select a cabinet, choose **Resize**, then choose
   Width, Height or Depth (corner units also offer the second arm). Drag the
-  coloured handle out to expand or in to shrink, with live measurements.
+  handle out to expand or in to shrink, with live measurements.
   The back-left anchor and elevation stay fixed; size limits, the room outline
   and ceiling constrain the change. Grid snapping follows the plan setting.
   Use the pencil for exact dimensions, **Done** to exit, **Undo** to restore a

@@ -50,12 +50,12 @@ function wallDistances(room: Room, p: Point): Record<Wall, number> {
   };
 }
 
-export function pickWall(room: Room, pointer: Point, depth: number, previous: Wall | null): Wall | null {
+export function pickWall(room: Room, pointer: Point, depth: number, previous: Wall | null, sticky = false): Wall | null {
   const distance = wallDistances(room, pointer);
   const zone = depth + ATTACH_MARGIN;
   let best: Wall = 'top';
   for (const wall of WALLS) if (distance[wall] < distance[best]) best = wall;
-  if (previous && distance[previous] <= zone && distance[previous] <= distance[best] + WALL_HYSTERESIS) {
+  if (previous && distance[previous] <= zone && (sticky || distance[previous] <= distance[best] + WALL_HYSTERESIS)) {
     best = previous;
   }
   return distance[best] <= zone ? best : null;
@@ -89,7 +89,7 @@ export function snapTargets(room: Room, others: readonly Placed[]): { xs: number
   return { xs, ys };
 }
 
-function pickSurface(room: Room, pointer: Point, depth: number, previous: Wall | null): RoomWallRun | null {
+function pickSurface(room: Room, pointer: Point, depth: number, previous: Wall | null, sticky = false): RoomWallRun | null {
   const surfaces = roomWallRuns(room);
   const distance = (surface: RoomWallRun) => {
     const horizontal = surface.wall === 'top' || surface.wall === 'bottom';
@@ -101,7 +101,7 @@ function pickSurface(room: Room, pointer: Point, depth: number, previous: Wall |
   const best = ordered[0];
   if (!best || distance(best) > depth + ATTACH_MARGIN) return null;
   const same = ordered.find((surface) => surface.wall === previous);
-  return same && distance(same) <= depth + ATTACH_MARGIN && distance(same) <= distance(best) + WALL_HYSTERESIS ? same : best;
+  return same && distance(same) <= depth + ATTACH_MARGIN && (sticky || distance(same) <= distance(best) + WALL_HYSTERESIS) ? same : best;
 }
 
 /** Moves the segment [start, start + size] so that one of its ends meets the nearest target. */
@@ -148,6 +148,12 @@ export interface DragInput {
   grabOffset: Point | null;
   /** Wall the item was attached to on the previous move, for hysteresis. */
   previousWall: Wall | null;
+  /**
+   * Keep the item on its wall until it is pulled clear of it, however close
+   * another wall comes. Used in 3D, where a unit slid into a corner should not
+   * turn onto the next wall by itself.
+   */
+  stickyWall?: boolean;
   snap: SnapSettings;
 }
 
@@ -181,7 +187,7 @@ export function computeDragPlacement(input: DragInput): DragResult {
     }).filter((entry) => entry.local.y >= -snap.threshold).sort((a, b) => a.distance - b.distance);
     let best = ordered[0];
     const previous = ordered.find((entry) => Math.abs(entry.segment.angle - item.rotation) < 0.1);
-    if (previous && best && previous.distance <= best.distance + WALL_HYSTERESIS) best = previous;
+    if (previous && best && (input.stickyWall ? previous.distance <= item.depth + ATTACH_MARGIN : previous.distance <= best.distance + WALL_HYSTERESIS)) best = previous;
     if (best && best.local.y >= -snap.threshold && best.distance <= item.depth + ATTACH_MARGIN) {
       const { segment } = best;
       rotation = segment.angle;
@@ -205,10 +211,10 @@ export function computeDragPlacement(input: DragInput): DragResult {
       if (corner) rotation = CORNER_ROTATION[corner];
     } else {
       if (room.cutout || room.features?.length) {
-        surface = pickSurface(room, pointer, item.depth, input.previousWall);
+        surface = pickSurface(room, pointer, item.depth, input.previousWall, input.stickyWall);
         wall = surface?.wall ?? null;
       } else {
-        wall = pickWall(room, pointer, item.depth, input.previousWall);
+        wall = pickWall(room, pointer, item.depth, input.previousWall, input.stickyWall);
       }
       if (wall) rotation = rotationForWall(wall);
     }

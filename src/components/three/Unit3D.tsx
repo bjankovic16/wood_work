@@ -1,6 +1,6 @@
 import { Edges } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
-import { memo, useEffect, useMemo, useRef, type ReactNode, type Ref } from 'react';
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode, type Ref } from 'react';
 import type * as THREE from 'three';
 import { BASE_HEIGHT, PLINTH_HEIGHT, hasWorktop } from '../../domain/catalog';
 import { isWallMounted, localToRoom } from '../../domain/geometry';
@@ -19,6 +19,8 @@ const WORKTOP = 0.038;
 const WORKTOP_OVERHANG = 0.02;
 /** The plinth sits this far back from the front of the carcass. */
 const PLINTH_SETBACK = 0.06;
+/** How far an opened door swings: a little past square, like a 110-degree hinge. */
+const DOOR_SWING = Math.PI * 0.6;
 function Box({ size, position, material, rotation }: { size: Vec3; position: Vec3; material: THREE.Material; rotation?: Vec3 }) {
   return (
     <mesh position={position} rotation={rotation} material={material} castShadow receiveShadow>
@@ -27,24 +29,65 @@ function Box({ size, position, material, rotation }: { size: Vec3; position: Vec
   );
 }
 
-function OpeningPart({ opened, position, angle = 0, travel = 0, children }: {
-  opened: boolean; position: Vec3; angle?: number; travel?: number; children: ReactNode;
+/** Seconds a door or drawer takes to open, and to close again. */
+const OPEN_SECONDS = 0.5;
+const CLOSE_SECONDS = 0.32;
+
+function easeInOut(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+}
+
+function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+}
+
+/** A door that swings by `angle` or a drawer that slides out by `travel`, starting `delay` seconds after its unit opens. */
+function OpeningPart({ opened, position, angle = 0, travel = 0, delay = 0, children }: {
+  opened: boolean; position: Vec3; angle?: number; travel?: number; delay?: number; children: ReactNode;
 }) {
   const ref = useRef<THREE.Group>(null);
-  const progress = useRef(0);
+  // A unit drawn again while it is open stays open instead of opening once more.
+  const progress = useRef(opened ? 1 : 0);
+  const wait = useRef(0);
   const invalidate = useThree((state) => state.invalidate);
-  useEffect(() => { invalidate(); }, [opened, invalidate]);
+  const place = () => {
+    const eased = easeInOut(progress.current);
+    if (ref.current) {
+      ref.current.rotation.y = angle * eased;
+      ref.current.position.z = travel * eased;
+    }
+  };
+  useLayoutEffect(place);
+  useEffect(() => {
+    wait.current = opened && progress.current === 0 ? delay : 0;
+    invalidate();
+  }, [opened, delay, invalidate]);
   useFrame((_, delta) => {
     const target = opened ? 1 : 0;
-    const next = progress.current + (target - progress.current) * (1 - Math.exp(-12 * Math.min(delta, 0.05)));
-    progress.current = Math.abs(target - next) < 0.001 ? target : next;
-    if (ref.current) {
-      ref.current.rotation.y = angle * progress.current;
-      ref.current.position.z = travel * progress.current;
+    if (progress.current === target) return;
+    const step = Math.min(delta, 0.05);
+    if (prefersReducedMotion()) {
+      progress.current = target;
+    } else if (wait.current > 0) {
+      wait.current -= step;
+    } else {
+      progress.current = opened ? Math.min(1, progress.current + step / OPEN_SECONDS) : Math.max(0, progress.current - step / CLOSE_SECONDS);
     }
+    place();
     if (progress.current !== target) invalidate();
   });
   return <group position={position}><group ref={ref} name="cabinet-opening">{children}</group></group>;
+}
+
+/** How one drawer front opens: lower drawers come out further, so every drawer shows its inside. */
+interface DrawerOpening { travel: number; delay: number }
+
+function drawerOpenings(fronts: readonly FrontRect[], slide: number): Map<FrontRect, DrawerOpening> {
+  const drawers = fronts.filter((front) => front.kind === 'drawer').sort((a, b) => b.y - a.y);
+  return new Map(drawers.map((front, index) => [front, {
+    travel: slide * (drawers.length > 1 ? 0.5 + 0.42 * index / (drawers.length - 1) : 0.8),
+    delay: index * 0.07,
+  }]));
 }
 
 function FloorWash({ W, D, E, materials }: { W: number; D: number; E: number; materials: KitchenMaterials }) {
@@ -96,10 +139,10 @@ interface FrontsProps {
   glass?: boolean;
   profile?: FrontProfile;
   opened?: boolean;
-  drawerTravel?: number;
+  drawers?: Map<FrontRect, DrawerOpening>;
 }
 
-function Fronts({ fronts, z, thickness, materials, lowHandles, glass = false, profile, opened = false, drawerTravel = 0 }: FrontsProps) {
+function Fronts({ fronts, z, thickness, materials, lowHandles, glass = false, profile, opened = false, drawers }: FrontsProps) {
   return (
     <>
       {fronts.map((front, i) => {
@@ -109,8 +152,8 @@ function Fronts({ fronts, z, thickness, materials, lowHandles, glass = false, pr
         const pivot = front.kind === 'door' && front.hinge === 'right' ? m(front.x) + w : m(front.x);
         return (
           <OpeningPart key={i} opened={opened} position={[pivot, m(front.y), z]}
-            angle={front.kind === 'door' ? (front.hinge === 'right' ? 1 : -1) * Math.PI * 0.55 : 0}
-            travel={front.kind === 'drawer' ? drawerTravel : 0}>
+            angle={front.kind === 'door' ? (front.hinge === 'right' ? 1 : -1) * DOOR_SWING : 0}
+            travel={drawers?.get(front)?.travel ?? 0} delay={drawers?.get(front)?.delay ?? 0}>
           <group position={[-pivot, -m(front.y), -z]}>
             <group position={[m(front.x), m(front.y), z]}>
               <DoorSurface W={w} H={h} thickness={thickness} material={glass ? materials.displayGlass : materials.front} profile={glass ? 'flat' : profile} />
@@ -148,7 +191,7 @@ function OpenCarcass({ W, H, D, t, tb, shelves, setback, materials, back = true,
   );
 }
 
-function DrawerInteriors({ item, ctx, materials, fronts, opened = false, travel = 0 }: { item: KitchenItem; ctx: BuildContext; materials: KitchenMaterials; fronts: FrontRect[]; opened?: boolean; travel?: number }) {
+function DrawerInteriors({ item, ctx, materials, fronts, opened = false, drawers }: { item: KitchenItem; ctx: BuildContext; materials: KitchenMaterials; fronts: FrontRect[]; opened?: boolean; drawers?: Map<FrontRect, DrawerOpening> }) {
   const config = resolveConfig(item, ctx);
   const t = m(config.carcass.thickness);
   const metal = ctx.settings.drawerSystem === 'metal';
@@ -161,7 +204,7 @@ function DrawerInteriors({ item, ctx, materials, fronts, opened = false, travel 
     const height = m(boxHeight);
     const bottom = m(front.y + (front.h - boxHeight) / 2);
     const z = m(item.depth) - depth - (config.doorType === 'inset' ? m(config.front.thickness) : 0);
-    return <OpeningPart key={index} opened={opened} position={[(m(item.width) - width) / 2, bottom, z]} travel={travel}><group name="cabinet-drawer">
+    return <OpeningPart key={index} opened={opened} position={[(m(item.width) - width) / 2, bottom, z]} travel={drawers?.get(front)?.travel ?? 0} delay={drawers?.get(front)?.delay ?? 0}><group name="cabinet-drawer">
       <Box size={[width, bottomThickness, depth]} position={[width / 2, -bottomThickness / 2, depth / 2]} material={materials.carcass} />
       <Box size={[metal ? m(inside - ctx.settings.metalBackDeduction) : width - 2 * t, height, t]} position={[width / 2, height / 2, t / 2]} material={materials.carcass} />
       {!metal && <>
@@ -269,13 +312,13 @@ function Fridge({ W, H, D, materials }: { W: number; H: number; D: number; mater
   );
 }
 
-function SelectionBox({ size, position, invalid = false }: { size: Vec3; position: Vec3; invalid?: boolean }) {
+function SelectionBox({ size, position, invalid = false, hover = false }: { size: Vec3; position: Vec3; invalid?: boolean; hover?: boolean }) {
   const color = invalid ? '#dc2626' : ACCENT;
   return (
     <mesh position={position} raycast={() => null}>
       <boxGeometry args={size} />
-      <meshBasicMaterial color={color} transparent opacity={0.07} depthWrite={false} />
-      <Edges color={color} />
+      <meshBasicMaterial color={color} transparent opacity={hover ? 0.035 : 0.07} depthWrite={false} />
+      <Edges color={color} transparent opacity={hover ? 0.55 : 1} />
     </mesh>
   );
 }
@@ -292,7 +335,11 @@ interface UnitProps {
   objectRef?: Ref<THREE.Group>;
   interior?: boolean;
   opened?: boolean;
-  onToggleOpening?: () => void;
+  /** Double-click opens or closes the unit; left out for units that cannot open. */
+  onToggleOpening?: (id: string) => void;
+  /** Under the mouse and ready to be grabbed. */
+  hovered?: boolean;
+  onHover?: (id: string | null) => void;
 }
 
 /**
@@ -300,7 +347,7 @@ interface UnitProps {
  * underside of the carcass; inside it, x runs along the front, y up, and z
  * from the back towards the front, matching the plan's local frame.
  */
-export const Unit3D = memo(function Unit3D({ item, ctx, materials: sharedMaterials, selected, onSelect, accentLight = false, underLighting = true, invalid = false, objectRef, interior = false, opened = false, onToggleOpening }: UnitProps) {
+export const Unit3D = memo(function Unit3D({ item, ctx, materials: sharedMaterials, selected, onSelect, accentLight = false, underLighting = true, invalid = false, objectRef, interior = false, opened = false, onToggleOpening, hovered = false, onHover }: UnitProps) {
   const localMaterials = useMemo(() => item.frontFinish || item.carcassFinish
     ? createMaterials({ ...(ctx.style ?? DEFAULT_STYLE), front: item.frontFinish ?? ctx.style?.front ?? DEFAULT_STYLE.front }, item.carcassFinish)
     : null, [ctx.style, item.frontFinish, item.carcassFinish]);
@@ -316,7 +363,7 @@ export const Unit3D = memo(function Unit3D({ item, ctx, materials: sharedMateria
   const tf = m(config.front.thickness);
   const gap = m(settings.frontGap);
   const fronts = frontLayout(item, config, settings);
-  const drawerTravel = m(slideLength(innerDepth(item, config, ctx))) * 0.7;
+  const drawers = drawerOpenings(fronts, m(slideLength(innerDepth(item, config, ctx))));
   const wallUnit = isWallMounted(item);
   const lowHandles = (front: FrontRect) => wallUnit || (item.kind === 'tall' && front.y >= BASE_HEIGHT);
   const worktop = hasWorktop(item);
@@ -383,14 +430,14 @@ export const Unit3D = memo(function Unit3D({ item, ctx, materials: sharedMateria
         <>
           <CornerInterior W={W} W2={W2} H={H} D={D} t={m(config.carcass.thickness)} shelves={config.shelves} materials={materials} />
           {!interior && <>
-          <OpeningPart opened={opened} position={[W - gap / 2, gap / 2, D]} angle={Math.PI * 0.55}>
+          <OpeningPart opened={opened} position={[W - gap / 2, gap / 2, D]} angle={DOOR_SWING}>
             <group position={[-a, 0, 0]}>
               <DoorSurface W={a} H={doorH} thickness={tf} material={materials.front} profile={ctx.style?.frontProfile} />
               {materials.handle && <Box size={[0.012, Math.min(0.16, doorH * 0.5), 0.012]} position={[0.035, wallUnit ? 0.13 : doorH - 0.13, tf + 0.014]} material={materials.handle} />}
             </group>
           </OpeningPart>
           <group position={[D, gap / 2, W2 - gap / 2]} rotation={[0, Math.PI / 2, 0]}>
-            <OpeningPart opened={opened} position={[0, 0, 0]} angle={-Math.PI * 0.55}>
+            <OpeningPart opened={opened} position={[0, 0, 0]} angle={-DOOR_SWING}>
               <DoorSurface W={b} H={doorH} thickness={tf} material={materials.front} profile={ctx.style?.frontProfile} />
             </OpeningPart>
           </group>
@@ -430,9 +477,9 @@ export const Unit3D = memo(function Unit3D({ item, ctx, materials: sharedMateria
       );
       bounds = { size: [W, H, W2], position: [W / 2, H / 2, W2 / 2] };
       return (
-        <UnitGroup item={item} anchor={anchor} onSelect={onSelect} objectRef={objectRef} onToggleOpening={onToggleOpening}>
+        <UnitGroup item={item} anchor={anchor} onSelect={onSelect} objectRef={objectRef} onToggleOpening={onToggleOpening} onHover={onHover}>
           {body}
-          {(selected || invalid) && <SelectionBox {...bounds} invalid={invalid} />}
+          {(selected || invalid || hovered) && <SelectionBox {...bounds} invalid={invalid} hover={hovered && !selected && !invalid} />}
         </UnitGroup>
       );
     }
@@ -457,7 +504,7 @@ export const Unit3D = memo(function Unit3D({ item, ctx, materials: sharedMateria
                 materials={materials}
                 back={KIND_OPTIONS[item.kind].back}
               />
-              <DrawerInteriors item={item} ctx={ctx} materials={materials} fronts={fronts} opened={opened && !interior} travel={drawerTravel} />
+              <DrawerInteriors item={item} ctx={ctx} materials={materials} fronts={fronts} opened={opened && !interior} drawers={drawers} />
             </group>
           ) : (
             <>
@@ -466,7 +513,7 @@ export const Unit3D = memo(function Unit3D({ item, ctx, materials: sharedMateria
             </>
           )}
           <group name="cabinet-fronts">
-            <Fronts fronts={interior ? fronts.filter((front) => front.kind === 'panel') : fronts} z={inset ? D - tf : D} thickness={tf} materials={materials} lowHandles={lowHandles} glass={glass} profile={ctx.style?.frontProfile} opened={opened} drawerTravel={drawerTravel} />
+            <Fronts fronts={interior ? fronts.filter((front) => front.kind === 'panel') : fronts} z={inset ? D - tf : D} thickness={tf} materials={materials} lowHandles={lowHandles} glass={glass} profile={ctx.style?.frontProfile} opened={opened} drawers={drawers} />
           </group>
           {item.kind === 'oven' && <OvenFront W={W} H={H} D={D} gap={gap} materials={materials} />}
           {item.kind === 'ovenTower' && (
@@ -489,7 +536,7 @@ export const Unit3D = memo(function Unit3D({ item, ctx, materials: sharedMateria
   }
 
   return (
-    <UnitGroup item={item} anchor={anchor} onSelect={onSelect} objectRef={objectRef} onToggleOpening={onToggleOpening}>
+    <UnitGroup item={item} anchor={anchor} onSelect={onSelect} objectRef={objectRef} onToggleOpening={onToggleOpening} onHover={onHover}>
       {body}
       {worktop && <Worktop W={W} D={worktopDepth} H={H} materials={materials} />}
       {worktop && item.kind === 'sink' && <Sink W={W} D={worktopDepth} top={H + WORKTOP} materials={materials} />}
@@ -508,18 +555,19 @@ export const Unit3D = memo(function Unit3D({ item, ctx, materials: sharedMateria
           {accentLight && <pointLight position={[W / 2, item.kind === 'glassWall' ? H * 0.55 : -0.1, D * 0.7]} color="#ffd395" intensity={0.16} distance={1.6} decay={2} />}
         </>
       )}
-      {(selected || invalid) && <SelectionBox {...bounds} invalid={invalid} />}
+      {(selected || invalid || hovered) && <SelectionBox {...bounds} invalid={invalid} hover={hovered && !selected && !invalid} />}
     </UnitGroup>
   );
 });
 
-function UnitGroup({ item, anchor, onSelect, children, objectRef, onToggleOpening }: {
+function UnitGroup({ item, anchor, onSelect, children, objectRef, onToggleOpening, onHover }: {
   item: KitchenItem;
   anchor: { x: number; y: number };
   onSelect: (id: string) => void;
   children: ReactNode;
   objectRef?: Ref<THREE.Group>;
-  onToggleOpening?: () => void;
+  onToggleOpening?: (id: string) => void;
+  onHover?: (id: string | null) => void;
 }) {
   return (
     <group
@@ -529,7 +577,7 @@ function UnitGroup({ item, anchor, onSelect, children, objectRef, onToggleOpenin
       rotation={[0, (-item.rotation * Math.PI) / 180, 0]}
       onDoubleClick={(event) => {
         event.stopPropagation();
-        if (event.delta <= 2) onToggleOpening?.();
+        if (event.delta <= 2) onToggleOpening?.(item.id);
       }}
       onClick={(e) => {
         e.stopPropagation();
@@ -538,9 +586,12 @@ function UnitGroup({ item, anchor, onSelect, children, objectRef, onToggleOpenin
       onPointerOver={(e) => {
         e.stopPropagation();
         document.body.style.cursor = 'grab';
+        // A finger has no hover: the outline would only flash on every tap.
+        if (e.nativeEvent.pointerType === 'mouse') onHover?.(item.id);
       }}
       onPointerOut={() => {
         document.body.style.cursor = '';
+        onHover?.(null);
       }}
     >
       {children}

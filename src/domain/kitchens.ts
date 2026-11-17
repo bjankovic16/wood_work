@@ -207,3 +207,22 @@ export function createKitchenDesign(preset: KitchenPreset, name: string, prefixe
   const design = createDesign(name);
   return { ...design, room, items: labelled, style: { ...preset.style }, materials: withModuleMaterials(design.materials, labelled) };
 }
+
+/** The finishes that make up a kitchen's look, without its lighting and decoration choices. */
+export type KitchenLook = Required<Pick<KitchenStyle, 'front' | 'worktop' | 'handles' | 'backsplash' | 'appliances'>>;
+
+/** Every distinct combination of finishes used by the kitchen collection: looks known to work together. */
+export const KITCHEN_LOOKS: readonly KitchenLook[] = (() => {
+  const looks = new Map<string, KitchenLook>();
+  for (const { style } of KITCHEN_DESIGNS as readonly KitchenPreset[]) {
+    const look: KitchenLook = { front: style.front, worktop: style.worktop, handles: style.handles, backsplash: style.backsplash ?? 'none', appliances: style.appliances ?? 'white' };
+    looks.set(Object.values(look).join('|'), look);
+  }
+  return [...looks.values()];
+})();
+
+/** Whether a kitchen already has exactly this look. */
+export function hasLook(style: KitchenStyle, look: KitchenLook): boolean {
+  return style.front === look.front && style.worktop === look.worktop && style.handles === look.handles
+    && (style.backsplash ?? 'none') === look.backsplash && (style.appliances ?? 'white') === look.appliances;
+}

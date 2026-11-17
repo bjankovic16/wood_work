@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { checkDesign } from '../engine/checks';
 import { buildCuttingList } from '../engine/cuttingList';
 import { parseDesign } from './designOps';
-import { createKitchenDesign, FRAMED_KITCHENS, KITCHEN_DESIGNS, kitchenCategory, type KitchenPreset } from './kitchens';
+import { createKitchenDesign, FRAMED_KITCHENS, hasLook, KITCHEN_DESIGNS, KITCHEN_LOOKS, kitchenCategory, type KitchenPreset } from './kitchens';
 import { CEILING_GAP, hasWorktop, WORKTOP_THICKNESS } from './catalog';
 import { PREMIUM_KITCHENS } from './premiumKitchens';
 import { en } from '../i18n/en';
@@ -187,5 +187,21 @@ describe('kitchen inspiration designs', () => {
     expect(second.room).toEqual(preset.room);
     expect(second.style).toEqual(preset.style);
     expect(second.items[0].width).toBe(900);
+  });
+});
+
+describe('looks for "Shuffle look"', () => {
+  it('offers every finish combination of the collection once', () => {
+    expect(KITCHEN_LOOKS.length).toBeGreaterThan(20);
+    expect(new Set(KITCHEN_LOOKS.map((look) => JSON.stringify(look))).size).toBe(KITCHEN_LOOKS.length);
+    for (const kitchen of KITCHEN_DESIGNS as readonly KitchenPreset[]) {
+      expect(KITCHEN_LOOKS.filter((look) => hasLook(kitchen.style, look))).toHaveLength(1);
+    }
+  });
+
+  it('recognises a look whatever the lighting and decoration', () => {
+    const look = KITCHEN_LOOKS[0];
+    expect(hasLook({ ...look, lighting: false, decor: true, plinthLighting: true, frontProfile: 'shaker' }, look)).toBe(true);
+    expect(hasLook({ ...look, front: look.front === 'oak' ? 'white' : 'oak' }, look)).toBe(false);
   });
 });
