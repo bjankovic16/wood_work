@@ -3,7 +3,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
-import { assertScenePlacement, movementHandle, open3DTools } from './three-test-helpers.mjs';
+import { assertScenePlacement, movementHandle, open3DTools, waitForIdleRendering } from './three-test-helpers.mjs';
 
 const output = process.argv[2] ?? path.join('test-results', 'stacked');
 await mkdir(output, { recursive: true });
@@ -285,6 +285,7 @@ try {
       await ready3D(page);
       pass('3D selection preserves the active upper row for a full-height display cupboard');
     }
+    await waitForIdleRendering(page);
     const idle = await page.evaluate(() => window.__kitchen3D.renderer.info.render.frame);
     await page.waitForTimeout(400);
     assert.ok(await page.evaluate(() => window.__kitchen3D.renderer.info.render.frame) - idle <= 1, 'Premium lighting must not force continuous idle rendering.');
