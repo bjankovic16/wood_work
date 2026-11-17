@@ -402,7 +402,11 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
           onResize={() => { setMoveMode(false); setResizeReady(false); setResizeBlocked(false); setResizeMode((active) => !active); }}
           invalid={invalid.has(selected.id)} onMove={() => { cancelResize(); setMoveReady(false); setMoveMode((active) => !active); }} onFocus={() => useUiStore.getState().focusCamera(selected.id)} />}
         {interior && <p className="max-w-xl text-xs leading-relaxed text-zinc-600">{text.view3d.interiorHint}</p>}
-        <p role={loadingMove ? 'status' : undefined} className="max-w-xl text-xs leading-relaxed text-zinc-600">{moving ? loadingMove ? text.view3d.loadingMove : moveHint : text.view3d.selectHint}</p>
+        {/* Closed by default: its text changes with the tool in use, and an open paragraph would resize the kitchen each time. */}
+        <details className="text-xs text-zinc-600">
+          <summary className="cursor-pointer py-1">{text.view3d.help}</summary>
+          <p role={loadingMove ? 'status' : undefined} className="max-w-xl py-2 leading-relaxed">{moving ? loadingMove ? text.view3d.loadingMove : moveHint : text.view3d.selectHint}</p>
+        </details>
       </div>}
 
       <div className="relative min-h-0 flex-1 touch-none overflow-hidden" data-testid="three-viewport">

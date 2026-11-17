@@ -13,7 +13,7 @@ import { useUiStore } from '../../store/uiStore';
 /** Pointer travel (px) before a press becomes a drag; fingers wobble more than mice. */
 const DRAG_START_PX = { mouse: 4, touch: 8 };
 /** How long a finger rests on an unselected cabinet before it is picked up. */
-export const TOUCH_HOLD_MS = 240;
+export const TOUCH_HOLD_MS = 300;
 /** A finger that travels further than this during the hold is turning the view instead. */
 const TOUCH_HOLD_SLOP_PX = 6;
 /** Edges closer than this on screen snap together. */
@@ -204,8 +204,11 @@ export function CabinetDragController({ api, onDragStart, onDragEnd, onSelect, o
     const down = (event: PointerEvent) => {
       if (event.pointerType === 'touch') {
         touches.add(event.pointerId);
-        // A second finger means pinch or pan: never a pick-up.
-        if (touches.size > 1) clearHold();
+        if (touches.size > 1) {
+          // A second finger means pinch or pan, never a move: forget the pick-up and put a grabbed cabinet back.
+          clearHold();
+          if (drag && !drag.fromHandle && drag.pointerId !== event.pointerId) finish(true);
+        }
       }
       if (event.button !== 0 || !event.isPrimary || drag || useDesignStore.getState().gestureBase) return;
       if (!orbitEnabled()) return;

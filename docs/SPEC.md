@@ -155,8 +155,9 @@ All dimensions should be displayed in millimeters.
   distinguish selection from dragging. A mouse moves any cabinet at once and
   outlines the cabinet under the pointer. A finger moves the selected cabinet
   at once; on an unselected cabinet a swipe turns the view, and resting the
-  finger for a quarter of a second picks the cabinet up instead, so looking
-  around can never rearrange the kitchen.
+  finger for about a third of a second picks the cabinet up instead, so
+  looking around can never rearrange the kitchen. A second finger (pinch or
+  pan) puts a cabinet that was being dragged back where it was.
 - The grabbed point stays under the pointer (no scaling of pointer travel).
   The pointer is mapped onto the horizontal plane through the grabbed point
   when the view is steep enough for that to be stable, and onto the upright
