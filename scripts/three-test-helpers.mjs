@@ -15,6 +15,28 @@ export async function close3DTools(page) {
   await page.getByTestId('three-tools').waitFor({ state: 'detached' });
 }
 
+/**
+ * Waits until the 3D view has drawn nothing for `quietMs`, so a check of idle rendering does not count frames
+ * from textures or lighting that are still arriving. A view that never stops drawing returns after `timeoutMs`
+ * and fails the idle check that follows.
+ */
+export async function waitForIdleRendering(page, { quietMs = 300, timeoutMs = 5000 } = {}) {
+  await page.evaluate(({ quietMs, timeoutMs }) => new Promise((resolve) => {
+    const frame = () => window.__kitchen3D.renderer.info.render.frame;
+    const start = performance.now();
+    let last = frame();
+    let since = start;
+    const poll = () => {
+      const now = performance.now();
+      const current = frame();
+      if (current !== last) { last = current; since = now; }
+      if (now - since >= quietMs || now - start >= timeoutMs) resolve();
+      else setTimeout(poll, 50);
+    };
+    poll();
+  }), { quietMs, timeoutMs });
+}
+
 export async function movementHandle(page, axis, distance = 0, toolName = 'kitchen-move-tool') {
   await page.waitForFunction((name) => Boolean(window.__kitchen3D.scene.getObjectByName(name)), toolName);
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
