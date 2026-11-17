@@ -23,6 +23,9 @@ npm run render:kitchens # regenerate gallery images with the real 3D renderer (r
 On minimal Linux environments, use a UTF-8 locale for browser checks, for
 example `LANG=C.UTF-8 npm run e2e`. Chrome running in the POSIX locale falls
 back to `download` for filenames containing Serbian characters.
+After `npm run build`, run
+`LANG=C.UTF-8 KITCHEN_E2E_PRODUCTION=1 npm run e2e:resize` to also check an
+actual resize against the production assets, without development test hooks.
 Set `KITCHEN_E2E_SMOKE=1` to exercise the editor/export/phone flows with one
 gallery example instead of opening all 52; normal `npm run e2e` checks them all.
 
@@ -263,7 +266,13 @@ browsers, English otherwise. A language chosen manually is remembered.
     50 or 100 mm steps. The arrows, and the keyboard's arrow keys, move the
     cabinet the way they point on screen, however the view is turned.
   - Click or tap a cabinet for its resize arrows as well: drag one out to
-    expand or in to shrink along the direction it points.
+    expand or in to shrink along the direction it points. Opening **Tools**
+    keeps these arrows visible. Labels show the dimension and current size;
+    corner cabinets distinguish their two arms. Arrows aligned with the camera
+    may be hidden: turn the view or choose a dimension under **Resize**.
+    Moving a cabinet, including precise movement, temporarily hides resize
+    arrows; finishing the move restores them. Exact values are always available
+    in the cabinet properties (**Edit** on phones).
 - **Open a cabinet**: double-click it, or select it and press **Open**. Doors
   swing open and drawers slide out, lower drawers further than the ones above,
   so every drawer shows its inside. The camera glides to a three-quarter view
