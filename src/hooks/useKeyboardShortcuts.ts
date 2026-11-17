@@ -7,7 +7,7 @@ import {
   rotateSelected,
   undo,
 } from '../store/actions';
-import { useUiStore } from '../store/uiStore';
+import { PLAN_AXES, useUiStore } from '../store/uiStore';
 
 function isTyping(target: EventTarget | null): boolean {
   return (
@@ -21,11 +21,12 @@ function dialogOpen(): boolean {
   return document.querySelector('[role="dialog"][aria-modal="true"]') !== null;
 }
 
+/** Arrow keys as steps along the screen: [to the right, upwards]. */
 const ARROWS: Record<string, [number, number]> = {
   ArrowLeft: [-1, 0],
   ArrowRight: [1, 0],
-  ArrowUp: [0, -1],
-  ArrowDown: [0, 1],
+  ArrowUp: [0, 1],
+  ArrowDown: [0, -1],
 };
 
 export function useKeyboardShortcuts(): void {
@@ -33,7 +34,7 @@ export function useKeyboardShortcuts(): void {
     const onKeyDown = (e: KeyboardEvent) => {
       if (isTyping(e.target)) return;
       const key = e.key.toLowerCase();
-      const { view, selectedId } = useUiStore.getState();
+      const { view, selectedId, viewAxes } = useUiStore.getState();
       // Undo and redo work everywhere; commands for the selected unit only where it can be seen.
       const unitKeys = view !== 'list' && !dialogOpen();
 
@@ -65,8 +66,10 @@ export function useKeyboardShortcuts(): void {
       } else if (e.key in ARROWS && hasSelection) {
         e.preventDefault();
         const step = e.shiftKey ? 100 : 10;
-        const [dx, dy] = ARROWS[e.key];
-        nudgeSelected(dx * step, dy * step);
+        const [right, up] = ARROWS[e.key];
+        // In 3D the unit moves the way the arrow points on screen, however the view is turned.
+        const axes = view === '3d' ? viewAxes : PLAN_AXES;
+        nudgeSelected((axes.right[0] * right + axes.up[0] * up) * step, (axes.right[1] * right + axes.up[1] * up) * step);
       }
     };
     window.addEventListener('keydown', onKeyDown);

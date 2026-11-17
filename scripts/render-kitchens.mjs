@@ -10,7 +10,8 @@ try {
   await mkdir(output, { recursive: true });
   await server.listen();
   browser = await chromium.launch({ channel: 'chrome', headless: true });
-  const page = await browser.newPage({ viewport: { width: 1200, height: 800 }, deviceScaleFactor: 1 });
+  // Every view must be in place for its picture: no camera glides.
+  const page = await browser.newPage({ viewport: { width: 1200, height: 800 }, deviceScaleFactor: 1, reducedMotion: 'reduce' });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(server.resolvedUrls.local[0], { waitUntil: 'domcontentloaded' });

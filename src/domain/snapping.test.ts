@@ -46,6 +46,17 @@ describe('computeDragPlacement', () => {
     expect(drop(item, 300, 290, { previousWall: 'left' })).toMatchObject({ wall: 'left', rotation: 270, x: 0 });
   });
 
+  it('holds a unit on its wall all the way into the corner when asked to stick', () => {
+    const item = createItem('base', [], { x: 2400, y: 0 });
+    // The middle of the unit is right against the right wall: on the plan it would turn onto that wall.
+    expect(drop(item, 3550, 280, { previousWall: 'top' }).wall).toBe('right');
+    expect(drop(item, 3550, 280, { previousWall: 'top', stickyWall: true })).toMatchObject({ wall: 'top', rotation: 0, x: 3000, y: 0 });
+    // Pulled clear of the top wall and down the right one, it changes wall as usual.
+    expect(drop(item, 3400, 1500, { previousWall: 'top', stickyWall: true })).toMatchObject({ wall: 'right', rotation: 90 });
+    // Out in the room it stands free.
+    expect(drop(item, 1800, 1500, { previousWall: 'top', stickyWall: true }).wall).toBeNull();
+  });
+
   it('drops corner units into the nearest room corner', () => {
     expect(drop(createItem('corner', []), 3300, 2700)).toMatchObject({ rotation: 180, x: 2700, y: 2100 });
   });

@@ -8,6 +8,7 @@ import { RoomPanel } from './RoomPanel';
 export function PropertiesPanel() {
   const t = useT();
   const selectedId = useUiStore((s) => s.selectedId);
+  const view = useUiStore((s) => s.view);
   const item = useDesignStore((s) => (selectedId ? s.design.items.find((i) => i.id === selectedId) : undefined));
   return (
     <aside className="studio-panel flex w-[300px] shrink-0 flex-col border-l">
@@ -28,7 +29,7 @@ export function PropertiesPanel() {
         <>
           <div className="border-b border-studio-line bg-[#f6f3ec] px-4 py-5">
             <div className="text-sm font-semibold text-zinc-900">{t.item.room}</div>
-            <div className="mt-1 text-xs leading-relaxed text-studio-muted">{t.item.roomHint}</div>
+            <div className="mt-1 text-xs leading-relaxed text-studio-muted">{view === '3d' ? t.item.roomHint3d : t.item.roomHint}</div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             <RoomPanel />

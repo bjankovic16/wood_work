@@ -194,7 +194,8 @@ try {
   await server.listen();
   const url = server.resolvedUrls.local[0];
   browser = await chromium.launch({ channel: 'chrome', headless: true });
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  // Camera glides and door animations are covered by the resize checks; here every view appears at once.
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
   observe(page);
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('canvas');
@@ -406,7 +407,7 @@ try {
   await page.close();
 
   console.log('Phone comparison and controls');
-  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'sr-Latn-RS', isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'sr-Latn-RS', isMobile: true, hasTouch: true, deviceScaleFactor: 2, reducedMotion: 'reduce' });
   const mobile = await phone.newPage();
   observe(mobile);
   await mobile.goto(url, { waitUntil: 'domcontentloaded' });

@@ -197,7 +197,7 @@ export async function roomObjectChecks(page, output, observe) {
   assert.deepEqual(await design(page), saved);
   console.log('  PASS columns/projections use the same controls, exact measurements apply, and all placements survive reload');
 
-  const phoneContext = await page.context().browser().newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const phoneContext = await page.context().browser().newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
   try {
     const phone = await phoneContext.newPage();
     observe(phone);

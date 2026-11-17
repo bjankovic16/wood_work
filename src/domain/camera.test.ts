@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { kitchenCameraPose } from './camera';
+import { blendPoses, cabinetFocusPose, kitchenCameraPose, type CameraPose } from './camera';
 import { createItem } from './catalog';
 import { itemRect } from './geometry';
 
@@ -27,5 +27,73 @@ describe('3D camera views', () => {
     const pose = kitchenCameraPose(room, [item], 1, 'perspective', item);
     expect(pose.target).toEqual([(rect.x + rect.w / 2) / 1000, (item.elevation + item.height / 2) / 1000, (rect.y + rect.h / 2) / 1000]);
     expect(pose.position[0]).toBeLessThan(pose.target[0]);
+  });
+
+  it('looks into a floor unit from above, on the side nearer the middle of the room', () => {
+    const left = createItem('drawer', [], { x: 0, y: 0 });
+    const right = createItem('drawer', [], { x: room.width - 600, y: 0 });
+    const pose = cabinetFocusPose(room, left, 1.6);
+    expect(pose.position[2]).toBeGreaterThan(pose.target[2] + 1);
+    expect(pose.position[1]).toBeGreaterThan(pose.target[1] + 0.8);
+    expect(pose.position[0]).toBeGreaterThan(pose.target[0]);
+    expect(cabinetFocusPose(room, right, 1.6).position[0]).toBeLessThan(cabinetFocusPose(room, right, 1.6).target[0]);
+  });
+
+  it('views wall units from eye level and steps back on a narrow screen', () => {
+    const item = createItem('wall', [], { x: 1800, y: 0, elevation: 1450 });
+    const wide = cabinetFocusPose(room, item, 1.6);
+    const narrow = cabinetFocusPose(room, item, 0.5);
+    const distance = (pose: typeof wide) => Math.hypot(...pose.position.map((value, index) => value - pose.target[index]));
+    expect(wide.position[1] - wide.target[1]).toBeLessThan(0.4);
+    expect(distance(narrow)).toBeGreaterThan(distance(wide) * 1.5);
+    // The cabinet with its doors open fits inside the narrower of the two view angles.
+    const half = Math.min(Math.PI / 8, Math.atan(Math.tan(Math.PI / 8) * 0.5));
+    expect(distance(narrow) * Math.sin(half)).toBeGreaterThan(Math.hypot(item.width + 400, item.height + 100, item.depth + 600) / 2000);
+  });
+
+  it('faces the front of a cabinet on any wall', () => {
+    const item = createItem('base', [], { x: room.width - 560, y: 1500, rotation: 90 });
+    const pose = cabinetFocusPose(room, item, 1.4);
+    expect(pose.position[0]).toBeLessThan(pose.target[0] - 1);
+  });
+});
+
+describe('moving the camera between views', () => {
+  const overview = kitchenCameraPose(room, [], 1.6, 'perspective');
+  const top = kitchenCameraPose(room, [], 1.6, 'top');
+  const distance = (pose: CameraPose) => Math.hypot(...pose.position.map((value, index) => value - pose.target[index]));
+
+  it('starts and ends exactly on the two poses', () => {
+    expect(blendPoses(overview, top, 0)).toBe(overview);
+    expect(blendPoses(overview, top, 1)).toBe(top);
+  });
+
+  it('keeps its distance from what it looks at, instead of cutting through the room', () => {
+    const behind: CameraPose = { target: overview.target, position: [overview.target[0], overview.position[1], overview.target[2] - (overview.position[2] - overview.target[2])] };
+    for (const t of [0.1, 0.25, 0.5, 0.75, 0.9]) {
+      const pose = blendPoses(overview, behind, t);
+      expect([...pose.position, ...pose.target].every(Number.isFinite)).toBe(true);
+      expect(distance(pose)).toBeGreaterThan(Math.min(distance(overview), distance(behind)) - 1e-6);
+      expect(distance(pose)).toBeLessThan(Math.max(distance(overview), distance(behind)) + 1e-6);
+    }
+  });
+
+  it('swings the short way round', () => {
+    const pose = (degrees: number): CameraPose => ({ target: [0, 1, 0], position: [5 * Math.sin(degrees * Math.PI / 180), 1, 5 * Math.cos(degrees * Math.PI / 180)] });
+    const middle = blendPoses(pose(170), pose(-170), 0.5);
+    expect(middle.position[2]).toBeCloseTo(-5, 6);
+    expect(middle.position[0]).toBeCloseTo(0, 6);
+  });
+
+  it('rises smoothly into the top view without spinning', () => {
+    let previous = overview.position[1];
+    for (const t of [0.2, 0.4, 0.6, 0.8, 0.99]) {
+      const pose = blendPoses(overview, top, t);
+      expect(pose.position[1]).toBeGreaterThan(previous);
+      previous = pose.position[1];
+      // Same compass direction as the overview all the way up.
+      const start = Math.atan2(overview.position[0] - overview.target[0], overview.position[2] - overview.target[2]);
+      expect(Math.atan2(pose.position[0] - pose.target[0], pose.position[2] - pose.target[2])).toBeCloseTo(start, 6);
+    }
   });
 });

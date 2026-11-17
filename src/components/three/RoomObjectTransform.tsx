@@ -7,6 +7,7 @@ import { openingFrame, wallPoint } from '../../domain/walls';
 import { updateOpening, updateRoomFeature } from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
 import { useUiStore } from '../../store/uiStore';
+import { tintGizmo } from './gizmoStyle';
 
 function syncObject(object: THREE.Group, selection: RoomObjectSelection) {
   const { room, openings } = useDesignStore.getState().design;
@@ -40,6 +41,7 @@ export function RoomObjectTransform({ selection, object, onReady, onCancel, onBl
     if (transform) {
       transform.name = 'kitchen-room-move-tool';
       transform.connect(element);
+      tintGizmo(transform);
     }
     onReady();
     const cancelGesture = () => {

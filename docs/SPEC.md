@@ -143,16 +143,38 @@ All dimensions should be displayed in millimeters.
   anchor and elevation, respect catalog/grid limits, reject room-outline
   excursions and cap height at the ceiling. Each mouse/touch drag is one Undo
   step; interruption or Escape rolls back. Exact numeric editing remains available.
-- The 3D controls live in a docked, initially collapsed Tools panel outside the
-  viewport, including selection warnings. Instructions expand separately within
-  that panel. Selecting a cabinet does not open it; collapsing it cancels active
-  manipulation and leaves the kitchen unobstructed.
-- Cabinet bodies support direct mouse/touch hold-drag movement with a small
-  movement threshold to distinguish selection from dragging. Selection exposes
-  local width, height and depth resize arrows while the Tools panel is closed
-  (the blue arrow adjusts the second arm on corner units). Direct movement
-  preserves elevation, reuses plan placement/snapping and records one Undo step.
-  Pointer interruption, Escape or project changes cannot commit a partial move.
+- The everyday 3D controls (Style, the 3D/Front/Top views, Open all, Interior
+  view and Photo) live in a toolbar docked above the viewport, never over the
+  kitchen. **More** expands a docked panel with the rarely needed tools: the
+  selected-cabinet toolbar with handle-based Move and Resize, the list of room
+  objects and the instructions. Selecting a cabinet does not open that panel;
+  collapsing it cancels active manipulation. On phones the toolbar shows icons
+  only, and Interior view, Photo and Reset view move into the panel. A selected
+  door, window or structure shows its actions without opening the panel.
+- Cabinet bodies are moved by dragging them, with a small movement threshold to
+  distinguish selection from dragging. A mouse moves any cabinet at once and
+  outlines the cabinet under the pointer. A finger moves the selected cabinet
+  at once; on an unselected cabinet a swipe turns the view, and resting the
+  finger for a quarter of a second picks the cabinet up instead, so looking
+  around can never rearrange the kitchen.
+- The grabbed point stays under the pointer (no scaling of pointer travel).
+  The pointer is mapped onto the horizontal plane through the grabbed point
+  when the view is steep enough for that to be stable, and onto the upright
+  plane facing the camera otherwise: units grabbed near eye level and the Front
+  view slide sideways only. Which wall a unit belongs to is decided from the
+  middle of its footprint, as on the plan; a unit stays on its wall until it is
+  pulled clear of it and never turns onto the adjacent wall by being slid into
+  a corner. The snap distance follows the 3D zoom, not the plan's.
+- While a cabinet is dragged or nudged, the free distance on each side to the
+  next unit or wall at the same height is shown along the floor (or along the
+  underside of a wall unit). Free space in front of a unit is shown up to
+  1600 mm.
+- Selection exposes local width, height and depth resize arrows while the More
+  panel is closed (the depth arrow adjusts the second arm on corner units).
+  Arrows share the selection colour; each points the way it resizes. Direct
+  movement preserves elevation, reuses plan placement/snapping and records one
+  Undo step. Pointer interruption, Escape or project changes cannot commit a
+  partial move.
 - Interior partitions have independent endpoints, thickness and height.
   Both faces are usable; collisions take the cabinet's vertical range into
   account. Wall panels and backsplash runs have a wall attachment, finish,
@@ -191,21 +213,41 @@ glass, front-profile, handleless-system and chimney-clearance confirmations are
 neutral pre-cutting reminders, not problem badges or canvas warning outlines.
 Collisions and actionable design/manufacturing warnings remain visible problems.
 
-The docked 3D tools include a view-only **Interior view** toggle, off by default.
+The 3D toolbar includes a view-only **Interior view** toggle, off by default.
 It hides cabinet fronts and replaces solid bodies with panel carcasses, configured
 shelves, hollow corner compartments and schematic drawer boxes. Appliances remain
 closed; their internal mechanisms and supplier fittings are not modelled.
 Changing this view never changes project data, Undo history or cutting quantities.
-Selecting a cabinet also shows a 44px hand-shaped move handle. Hold and drag it
-to move the unit with existing snapping and Undo, independently of resize arrows.
-Double-clicking a cabinet or pressing its adjacent door icon animates its fronts
-open/closed, including sliding drawer boxes. Animation invalidates only until
-settled and never changes project data or cutting quantities.
-Cabinet dragging applies 60% of pointer travel before snapping. Clicking the
-hand opens precise room-plan directional controls below the desktop viewport
-or in the phone's selected-element bottom menu, with 10/50/100 mm steps.
-Opening a cabinet also requests the existing selected-cabinet camera focus;
-closing it retains the focused view.
+Selecting a cabinet also shows a labelled 44px **Move** hand button and, for
+units with fronts, an **Open**/**Close** button. Hold and drag the hand to move
+the unit with existing snapping and Undo, independently of resize arrows.
+Double-clicking a cabinet or pressing **Open** animates its fronts open or
+closed with an eased, time-based motion: doors swing 108 degrees, drawers slide
+out in a cascade (lower drawers further than upper ones, each starting a moment
+after the one above) so every drawer box is visible. **Open all** in the
+toolbar opens or closes every such unit at once. Animation invalidates only
+until settled, is skipped under `prefers-reduced-motion`, and never changes
+project data or cutting quantities.
+Clicking the hand opens arrow buttons in a card over the desktop viewport or in
+the phone's selected-element bottom menu, with 10/50/100 mm steps. The arrows
+and the keyboard's arrow keys move the unit the way they point on screen: the
+camera's heading is snapped to the nearest room axis.
+Opening one cabinet moves the camera to a three-quarter view sized to the
+cabinet with its fronts open: from above for floor units, from eye level for
+wall and tall units, on the side nearer the middle of the room. Closing the
+last open cabinet returns the camera to where it was before. Camera changes
+the user asks for (view buttons, focus, opening) glide for about half a second
+around the point looked at; the first view and room-size changes are immediate.
+A view the user has turned by hand is kept when the window changes size.
+
+An empty project opens with a start panel showing three kitchens from the
+collection as pictures. **Shuffle ideas** deals three others, going through the
+whole collection before repeating any; the panel also offers the full gallery
+and an empty room. On screens under 640 px high the pictures are left out so
+the panel never covers the plan's own controls. The gallery has a **Shuffle**
+button that shows the designs in a new random order (Reset filters restores the
+collection order), and the Style picker has **Shuffle look**, which applies
+another of the collection's finish combinations in one Undo step.
 
 ## 3. Automatic cabinet calculations
 

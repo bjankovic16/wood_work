@@ -12,6 +12,10 @@ export type SettingsTab = 'materials' | 'construction';
 
 export const GRID_SIZES = [10, 50, 100] as const;
 
+export interface ViewAxes { right: [number, number]; up: [number, number] }
+/** The plan's own directions: right is the right wall, up is the top wall. */
+export const PLAN_AXES: ViewAxes = { right: [1, 0], up: [0, -1] };
+
 export interface LibraryDrag {
   presetId: string;
   clientX: number;
@@ -49,7 +53,13 @@ interface UiState {
   referenceOpen: boolean;
   cameraView: CameraView;
   cameraFocusId: string | null;
+  /** The camera goes back to where it was before it went to look at a cabinet. */
+  cameraReturn: boolean;
   cameraToken: number;
+  /** Plan steps that the 3D view's right and up arrows stand for, so nudging follows what is seen. */
+  viewAxes: ViewAxes;
+  /** The first-visit tip about dragging and opening cabinets in 3D has done its job. */
+  moveHintSeen: boolean;
   /** Language of the interface and of everything exported. */
   language: Language;
 
@@ -65,6 +75,11 @@ interface UiState {
   setSelectedWallId: (id: string | null) => void;
   setReferenceOpen: (open: boolean) => void;
   requestCamera: (view: CameraView, focusId?: string) => void;
+  /** Brings the camera to one cabinet; the chosen view stays the one to go back to. */
+  focusCamera: (id: string) => void;
+  returnCamera: () => void;
+  setViewAxes: (axes: ViewAxes) => void;
+  setMoveHintSeen: () => void;
   setViewport: (zoom: number, pan: Point) => void;
   setSnapEnabled: (enabled: boolean) => void;
   setGridSize: (size: number) => void;
@@ -99,7 +114,10 @@ export const useUiStore = create<UiState>()(
       referenceOpen: false,
       cameraView: 'perspective',
       cameraFocusId: null,
+      cameraReturn: false,
       cameraToken: 0,
+      viewAxes: PLAN_AXES,
+      moveHintSeen: false,
       language: browserLanguage(),
 
       select: (selectedId) => set((state) => ({ selectedId, precisionMove: selectedId === state.selectedId ? state.precisionMove : false })),
@@ -113,7 +131,11 @@ export const useUiStore = create<UiState>()(
       setWallEditing: (wallEditing) => set({ wallEditing, selectedId: null }),
       setSelectedWallId: (selectedWallId) => set({ selectedWallId }),
       setReferenceOpen: (referenceOpen) => set({ referenceOpen }),
-      requestCamera: (cameraView, focusId) => set((state) => ({ cameraView, cameraFocusId: focusId ?? null, cameraToken: state.cameraToken + 1 })),
+      requestCamera: (cameraView, focusId) => set((state) => ({ cameraView, cameraFocusId: focusId ?? null, cameraReturn: false, cameraToken: state.cameraToken + 1 })),
+      focusCamera: (cameraFocusId) => set((state) => ({ cameraFocusId, cameraReturn: false, cameraToken: state.cameraToken + 1 })),
+      returnCamera: () => set((state) => ({ cameraFocusId: null, cameraReturn: true, cameraToken: state.cameraToken + 1 })),
+      setViewAxes: (viewAxes) => set({ viewAxes }),
+      setMoveHintSeen: () => set({ moveHintSeen: true }),
       setViewport: (zoom, pan) => set({ zoom, pan }),
       setSnapEnabled: (snapEnabled) => set({ snapEnabled }),
       setGridSize: (gridSize) => set({ gridSize }),
@@ -137,6 +159,7 @@ export const useUiStore = create<UiState>()(
         showDimensions: s.showDimensions,
         viewFilter: s.viewFilter,
         language: s.language,
+        moveHintSeen: s.moveHintSeen,
       }),
       // A stored language this version does not know falls back to the default.
       merge: (persisted, current) => {

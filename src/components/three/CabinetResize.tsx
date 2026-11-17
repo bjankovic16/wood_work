@@ -8,6 +8,7 @@ import { replaceItem } from '../../domain/designOps';
 import { localToRoom, roomToLocal } from '../../domain/geometry';
 import type { Design, KitchenItem } from '../../domain/types';
 import { useDesignStore } from '../../store/designStore';
+import { tintGizmo } from './gizmoStyle';
 import { useUiStore } from '../../store/uiStore';
 
 function syncHandle(object: THREE.Group, item: KitchenItem, field: SizeField, allAxes: boolean) {
@@ -40,6 +41,7 @@ export function CabinetResize({ item, field, allAxes = false, onReady, onCancel,
     if (transform) {
       transform.name = 'kitchen-resize-tool';
       transform.connect(element);
+      tintGizmo(transform);
       if (allAxes) {
         const planes: THREE.Object3D[] = [];
         transform.traverse((child) => { if (['XY', 'YZ', 'XZ', 'XYZ'].includes(child.name)) planes.push(child); });

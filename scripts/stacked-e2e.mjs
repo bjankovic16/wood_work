@@ -64,7 +64,8 @@ try {
   await server.listen();
   const url = server.resolvedUrls.local[0];
   browser = await chromium.launch({ channel: 'chrome', headless: true });
-  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  // Camera glides and door animations are covered by the resize checks; here every view appears at once.
+  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
   const page = await context.newPage();
   observe(page);
   await page.goto(url, { waitUntil: 'domcontentloaded' });
@@ -294,7 +295,7 @@ try {
   await context.close();
 
   console.log('Phone row selection and stacking');
-  const phoneContext = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, storageState });
+  const phoneContext = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, storageState, reducedMotion: 'reduce' });
   const phone = await phoneContext.newPage();
   observe(phone);
   await phone.goto(url, { waitUntil: 'domcontentloaded' });
@@ -346,7 +347,7 @@ try {
   await ready3D(phone);
   await phone.getByRole('group', { name: '3D camera' }).getByRole('button', { name: 'Top', exact: true }).tap();
   assert.equal(await phone.getByRole('group', { name: 'Selected cabinet actions' }).count(), 0);
-  await phone.getByTestId('three-tools').locator(':scope > summary').tap();
+  await phone.getByTestId('three-tools-toggle').tap();
   const less = phone.getByRole('button', { name: 'Less', exact: true });
   if (await less.isVisible()) await less.tap();
   await phone.waitForTimeout(300);

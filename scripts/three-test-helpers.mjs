@@ -1,9 +1,18 @@
 import assert from 'node:assert/strict';
 
+/** Opens the "More" panel of the 3D toolbar, where the advanced and selected-cabinet tools live. */
 export async function open3DTools(page) {
-  const panel = page.getByTestId('three-tools');
-  await panel.waitFor();
-  if (!await panel.evaluate((element) => element.open)) await panel.locator(':scope > summary').click();
+  const toggle = page.getByTestId('three-tools-toggle');
+  await toggle.waitFor();
+  if (await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click();
+  await page.getByTestId('three-tools').waitFor();
+}
+
+export async function close3DTools(page) {
+  const toggle = page.getByTestId('three-tools-toggle');
+  await toggle.waitFor();
+  if (await toggle.getAttribute('aria-expanded') === 'true') await toggle.click();
+  await page.getByTestId('three-tools').waitFor({ state: 'detached' });
 }
 
 export async function movementHandle(page, axis, distance = 0, toolName = 'kitchen-move-tool') {

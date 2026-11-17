@@ -7,6 +7,7 @@ import { computeDragPlacement } from '../../domain/snapping';
 import type { KitchenItem, Point, Wall } from '../../domain/types';
 import { setItemPlacement } from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
+import { tintGizmo } from './gizmoStyle';
 import { snapSettings } from '../../store/viewport';
 
 function syncObject(object: THREE.Group, item: KitchenItem): void {
@@ -27,6 +28,7 @@ export function CabinetTransform({ item, object, onReady, onCancel }: { item: Ki
     if (transform) {
       transform.name = 'kitchen-move-tool';
       transform.connect(element);
+      tintGizmo(transform);
     }
     onReady();
     const cancelGesture = () => {
