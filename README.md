@@ -31,6 +31,9 @@ gallery example instead of opening all 52; normal `npm run e2e` checks them all.
 Open [Kitchen Designer](https://bjankovic16.github.io/wood_work/).
 Pushes to `main` run the unit tests, build the app and deploy it to GitHub Pages
 through [the deployment workflow](.github/workflows/deploy-pages.yml).
+Every pull request and push to `main` also runs all five browser suites in
+headless Chrome through [the browser test workflow](.github/workflows/browser-tests.yml);
+screenshots of a failed suite are attached to its run for a week.
 The repository's Pages source must be **GitHub Actions**. Kitchen projects and
 uploaded reference photos stay in the visitor's browser, not in the deployment.
 
