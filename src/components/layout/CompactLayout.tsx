@@ -12,7 +12,6 @@ import { DeleteButton, DuplicateButton, ItemFields, ItemHeader, RotateButtons } 
 import { RoomDialog } from '../properties/RoomDialog';
 import { Button, Dialog } from '../ui';
 import { View3D } from '../three/View3D';
-import { CabinetMoveControls } from '../three/CabinetMoveControls';
 import { LayoutDialog } from '../layouts/LayoutDialog';
 import { ProjectsDialog } from '../projects/ProjectsDialog';
 import { TopBar } from './TopBar';
@@ -21,14 +20,14 @@ import { TopBar } from './TopBar';
 function ItemSheet({ item }: { item: KitchenItem }) {
   const t = useT();
   const [expanded, setExpanded] = useState(false);
-  const precisionMove = useUiStore((s) => s.view === '3d' && s.precisionMove);
+  const manipulating = useUiStore((s) => s.view === '3d' && s.cabinetTool !== null);
   return (
     <div
-      className="studio-panel absolute inset-x-0 bottom-0 z-10 flex max-h-[62%] flex-col rounded-t-3xl border-t shadow-[0_-8px_30px_rgba(51,47,40,0.1)]"
+      className={`studio-panel absolute inset-x-0 bottom-0 z-10 flex flex-col rounded-t-3xl border-t shadow-[0_-8px_30px_rgba(51,47,40,0.1)] ${manipulating ? 'max-h-[42%]' : 'max-h-[62%]'}`}
       data-testid="item-sheet"
     >
       <ItemHeader item={item} compact />
-      {precisionMove ? <CabinetMoveControls key={item.id} /> : <div className="flex items-center gap-1.5 px-4 pb-3">
+      <div className="flex items-center gap-1.5 px-4 pb-3">
         <RotateButtons />
         <DuplicateButton iconOnly />
         <DeleteButton iconOnly />
@@ -37,8 +36,8 @@ function ItemSheet({ item }: { item: KitchenItem }) {
           {expanded ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
           {expanded ? t.phone.less : t.phone.edit}
         </Button>
-      </div>}
-      {expanded && !precisionMove && (
+      </div>
+      {expanded && (
         <div className="min-h-0 flex-1 overflow-y-auto border-t border-zinc-100 pb-[env(safe-area-inset-bottom)]">
           <ItemFields key={item.id} item={item} />
         </div>

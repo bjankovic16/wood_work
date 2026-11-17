@@ -34,7 +34,7 @@ export function useKeyboardShortcuts(): void {
     const onKeyDown = (e: KeyboardEvent) => {
       if (isTyping(e.target)) return;
       const key = e.key.toLowerCase();
-      const { view, selectedId, viewAxes } = useUiStore.getState();
+      const { view, selectedId } = useUiStore.getState();
       // Undo and redo work everywhere; commands for the selected unit only where it can be seen.
       const unitKeys = view !== 'list' && !dialogOpen();
 
@@ -62,14 +62,14 @@ export function useKeyboardShortcuts(): void {
       } else if (key === 'r') {
         rotateSelected(e.shiftKey ? -1 : 1);
       } else if (e.key === 'Escape') {
-        useUiStore.getState().select(null);
-      } else if (e.key in ARROWS && hasSelection) {
+        const ui = useUiStore.getState();
+        if (ui.cabinetTool) ui.setCabinetTool(null);
+        else ui.select(null);
+      } else if (e.key in ARROWS && hasSelection && view === 'plan') {
         e.preventDefault();
         const step = e.shiftKey ? 100 : 10;
         const [right, up] = ARROWS[e.key];
-        // In 3D the unit moves the way the arrow points on screen, however the view is turned.
-        const axes = view === '3d' ? viewAxes : PLAN_AXES;
-        nudgeSelected((axes.right[0] * right + axes.up[0] * up) * step, (axes.right[1] * right + axes.up[1] * up) * step);
+        nudgeSelected((PLAN_AXES.right[0] * right + PLAN_AXES.up[0] * up) * step, (PLAN_AXES.right[1] * right + PLAN_AXES.up[1] * up) * step);
       }
     };
     window.addEventListener('keydown', onKeyDown);

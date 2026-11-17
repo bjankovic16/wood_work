@@ -1,6 +1,6 @@
 import { Html, Line } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
-import { useMemo, type RefObject } from 'react';
+import { useEffect, useMemo, type RefObject } from 'react';
 import * as THREE from 'three';
 import { computeClearances } from '../../domain/dimensions';
 import { isWallMounted, itemRect, localDepthExtent, localToRoom } from '../../domain/geometry';
@@ -11,9 +11,15 @@ import { HANDLE_COLOR as ACCENT } from './gizmoStyle';
 /** Free space in front of or behind a unit is shown up to this distance (mm). */
 const MAX_AISLE = 1600;
 
-/** Keeps the floating buttons of the selected cabinet just above it on screen, clear of its resize arrows. */
+/** Keeps the floating buttons just above the selected cabinet on screen. */
 export function SelectionOverlay({ item, overlay }: { item: KitchenItem; overlay: RefObject<HTMLDivElement | null> }) {
-  const { camera, gl, scene } = useThree();
+  const { camera, gl, scene, invalidate } = useThree();
+  useEffect(() => {
+    const sheet = document.querySelector('[data-testid="item-sheet"]');
+    const observer = new ResizeObserver(() => invalidate());
+    if (sheet) observer.observe(sheet);
+    return () => observer.disconnect();
+  }, [item.id, invalidate]);
   useFrame(() => {
     const element = overlay.current;
     if (!element) return;
@@ -35,19 +41,14 @@ export function SelectionOverlay({ item, overlay }: { item: KitchenItem; overlay
     };
     const body = scene.getObjectByName(item.id);
     if (body) includeBounds(new THREE.Box3().setFromObject(body));
-    scene.getObjectByName('kitchen-resize-tool')?.traverse((object) => {
-      if (!(object instanceof THREE.Mesh)) return;
-      const materials = Array.isArray(object.material) ? object.material : [object.material];
-      if (!materials.some((material) => material.visible && material.opacity > 0)) return;
-      for (let parent: THREE.Object3D | null = object; parent; parent = parent.parent) if (!parent.visible) return;
-      object.geometry.computeBoundingBox();
-      if (object.geometry.boundingBox) includeBounds(object.geometry.boundingBox.clone().applyMatrix4(object.matrixWorld));
-    });
     const width = element.offsetWidth;
     const height = element.offsetHeight;
+    const sheet = document.querySelector('[data-testid="item-sheet"]')?.getBoundingClientRect();
+    const availableHeight = Math.min(box.height, sheet ? sheet.top - box.top - 8 : box.height);
     const x = THREE.MathUtils.clamp((point.x + 1) * box.width / 2, width / 2 + 8, Math.max(width / 2 + 8, box.width - width / 2 - 8));
     const above = top - height - 12;
-    const y = above >= 8 ? above : bottom + height + 20 <= box.height ? bottom + 12 : 8;
+    const y = THREE.MathUtils.clamp(above >= 8 ? above : bottom + height + 20 <= availableHeight ? bottom + 12 : 8,
+      8, Math.max(8, availableHeight - height - 8));
     element.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px) translateX(-50%)`;
     element.style.visibility = point.z < -1 || point.z > 1 ? 'hidden' : 'visible';
   });

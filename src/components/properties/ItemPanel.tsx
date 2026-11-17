@@ -113,6 +113,7 @@ function MaterialField({
 /** Everything editable about one unit. Shared by the desktop panel and the phone sheet. */
 export function ItemFields({ item }: { item: KitchenItem }) {
   const t = useT();
+  const locked = useUiStore((s) => s.view === '3d' && s.previewLockedIds.includes(item.id));
   const room = useDesignStore((s) => s.design.room);
   const construction = useDesignStore((s) => s.design.construction);
   const ctx = useBuildContext();
@@ -148,14 +149,17 @@ export function ItemFields({ item }: { item: KitchenItem }) {
   return (
     <>
       <UnitIssues item={item} />
+      {locked && <p role="status" className="border-b border-zinc-100 bg-blue-50 px-4 py-3 text-xs text-blue-800">{t.view3d.previewLocked}</p>}
 
-      <PanelSection title={t.item.size}>
-        {sizeField('width', corner ? t.item.widthWallA : t.item.width)}
-        {corner && sizeField('width2', t.item.widthWallB)}
-        {sizeField('depth', t.item.depth)}
-        {sizeField('height', t.item.height)}
-        <NumberField label={t.advancedRoom.angle} value={item.rotation} min={0} max={360} suffix="deg" precision={1} onCommit={(angle) => actions.setItemAngle(item.id, angle)} />
-      </PanelSection>
+      <fieldset disabled={locked} className="min-w-0">
+        <PanelSection title={t.item.size}>
+          {sizeField('width', corner ? t.item.widthWallA : t.item.width)}
+          {corner && sizeField('width2', t.item.widthWallB)}
+          {sizeField('depth', t.item.depth)}
+          {sizeField('height', t.item.height)}
+          <NumberField label={t.advancedRoom.angle} value={item.rotation} min={0} max={360} suffix="deg" precision={1} onCommit={(angle) => actions.setItemAngle(item.id, angle)} />
+        </PanelSection>
+      </fieldset>
       <ThreeTierSetup key={item.id} item={item} />
 
       {canStackCabinet(item) && (
@@ -268,31 +272,33 @@ export function ItemFields({ item }: { item: KitchenItem }) {
         </PanelSection>
       )}
 
-      <PanelSection title={t.item.position}>
-        <NumberField
-          label={t.item.fromLeftWall}
-          value={item.x}
-          min={0}
-          max={Math.max(0, room.width - footprint.w)}
-          onCommit={(v) => actions.setItemPosition(item.id, v, item.y)}
-        />
-        <NumberField
-          label={t.item.fromTopWall}
-          value={item.y}
-          min={0}
-          max={Math.max(0, room.depth - footprint.h)}
-          onCommit={(v) => actions.setItemPosition(item.id, item.x, v)}
-        />
-        <NumberField
-          label={t.item.heightFromFloor}
-          title={t.item.heightFromFloorTitle}
-          value={item.elevation}
-          min={ELEVATION_LIMITS.min}
-          max={ELEVATION_LIMITS.max}
-          onCommit={(v) => actions.setItemElevation(item.id, v)}
-        />
-        <p className="pl-[112px] text-[11px] text-zinc-400">{t.item.topEdgeAt(item.elevation + item.height)}</p>
-      </PanelSection>
+      <fieldset disabled={locked} className="min-w-0">
+        <PanelSection title={t.item.position}>
+          <NumberField
+            label={t.item.fromLeftWall}
+            value={item.x}
+            min={0}
+            max={Math.max(0, room.width - footprint.w)}
+            onCommit={(v) => actions.setItemPosition(item.id, v, item.y)}
+          />
+          <NumberField
+            label={t.item.fromTopWall}
+            value={item.y}
+            min={0}
+            max={Math.max(0, room.depth - footprint.h)}
+            onCommit={(v) => actions.setItemPosition(item.id, item.x, v)}
+          />
+          <NumberField
+            label={t.item.heightFromFloor}
+            title={t.item.heightFromFloorTitle}
+            value={item.elevation}
+            min={ELEVATION_LIMITS.min}
+            max={ELEVATION_LIMITS.max}
+            onCommit={(v) => actions.setItemElevation(item.id, v)}
+          />
+          <p className="pl-[112px] text-[11px] text-zinc-400">{t.item.topEdgeAt(item.elevation + item.height)}</p>
+        </PanelSection>
+      </fieldset>
 
       <PanelSection title={t.item.element}>
         <TextField label={t.item.code} value={item.label} maxLength={12} onCommit={(v) => actions.setItemLabel(item.id, v)} />
@@ -366,12 +372,13 @@ function PartsSection({ item, ctx }: { item: KitchenItem; ctx: BuildContext }) {
 
 export function RotateButtons() {
   const t = useT();
+  const locked = useUiStore((s) => s.view === '3d' && !!s.selectedId && s.previewLockedIds.includes(s.selectedId));
   return (
     <>
-      <Button variant="outline" title={t.item.rotateLeftTitle} aria-label={t.item.rotateLeft} onClick={() => actions.rotateSelected(-1)}>
+      <Button disabled={locked} variant="outline" title={t.item.rotateLeftTitle} aria-label={t.item.rotateLeft} onClick={() => actions.rotateSelected(-1)}>
         <RotateCcw className="size-4" />
       </Button>
-      <Button variant="outline" title={t.item.rotateRightTitle} aria-label={t.item.rotateRight} onClick={() => actions.rotateSelected(1)}>
+      <Button disabled={locked} variant="outline" title={t.item.rotateRightTitle} aria-label={t.item.rotateRight} onClick={() => actions.rotateSelected(1)}>
         <RotateCw className="size-4" />
       </Button>
     </>

@@ -9,6 +9,7 @@ import { safeStorage } from '../lib/platform';
 export type ViewFilter = 'all' | 'floor' | 'wall';
 export type MainView = 'plan' | '3d' | 'list';
 export type SettingsTab = 'materials' | 'construction';
+export type CabinetTool = 'move' | 'resize' | null;
 
 export const GRID_SIZES = [10, 50, 100] as const;
 
@@ -28,7 +29,8 @@ export interface LibraryDrag {
 
 interface UiState {
   selectedId: string | null;
-  precisionMove: boolean;
+  cabinetTool: CabinetTool;
+  previewLockedIds: string[];
   /** Screen pixels per millimetre. */
   zoom: number;
   /** Screen position of the plan origin, in pixels from the canvas corner. */
@@ -56,15 +58,14 @@ interface UiState {
   /** The camera goes back to where it was before it went to look at a cabinet. */
   cameraReturn: boolean;
   cameraToken: number;
-  /** Plan steps that the 3D view's right and up arrows stand for, so nudging follows what is seen. */
-  viewAxes: ViewAxes;
   /** The first-visit tip about dragging and opening cabinets in 3D has done its job. */
   moveHintSeen: boolean;
   /** Language of the interface and of everything exported. */
   language: Language;
 
   select: (id: string | null) => void;
-  setPrecisionMove: (open: boolean) => void;
+  setCabinetTool: (tool: CabinetTool) => void;
+  setPreviewLockedIds: (ids: string[]) => void;
   setLanguage: (language: Language) => void;
   setView: (view: MainView) => void;
   setSettingsTab: (tab: SettingsTab | null) => void;
@@ -78,7 +79,6 @@ interface UiState {
   /** Brings the camera to one cabinet; the chosen view stays the one to go back to. */
   focusCamera: (id: string) => void;
   returnCamera: () => void;
-  setViewAxes: (axes: ViewAxes) => void;
   setMoveHintSeen: () => void;
   setViewport: (zoom: number, pan: Point) => void;
   setSnapEnabled: (enabled: boolean) => void;
@@ -94,7 +94,8 @@ export const useUiStore = create<UiState>()(
   persist(
     (set) => ({
       selectedId: null,
-      precisionMove: false,
+      cabinetTool: null,
+      previewLockedIds: [],
       zoom: 0.2,
       pan: { x: 0, y: 0 },
       snapEnabled: true,
@@ -116,14 +117,19 @@ export const useUiStore = create<UiState>()(
       cameraFocusId: null,
       cameraReturn: false,
       cameraToken: 0,
-      viewAxes: PLAN_AXES,
       moveHintSeen: false,
       language: browserLanguage(),
 
-      select: (selectedId) => set((state) => ({ selectedId, precisionMove: selectedId === state.selectedId ? state.precisionMove : false })),
-      setPrecisionMove: (precisionMove) => set({ precisionMove }),
+      select: (selectedId) => set((state) => ({ selectedId, cabinetTool: selectedId === state.selectedId ? state.cabinetTool : null })),
+      setCabinetTool: (cabinetTool) => set((state) => ({
+        cabinetTool: state.view === '3d' && state.selectedId && !state.previewLockedIds.includes(state.selectedId) ? cabinetTool : null,
+      })),
+      setPreviewLockedIds: (previewLockedIds) => set((state) => {
+        if (state.previewLockedIds.length === previewLockedIds.length && state.previewLockedIds.every((id, index) => id === previewLockedIds[index])) return state;
+        return { previewLockedIds, cabinetTool: state.selectedId && previewLockedIds.includes(state.selectedId) ? null : state.cabinetTool };
+      }),
       setLanguage: (language) => set({ language }),
-      setView: (view) => set({ view, precisionMove: false }),
+      setView: (view) => set((state) => state.view === view ? state : { view, cabinetTool: null, previewLockedIds: [] }),
       setSettingsTab: (settingsTab) => set({ settingsTab }),
       setLayoutsOpen: (layoutsOpen) => set({ layoutsOpen }),
       setProjectsOpen: (projectsOpen) => set({ projectsOpen }),
@@ -134,7 +140,6 @@ export const useUiStore = create<UiState>()(
       requestCamera: (cameraView, focusId) => set((state) => ({ cameraView, cameraFocusId: focusId ?? null, cameraReturn: false, cameraToken: state.cameraToken + 1 })),
       focusCamera: (cameraFocusId) => set((state) => ({ cameraFocusId, cameraReturn: false, cameraToken: state.cameraToken + 1 })),
       returnCamera: () => set((state) => ({ cameraFocusId: null, cameraReturn: true, cameraToken: state.cameraToken + 1 })),
-      setViewAxes: (viewAxes) => set({ viewAxes }),
       setMoveHintSeen: () => set({ moveHintSeen: true }),
       setViewport: (zoom, pan) => set({ zoom, pan }),
       setSnapEnabled: (snapEnabled) => set({ snapEnabled }),
@@ -169,3 +174,8 @@ export const useUiStore = create<UiState>()(
     },
   ),
 );
+
+export function cabinetIsLocked(id: string): boolean {
+  const ui = useUiStore.getState();
+  return ui.view === '3d' && ui.previewLockedIds.includes(id);
+}

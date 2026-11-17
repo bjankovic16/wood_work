@@ -3,7 +3,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
-import { assertScenePlacement, movementHandle, open3DTools } from './three-test-helpers.mjs';
+import { assertScenePlacement, cabinetBodyDrag, open3DTools } from './three-test-helpers.mjs';
 import { roomObjectChecks } from './room-object-checks.mjs';
 
 const output = process.argv[2] ?? path.join('test-results', 'rooms');
@@ -272,8 +272,8 @@ try {
   assert.ok(cabinet);
   await selectCabinetInScene(page, cabinet.id);
   const actions = page.getByRole('group', { name: 'Selected cabinet actions' });
-  await actions.getByRole('button', { name: 'Move cabinet', exact: true }).click();
-  const { from: handle } = await movementHandle(page, 'X');
+  await page.getByRole('button', { name: 'Move cabinet', exact: true }).click();
+  const { from: handle } = await cabinetBodyDrag(page);
   const beforeMove = await design(page);
   const history = await page.evaluate(() => window.__kitchen.design.getState().past.length);
   await page.mouse.move(handle.x, handle.y);
@@ -287,7 +287,7 @@ try {
   assert.equal(await page.evaluate(() => window.__kitchen.design.getState().past.length), history + 1);
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   assert.deepEqual(await design(page), beforeMove);
-  pass('dragging a real rendered X handle moves the cabinet and records one complete Undo step');
+  pass('explicit Move enables cabinet-body dragging and records one complete Undo step');
 
   await actions.getByRole('button', { name: 'Focus selected cabinet', exact: true }).click();
   await page.getByLabel('From left wall', { exact: true }).fill(String(state.room.features[0].x));

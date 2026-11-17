@@ -9,6 +9,7 @@ import { DEFAULT_STYLE, type FrontProfile } from '../../domain/style';
 import { KIND_OPTIONS, resolveConfig, type BuildContext } from '../../engine/config';
 import { cornerDoorWidths, frontLayout, OVEN_NICHE_HEIGHT, TOWER_OVEN_BOTTOM, type FrontRect } from '../../engine/fronts';
 import { drawerBoxHeight, innerDepth, slideLength } from '../../engine/parts';
+import { useUiStore } from '../../store/uiStore';
 import { createMaterials, disposeMaterials, m, type KitchenMaterials } from './materials';
 
 type Vec3 = [number, number, number];
@@ -585,7 +586,8 @@ function UnitGroup({ item, anchor, onSelect, children, objectRef, onToggleOpenin
       }}
       onPointerOver={(e) => {
         e.stopPropagation();
-        document.body.style.cursor = 'grab';
+        const ui = useUiStore.getState();
+        document.body.style.cursor = ui.selectedId === item.id && ui.cabinetTool === 'move' ? 'grab' : 'pointer';
         // A finger has no hover: the outline would only flash on every tap.
         if (e.nativeEvent.pointerType === 'mouse') onHover?.(item.id);
       }}

@@ -37,7 +37,58 @@ export async function waitForIdleRendering(page, { quietMs = 300, timeoutMs = 50
   }), { quietMs, timeoutMs });
 }
 
-export async function movementHandle(page, axis, distance = 0, toolName = 'kitchen-move-tool') {
+export async function cabinetBodyDrag(page, axis = 'X', distance = 0, id) {
+  await waitForIdleRendering(page);
+  return page.evaluate(async ({ axis, distance, id }) => {
+    const { localToRoom } = await import('/src/domain/geometry.ts');
+    const item = window.__kitchen.design.getState().design.items.find((entry) => entry.id === (id ?? window.__kitchen.ui.getState().selectedId));
+    if (!item) throw new Error('No cabinet is selected for body dragging.');
+    const { camera } = window.__kitchen3D;
+    camera.updateMatrixWorld(true);
+    const point = localToRoom(item, item.width / 2, item.depth * 0.6);
+    const from = camera.position.clone().set(point.x / 1000, (item.elevation + item.height + 35) / 1000, point.y / 1000);
+    const to = from.clone();
+    to[axis.toLowerCase()] += distance;
+    const box = document.querySelector('main canvas').getBoundingClientRect();
+    const screen = (value) => {
+      value.project(camera);
+      return { x: box.x + (value.x + 1) * box.width / 2, y: box.y + (1 - value.y) * box.height / 2 };
+    };
+    const points = { from: screen(from), to: screen(to) };
+    if (document.elementFromPoint(points.from.x, points.from.y)?.tagName !== 'CANVAS') throw new Error('The cabinet body is hidden by a control.');
+    return points;
+  }, { axis, distance, id });
+}
+
+export async function resizeGripDrag(page, field = 'width', distance = 0.15) {
+  const grip = page.locator(`[data-resize-field="${field}"]`);
+  await grip.waitFor({ state: 'visible' });
+  await waitForIdleRendering(page);
+  const box = await grip.boundingBox();
+  const from = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const delta = await page.evaluate(({ field, distance }) => {
+    const item = window.__kitchen.design.getState().design.items.find((entry) => entry.id === window.__kitchen.ui.getState().selectedId);
+    const { camera } = window.__kitchen3D;
+    camera.updateMatrixWorld(true);
+    const angle = item.rotation * Math.PI / 180;
+    const axis = field === 'height' ? [0, 1, 0] : field === 'width' ? [Math.cos(angle), 0, Math.sin(angle)] : [-Math.sin(angle), 0, Math.cos(angle)];
+    const point = camera.position.clone().set((item.x + item.width / 2) / 1000, (item.elevation + item.height / 2) / 1000, (item.y + item.depth / 2) / 1000);
+    const end = point.clone().add(camera.position.clone().set(...axis).multiplyScalar(distance));
+    const startScreen = point.project(camera);
+    const endScreen = end.project(camera);
+    const box = document.querySelector('main canvas').getBoundingClientRect();
+    const delta = { x: (endScreen.x - startScreen.x) * box.width / 2, y: -(endScreen.y - startScreen.y) * box.height / 2 };
+    return Math.hypot(delta.x, delta.y) < 3
+      ? field === 'height' ? { x: 0, y: -distance * 400 } : { x: distance * 400, y: 0 } : delta;
+  }, { field, distance });
+  assert.equal(await grip.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    return document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)?.closest('button') === element;
+  }), true, `${field} grip must not be hidden behind another control.`);
+  return { from, to: { x: from.x + delta.x, y: from.y + delta.y } };
+}
+
+export async function movementHandle(page, axis, distance, toolName) {
   await page.waitForFunction((name) => Boolean(window.__kitchen3D.scene.getObjectByName(name)), toolName);
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   return page.evaluate(({ axis, distance, toolName }) => {

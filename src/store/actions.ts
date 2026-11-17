@@ -18,7 +18,7 @@ import { createProject } from './projects';
 import { DEFAULT_CONSTRUCTION } from '../engine/settings';
 import { currentMessages } from '../i18n';
 import { useDesignStore } from './designStore';
-import { useUiStore } from './uiStore';
+import { cabinetIsLocked, useUiStore } from './uiStore';
 import { clientToPlan, snapSettings } from './viewport';
 import { normalizeAngle } from '../domain/polygons';
 import { roomOutline } from '../domain/roomGeometry';
@@ -143,10 +143,11 @@ export function stackCabinetAbove(id: string): StackPlan {
 /** Rotates the selection in 90° steps; positive is clockwise. */
 export function rotateSelected(steps: number): void {
   const item = selectedItem();
-  if (item) editItem(item.id, (it, room) => rotateItem(it, steps, room));
+  if (item && !cabinetIsLocked(item.id)) editItem(item.id, (it, room) => rotateItem(it, steps, room));
 }
 
 export function setItemAngle(id: string, angle: number): void {
+  if (cabinetIsLocked(id)) return;
   if (!Number.isFinite(angle)) throw new RangeError('Invalid cabinet angle.');
   editItem(id, (item, room) => {
     const before = aabbSize(item);
@@ -237,19 +238,23 @@ export function addWallTreatment(wallId: string): void {
 }
 
 export function nudgeSelected(dx: number, dy: number): void {
+  if (useUiStore.getState().view === '3d') return;
   const item = selectedItem();
   if (item) editItem(item.id, (it, room) => ops.withPosition(it, it.x + dx, it.y + dy, room));
 }
 
 export function setItemSize(id: string, field: SizeField, value: number): void {
+  if (cabinetIsLocked(id)) return;
   editItem(id, (item, room) => ops.withSize(item, field, value, room));
 }
 
 export function setItemElevation(id: string, value: number): void {
+  if (cabinetIsLocked(id)) return;
   editItem(id, (item) => ops.withElevation(item, value));
 }
 
 export function setItemPosition(id: string, x: number, y: number): void {
+  if (cabinetIsLocked(id)) return;
   editItem(id, (item, room) => ops.withPosition(item, x, y, room));
 }
 
@@ -311,6 +316,7 @@ export function openRoomExample(id: RoomExampleId): void {
 }
 
 export function setItemPlacement(id: string, placement: Pick<KitchenItem, 'x' | 'y' | 'rotation'>): void {
+  if (cabinetIsLocked(id)) return;
   editItem(id, (item, room) => ops.withPosition({ ...item, rotation: placement.rotation }, placement.x, placement.y, room));
 }
 

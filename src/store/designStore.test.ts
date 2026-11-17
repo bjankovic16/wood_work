@@ -11,6 +11,80 @@ const store = () => useDesignStore.getState();
 
 beforeEach(() => {
   useDesignStore.setState({ design: ops.createDesign(), past: [], future: [], gestureBase: null });
+  useUiStore.setState({ selectedId: null, view: 'plan', cabinetTool: null, previewLockedIds: [] });
+});
+
+describe('explicit 3D cabinet tools', () => {
+  it('disarms tools on selection/view changes and preview locks, without rearming when a preview closes', () => {
+    const ui = () => useUiStore.getState();
+    ui().setCabinetTool('move');
+    expect(ui().cabinetTool).toBeNull();
+    ui().select('a');
+    ui().setCabinetTool('resize');
+    expect(ui().cabinetTool).toBeNull();
+    ui().setView('3d');
+    ui().setCabinetTool('move');
+    ui().select('a');
+    expect(ui().cabinetTool).toBe('move');
+    ui().setCabinetTool('resize');
+    expect(ui().cabinetTool).toBe('resize');
+    ui().setPreviewLockedIds(['a', 'b']);
+    ui().setView('3d');
+    expect(ui().previewLockedIds).toEqual(['a', 'b']);
+    expect(ui().cabinetTool).toBeNull();
+    ui().setCabinetTool('move');
+    expect(ui().cabinetTool).toBeNull();
+    ui().setPreviewLockedIds([]);
+    expect(ui().cabinetTool).toBeNull();
+    ui().setCabinetTool('move');
+    ui().select('b');
+    expect(ui().cabinetTool).toBeNull();
+    ui().setCabinetTool('resize');
+    ui().setView('plan');
+    expect(ui().cabinetTool).toBeNull();
+    expect(ui().previewLockedIds).toEqual([]);
+  });
+
+  it('blocks size, position, elevation and rotation changes of preview-locked cabinets without adding history', () => {
+    const item = createItem('base', [], { x: 1000, y: 1000 });
+    store().load({ ...ops.createDesign(), items: [item] });
+    const original = store().design;
+    const ui = useUiStore.getState();
+    ui.select(item.id);
+    ui.setView('3d');
+    ui.setPreviewLockedIds([item.id]);
+    actions.setItemSize(item.id, 'width', 900);
+    actions.setItemPosition(item.id, 500, 500);
+    actions.setItemPlacement(item.id, { x: 700, y: 700, rotation: 90 });
+    actions.setItemElevation(item.id, 200);
+    actions.setItemAngle(item.id, 45);
+    actions.rotateSelected(1);
+    actions.nudgeSelected(100, 100);
+    expect(store().design).toBe(original);
+    expect(store().past).toHaveLength(0);
+    ui.setPreviewLockedIds([]);
+    actions.setItemSize(item.id, 'width', 900);
+    expect(store().design.items[0].width).toBe(900);
+    expect(store().past).toHaveLength(1);
+  });
+
+  it('removes 3D arrow nudges while preserving plan movement and normal numeric editing', () => {
+    const item = createItem('base', [], { x: 1000, y: 1000 });
+    store().load({ ...ops.createDesign(), items: [item] });
+    const ui = useUiStore.getState();
+    ui.select(item.id);
+    ui.setView('3d');
+    for (const tool of [null, 'move', 'resize'] as const) {
+      ui.setCabinetTool(tool);
+      actions.nudgeSelected(100, 0);
+    }
+    expect(store().design.items[0]).toBe(item);
+    actions.setItemPosition(item.id, 1200, 1000);
+    expect(store().design.items[0].x).toBe(1200);
+    ui.setView('plan');
+    actions.nudgeSelected(100, -100);
+    expect(store().design.items[0]).toMatchObject({ x: 1300, y: 900 });
+  });
 });
 
 describe('design history', () => {

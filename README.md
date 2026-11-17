@@ -248,11 +248,11 @@ browsers, English otherwise. A language chosen manually is remembered.
   phones the toolbar is icons only and Interior view, Photo and Reset view sit
   under **Tools**. A door, window or structure selected in 3D shows its own
   actions straight away.
-- **Move cabinets by dragging them** in 3D. With a mouse, press any cabinet and
-  drag; an outline shows which cabinet is under the pointer. On a touch screen
-  a swipe turns the view as it does anywhere else, so rest a finger on a
-  cabinet for a moment to pick it up, or tap it first: the selected cabinet and
-  its **Move** hand button move at once.
+- **Move cabinets intentionally** in 3D: select a cabinet, click or tap its
+  **Move** hand button, then hold the cabinet itself and drag. A hint explains
+  the active tool. Selection alone never enables moving; ordinary drags and
+  swipes turn the view. **Done** exits the tool; selecting another cabinet or
+  leaving 3D also turns it off.
   - The point you grabbed stays under the pointer. Seen from above the cabinet
     follows freely across the floor; seen level, as with wall units at eye
     height or the Front view, it slides sideways only, so a pixel of drift can
@@ -262,17 +262,9 @@ browsers, English otherwise. A language chosen manually is remembered.
   - While you drag, blue measurements show the free space left on each side,
     to the next unit or wall. Snapping and the grid are the plan's; one drag is
     one Undo step; Escape or an interrupted gesture puts the cabinet back.
-  - Click **Move** (without dragging) for arrow buttons that move in exact 10,
-    50 or 100 mm steps. The arrows, and the keyboard's arrow keys, move the
-    cabinet the way they point on screen, however the view is turned.
-  - Click or tap a cabinet for its resize arrows as well: drag one out to
-    expand or in to shrink along the direction it points. Opening **Tools**
-    keeps these arrows visible. Labels show the dimension and current size;
-    corner cabinets distinguish their two arms. Arrows aligned with the camera
-    may be hidden: turn the view or choose a dimension under **Resize**.
-    Moving a cabinet, including precise movement, temporarily hides resize
-    arrows; finishing the move restores them. Exact values are always available
-    in the cabinet properties (**Edit** on phones).
+  - Cabinet movement arrows and the precise-movement panel have been removed.
+    Arrow keys still nudge in the plan, but never move cabinets in 3D.
+    Exact positions remain available in cabinet properties (**Edit** on phones).
 - **Open a cabinet**: double-click it, or select it and press **Open**. Doors
   swing open and drawers slide out, lower drawers further than the ones above,
   so every drawer shows its inside. The camera glides to a three-quarter view
@@ -280,19 +272,23 @@ browsers, English otherwise. A language chosen manually is remembered.
   units) and glides back when the last open cabinet is closed. **Open all** in
   the toolbar opens or closes every cabinet without moving the camera. Opening
   is a view-only preview: it does not change dimensions or cutting quantities.
+  An open cabinet cannot move, resize or rotate, including through its numeric
+  properties or shortcuts. Closing it restores editing without reactivating a tool.
   Animations are skipped when the system asks for reduced motion.
 - **See inside cabinets**: turn on **Interior view** in the toolbar (under
   **Tools** on phones) to hide
   fronts and reveal shelves, corner compartments and drawer boxes. Toggle it off
   to restore the finished kitchen. This schematic view does not change the
   project, Undo history or cutting list; appliance interiors and fitting details
-  are not modelled.
-- **Resize cabinets in 3D** to a chosen dimension: open **Tools**, select a cabinet, choose **Resize**, then choose
-  Width, Height or Depth (corner units also offer the second arm). Drag the
-  handle out to expand or in to shrink, with live measurements.
+  are not modelled. Interior view locks movement, resizing and rotation for
+  every cabinet until the preview is turned off.
+- **Resize cabinets in 3D**: select a cabinet and press its **Resize** button.
+  Large labeled grips appear on its faces for Width, Height and Depth
+  (corner units also offer the second arm). Hold and drag a grip with a mouse
+  or finger; its measurement updates live. Move and Resize are mutually exclusive.
   The back-left anchor and elevation stay fixed; size limits, the room outline
   and ceiling constrain the change. Grid snapping follows the plan setting.
-  Use the pencil for exact dimensions, **Done** to exit, **Undo** to restore a
+  Use the properties/pencil for exact dimensions, **Done** to exit, **Undo** to restore a
   completed drag, or Escape to cancel an unfinished drag. Mouse and touch work.
   Other cabinets are not moved; review collision warnings before cutting.
 - **Irregular rooms**: rectangular, L-shaped/stepped and diagonal-corner

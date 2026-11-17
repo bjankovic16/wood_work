@@ -3,7 +3,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
-import { assertScenePlacement, movementHandle, open3DTools, waitForIdleRendering } from './three-test-helpers.mjs';
+import { assertScenePlacement, cabinetBodyDrag, open3DTools, waitForIdleRendering } from './three-test-helpers.mjs';
 
 const output = process.argv[2] ?? path.join('test-results', 'stacked');
 await mkdir(output, { recursive: true });
@@ -144,8 +144,8 @@ try {
   const originalHistory = await page.evaluate(() => window.__kitchen.design.getState().past.length);
   const camera = page.getByRole('group', { name: '3D camera' });
   await camera.getByRole('button', { name: 'Top', exact: true }).click();
-  await tools.getByRole('button', { name: 'Move cabinet', exact: true }).click();
-  let handle = await movementHandle(page, 'Z', 0.15);
+  await page.getByRole('button', { name: 'Move cabinet', exact: true }).click();
+  let handle = await cabinetBodyDrag(page, 'Z', 0.01);
   await page.mouse.move(handle.from.x, handle.from.y);
   await page.mouse.down();
   await page.mouse.move(handle.to.x, handle.to.y, { steps: 12 });
@@ -158,7 +158,7 @@ try {
   for (const [axis, distance] of [['X', 0.8], ['Z', 1.1]]) {
     const before = await design(page);
     const history = await page.evaluate(() => window.__kitchen.design.getState().past.length);
-    handle = await movementHandle(page, axis, distance);
+    handle = await cabinetBodyDrag(page, axis, distance);
     await page.mouse.move(handle.from.x, handle.from.y);
     await page.mouse.down();
     await page.mouse.move(handle.to.x, handle.to.y, { steps: 16 });
@@ -180,12 +180,12 @@ try {
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   assert.deepEqual(await design(page), originalStack);
-  await tools.getByRole('button', { name: 'Move cabinet', exact: true }).click();
+  await page.getByRole('button', { name: 'Move cabinet', exact: true }).click();
   pass('X/Z drags move only the selected tier, preserve its height and remain one Undo/Redo step each');
 
   for (const interruption of ['pointercancel', 'blur', 'Escape']) {
-    await tools.getByRole('button', { name: 'Move cabinet', exact: true }).click();
-    handle = await movementHandle(page, 'X', 0.8);
+    await page.getByRole('button', { name: 'Move cabinet', exact: true }).click();
+    handle = await cabinetBodyDrag(page, 'X', 0.8);
     const history = await page.evaluate(() => window.__kitchen.design.getState().past.length);
     await page.mouse.move(handle.from.x, handle.from.y);
     await page.mouse.down();
@@ -212,6 +212,7 @@ try {
     const nextCamera = await page.evaluate(() => window.__kitchen3D.camera.position.toArray());
     assert.ok(nextCamera.some((value, index) => Math.abs(value - previousCamera[index]) > 0.001), 'Orbit controls must remain usable after cancelling cabinet movement.');
     await camera.getByRole('button', { name: 'Top', exact: true }).click();
+    await page.evaluate(() => window.__kitchen.ui.getState().setCabinetTool(null));
     pass(`${interruption} cancels movement without an undo entry or leaving the camera locked`);
   }
 
@@ -354,6 +355,7 @@ try {
   await phone.waitForTimeout(300);
   const beforeTouch = await design(phone);
   const phoneUpper = beforeTouch.items[1];
+  await phone.getByRole('button', { name: 'Move cabinet', exact: true }).tap();
   const touch = await phoneContext.newCDPSession(phone);
   const bodyMovement = async () => {
     await phone.waitForFunction(() => {
