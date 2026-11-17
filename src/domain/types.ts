@@ -273,6 +273,8 @@ export interface PartEdit {
 export interface Design {
   version: 5;
   name: string;
+  /** Last prepared gallery design loaded; keeps Next kitchen consistent through Undo and reload. */
+  galleryPresetId?: string;
   room: Room;
   items: KitchenItem[];
   openings: Opening[];

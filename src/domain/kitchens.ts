@@ -146,6 +146,10 @@ export function kitchenCategory(preset: KitchenPreset): KitchenCategory {
 
 /** Both the gallery images and the editor use this complete, independently editable design. */
 export function createKitchenDesign(preset: KitchenPreset, name: string, prefixes?: LabelPrefixes): Design {
+  return { ...buildKitchenDesign(preset, name, prefixes), galleryPresetId: preset.id };
+}
+
+function buildKitchenDesign(preset: KitchenPreset, name: string, prefixes?: LabelPrefixes): Design {
   if (preset.framed) return createFramedKitchen(preset.framed, preset.room, preset.style, name, prefixes);
   if (preset.layered) return createLayeredKitchen(preset.layered, preset.room, preset.style, name, prefixes);
   const room = structuredClone(preset.room);

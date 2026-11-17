@@ -97,12 +97,11 @@ export const en = {
   },
 
   shuffle: {
-    title: 'Shuffle kitchen',
-    hint: 'Cycle through planned straight, L-shaped, U-shaped and island layouts that fit your existing cabinets and room.',
-    success: (layout: string) => `Kitchen rearranged: ${layout}. Undo restores the previous layout. Check plumbing, electrical connections and appliance clearances before using this idea.`,
-    preview: 'Close all cabinets and exit Interior view before shuffling.',
-    busy: 'Finish moving or resizing before shuffling.',
-    unavailable: 'No other planned layout fits all your cabinets and room constraints. Nothing was changed.',
+    title: 'Next kitchen',
+    hint: 'Load the next complete kitchen from the gallery, including its room, cabinets and finishes. Undo restores your current design.',
+    success: (name: string) => `Loaded “${name}” with its prepared room, cabinets and finishes. Undo restores your previous design.`,
+    preview: 'Close all cabinets and exit Interior view before loading another kitchen.',
+    busy: 'Finish moving or resizing before loading another kitchen.',
   },
 
   topBar: {
@@ -588,6 +587,16 @@ export const en = {
   },
 
   view3d: {
+    kitchenActions: 'Kitchen designs and preview',
+    appearanceHint: 'Change fronts, worktops, handles and lighting without changing the layout.',
+    cameraHints: {
+      perspective: 'See the whole kitchen in perspective. Drag the background to turn the view.',
+      front: 'Look straight at the kitchen fronts.',
+      top: 'Look down from above to check the arrangement and free space.',
+    },
+    openAllHint: 'Open every cabinet for a preview. Moving and resizing are locked while cabinets are open.',
+    closeAllHint: 'Close all cabinet previews to enable editing again.',
+    toolsHint: 'More tools: room objects, photo comparison and help. Hold a toolbar button to read its explanation.',
     openCabinet: 'Open cabinet',
     closeCabinet: 'Close cabinet',
     openShort: 'Open',
@@ -617,7 +626,7 @@ export const en = {
     tools: '3D tools',
     help: 'How to use 3D',
     moveModeHint: 'Hold the selected cabinet and drag to move it. Done finishes; Escape cancels a drag.',
-    resizeModeHint: 'Drag arrows to resize or the cabinet body to move. Selection stays locked until X. Escape cancels only the current drag.',
+    resizeModeHint: 'Drag arrows to resize; drag the cabinet to move. X finishes; Escape cancels a drag.',
     previewLocked: 'Preview only: close this cabinet and exit Interior view to move, resize or rotate it.',
     resizeBlocked: 'The cabinet must fit inside the room and below the ceiling. This size was not applied.',
     loadingMove: 'Loading movement handles…',

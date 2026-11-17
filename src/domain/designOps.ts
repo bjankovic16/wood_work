@@ -279,6 +279,7 @@ export function parseDesign(raw: unknown): Design | null {
   return {
     version: 5,
     name: typeof v.name === 'string' ? v.name : 'My kitchen',
+    ...(typeof v.galleryPresetId === 'string' && /^[a-z0-9-]{1,80}$/.test(v.galleryPresetId) ? { galleryPresetId: v.galleryPresetId } : {}),
     room,
     items: checkedItems,
     openings: Array.isArray(v.openings) ? v.openings.map((o) => parseOpening(o, room)).filter((o): o is Opening => o !== null) : [],

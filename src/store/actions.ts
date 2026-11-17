@@ -2,7 +2,7 @@ import { createItem, findPreset, itemFromPreset, nextLabel, type SizeField } fro
 import * as ops from '../domain/designOps';
 import { isWallMounted, rotateItem, aabbSize, clampToRoom } from '../domain/geometry';
 import { newId } from '../domain/ids';
-import { createKitchenDesign, type KitchenPreset } from '../domain/kitchens';
+import { createKitchenDesign, KITCHEN_DESIGNS, type KitchenDesignId, type KitchenPreset } from '../domain/kitchens';
 import { centreOfRoom, findFreeSpot, placeCopy } from '../domain/placement';
 import { computeDragPlacement } from '../domain/snapping';
 import { planCabinetAbove, planThreeTier, type StackPlan, type ThreeTierOptions, type ThreeTierPlan } from '../domain/upperCabinets';
@@ -23,7 +23,6 @@ import { clientToPlan, snapSettings } from './viewport';
 import { normalizeAngle } from '../domain/polygons';
 import { roomOutline } from '../domain/roomGeometry';
 import { roomSegments } from '../domain/walls';
-import { nextKitchenVariant, type KitchenVariantLayout } from '../domain/shuffleKitchen';
 import type { RoomVertex } from '../domain/types';
 
 /** User-level commands that tie the pure design operations to the stores. */
@@ -31,19 +30,17 @@ import type { RoomVertex } from '../domain/types';
 const current = (): Design => useDesignStore.getState().design;
 const apply = (recipe: (design: Design) => Design): void => useDesignStore.getState().apply(recipe);
 
-export type ShuffleResult = { ok: true; layout: KitchenVariantLayout } | { ok: false; reason: 'preview' | 'busy' | 'unavailable' };
+export type ShuffleResult = { ok: true; presetId: KitchenDesignId } | { ok: false; reason: 'preview' | 'busy' };
 
 export function shuffleKitchen(): ShuffleResult {
   const ui = useUiStore.getState();
   const store = useDesignStore.getState();
   if (ui.previewLockedIds.length > 0) return { ok: false, reason: 'preview' };
   if (ui.cabinetTool || store.gestureBase) return { ok: false, reason: 'busy' };
-  const { design } = store;
-  const variant = nextKitchenVariant(design.room, design.items, design.openings);
-  if (!variant) return { ok: false, reason: 'unavailable' };
-  store.apply((value) => ({ ...value, items: variant.items }));
-  ui.requestCamera(ui.cameraView);
-  return { ok: true, layout: variant.layout };
+  const index = KITCHEN_DESIGNS.findIndex((preset) => preset.id === store.design.galleryPresetId);
+  const preset = KITCHEN_DESIGNS[(index + 1) % KITCHEN_DESIGNS.length];
+  applyKitchenDesign(preset);
+  return { ok: true, presetId: preset.id };
 }
 
 function selectedItem(): KitchenItem | null {

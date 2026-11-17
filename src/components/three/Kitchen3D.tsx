@@ -14,7 +14,7 @@ import { useDesignStore } from '../../store/designStore';
 import { useBuildContext, useIssues } from '../../store/derived';
 import { deleteSelected, duplicateSelected, rotateSelected, shuffleKitchen, type ShuffleResult } from '../../store/actions';
 import { useUiStore } from '../../store/uiStore';
-import { Button, Dialog } from '../ui';
+import { Button, Dialog, TooltipButton } from '../ui';
 import { createMaterials, disposeMaterials, m } from './materials';
 import { Room3D } from './Room3D';
 import { RoomObjectTools } from './RoomObjectTools';
@@ -336,57 +336,67 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
     if (tool === 'resize' && ui.selectedId && useUiStore.getState().cabinetTool === 'resize') ui.focusCamera(ui.selectedId);
   };
   const interiorButton = (
-    <Button variant="outline" active={interior} onClick={() => { useUiStore.getState().setCabinetTool(null); setInterior((shown) => !shown); }}>
+    <TooltipButton tooltip={text.view3d.interiorHint} className="h-10" variant="outline" active={interior} onClick={() => { useUiStore.getState().setCabinetTool(null); setInterior((shown) => !shown); }}>
       <PanelsTopLeft className="size-4" />{text.view3d.interior}
-    </Button>
+    </TooltipButton>
   );
   const photoButton = (
     <Button variant="outline" active={referenceOpen} onClick={() => useUiStore.getState().setReferenceOpen(!referenceOpen)}>
       <Image className="size-4" />{text.references.toggle}
     </Button>
   );
-  const shuffleDisabled = items.length === 0 || previewLockedIds.length > 0 || Boolean(cabinetTool) || editing || roomMoving;
+  const shuffleDisabled = previewLockedIds.length > 0 || Boolean(cabinetTool) || editing || roomMoving;
   const shuffleTitle = previewLockedIds.length > 0 ? text.shuffle.preview : cabinetTool || editing || roomMoving ? text.shuffle.busy : text.shuffle.hint;
-  const variantName = shuffleResult?.ok ? shuffleResult.layout === 'island' ? text.kitchens.island : text.layouts.names[shuffleResult.layout].name : '';
+  const kitchenName = shuffleResult?.ok ? text.kitchens.names[shuffleResult.presetId] : '';
+  const toolsButton = <TooltipButton tooltip={text.view3d.toolsHint} data-testid="three-tools-toggle" aria-expanded={toolsOpen} aria-controls={toolsId} aria-label={text.view3d.tools}
+    className="h-10 min-w-10" active={toolsOpen} onClick={() => (toolsOpen ? closeTools() : setToolsOpen(true))}>
+    <SlidersHorizontal className="size-4" />
+    <span className={cn(compact && 'sr-only')}>{text.view3d.toolsShort}</span>
+  </TooltipButton>;
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col bg-[#ebe8e3] lg:flex-row">
       {referenceOpen && <PhotoReferencePanel />}
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-      <div role="toolbar" aria-label={text.view3d.toolbar} data-testid="three-toolbar" className="studio-panel flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b px-3 py-2">
-        <Button variant="outline" active={styleOpen} aria-label={text.style.style} title={text.style.style} onClick={() => setStyleOpen((open) => !open)}>
+      <div role="toolbar" aria-label={text.view3d.toolbar} data-testid="three-toolbar" className="studio-panel flex shrink-0 flex-col gap-2 border-b px-3 py-2 lg:flex-row lg:flex-wrap lg:items-center lg:gap-3">
+        <div className="flex items-center justify-between gap-2">
+        <div role="group" aria-label={text.view3d.camera} className="flex shrink-0 rounded-xl border border-studio-line bg-[#efede5] p-0.5">
+          {(['perspective', 'front', 'top'] as const).map((view) => <TooltipButton key={view} tooltip={text.view3d.cameraHints[view]}
+            className="h-10 px-2.5" active={request.view === view && !request.focusId}
+            onClick={() => useUiStore.getState().requestCamera(view)}>{text.view3d[view]}</TooltipButton>)}
+        </div>
+        <TooltipButton tooltip={text.view3d.appearanceHint} variant="outline" className="h-10 min-w-10" active={styleOpen} aria-label={text.style.style} onClick={() => setStyleOpen((open) => !open)}>
           <Palette className="size-4" />
           <span className={cn(compact && 'sr-only')}>{text.style.style}</span>
-        </Button>
-        <div role="group" aria-label={text.view3d.camera} className="flex rounded-lg border border-studio-line bg-studio-paper p-0.5 shadow-xs">
-          {(['perspective', 'front', 'top'] as const).map((view) => <Button key={view} active={request.view === view && !request.focusId} onClick={() => useUiStore.getState().requestCamera(view)}>{text.view3d[view]}</Button>)}
+        </TooltipButton>
+        {compact && toolsButton}
         </div>
-        {!compact && <Button variant="outline" aria-label={text.view3d.resetView} title={text.view3d.resetViewTitle} onClick={() => useUiStore.getState().requestCamera('perspective')}>
+        {!compact && <TooltipButton tooltip={text.view3d.resetViewTitle} className="h-10 min-w-10" variant="outline" aria-label={text.view3d.resetView} onClick={() => useUiStore.getState().requestCamera('perspective')}>
           <RotateCcw className="size-4" />
-        </Button>}
-        <div className="flex items-center gap-2">
-        <Button variant="outline" active={allOpen} disabled={interior || openable.length === 0} aria-label={allOpen ? text.view3d.closeAll : text.view3d.openAll} title={allOpen ? text.view3d.closeAll : text.view3d.openAll} onClick={toggleAll}>
+        </TooltipButton>}
+        <div role="group" aria-label={text.view3d.kitchenActions} className="flex items-center gap-2 lg:border-l lg:border-studio-line lg:pl-3">
+        <TooltipButton tooltip={allOpen ? text.view3d.closeAllHint : text.view3d.openAllHint} className="h-10 flex-1 whitespace-nowrap lg:flex-none"
+          variant="outline" active={allOpen} disabled={interior || openable.length === 0} aria-label={allOpen ? text.view3d.closeAll : text.view3d.openAll} onClick={toggleAll}>
           {allOpen ? <DoorClosed className="size-4" /> : <DoorOpen className="size-4" />}
-          <span className={cn(compact && 'sr-only')}>{allOpen ? text.view3d.closeAll : text.view3d.openAll}</span>
-        </Button>
-        <Button variant="outline" aria-label={text.shuffle.title} title={shuffleTitle} disabled={shuffleDisabled} onClick={() => setShuffleResult(shuffleKitchen())}>
+          <span>{allOpen ? text.view3d.closeAll : text.view3d.openAll}</span>
+        </TooltipButton>
+        <TooltipButton tooltip={shuffleTitle} className="h-10 flex-1 whitespace-nowrap lg:flex-none" variant="outline" aria-label={text.shuffle.title} disabled={shuffleDisabled} onClick={() => {
+          const result = shuffleKitchen();
+          setShuffleResult(result);
+          if (result.ok) { selectRoomObject(null); setOpenedCabinets(new Set()); }
+        }}>
           <Shuffle className="size-4" />
           <span>{text.shuffle.title}</span>
-        </Button>
+        </TooltipButton>
         </div>
         {!compact && interiorButton}
         {!compact && photoButton}
-        <div className="min-w-0 flex-1" />
-        <Button data-testid="three-tools-toggle" aria-expanded={toolsOpen} aria-controls={toolsId} aria-label={text.view3d.tools} title={text.view3d.tools}
-          active={toolsOpen} onClick={() => (toolsOpen ? closeTools() : setToolsOpen(true))}>
-          <SlidersHorizontal className="size-4" />
-          <span className={cn(compact && 'sr-only')}>{text.view3d.toolsShort}</span>
-        </Button>
+        {!compact && <><div className="min-w-0 flex-1" />{toolsButton}</>}
       </div>
 
       {shuffleResult && <div role={shuffleResult.ok ? 'status' : 'alert'} data-testid="shuffle-feedback"
         className="studio-panel flex shrink-0 items-center gap-3 border-b px-3 py-2 text-xs text-studio-ink">
-        <span className="flex-1">{shuffleResult.ok ? text.shuffle.success(variantName) : text.shuffle[shuffleResult.reason]}</span>
+        <span className="flex-1">{shuffleResult.ok ? text.shuffle.success(kitchenName) : text.shuffle[shuffleResult.reason]}</span>
         <Button aria-label={text.common.close} onClick={() => setShuffleResult(null)}><X className="size-4" /></Button>
       </div>}
 

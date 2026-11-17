@@ -6,7 +6,7 @@ import { redo, setProjectName, undo } from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
 import { GRID_SIZES, useUiStore, type MainView } from '../../store/uiStore';
 import { ChecksButton } from '../checks/ChecksButton';
-import { Button, Divider, Menu, Segmented } from '../ui';
+import { Button, Divider, Menu, Segmented, TooltipButton } from '../ui';
 
 function ProjectName({ className }: { className?: string }) {
   const t = useT();
@@ -77,14 +77,14 @@ function UndoRedo() {
   const canUndo = useDesignStore((s) => s.past.length > 0);
   const canRedo = useDesignStore((s) => s.future.length > 0);
   return (
-    <>
-      <Button title={t.topBar.undoTitle} aria-label={t.topBar.undo} disabled={!canUndo} onClick={undo}>
+    <div role="group" aria-label={`${t.topBar.undo} / ${t.topBar.redo}`} className="flex items-center">
+      <TooltipButton tooltip={t.topBar.undoTitle} aria-label={t.topBar.undo} disabled={!canUndo} onClick={undo}>
         <Undo2 className="size-4" />
-      </Button>
-      <Button title={t.topBar.redoTitle} aria-label={t.topBar.redo} disabled={!canRedo} onClick={redo}>
+      </TooltipButton>
+      <TooltipButton tooltip={t.topBar.redoTitle} aria-label={t.topBar.redo} disabled={!canRedo} onClick={redo}>
         <Redo2 className="size-4" />
-      </Button>
-    </>
+      </TooltipButton>
+    </div>
   );
 }
 

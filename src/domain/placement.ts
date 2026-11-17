@@ -11,7 +11,7 @@ import {
   localToRoom,
 } from './geometry';
 import { openingObstacles } from './openings';
-import { roomFeatureRect, roomWallRuns, type RoomWallRun } from './roomGeometry';
+import { roomFeatureRect, roomWallRuns } from './roomGeometry';
 import type { KitchenItem, Opening, Point, Room } from './types';
 import { angleBasis, polygonsOverlap, rectPolygon } from './polygons';
 import { partitionPolygon, mountingSegments, wallPoint } from './walls';
@@ -48,7 +48,6 @@ export function canPlaceItem(room: Room, items: readonly KitchenItem[], item: Ki
  * corner; everything else goes into the first gap along the walls, clockwise
  * from the top wall. Wall units only collide with units at their own height,
  * so they line up above the base units. Returns null when nothing fits.
- * Explicit runs restrict the search to a planned layout's walls or island.
  */
 export function findFreeSpot(
   room: Room,
@@ -56,7 +55,6 @@ export function findFreeSpot(
   item: KitchenItem,
   openings: readonly Opening[] = [],
   preferCentre = false,
-  runs: readonly RoomWallRun[] = roomWallRuns(room),
 ): Placement | null {
   const obstacles = obstaclesFor(item, items, room, openings);
 
@@ -86,7 +84,7 @@ export function findFreeSpot(
     return null;
   }
 
-  for (const surface of runs) {
+  for (const surface of roomWallRuns(room)) {
     const wall = surface.wall;
     const rotation = rotationForWall(wall);
     const { w, h } = aabbSize({ ...item, rotation });
