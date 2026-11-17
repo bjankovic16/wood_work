@@ -22,6 +22,7 @@ import { Room3D } from './Room3D';
 import { RoomObjectTools } from './RoomObjectTools';
 import { CabinetDragController, type CabinetDragApi } from './CabinetDrag';
 import { CabinetMoveControls } from './CabinetMoveControls';
+import { CabinetResizeLabels, CabinetResizeTool, ResizeFeedback } from './CabinetResizeTool';
 import { MoveClearances, SelectionOverlay } from './SelectionOverlay';
 import { StylePicker } from './StylePicker';
 import { Unit3D } from './Unit3D';
@@ -33,7 +34,6 @@ import { exposedCabinetUnderside, inUpperRow, upperCabinetRows } from '../../dom
 interface CameraRequest { view: CameraView; focusId?: string; back: boolean; token: number }
 const CabinetTransform = lazy(() => import('./CabinetTransform').then((module) => ({ default: module.CabinetTransform })));
 const RoomObjectTransform = lazy(() => import('./RoomObjectTransform').then((module) => ({ default: module.RoomObjectTransform })));
-const CabinetResize = lazy(() => import('./CabinetResize').then((module) => ({ default: module.CabinetResize })));
 
 /** How long the camera takes to glide to a new view. */
 const CAMERA_MOVE_MS = 520;
@@ -196,6 +196,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
   const selected = items.find((item) => item.id === selectedId);
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
   const handlesRef = useRef<HTMLDivElement>(null);
+  const resizeLabelsRef = useRef<HTMLDivElement>(null);
   const dragApi = useRef<CabinetDragApi>(null);
   const [styleOpen, setStyleOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
@@ -245,7 +246,10 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
   const [resizeField, setResizeField] = useState<SizeField>('width');
   const [resizeReady, setResizeReady] = useState(false);
   const [resizeBlocked, setResizeBlocked] = useState(false);
-  const readyResize = useCallback(() => setResizeReady(true), []);
+  const [resizeStatus, setResizeStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const readyResize = useCallback(() => { setResizeReady(true); setResizeStatus('ready'); }, []);
+  const loadingResize = useCallback(() => setResizeStatus('loading'), []);
+  const failedResize = useCallback(() => setResizeStatus('error'), []);
   const cancelResize = useCallback(() => { setResizeMode(false); setResizeReady(false); setResizeBlocked(false); }, []);
   const [selectedObject, setSelectedObject] = useState<THREE.Group | null>(null);
   const [roomSelection, setRoomSelection] = useState<RoomObjectSelection | null>(null);
@@ -278,7 +282,8 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
   ];
   const activeRoomSelection = roomSelection && roomOptions.some((option) => option.type === roomSelection.type && option.id === roomSelection.id) ? roomSelection : null;
   const dragging = draggingId !== null;
-  const directResize = !!selected && !toolsOpen && !dragging && !moveMode && !roomMoving && !precisionMove;
+  const canResize = !!selected && !dragging && !moveMode && !roomMoving && !precisionMove;
+  const directResize = canResize && !resizeMode;
   const moving = !!((moveMode || resizeMode) && selected || roomMoving && activeRoomSelection);
   const loadingMove = moving && (roomMoving ? !roomMoveReady : resizeMode ? !resizeReady : !moveReady);
   const moveHint = resizeMode ? compact ? text.view3d.resizeTouchHint : text.view3d.resizeHint : roomMoving && activeRoomSelection
@@ -469,9 +474,8 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
         {selected && !moveMode && !resizeMode && !roomMoving && <SelectionOverlay item={selected} overlay={handlesRef} />}
         {selected && (dragging || precisionMove) && <MoveClearances room={room} items={items} item={selected} />}
         {moveMode && selected && selectedObject?.name === selected.id && <Suspense fallback={null}><CabinetTransform key={selected.id} item={selected} object={selectedObject} onReady={readyMove} onCancel={cancelMove} /></Suspense>}
-        {(resizeMode || directResize) && selected && <Suspense fallback={null}>
-          <CabinetResize key={`${selected.id}-${resizeField}-${directResize}`} item={selected} field={resizeField} allAxes={directResize} onReady={readyResize} onCancel={cancelResize} onBlocked={setResizeBlocked} />
-        </Suspense>}
+        {canResize && selected && <CabinetResizeTool key={`${selected.id}-${resizeField}-${directResize}`} item={selected} field={resizeField} allAxes={directResize}
+          labels={resizeLabelsRef} onLoading={loadingResize} onError={failedResize} onReady={readyResize} onCancel={cancelResize} onBlocked={setResizeBlocked} />}
         {roomMoving && activeRoomSelection && roomObject?.name === `room-${activeRoomSelection.type}-${activeRoomSelection.id}` && <Suspense fallback={null}>
           <RoomObjectTransform key={`${activeRoomSelection.type}-${activeRoomSelection.id}`} selection={activeRoomSelection} object={roomObject} onReady={readyRoomMove} onCancel={cancelRoomMove} onBlocked={setRoomBlocked} />
         </Suspense>}
@@ -486,6 +490,11 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
         <CameraRig request={request} comparison={referenceOpen} controls={controls} />
         <ViewAxes />
       </Canvas>
+
+      {canResize && selected && <>
+        {resizeStatus !== 'error' && <CabinetResizeLabels item={selected} field={resizeField} allAxes={directResize} overlay={resizeLabelsRef} />}
+        {resizeStatus !== 'ready' && <ResizeFeedback failed={resizeStatus === 'error'} />}
+      </>}
 
       {selected && !moveMode && !resizeMode && !roomMoving && <div ref={handlesRef} className="studio-panel absolute left-0 top-0 z-10 flex items-center gap-1 rounded-2xl border p-1 shadow-[0_6px_24px_#332f2826]" style={{ visibility: 'hidden' }}>
         <button type="button" aria-label={text.view3d.dragHandle} title={text.view3d.dragHandle}
