@@ -43,8 +43,15 @@
 .room-footer button { height: 44px; border-radius: .7rem; }
 .room-footer button:first-child { flex: 1; }
 .room-footer button:last-child { flex: 2; }
-.room-measure-sheet { position: fixed; inset: 0; margin: auto; width: min(94vw, 24rem); max-height: 88dvh; overflow-y: auto; background: var(--color-studio-paper); color: var(--color-studio-ink); border: 1px solid var(--color-studio-line); border-radius: 1rem; box-shadow: 0 16px 70px #1e342733; }
-.room-measure-sheet::backdrop { background: #263a3066; }
+.room-preview-bar { display: grid; flex: none; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .4rem; padding: .35rem .65rem; background: #f4f5ef; border-bottom: 1px solid var(--color-studio-line); }
+.room-preview-bar button { width: 100%; gap: .3rem; padding-inline: .25rem; border-radius: .65rem; font-weight: 600; }
+.room-preview-bar svg { color: #466350; flex-shrink: 0; }
+.room-preview-actions { display: grid; gap: .4rem; }
+.room-preview-actions h3 { font-size: .75rem; font-weight: 600; color: var(--color-studio-muted); }
+.room-preview-actions button { width: 100%; justify-content: flex-start; gap: .65rem; padding-inline: .75rem; }
+:is(.room-preview-options, .room-preview-actions) button[aria-pressed="true"] { color: #355341; background: #e6eee2; border-color: #93a88e; }
+.room-sheet { position: fixed; inset: 0; margin: auto; width: min(94vw, 24rem); max-height: 88dvh; overflow-y: auto; background: var(--color-studio-paper); color: var(--color-studio-ink); border: 1px solid var(--color-studio-line); border-radius: 1rem; box-shadow: 0 16px 70px #1e342733; }
+.room-sheet::backdrop { background: #263a3066; }
 @media (max-width: 1023px) {
   .room-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .15rem .35rem; padding: .35rem 1rem .55rem; }
   .room-heading > p { grid-column: 1 / -1; margin: 0; }
@@ -56,7 +63,7 @@
   .room-tool-tabs { padding-top: 0; }
   .room-swatches button { width: 44px; height: 44px; }
   .room-custom-colour { min-height: 44px; }
-  .room-measure-sheet { inset: auto 0 0; width: min(100%, 34rem); border-radius: 1.2rem 1.2rem 0 0; padding-bottom: env(safe-area-inset-bottom); }
+  .room-sheet { inset: auto 0 0; width: min(100%, 34rem); border-radius: 1.2rem 1.2rem 0 0; padding-bottom: env(safe-area-inset-bottom); }
 }
 @media (max-width: 360px) {
   .room-heading { padding-inline: .7rem; }

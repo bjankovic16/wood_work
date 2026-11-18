@@ -1,6 +1,6 @@
 import { OrbitControls } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Copy, DoorClosed, DoorOpen, LayoutGrid, Palette, PanelsTopLeft, Pencil, RotateCcw, Ruler, Scan, Shuffle, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { Copy, DoorClosed, DoorOpen, Download, LayoutGrid, Palette, PanelsTopLeft, Pencil, RotateCcw, Ruler, Scan, Shuffle, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { lazy, memo, Suspense, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type RefObject } from 'react';
 import { isWallMounted } from '../../domain/geometry';
 import { blendPoses, CAMERA_FOV, kitchenCameraPose, type CameraPose, type CameraView } from '../../domain/camera';
@@ -16,6 +16,7 @@ import { useBuildContext, useIssues } from '../../store/derived';
 import { deleteSelected, duplicateSelected, editCabinetPositionInPlan, shuffleKitchen, type ShuffleResult } from '../../store/actions';
 import { useUiStore } from '../../store/uiStore';
 import { Button, Dialog, TooltipButton } from '../ui';
+import { RoomPreviewToolbar, type RoomPreviewPanel } from '../room/RoomPreviewToolbar';
 import { createMaterials, disposeMaterials } from './materials';
 import { Room3D } from './Room3D';
 import { RoomObjectAnchor, RoomObjectAnnotation, RoomObjectTools } from './RoomObjectTools';
@@ -187,6 +188,7 @@ export default function Kitchen3D({ compact = false, roomPreview = false }: { co
   }, []);
   const [styleOpen, setStyleOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
+  const [roomPanel, setRoomPanel] = useState<RoomPreviewPanel | null>(null);
   const [interior, setInterior] = useState(false);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [tipTimedOut, setTipTimedOut] = useState(false);
@@ -227,6 +229,7 @@ export default function Kitchen3D({ compact = false, roomPreview = false }: { co
   const cancelResize = useCallback(() => setResizeBlocked(false), []);
   const roomSelection = useUiStore((s) => s.roomSelection);
   const roomOpen = useUiStore((s) => s.roomOpen);
+  const mobileRoomToolbar = compact && roomOpen && !roomPreview;
   const selectedWallId = useUiStore((s) => s.selectedWallId);
   const selectRoomObject = useCallback((selection: RoomObjectSelection | null) => {
     if (selection && useUiStore.getState().cabinetTool === 'resize') return;
@@ -254,7 +257,7 @@ export default function Kitchen3D({ compact = false, roomPreview = false }: { co
     measure();
     return () => observer.disconnect();
   }, [compact, canResize, selectedId]);
-  const showTip = !moveHintSeen && !tipTimedOut && items.length > 0 && !selected && !activeRoomSelection && !toolsOpen;
+  const showTip = !moveHintSeen && !tipTimedOut && items.length > 0 && !selected && !activeRoomSelection && !toolsOpen && !roomPanel;
 
   const materials = useMemo(() => createMaterials(style), [style]);
   useEffect(() => () => disposeMaterials(materials), [materials]);
@@ -268,7 +271,7 @@ export default function Kitchen3D({ compact = false, roomPreview = false }: { co
   useEffect(() => {
     const escape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.target instanceof HTMLElement && (event.target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName))) return;
-      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+      if (document.querySelector('dialog:modal, [role="dialog"][aria-modal="true"]')) return;
       selectRoomObject(null);
     };
     window.addEventListener('keydown', escape);
@@ -312,13 +315,35 @@ export default function Kitchen3D({ compact = false, roomPreview = false }: { co
     if (ui.selectedId && useUiStore.getState().cabinetTool === 'resize') ui.focusCamera(ui.selectedId);
   };
   const interiorButton = (
-    <TooltipButton tooltip={text.view3d.interiorHint} className="h-10" variant="outline" active={interior} onClick={() => { useUiStore.getState().setCabinetTool(null); setInterior((shown) => !shown); }}>
+    <TooltipButton tooltip={text.view3d.interiorHint} className="h-10" variant="outline" active={interior} onClick={() => {
+      useUiStore.getState().setCabinetTool(null); setInterior((shown) => !shown); setRoomPanel(null);
+    }}>
       <PanelsTopLeft className="size-4" />{text.view3d.interior}
     </TooltipButton>
   );
   const shuffleDisabled = previewLockedIds.length > 0 || Boolean(cabinetTool) || editing;
   const shuffleTitle = previewLockedIds.length > 0 ? text.shuffle.preview : cabinetTool || editing ? text.shuffle.busy : text.shuffle.hint;
   const kitchenName = shuffleResult?.ok ? text.kitchens.names[shuffleResult.presetId] : '';
+  const openAllButton = <TooltipButton tooltip={allOpen ? text.view3d.closeAllHint : text.view3d.openAllHint} className="h-10 flex-1 whitespace-nowrap lg:flex-none"
+    variant="outline" active={allOpen} disabled={interior || openable.length === 0} onClick={() => { toggleAll(); setRoomPanel(null); }}>
+    {allOpen ? <DoorClosed className="size-4" /> : <DoorOpen className="size-4" />}
+    {allOpen ? text.view3d.closeAll : text.view3d.openAll}
+  </TooltipButton>;
+  const nextKitchenButton = <TooltipButton tooltip={shuffleTitle} className="h-10 flex-1 whitespace-nowrap lg:flex-none" variant="outline" disabled={shuffleDisabled} onClick={() => {
+    setRoomPanel(null);
+    const result = shuffleKitchen();
+    setShuffleResult(!result.ok && result.reason === 'review' ? null : result);
+    if (result.ok) { selectRoomObject(null); setOpenedCabinets(new Set()); }
+  }}>
+    <Shuffle className="size-4" />{text.shuffle.title}
+  </TooltipButton>;
+  const customerExport = <div className="flex flex-wrap items-center gap-2">
+    <Button variant="outline" disabled={!canSave || Boolean(exportDesign) || editing} title={!canSave ? text.files.unavailable : undefined} data-testid="customer-export"
+      onClick={() => { setExportNotice(''); setExportDesign(useDesignStore.getState().design); }}>
+      {mobileRoomToolbar && <Download className="size-4" />}{text.customerView.export}
+    </Button>
+    {(exportDesign || exportNotice) && <span role="status" className="text-xs text-studio-muted">{exportDesign ? text.customerView.busy : exportNotice}</span>}
+  </div>;
   const toolsButton = <TooltipButton tooltip={text.view3d.toolsHint} data-testid="three-tools-toggle" aria-expanded={toolsOpen} aria-controls={toolsId} aria-label={text.view3d.tools}
     className="h-10 min-w-10" active={toolsOpen} onClick={() => setToolsOpen(!toolsOpen)}>
     <SlidersHorizontal className="size-4" />
@@ -329,7 +354,9 @@ export default function Kitchen3D({ compact = false, roomPreview = false }: { co
     <div className="flex h-full min-h-0 w-full flex-col bg-[#ebe8e3] lg:flex-row">
       {referenceOpen && !roomOpen && <PhotoReferencePanel />}
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-      {!roomPreview && <div role="toolbar" aria-label={text.view3d.toolbar} data-testid="three-toolbar" className="studio-panel flex shrink-0 flex-col gap-2 border-b px-3 py-2 lg:flex-row lg:flex-wrap lg:items-center lg:gap-3">
+      {mobileRoomToolbar ? <RoomPreviewToolbar panel={roomPanel} onPanel={setRoomPanel} view={request.focusId ? null : request.view}
+        previews={<>{openAllButton}{interiorButton}</>} nextKitchen={nextKitchenButton} shuffleHint={shuffleDisabled ? shuffleTitle : undefined} customerExport={customerExport} />
+      : !roomPreview && <div role="toolbar" aria-label={text.view3d.toolbar} data-testid="three-toolbar" className="studio-panel flex shrink-0 flex-col gap-2 border-b px-3 py-2 lg:flex-row lg:flex-wrap lg:items-center lg:gap-3">
         <div className="flex items-center justify-between gap-2">
         <div role="group" aria-label={text.view3d.camera} className="flex shrink-0 rounded-xl border border-studio-line bg-[#efede5] p-0.5">
           {(['perspective', 'front', 'top'] as const).map((view) => <TooltipButton key={view} tooltip={text.view3d.cameraHints[view]}
@@ -346,19 +373,8 @@ export default function Kitchen3D({ compact = false, roomPreview = false }: { co
           <RotateCcw className="size-4" />
         </TooltipButton>}
         <div role="group" aria-label={text.view3d.kitchenActions} className="flex items-center gap-2 lg:border-l lg:border-studio-line lg:pl-3">
-        <TooltipButton tooltip={allOpen ? text.view3d.closeAllHint : text.view3d.openAllHint} className="h-10 flex-1 whitespace-nowrap lg:flex-none"
-          variant="outline" active={allOpen} disabled={interior || openable.length === 0} aria-label={allOpen ? text.view3d.closeAll : text.view3d.openAll} onClick={toggleAll}>
-          {allOpen ? <DoorClosed className="size-4" /> : <DoorOpen className="size-4" />}
-          <span>{allOpen ? text.view3d.closeAll : text.view3d.openAll}</span>
-        </TooltipButton>
-        <TooltipButton tooltip={shuffleTitle} className="h-10 flex-1 whitespace-nowrap lg:flex-none" variant="outline" aria-label={text.shuffle.title} disabled={shuffleDisabled} onClick={() => {
-          const result = shuffleKitchen();
-          setShuffleResult(!result.ok && result.reason === 'review' ? null : result);
-          if (result.ok) { selectRoomObject(null); setOpenedCabinets(new Set()); }
-        }}>
-          <Shuffle className="size-4" />
-          <span>{text.shuffle.title}</span>
-        </TooltipButton>
+        {openAllButton}
+        {nextKitchenButton}
         </div>
         {!compact && interiorButton}
         {!compact && <><div className="min-w-0 flex-1" />{toolsButton}</>}
@@ -375,13 +391,7 @@ export default function Kitchen3D({ compact = false, roomPreview = false }: { co
       </div>}
 
       {toolsOpen && <div id={toolsId} data-testid="three-tools" className="flex max-h-[35dvh] shrink-0 flex-col items-start gap-2 overflow-y-auto overscroll-contain border-b border-studio-line bg-[#f7f5f0] px-3 py-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" disabled={!canSave || Boolean(exportDesign) || editing} title={!canSave ? text.files.unavailable : undefined} data-testid="customer-export"
-            onClick={() => { setExportNotice(''); setExportDesign(useDesignStore.getState().design); }}>
-            {text.customerView.export}
-          </Button>
-          {(exportDesign || exportNotice) && <span role="status" className="text-xs text-studio-muted">{exportDesign ? text.customerView.busy : exportNotice}</span>}
-        </div>
+        {customerExport}
         {(compact || roomOptions.length > 0) && <div className="flex max-w-full flex-wrap items-center gap-2">
           {compact && interiorButton}
           {compact && <Button variant="outline" title={text.view3d.resetViewTitle} onClick={() => useUiStore.getState().requestCamera('perspective')}>

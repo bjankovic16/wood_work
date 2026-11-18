@@ -216,7 +216,12 @@ project.
 
 ### Editing and previewing in 3D
 
-- Dock **3D / Front / Top**, **Style**, cabinet previews and **Next kitchen**
+- In the mobile **My room → 3D** workspace, keep **Plan / 3D** as the mode
+  switch. Give the preview one row: **Camera** (perspective/front/top, reset
+  and help), **Style** (room surfaces first) and **Kitchen** (cabinet previews,
+  next design and customer export). Opening these sheets must not resize the
+  canvas or change the project.
+- In the kitchen editor, dock **3D / Front / Top**, **Style**, cabinet previews and **Next kitchen**
   above the viewport. **Tools** includes room objects, help and customer export.
   Click or tap a cabinet, wall, opening or structure to select it. Mouse
   drags and touch swipes on the background **or an object's body** orbit the

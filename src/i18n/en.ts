@@ -653,6 +653,12 @@ export const en = {
   },
 
   view3d: {
+    cameraShort: 'Camera',
+    kitchenShort: 'Kitchen',
+    perspectiveName: 'Perspective',
+    cabinetPreview: 'Cabinet preview',
+    cameraMenuHint: 'Choose a viewing angle or reset the camera.',
+    kitchenMenuHint: 'Preview cabinets, try the next kitchen or export your design.',
     kitchenActions: 'Kitchen designs and preview',
     appearanceHint: 'Change fronts, worktops, wall and floor colours, and handles without changing the layout.',
     cameraHints: {

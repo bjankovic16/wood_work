@@ -148,8 +148,9 @@ separate from applying the idea.
 
 ## Sending a customer the 3D view
 
-1. In the full **3D** view, open **Tools → Export 3D for customer (.html)**.
-   Save the file and send that single `.html` file to the customer.
+1. In **My room → 3D** on a phone, open **Kitchen**. In the full kitchen
+   editor, open **3D → Tools**. Choose **Export 3D for customer (.html)**
+   and send that single file to the customer.
 2. The customer opens the file locally in a browser. Drag to rotate, scroll
    or pinch to zoom, and use **Reset view** to return to the starting angle.
    If interactive 3D is unavailable, the file displays an explanation and an
@@ -353,7 +354,11 @@ or a cutting-list export for the workshop; the customer view is neither.
   position in 2D** and work in the wall elevation. Angled walls and either
   face of an interior partition are supported. These diagrams are not
   door-swing or glazing specifications.
-- **3D toolbar**: the toolbar above the viewport holds **Style**, **3D /
+- In **My room → 3D** on phones, the **Plan / 3D** switch changes workspace
+  view. Below it, **Camera** changes the viewing angle or resets it, **Style**
+  starts with wall paint and floor tiles, and **Kitchen** groups cabinet
+  previews separately from **Next kitchen** and the customer HTML export.
+- **Kitchen editor 3D toolbar**: the toolbar above the viewport holds **Style**, **3D /
   Front / Top**, **Open all** and **Next kitchen**. **Tools** includes the room
   object list, customer HTML export and help; **Interior view** is under
   **Tools** on phones. A selected door, window or structure shows its own
@@ -370,7 +375,7 @@ or a cutting-list export for the workshop; the customer view is neither.
   handles again; cabinet placement is always edited in 2D.
   Animations are skipped when the system asks for reduced motion.
 - **See inside cabinets**: turn on **Interior view** in the toolbar (under
-  **Tools** on phones) to hide
+  **Kitchen** in the mobile room preview or **Tools** in the mobile editor) to hide
   fronts and reveal shelves, corner compartments and drawer boxes. Toggle it off
   to restore the finished kitchen. This schematic view does not change the
   project, Undo history or cutting list; appliance interiors and fitting details

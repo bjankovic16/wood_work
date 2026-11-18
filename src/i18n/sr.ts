@@ -643,6 +643,12 @@ export const sr: Messages = {
   },
 
   view3d: {
+    cameraShort: 'Kamera',
+    kitchenShort: 'Kuhinja',
+    perspectiveName: 'Perspektiva',
+    cabinetPreview: 'Pregled elemenata',
+    cameraMenuHint: 'Izaberite ugao gledanja ili vratite početni pogled.',
+    kitchenMenuHint: 'Pregledajte elemente, isprobajte sledeću kuhinju ili izvezite svoj projekat.',
     kitchenActions: 'Gotove kuhinje i pregled elemenata',
     appearanceHint: 'Promenite fronte, radnu ploču, boje zidova i poda i ručice bez promene rasporeda.',
     cameraHints: {

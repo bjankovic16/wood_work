@@ -18,7 +18,7 @@ export function WallMeasureDialog({ wall, number, close }: { wall: WallSegment; 
     dialog.showModal();
     return () => dialog.close();
   }, []);
-  return <dialog ref={ref} aria-labelledby={id} data-testid="drawing-measure" className="room-measure-sheet"
+  return <dialog ref={ref} aria-labelledby={id} data-testid="drawing-measure" className="room-sheet"
     onCancel={(event) => { event.preventDefault(); close(); }} onClick={(event) => { if (event.target === event.currentTarget) close(); }}>
     <div className="space-y-3 p-5">
       <h2 id={id} className="text-lg font-semibold">{t.advancedRoom.wall(number)}</h2>

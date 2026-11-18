@@ -61,7 +61,7 @@ function Swatches<K extends string>({
 }
 
 /** Fronts, worktop and handles for the whole kitchen, as shown in 3D. */
-export function StylePicker() {
+export function StylePicker({ roomFirst = false }: { roomFirst?: boolean }) {
   const t = useT();
   const style = useDesignStore((s) => s.design.style);
   const joineryOptions = [{ value: '' as const, label: t.style.defaultFinish },
@@ -78,6 +78,7 @@ export function StylePicker() {
   });
   return (
     <div className="space-y-4">
+      {roomFirst && <RoomSurfaces />}
       <div>
         <Button variant="outline" className="h-10 w-full" title={t.style.shuffleTitle} onClick={shuffleLook}>
           <Shuffle className="size-4" />{t.style.shuffle}
@@ -135,7 +136,7 @@ export function StylePicker() {
         {JOINERY_FINISHES.map((key) => <SelectField<FrontFinish | ''> key={key} label={t.style[key]}
           value={style[key] ?? ''} options={joineryOptions} onChange={(value) => setStyle({ [key]: value || undefined })} />)}
       </div>
-      <div className="border-t border-zinc-100 pt-3"><RoomSurfaces /></div>
+      {!roomFirst && <div className="border-t border-zinc-100 pt-3"><RoomSurfaces /></div>}
       <div className="space-y-3 border-t border-zinc-100 pt-3">
         <label className="flex cursor-pointer items-start gap-2 text-xs leading-relaxed text-zinc-700">
           <input type="checkbox" className="mt-0.5 size-4 accent-blue-600" checked={style.decor ?? false} onChange={(event) => setStyle({ decor: event.target.checked })} />

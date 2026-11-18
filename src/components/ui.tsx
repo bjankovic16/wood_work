@@ -97,7 +97,7 @@ export function TooltipButton({ tooltip, ...props }: ButtonProps & { tooltip: st
     {open && createPortal(<div ref={bubble} id={id} role="tooltip"
       className="pointer-events-none fixed z-[80] max-w-[min(280px,calc(100vw-16px))] rounded-xl bg-studio-ink px-3 py-2 text-xs leading-relaxed text-white shadow-lg"
       style={{ left: position?.left ?? 8, top: position?.top ?? 8, visibility: position ? 'visible' : 'hidden' }}
-    >{tooltip}</div>, document.body)}
+    >{tooltip}</div>, root.current?.closest('dialog') ?? document.body)}
   </span>;
 }
 
