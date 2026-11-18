@@ -1,10 +1,11 @@
 import * as THREE from 'three';
-import { APPLIANCE_FINISHES, BACKSPLASH_FINISHES, FRONT_FINISHES, HANDLE_STYLES, WORKTOP_FINISHES, type Finish, type FrontFinish, type KitchenStyle } from '../../domain/style';
+import { APPLIANCE_FINISHES, BACKSPLASH_FINISHES, DEFAULT_FLOOR_COLOR, DEFAULT_FLOOR_GROUT_COLOR, DEFAULT_FLOOR_TILE_SIZE, DEFAULT_WALL_COLOR, FRONT_FINISHES, HANDLE_STYLES, WORKTOP_FINISHES, type Finish, type FrontFinish, type KitchenStyle } from '../../domain/style';
 
 /** Millimetres to scene units (metres). */
 export const m = (mm: number): number => mm / 1000;
 
 const textures = new Map<string, THREE.CanvasTexture>();
+const floorTextures = new Map<string, THREE.CanvasTexture>();
 
 /**
  * A wood grain drawn on a canvas, so no image files are needed. Grain runs
@@ -56,6 +57,8 @@ function woodTexture(color: string, across: boolean): THREE.CanvasTexture {
 }
 
 export interface KitchenMaterials {
+  wall: THREE.MeshStandardMaterial;
+  floor: THREE.MeshStandardMaterial;
   carcass: THREE.MeshStandardMaterial;
   front: THREE.MeshStandardMaterial;
   worktop: THREE.MeshStandardMaterial;
@@ -116,6 +119,42 @@ function finishMap(finish: Finish, across = false): THREE.CanvasTexture | null {
   return finish.wood ? woodTexture(finish.color, across) : finish.texture ? stoneTexture(finish) : null;
 }
 
+function floorTileTexture(style: KitchenStyle): THREE.CanvasTexture {
+  const color = style.floorColor ?? DEFAULT_FLOOR_COLOR;
+  const grout = style.floorGroutColor ?? DEFAULT_FLOOR_GROUT_COLOR;
+  const size = style.floorTileSize ?? DEFAULT_FLOOR_TILE_SIZE;
+  const key = `floor-tiles|${color}|${grout}|${size}`;
+  const cached = floorTextures.get(key);
+  if (cached) {
+    floorTextures.delete(key);
+    floorTextures.set(key, cached);
+    return cached;
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('The floor tile texture could not be created.');
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, 512, 512);
+  ctx.fillStyle = grout;
+  const joint = 512 * 3 / size;
+  ctx.fillRect(0, 0, 512, joint);
+  ctx.fillRect(0, 0, joint, 512);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  // Floor shape UVs are in metres, so tile sizes stay true across every room shape.
+  texture.repeat.set(1000 / size, 1000 / size);
+  texture.anisotropy = 4;
+  floorTextures.set(key, texture);
+  if (floorTextures.size > 8) {
+    const oldest = floorTextures.keys().next().value!;
+    floorTextures.get(oldest)!.dispose();
+    floorTextures.delete(oldest);
+  }
+  return texture;
+}
+
 function floorGlowTexture(): THREE.CanvasTexture {
   const cached = textures.get('plinth-light');
   if (cached) return cached;
@@ -144,6 +183,12 @@ export function createMaterials(style: KitchenStyle, carcassFinish?: FrontFinish
   const backsplash = BACKSPLASH_FINISHES[style.backsplash ?? 'none'];
   const carcass: Finish = carcassFinish ? FRONT_FINISHES[carcassFinish] : { color: '#f3f2ee' };
   return {
+    wall: new THREE.MeshStandardMaterial({ color: style.wallColor ?? DEFAULT_WALL_COLOR, roughness: 0.9 }),
+    floor: new THREE.MeshStandardMaterial({
+      color: style.floorPattern === 'tiles' ? '#ffffff' : style.floorColor ?? DEFAULT_FLOOR_COLOR,
+      map: style.floorPattern === 'tiles' ? floorTileTexture(style) : null,
+      roughness: style.floorPattern === 'tiles' ? 0.65 : 0.92,
+    }),
     carcass: new THREE.MeshStandardMaterial({ color: carcass.wood ? '#ffffff' : carcass.color, map: finishMap(carcass), roughness: 0.78 }),
     front: new THREE.MeshStandardMaterial({
       color: front.wood ? '#ffffff' : front.color,

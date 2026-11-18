@@ -1,4 +1,4 @@
-import type { ApplianceFinish, BacksplashFinish, FrontFinish, FrontProfile, HandleStyle, WorktopFinish } from '../domain/style';
+import type { ApplianceFinish, BacksplashFinish, FrontFinish, FrontProfile, HandleStyle, RoomColor, WorktopFinish } from '../domain/style';
 import type { PhotoReferenceId } from '../domain/photoReferences';
 import type { KitchenDesignId } from '../domain/kitchens';
 import type { RoomExampleId } from '../domain/roomExamples';
@@ -465,6 +465,14 @@ export const en = {
     roomSize: (width: number, depth: number) => `${width} × ${depth} mm`,
     previewUnavailable: 'Preview unavailable. You can still open this kitchen.',
     names: {
+      'olive-oak-vitrine': 'Olive & oak display corner',
+      'olive-oak-compact': 'Compact olive & oak',
+      'eucalyptus-walnut': 'Eucalyptus & walnut',
+      'olive-window-wall': 'Olive beside the window',
+      'forest-walnut-vitrine': 'Forest & walnut display',
+      'sage-ash-compact': 'Compact sage & ash',
+      'cashmere-walnut-corner': 'Cashmere & walnut corner',
+      'clay-oak-window': 'Clay & oak by the window',
       'nordic-light': 'Nordic light',
       'oak-studio': 'Oak studio',
       'soft-sage': 'Soft sage',
@@ -540,6 +548,16 @@ export const en = {
   },
 
   style: {
+    roomSurfaces: 'Walls and floor',
+    wallColor: 'Wall colour',
+    floorColor: 'Floor colour',
+    floorTiles: 'Floor tiles',
+    tileSize: 'Square tile size',
+    groutColor: 'Grout colour',
+    floorTilesNote: 'Square tiles, 100–1200 mm per side, with 3 mm grout lines. Uses the floor colour above. Visual preview only, not a tiling plan or tile quantity estimate.',
+    customColor: 'Custom colour',
+    roomColors: { chalk: 'Chalk', white: 'White', sand: 'Sand', stone: 'Warm grey', clay: 'Clay', olive: 'Olive', charcoal: 'Charcoal', oak: 'Oak tone' } satisfies Record<RoomColor, string> as Record<RoomColor, string>,
+    roomColorNote: 'Paints all room walls together; the floor is separate. Backsplashes and wall cladding keep their finishes. Visual only, with Undo; no change to cutting parts.',
     style: 'Style',
     hide: 'Hide style options',
     shuffle: 'Shuffle look',
@@ -564,6 +582,8 @@ export const en = {
       clay: 'Terracotta',
       espresso: 'Espresso wood',
       ash: 'Natural ash',
+      forest: 'Forest green',
+      eucalyptus: 'Eucalyptus green',
     } satisfies Record<FrontFinish, string> as Record<FrontFinish, string>,
     worktopFinishes: { stone: 'White stone', oak: 'Oak', concrete: 'Concrete', black: 'Black', marble: 'Warm marble', travertine: 'Travertine', walnut: 'Walnut' } satisfies Record<WorktopFinish, string> as Record<
       WorktopFinish,
@@ -588,7 +608,7 @@ export const en = {
 
   view3d: {
     kitchenActions: 'Kitchen designs and preview',
-    appearanceHint: 'Change fronts, worktops, handles and lighting without changing the layout.',
+    appearanceHint: 'Change fronts, worktops, wall and floor colours, handles and lighting without changing the layout.',
     cameraHints: {
       perspective: 'See the whole kitchen in perspective. Drag the background to turn the view.',
       front: 'Look straight at the kitchen fronts.',

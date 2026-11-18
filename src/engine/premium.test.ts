@@ -105,9 +105,22 @@ describe('premium kitchen modules', () => {
     expect(parseStyle(style)).toEqual(style);
     const layeredStyle = { ...style, backsplash: 'black', plinthLighting: true } as const;
     expect(parseStyle(layeredStyle)).toEqual(layeredStyle);
-    expect(Object.keys(FRONT_FINISHES)).toHaveLength(15);
+    expect(Object.keys(FRONT_FINISHES)).toHaveLength(17);
     expect(Object.keys(WORKTOP_FINISHES)).toHaveLength(7);
     expect(Object.keys(HANDLE_STYLES)).toHaveLength(6);
     expect(Object.keys(BACKSPLASH_FINISHES)).toHaveLength(5);
+  });
+
+  it('persists safe wall and floor colours without changing the cutting list', () => {
+    const { design } = module('base');
+    const style = { ...design.style, wallColor: '#123ABC', floorColor: '#d8d0c4', floorPattern: 'tiles', floorTileSize: 450, floorGroutColor: '#494c48' } as const;
+    expect(parseStyle(style)).toEqual(style);
+    expect(parseStyle({ ...design.style, wallColor: 'red; invalid', floorColor: '#fff' })).toEqual(design.style);
+    const before = buildCuttingList(design);
+    const after = buildCuttingList({ ...design, style });
+    expect(after).toEqual(before);
+    for (const floorTileSize of [0, 99, 1201, Infinity, NaN, '600']) {
+      expect(parseStyle({ ...design.style, floorTileSize, floorPattern: 'invalid', floorGroutColor: 'red' })).toEqual(design.style);
+    }
   });
 });

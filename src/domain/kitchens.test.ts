@@ -10,11 +10,54 @@ import { PREMIUM_KITCHENS } from './premiumKitchens';
 import { en } from '../i18n/en';
 import { sr } from '../i18n/sr';
 import { roomSegments } from './walls';
+import { GREEN_KITCHENS } from './greenKitchens';
+import { isFlushWith, isWallMounted, itemRect, mountingWalls } from './geometry';
+import { alongWall } from './openings';
+import { isUpperCabinet } from './upperCabinets';
 
 describe('kitchen inspiration designs', () => {
-  it('offers fifty-two unique kitchens, including stacked collections and all three wall layouts', () => {
-    expect(KITCHEN_DESIGNS).toHaveLength(52);
-    expect(new Set(KITCHEN_DESIGNS.map((kitchen) => kitchen.id)).size).toBe(52);
+  it('fills prepared upper runs through corners and around towers without covering intentional window openings', () => {
+    for (const preset of KITCHEN_DESIGNS) {
+      const design = createKitchenDesign(preset, preset.id);
+      const level = Math.min(...design.items.filter(isUpperCabinet).map((item) => item.elevation)) + 1;
+      for (const wall of ['top', 'left', 'right', 'bottom'] as const) {
+        const mounted = design.items.filter((item) => mountingWalls(item).includes(wall) && isFlushWith(itemRect(item), wall, design.room));
+        const bases = mounted.filter((item) => !isWallMounted(item));
+        if (!bases.length) continue;
+        const start = Math.min(...bases.map((item) => alongWall(itemRect(item), wall)[0]));
+        const end = Math.max(...bases.map((item) => alongWall(itemRect(item), wall)[1]));
+        const spans = [
+          ...mounted.filter((item) => item.kind === 'hood' || item.elevation <= level && item.elevation + item.height > level).map((item) => alongWall(itemRect(item), wall)),
+          ...design.openings.filter((opening) => opening.wall === wall && opening.sill <= level && opening.sill + opening.height > level).map((opening) => [opening.offset, opening.offset + opening.width]),
+        ].sort((a, b) => a[0] - b[0]);
+        let filled = start;
+        for (const [from, to] of spans) {
+          expect(from, `${preset.id}, ${wall}: gap after ${filled}`).toBeLessThanOrEqual(filled + 1);
+          filled = Math.max(filled, to);
+        }
+        expect(filled, `${preset.id}, ${wall}: unfinished run`).toBeGreaterThanOrEqual(end - 1);
+      }
+    }
+  });
+
+  it('adds four reference-inspired models and four complementary designs with editable wood uppers, appliances and room colours', () => {
+    expect(GREEN_KITCHENS).toHaveLength(8);
+    for (const preset of GREEN_KITCHENS) {
+      const design = createKitchenDesign(preset, preset.id);
+      expect(en.kitchens.names[preset.id]).toBeTruthy();
+      expect(sr.kitchens.names[preset.id]).toBeTruthy();
+      expect(design.items.some((item) => isUpperCabinet(item) && item.frontFinish === preset.middleFinish)).toBe(true);
+      for (const kind of ['ovenTower', 'integratedFridge', 'sink', 'hob', 'dishwasher']) expect(design.items.some((item) => item.kind === kind)).toBe(true);
+      expect(design.style.wallColor).toMatch(/^#[a-f0-9]{6}$/);
+      expect(design.style.floorColor).toMatch(/^#[a-f0-9]{6}$/);
+      if (preset.green === 'vitrine' || preset.green === 'walnut') expect(design.items.filter((item) => item.kind === 'glassWall')).toHaveLength(3);
+      if (preset.green === 'window' || preset.green === 'vitrine') expect(design.openings[0].kind).toBe('window');
+    }
+  });
+
+  it('offers sixty unique kitchens, including stacked collections and all three wall layouts', () => {
+    expect(KITCHEN_DESIGNS).toHaveLength(60);
+    expect(new Set(KITCHEN_DESIGNS.map((kitchen) => kitchen.id)).size).toBe(60);
     expect(KITCHEN_DESIGNS.filter((kitchen) => 'layered' in kitchen)).toHaveLength(4);
     expect(new Set(KITCHEN_DESIGNS.map(kitchenCategory))).toEqual(new Set(['straight', 'l-shape', 'u-shape', 'island']));
   });
@@ -106,7 +149,7 @@ describe('kitchen inspiration designs', () => {
       expect(preset.inspiration).toMatch(/^https:\/\/www\.pinterest\.com\/ideas\//);
       const design = createKitchenDesign(preset, preset.id);
       const uppers = design.items.filter((item) => ['wall', 'glassWall', 'shelf'].includes(item.kind));
-      expect(new Set(uppers.map((item) => item.elevation)).size).toBe(2);
+      expect(new Set(uppers.map((item) => item.elevation)).size).toBeGreaterThanOrEqual(2);
       expect(new Set(uppers.map((item) => item.depth)).size).toBeGreaterThan(1);
       expect(uppers.some((item) => item.frontFinish === preset.middleFinish)).toBe(true);
     }

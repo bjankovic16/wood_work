@@ -47,7 +47,7 @@ describe('ready-made layouts', () => {
     expect(wallUnits.map((i) => [i.x, i.width])).toEqual([
       [600, 800],
       [1400, 600],
-      [2600, 800],
+      [2600, 1000],
     ]);
   });
 

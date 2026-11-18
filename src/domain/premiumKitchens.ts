@@ -1,5 +1,5 @@
 import { CEILING_GAP, createItem, type LabelPrefixes } from './catalog';
-import { backWall } from './geometry';
+import { backWall, resizeFromAnchor } from './geometry';
 import type { KitchenPreset } from './kitchens';
 import type { FrontFinish } from './style';
 import type { KitchenItem, Room } from './types';
@@ -88,7 +88,19 @@ export const PREMIUM_KITCHENS = [
 export function premiumUpperRows(items: KitchenItem[], room: Room, front: FrontFinish, middle: FrontFinish, prefixes?: LabelPrefixes): KitchenItem[] {
   const result: KitchenItem[] = [];
   for (const item of items) {
-    if (item.kind !== 'wall' && item.kind !== 'glassWall' && item.kind !== 'shelf') {
+    if (['tall', 'ovenTower', 'integratedFridge', 'hood'].includes(item.kind)) {
+      result.push(item);
+      const elevation = item.elevation + item.height;
+      const height = room.height - CEILING_GAP - elevation;
+      const depth = item.kind === 'hood' ? 560 : item.depth;
+      const anchor = resizeFromAnchor(item, { depth });
+      if (height >= 200) result.push(createItem('wall', result, {
+        x: anchor.x, y: anchor.y, rotation: item.rotation, width: item.width, depth,
+        elevation, height, frontFinish: front, carcassFinish: front, shelves: 1,
+      }, prefixes));
+      continue;
+    }
+    if (item.kind !== 'wall' && item.kind !== 'glassWall' && item.kind !== 'shelf' && !(item.elevation >= 1000 && (item.kind === 'corner' || item.kind === 'filler'))) {
       result.push(item);
       continue;
     }
@@ -96,10 +108,10 @@ export function premiumUpperRows(items: KitchenItem[], room: Room, front: FrontF
     result.push({ ...item, height, frontFinish: middle, carcassFinish: middle, shelves: item.kind === 'shelf' ? 2 : 1 });
     const depth = 560;
     const wall = backWall(item.rotation);
-    result.push(createItem('wall', result, {
-      x: wall === 'right' ? room.width - depth : item.x,
-      y: wall === 'bottom' ? room.depth - depth : item.y,
-      rotation: item.rotation, width: item.width, depth,
+    result.push(createItem(item.kind === 'corner' ? 'corner' : item.kind === 'filler' ? 'filler' : 'wall', result, {
+      x: wall === 'right' && item.kind !== 'corner' ? room.width - depth : item.x,
+      y: wall === 'bottom' && item.kind !== 'corner' ? room.depth - depth : item.y,
+      rotation: item.rotation, width: item.width, ...(item.kind === 'corner' ? { width2: item.width2 } : {}), depth,
       elevation: item.elevation + height, height: room.height - CEILING_GAP - item.elevation - height,
       frontFinish: front, carcassFinish: front, shelves: 1,
     }, prefixes));

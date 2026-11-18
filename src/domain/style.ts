@@ -1,6 +1,6 @@
 /** Finishes used to show the kitchen in 3D. They do not change any cut sizes. */
 
-export type FrontFinish = 'white' | 'cream' | 'grey' | 'sage' | 'navy' | 'anthracite' | 'oak' | 'walnut' | 'cashmere' | 'sand' | 'taupe' | 'olive' | 'clay' | 'espresso' | 'ash';
+export type FrontFinish = 'white' | 'cream' | 'grey' | 'sage' | 'navy' | 'anthracite' | 'oak' | 'walnut' | 'cashmere' | 'sand' | 'taupe' | 'olive' | 'clay' | 'espresso' | 'ash' | 'forest' | 'eucalyptus';
 export type WorktopFinish = 'stone' | 'oak' | 'concrete' | 'black' | 'marble' | 'travertine' | 'walnut';
 export type HandleStyle = 'steel' | 'black' | 'brass' | 'none' | 'bronze' | 'copper';
 export type BacksplashFinish = 'none' | 'stone' | 'marble' | 'travertine' | 'black';
@@ -17,6 +17,32 @@ export interface KitchenStyle {
   decor?: boolean;
   appliances?: ApplianceFinish;
   frontProfile?: FrontProfile;
+  wallColor?: string;
+  floorColor?: string;
+  floorPattern?: 'plain' | 'tiles';
+  floorTileSize?: number;
+  floorGroutColor?: string;
+}
+
+export const DEFAULT_WALL_COLOR = '#f0ede7';
+export const DEFAULT_FLOOR_COLOR = '#d8d0c4';
+export const DEFAULT_FLOOR_TILE_SIZE = 600;
+export const DEFAULT_FLOOR_GROUT_COLOR = '#a8a39b';
+export const FLOOR_TILE_SIZE_LIMITS = { min: 100, max: 1200 };
+export const ROOM_COLORS = {
+  chalk: { color: '#f0ede7' },
+  white: { color: '#faf9f6' },
+  sand: { color: '#d8d0c4' },
+  stone: { color: '#b8b4ac' },
+  clay: { color: '#b78c76' },
+  olive: { color: '#777c64' },
+  charcoal: { color: '#494c48' },
+  oak: { color: '#b9946e' },
+} satisfies Record<string, Finish>;
+export type RoomColor = keyof typeof ROOM_COLORS;
+
+export function isRoomColor(value: unknown): value is string {
+  return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value);
 }
 
 /** How a finish looks; its name comes with the interface language. */
@@ -43,6 +69,8 @@ export const FRONT_FINISHES: Record<FrontFinish, Finish> = {
   clay: { color: '#b67c62' },
   espresso: { color: '#46372f', wood: true },
   ash: { color: '#d1b58c', wood: true },
+  forest: { color: '#3f4b40' },
+  eucalyptus: { color: '#677267' },
 };
 
 export const WORKTOP_FINISHES: Record<WorktopFinish, Finish> = {
@@ -92,5 +120,10 @@ export function parseStyle(raw: unknown): KitchenStyle {
     ...(typeof v.decor === 'boolean' ? { decor: v.decor } : {}),
     ...(typeof v.appliances === 'string' && Object.hasOwn(APPLIANCE_FINISHES, v.appliances) ? { appliances: v.appliances as ApplianceFinish } : {}),
     ...(v.frontProfile === 'flat' || v.frontProfile === 'shaker' ? { frontProfile: v.frontProfile } : {}),
+    ...(isRoomColor(v.wallColor) ? { wallColor: v.wallColor } : {}),
+    ...(isRoomColor(v.floorColor) ? { floorColor: v.floorColor } : {}),
+    ...(v.floorPattern === 'plain' || v.floorPattern === 'tiles' ? { floorPattern: v.floorPattern } : {}),
+    ...(typeof v.floorTileSize === 'number' && Number.isFinite(v.floorTileSize) && v.floorTileSize >= FLOOR_TILE_SIZE_LIMITS.min && v.floorTileSize <= FLOOR_TILE_SIZE_LIMITS.max ? { floorTileSize: v.floorTileSize } : {}),
+    ...(isRoomColor(v.floorGroutColor) ? { floorGroutColor: v.floorGroutColor } : {}),
   };
 }

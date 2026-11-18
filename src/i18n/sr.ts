@@ -461,6 +461,14 @@ export const sr: Messages = {
     roomSize: (width, depth) => `${width} × ${depth} mm`,
     previewUnavailable: 'Pregled nije dostupan. Kuhinju i dalje možete otvoriti.',
     names: {
+      'olive-oak-vitrine': 'Maslina i hrast sa vitrinom',
+      'olive-oak-compact': 'Kompaktna maslina i hrast',
+      'eucalyptus-walnut': 'Eukaliptus i orah',
+      'olive-window-wall': 'Maslinasta kuhinja uz prozor',
+      'forest-walnut-vitrine': 'Šumska i orah sa vitrinom',
+      'sage-ash-compact': 'Kompaktna žalfija i jasen',
+      'cashmere-walnut-corner': 'Ugaona kuhinja od kašmira i oraha',
+      'clay-oak-window': 'Terakota i hrast uz prozor',
       'nordic-light': 'Nordijska svetlost',
       'oak-studio': 'Hrastov studio',
       'soft-sage': 'Nežna žalfija',
@@ -536,6 +544,16 @@ export const sr: Messages = {
   },
 
   style: {
+    roomSurfaces: 'Zidovi i pod',
+    wallColor: 'Boja zidova',
+    floorColor: 'Boja poda',
+    floorTiles: 'Podne pločice',
+    tileSize: 'Stranica pločice',
+    groutColor: 'Boja fuga',
+    floorTilesNote: 'Kvadratne pločice sa stranicom od 100 do 1200 mm i fugama od 3 mm. Koriste izabranu boju poda. Samo vizuelni prikaz, ne plan polaganja ili obračun količine pločica.',
+    customColor: 'Prilagođena boja',
+    roomColors: { chalk: 'Kreda', white: 'Bela', sand: 'Pesak', stone: 'Topla siva', clay: 'Glina', olive: 'Maslina', charcoal: 'Antracit', oak: 'Ton hrasta' },
+    roomColorNote: 'Boji sve zidove prostorije zajedno, a pod zasebno. Zidne obloge zadržavaju svoju završnu obradu. Samo vizuelni prikaz, uz „Poništi“; krojni delovi se ne menjaju.',
     style: 'Stil',
     hide: 'Sakrij opcije stila',
     shuffle: 'Promešaj izgled',
@@ -560,6 +578,8 @@ export const sr: Messages = {
       clay: 'Terakota',
       espresso: 'Espreso drvo',
       ash: 'Prirodni jasen',
+      forest: 'Šumska zelena',
+      eucalyptus: 'Eukaliptus zelena',
     },
     worktopFinishes: { stone: 'Beli kamen', oak: 'Hrast', concrete: 'Beton', black: 'Crna', marble: 'Topli mermer', travertine: 'Travertin', walnut: 'Orah' },
     handleStyles: { steel: 'Čelična šipka', black: 'Crna šipka', brass: 'Mesingana šipka', none: 'Bez ručki', bronze: 'Bronzana šipka', copper: 'Bakarna šipka' },
@@ -578,7 +598,7 @@ export const sr: Messages = {
 
   view3d: {
     kitchenActions: 'Gotove kuhinje i pregled elemenata',
-    appearanceHint: 'Promenite fronte, radnu ploču, ručice i osvetljenje, bez promene rasporeda.',
+    appearanceHint: 'Promenite fronte, radnu ploču, boje zidova i poda, ručice i osvetljenje, bez promene rasporeda.',
     cameraHints: {
       perspective: 'Pogledajte celu kuhinju u prostoru. Prevucite pozadinu da okrenete pogled.',
       front: 'Pogledajte kuhinju pravo spreda, u nivou frontova.',

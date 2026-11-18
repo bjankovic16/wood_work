@@ -239,7 +239,7 @@ try {
     await page.getByRole('button', { name: 'Kitchen designs', exact: true }).first().click();
     const gallery = page.getByRole('dialog', { name: 'Kitchen designs' });
     await gallery.getByLabel('Kitchen layout', { exact: true }).selectOption('layered');
-    assert.equal(await gallery.locator('[data-kitchen-design]').count(), 32);
+    assert.equal(await gallery.locator('[data-kitchen-design]').count(), 40);
     await gallery.locator('img').evaluateAll((images) => {
       for (const image of images) image.loading = 'eager';
       return Promise.all(images.map((image) => image.decode()));

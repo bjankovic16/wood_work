@@ -72,9 +72,8 @@ export function Room3D({ room, openings, items, materials, selection, onSelect, 
     }
   });
   return <>
-    <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+    <mesh name="room-floor" rotation={[-Math.PI / 2, 0, 0]} material={materials.floor} receiveShadow>
       <shapeGeometry args={[floor]} />
-      <meshStandardMaterial color="#d8d0c4" roughness={0.92} />
     </mesh>
     {(room.features ?? []).map((feature) => <group key={feature.id} name={`room-feature-${feature.id}`}
       ref={selection?.type === 'feature' && selection.id === feature.id ? objectRef : undefined}
@@ -135,7 +134,7 @@ export function Room3D({ room, openings, items, materials, selection, onSelect, 
       }) : [];
       return <group key={segment.id} position={[m(segment.start.x), 0, m(segment.start.y)]} rotation={[0, -segment.angle * Math.PI / 180, 0]}
         ref={(group) => { if (group) groups.current.set(segment.id, group); else groups.current.delete(segment.id); }}>
-        {physicalWall && pieces.map((piece, i) => <WallBox key={`wall-${i}`} piece={piece} thickness={thickness} />)}
+        {physicalWall && pieces.map((piece, i) => <WallBox key={`wall-${i}`} name={`room-wall-${segment.id}-${i}`} piece={piece} thickness={thickness} material={materials.wall} />)}
         {materials.backsplash && cladding.map((piece, i) => <WallBox key={`cladding-${i}`} name={`kitchen-backsplash-${segment.id}-${i}`} piece={piece} thickness={12} inset={6} material={materials.backsplash!} />)}
         {treatments.map((treatment) => <Treatment key={treatment.id} treatment={treatment} segment={segment} holes={holes} />)}
       </group>;
