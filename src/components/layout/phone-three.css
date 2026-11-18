@@ -3,17 +3,14 @@
   --three-header-row: 56px;
   --three-chrome-bottom: calc(2 * var(--three-header-row) + 1px);
 }
-[data-phone-three] > header,
-[data-phone-three] .room-heading {
+[data-phone-three] > header {
   position: absolute;
   inset: 0 0 auto;
   z-index: 20;
 }
 [data-phone-three] > header > div:nth-child(2) { height: var(--three-header-row); padding-block: 0; }
 [data-phone-three] > header { z-index: 21; } /* Keep the project menu above the room heading. */
-[data-phone-three] .room-heading { top: calc(var(--three-header-row) + 1px); height: var(--three-header-row); padding-block: 0; }
-[data-phone-three][data-chrome-hidden] > header,
-[data-phone-three][data-chrome-hidden] .room-heading { visibility: hidden; }
+[data-phone-three][data-chrome-hidden] > header { visibility: hidden; }
 [data-phone-three] .three-scene > aside { order: 1; padding-bottom: 4.5rem; }
 [data-phone-three] .three-scene :is(.three-tip, .three-mode-hint, .three-resize-status) { top: calc(var(--three-chrome-bottom) + .5rem); }
 [data-phone-three] .three-feedback, [data-phone-three] [data-three-object-tools] {

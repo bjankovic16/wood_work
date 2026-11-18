@@ -47,7 +47,7 @@ export function useKeyboardShortcuts(): void {
         } else if (key === 'y') {
           e.preventDefault();
           redo();
-        } else if (key === 'd' && unitKeys) {
+        } else if (key === 'd' && unitKeys && !roomOpen) {
           e.preventDefault();
           duplicateSelected();
         }
@@ -56,7 +56,7 @@ export function useKeyboardShortcuts(): void {
       if (e.altKey || !unitKeys) return;
 
       const hasSelection = selectedId !== null;
-      if (view === 'plan' && roomSelection?.type === 'feature' && e.key in ARROWS
+      if (view === 'plan' && roomOpen && roomSelection?.type === 'feature' && e.key in ARROWS
         && !(e.target instanceof Element && e.target.closest('[data-room-3d]'))) {
         e.preventDefault();
         const [right, up] = ARROWS[e.key];
@@ -65,7 +65,7 @@ export function useKeyboardShortcuts(): void {
         return;
       }
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (!hasSelection) return;
+        if (!hasSelection || roomOpen) return;
         e.preventDefault();
         deleteSelected();
       } else if (key === 'r' && view === 'plan' && !roomOpen) {

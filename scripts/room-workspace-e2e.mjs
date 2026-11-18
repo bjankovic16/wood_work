@@ -57,7 +57,7 @@ async function phoneRoomPreview(page, workspace) {
     window.__kitchen.ui.getState().setMoveHintSeen();
     return d;
   });
-  await workspace.getByRole('radio', { name: '3D', exact: true }).tap();
+  await workspace.getByRole('radio', { name: '3D review', exact: true }).tap();
   const bar = page.getByTestId('three-toolbar');
   const canvas = workspace.getByTestId('three-viewport').locator('canvas');
   const trigger = (name) => bar.getByRole('button', { name, exact: true });
@@ -89,20 +89,23 @@ async function phoneRoomPreview(page, workspace) {
   const camera = sheet('Prikaz');
   assert.deepEqual(await canvas.boundingBox(), viewport, 'The sheet must overlay the room, not resize it.');
   await camera.getByRole('button', { name: 'Odozgo' }).press('Enter');
-  assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().cameraView), 'top');
   assert.ok(await view.evaluate((el) => el === document.activeElement));
   await view.tap();
   assert.equal(await camera.getByRole('button', { name: 'Odozgo' }).getAttribute('aria-pressed'), 'true');
   await camera.getByRole('button', { name: 'Vrati pogled' }).tap();
-  assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().cameraView), 'perspective');
-
   await view.tap();
-  await camera.getByRole('button', { name: 'Stil', exact: true }).tap();
-  const tiles = await sheet('Stil').getByRole('checkbox', { name: 'Podne pločice' }).boundingBox();
-  assert.ok(tiles && tiles.y >= 0 && tiles.y + tiles.height <= 778, 'Room finishes should be immediately visible, without scrolling.');
+  assert.equal(await camera.getByRole('button', { name: 'Perspektiva' }).getAttribute('aria-pressed'), 'true');
+  await camera.getByRole('button', { name: 'Oznake mera' }).tap();
+  assert.equal(await workspace.locator('[data-room-measure]').count(), 0);
+  assert.ok(await workspace.getByTestId('room-measurements').isVisible(), 'The full schedule remains when scene labels are hidden.');
+  assert.equal(await camera.getByTestId('customer-export').count(), 0);
+  assert.equal(await camera.getByRole('button', { name: /Sledeća kuhinja|Otvori sve|Stil/ }).count(), 0);
   await page.keyboard.press('Escape');
   assert.ok(await view.evaluate((el) => el === document.activeElement));
 
+  assert.deepEqual(await state(), before, 'Room review is read-only.');
+  await page.getByRole('radio', { name: '3D', exact: true }).tap();
+  await page.waitForFunction((id) => window.__kitchen3D?.scene.getObjectByName(id), original.items[0].id);
   const kitchen = sheet('Prikaz');
   const next = kitchen.getByRole('button', { name: 'Sledeća kuhinja' });
   await view.tap();
@@ -125,6 +128,65 @@ async function phoneRoomPreview(page, workspace) {
   assert.equal((await state()).revisions, before.revisions + 1);
   await page.getByRole('button', { name: 'Korak unazad', exact: true }).tap();
   assert.deepEqual((await state()).design, original, 'The View sheet must use the existing undoable command.');
+}
+
+async function separatedRoomChecks(page) {
+  const nav = page.getByRole('radiogroup', { name: 'Design workspace' });
+  const roomTab = nav.getByRole('radio', { name: 'Room design' });
+  const kitchen3D = nav.getByRole('radio', { name: '3D', exact: true });
+  const room = page.getByTestId('room-workspace');
+  await page.evaluate(async () => {
+    const { createDesign } = await import('/src/domain/designOps.ts');
+    const { createItem } = await import('/src/domain/catalog.ts');
+    const d = createDesign('Shared irregular room');
+    d.room = { width: 4000, depth: 3200, height: 2700, vertices: [
+      { id: 'north', x: 0, y: 0 }, { id: 'slope', x: 4000, y: 0 }, { id: 'south', x: 3500, y: 3200 }, { id: 'west', x: 0, y: 3200 },
+    ], partitions: [{ id: 'divider', start: { x: 1400, y: 1700 }, end: { x: 2600, y: 1700 }, thickness: 120, height: 1450 }],
+    treatments: [{ id: 'panel', wallId: 'west', offset: 300, width: 900, elevation: 900, height: 550, finish: 'oak' }] };
+    d.items = [{ ...createItem('base', [], { x: 500, y: 0 }), id: 'kitchen-only' }];
+    d.style.backsplash = 'marble';
+    const ui = window.__kitchen.ui.getState();
+    window.__kitchen.design.getState().load(d);
+    ui.setLanguage('en'); ui.setView('3d'); ui.requestCamera('studio', 'kitchen-only');
+  });
+  const state = () => page.evaluate(async () => {
+    const { design, past, future } = window.__kitchen.design.getState();
+    const { activeId } = (await import('/src/store/projects.ts')).useProjectsStore.getState();
+    return { design, past: past.length, future: future.length, activeId };
+  });
+  await page.waitForFunction(() => window.__kitchen3D?.scene.getObjectByName('kitchen-only'));
+  const initial = await state();
+  await roomTab.click();
+  const corner = room.getByRole('button', { name: 'Move corner 3' });
+  await corner.waitFor();
+  assert.deepEqual(await state(), initial);
+  await corner.press('Shift+ArrowLeft');
+  const edited = await state();
+  assert.equal(edited.design.room.vertices[2].x, 3400);
+  assert.equal(edited.past, initial.past + 1);
+  await room.getByRole('combobox', { name: 'Drawing view' }).selectOption('slope');
+  await room.getByRole('radio', { name: '3D review' }).click();
+  await page.waitForFunction(() => window.__kitchen3D?.scene.getObjectByName('wall-finish-panel-0'));
+  assert.equal(await roomTab.getAttribute('aria-checked'), 'true');
+  const schedule = room.getByTestId('room-measurements');
+  assert.match(await schedule.locator('[data-measure="area"]').innerText(), /11\.84 m²/);
+  assert.match(await schedule.locator('[data-measure="wall:slope"]').innerText(), /3256 mm.*Height: 2700 mm/s);
+  assert.match(await schedule.locator('[data-measure="partition:divider"]').innerText(), /1200 mm.*120 mm.*1450 mm/s);
+  assert.equal(await schedule.locator('[data-measure^="wall:"]').count(), 4);
+  await waitForIdleRendering(page);
+  assert.ok(await room.locator('[data-room-measure]:visible').count() > 0);
+  assert.deepEqual(await page.evaluate(() => {
+    const names = [];
+    window.__kitchen3D.scene.traverse((n) => { if (n.name === 'kitchen-only' || n.name.startsWith('kitchen-backsplash-')) names.push(n.name); });
+    return names;
+  }), []);
+  await kitchen3D.click();
+  await page.waitForFunction(() => window.__kitchen3D?.scene.getObjectByName('kitchen-only') && window.__kitchen3D.scene.getObjectByName('kitchen-backsplash-north-0'));
+  assert.equal(await page.getByTestId('room-measurements').count(), 0);
+  await roomTab.click();
+  await corner.waitFor();
+  assert.equal(await room.getByRole('combobox', { name: 'Drawing view' }).inputValue(), '');
+  assert.deepEqual(await state(), edited, 'Visiting either workspace must not change the active project, room, cabinets or undo/redo.');
 }
 
 let browser;
@@ -165,7 +227,7 @@ try {
       await workspace.getByRole('button', { name: '3D preview' }).click();
     }
     if (!planOnly) {
-      await page.getByRole('radio', { name: '3D', exact: true }).click();
+      await workspace.getByRole('radio', { name: '3D review', exact: true }).click();
       await workspace.getByTestId('three-viewport').locator('canvas').waitFor();
       await page.getByRole('radio', { name: '2D', exact: true }).click();
     }
@@ -189,6 +251,7 @@ try {
     await workspaceObjectChecks(page, compact, !planOnly);
     await furnishedWallChecks(page, compact, path.resolve('test-results/room-workspace'));
     if (compact && !planOnly) await phoneRoomPreview(page, workspace);
+    if (!planOnly) await separatedRoomChecks(page);
     await planCornerChecks(page, compact);
     assert.deepEqual(errors, []);
     await page.close();

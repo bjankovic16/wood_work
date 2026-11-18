@@ -60,7 +60,9 @@ try {
   assert.equal(await nextKitchen.getAttribute('title'), null, 'Custom tooltips must not be duplicated by native titles.');
   await page.keyboard.press('Escape');
   const beforeColours = await page.evaluate(() => JSON.stringify(window.__kitchen.design.getState().design));
-  await page.getByRole('button', { name: 'Style', exact: true }).click();
+  await page.getByRole('radio', { name: 'Room design', exact: true }).click();
+  await workspace.getByRole('button', { name: '3D preview' }).click();
+  await workspace.getByRole('tab', { name: 'Paint & tiles' }).click();
   await page.getByRole('button', { name: 'Wall colour: Olive', exact: true }).click();
   await page.getByRole('button', { name: 'Floor colour: Clay', exact: true }).click();
   await page.getByLabel('Floor colour: Custom colour', { exact: true }).fill('#123456');
@@ -81,9 +83,9 @@ try {
   await page.getByRole('checkbox', { name: 'Floor tiles', exact: true }).check();
   assert.equal(await page.evaluate(() => window.__kitchen.design.getState().design.galleryPresetId), 'olive-oak-vitrine');
   await page.screenshot({ path: path.join(output, 'desktop-reference-room-colours.png') });
-  await page.getByRole('button', { name: 'Hide style options', exact: true }).click();
   for (let step = 0; step < 7; step++) await page.getByRole('button', { name: 'Undo', exact: true }).click();
   assert.equal(await page.evaluate(() => JSON.stringify(window.__kitchen.design.getState().design)), beforeColours, 'Room colours must be undoable without changing cabinets or other finishes.');
+  await page.getByRole('radio', { name: '3D', exact: true }).click();
   await page.getByRole('tooltip').waitFor({ state: 'detached' });
   await page.keyboard.press('Tab');
   await page.getByRole('group', { name: '3D camera', exact: true }).getByRole('button', { name: 'Top', exact: true }).focus();
@@ -147,10 +149,13 @@ try {
   }
   const addCorner = page.getByRole('button', { name: 'Add corner', exact: true });
   assert.equal(await addCorner.isVisible(), false);
+  assert.equal(await page.getByText('Advanced room', { exact: true }).count(), 0);
+  await page.getByRole('radio', { name: 'Room design', exact: true }).click();
   await page.getByText('Advanced room', { exact: true }).click();
   await addCorner.waitFor();
   await page.getByText('Advanced room', { exact: true }).click();
   assert.equal(await addCorner.isVisible(), false);
+  await page.getByRole('radio', { name: 'Plan', exact: true }).click();
   await page.getByRole('button', { name: 'View', exact: true }).click();
   await page.getByRole('button', { name: 'Snap to walls and units', exact: true }).waitFor();
   await page.getByRole('button', { name: 'Wall dimensions', exact: true }).waitFor();
@@ -271,7 +276,7 @@ try {
   assert.equal(await page.getByRole('group', { name: 'Selected cabinet actions' }).count(), 0);
   await page.evaluate(() => window.__kitchen.ui.getState().select(null));
   await page.getByRole('button', { name: 'Add element', exact: true }).waitFor();
-  await page.getByRole('button', { name: 'My room', exact: true }).waitFor();
+  await page.getByRole('radio', { name: 'Room design', exact: true }).waitFor();
   await page.evaluate(() => localStorage.setItem('kitchen-designer:preferences', JSON.stringify({ version: 1, state: { language: 'sr', viewFilter: 'all' } })));
   await page.reload();
   await page.waitForFunction(() => window.__kitchen?.ui.getState().language === 'sr');
@@ -341,9 +346,9 @@ try {
   assert.equal(await phone.evaluate(() => JSON.stringify(window.__kitchen.design.getState().design)), beforeHold, 'Undo must restore the entire kitchen before the new look.');
   assert.ok(await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await phone.screenshot({ path: path.join(output, 'phone-toolbar-gallery-sr.png') });
-  await open3DTools(phone);
-  await phone.getByRole('button', { name: 'Stil', exact: true }).tap();
-  const styleSheet = phone.getByRole('dialog', { name: 'Stil', exact: true });
+  await phone.getByRole('radio', { name: 'Dizajn prostorije', exact: true }).tap();
+  await phoneRoom.getByRole('tab', { name: 'Boje i pločice' }).tap();
+  const styleSheet = phoneRoom.getByRole('tabpanel', { name: 'Boje i pločice' });
   await styleSheet.getByRole('button', { name: 'Boja zidova: Maslina', exact: true }).tap();
   await styleSheet.getByRole('button', { name: 'Boja poda: Pesak', exact: true }).tap();
   await styleSheet.getByLabel('Boja zidova: Prilagođena boja', { exact: true }).fill('#334455');
@@ -354,7 +359,7 @@ try {
   await styleSheet.getByRole('button', { name: 'Boja fuga: Antracit', exact: true }).tap();
   assert.ok(await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await phone.screenshot({ path: path.join(output, 'phone-room-colours-sr.png') });
-  await styleSheet.getByRole('button', { name: 'Zatvori', exact: true }).tap();
+  await phone.getByRole('radio', { name: '3D', exact: true }).tap();
   await phone.waitForTimeout(500);
   await phone.reload();
   await phone.getByRole('radio', { name: '3D', exact: true }).tap();

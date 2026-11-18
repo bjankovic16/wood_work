@@ -516,6 +516,7 @@ try {
 
   console.log('Room');
   await page.keyboard.press('Escape');
+  await page.getByRole('radio', { name: 'Room design', exact: true }).click();
   const roomWidth = page.getByLabel('Width', { exact: true });
   await roomWidth.fill('3000');
   await roomWidth.press('Enter');
@@ -541,7 +542,6 @@ try {
 
   console.log('U-shaped kitchen');
   await page.keyboard.press('Escape');
-  await page.getByText('Advanced room', { exact: true }).click();
   await page.getByRole('button', { name: 'Remove all elements' }).click();
   await page.getByRole('button', { name: 'Remove all', exact: true }).click();
   check('"Remove all elements" empties the plan', (await design()).items.length === 0);
@@ -909,6 +909,8 @@ try {
 
   console.log('Windows and doors');
   await page.keyboard.press('Escape');
+  await page.getByRole('radio', { name: 'Room design', exact: true }).click();
+  await page.getByRole('button', { name: 'Add an object', exact: true }).click();
   await page.getByRole('button', { name: 'Window', exact: true }).click();
   const selectedOpening = page.getByTestId('selected-room-card').getByTestId('opening-card');
   for (const [label, value] of [
@@ -926,6 +928,7 @@ try {
     windowOpening,
   );
   check('the checks notice wall units in front of the window', /warning/.test(await checksButton.getAttribute('aria-label')), await checksButton.getAttribute('aria-label'));
+  await page.getByRole('button', { name: 'Add an object', exact: true }).click();
   await page.getByRole('button', { name: 'Door', exact: true }).click();
   await selectedOpening.getByLabel('Wall', { exact: true }).selectOption('bottom');
   const doorFrom = selectedOpening.getByLabel('From wall start', { exact: true });
@@ -936,7 +939,7 @@ try {
   await doorFrom.press('Escape');
   await page.waitForTimeout(150);
   await shot('15b-window-and-door.png');
-  await page.getByRole('radio', { name: /^3D/ }).click();
+  await page.getByRole('radio', { name: '3D', exact: true }).click();
   await page.locator('main canvas').first().waitFor();
   await page.waitForTimeout(2500);
   await shot('16-3d-window.png');
@@ -994,7 +997,7 @@ try {
   await mobile.getByRole('button', { name: 'More' }).tap();
   check('the phone layout shows the plan with an "Add element" button', await mobile.getByRole('button', { name: 'Add element' }).isVisible());
   check('the phone keeps consistent navigation labels visible', (await mobile.getByLabel('Project name').isVisible()) && (await mobile.getByRole('radio', { name: 'Plan', exact: true }).getByText('Plan', { exact: true }).isVisible()) && (await mobile.getByRole('radio', { name: 'Cutting list', exact: true }).getByText('Cutting list', { exact: true }).isVisible()));
-  await mobile.getByRole('button', { name: 'My room', exact: true }).tap();
+  await mobile.getByRole('radio', { name: 'Room design', exact: true }).tap();
   await phoneRoom.getByTestId('room-plan').waitFor();
   await mobile.screenshot({ path: path.join(shotsDir, 'usability-room-setup-phone.png') });
   await phoneRoom.getByTestId('room-done').tap();
@@ -1052,7 +1055,7 @@ try {
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-05-3d.png') });
   await close3DTools(mobile);
   await mobile.getByRole('button', { name: 'Deselect' }).tap();
-  await mobile.getByRole('button', { name: 'My room', exact: true }).tap();
+  await mobile.getByRole('radio', { name: 'Room design', exact: true }).tap();
   await phoneRoom.getByTestId('room-ideas').tap();
   const beforeStarter = await mobileDesign();
   await mobile.getByRole('radio', { name: 'My room layout' }).tap();

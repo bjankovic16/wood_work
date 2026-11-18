@@ -20,12 +20,21 @@ file for a customer. The customer does not need the editor or the cutting list.
 
 - On a first visit and for a new project, open **My room** (**Moja prostorija**)
   on the 2D plan. Show room measurements before suggesting kitchen ideas. On
-  return, resume the saved project and keep **My room** within reach.
+  return, resume the saved project. **Room design** is a peer of kitchen **3D**
+  on desktop and phone; selecting it always lands on the editable 2D floor
+  plan. Both workspaces use the same project, without copying data or adding
+  an undo step on navigation.
   **Start fresh** in the desktop toolbar, the phone's **⋯** menu or **Projects**
   saves the current kitchen and opens a separate empty project at the first
   measurement step. It does not erase projects or reset preferences.
-- On desktop, offer a 3D preview beside the plan. On a phone, **2D / 3D**
-  switches views in the same workspace. Plan, elevation, 3D and inspector
+- In Room design, **2D / 3D review** switches between geometry editing and a
+  read-only architectural scene. On desktop, also offer a preview beside the
+  plan. Omit kitchen meshes and automatic backsplashes, but retain manual
+  wall finishes. Project dimension labels into the scene and show a complete,
+  scrollable list of room size/area, wall lengths/heights/angles, partition
+  dimensions and positions, and opening, structure and finish dimensions and
+  placements. Report actual polygon edges and wall-start-relative offsets.
+  Plan, elevation, room 3D and inspector
   share the selected wall, opening or structure; switching views neither
   duplicates project data nor clears that selection. **Edit position in 2D**
   returns from 3D to the plan or wall elevation with the selected object.
@@ -48,7 +57,7 @@ file for a customer. The customer does not need the editor or the cutting list.
 - Tapping a wall line opens its **2D inside elevation**. Provide a drawing
   dropdown for the plan and all wall faces, a mini-plan marking the current face,
   and a one-tap return. Show the green origin, length and height rulers, real
-  openings and read-only cabinet outlines. Use one **Add** dropdown shared by
+  openings and optional read-only cabinet outlines (off by default). Use one **Add** dropdown shared by
   the plan and elevation, grouping openings separately from fixed structures.
   The object picker revisits existing objects without creating another one.
   Drag an opening along the wall or enter its width, height and
@@ -64,8 +73,8 @@ file for a customer. The customer does not need the editor or the cutting list.
   touch and numeric alternatives.
 - Select each new object immediately. Put its card **directly below the room
   measurements** in the right inspector or the same section on a phone. Show
-  dimensions and clearances at the selected object in both 2D and 3D, not
-  labels on every object. Position fields are edited in 2D. Fixed structures
+  dimensions and clearances at the selected object in both 2D and 3D.
+  Position fields are edited in Room design's 2D view. Fixed structures
   reserve space but are not cabinet parts; chimney geometry is not a fire/heat
   clearance calculation.
 
@@ -168,6 +177,8 @@ When selecting a cabinet, show:
 
 Show the effect of valid property edits when the user commits a value. Keep
 placement fields in 2D, including when the selection came from the 3D view.
+With no cabinet selected, show a read-only room summary and a path to Room
+design rather than a second set of wall and opening editors.
 
 Board settings expand one row at a time; mark boards used by actual cut pieces
 and list those first. Show the priced sheet's currency in the row and editor.
@@ -241,9 +252,10 @@ project.
 ### Editing and previewing in 3D
 
 - In both full phone 3D views, use at most 120 CSS px above the usable canvas at
-  390 × 844. **View / Prikaz** opens a bottom sheet for camera presets/reset,
-  **Style** (room surfaces first in room setup), cabinet previews, **Next kitchen**,
-  customer export and help. Keep **Plan / 3D** distinct from camera choices.
+  390 × 844. **View / Prikaz** opens a bottom sheet for camera presets/reset
+  and help. Room review offers dimension labels, not cabinet actions. In
+  kitchen 3D the sheet adds **Style**, cabinet previews, **Next kitchen** and
+  customer export. Keep the workspace tabs distinct from camera choices.
   Opening the sheet does not reframe the camera or edit the project. Real orbit
   drags hide the bars; a tap restores them without moving or selecting anything.
   The first tip disappears on drag or after six seconds, and stays dismissed

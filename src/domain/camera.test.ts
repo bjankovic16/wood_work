@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PerspectiveCamera, Vector3 } from 'three';
-import { blendPoses, cabinetFocusPose, kitchenCameraPose, STUDIO_FOV, type CameraPose } from './camera';
+import { blendPoses, cabinetFocusPose, CAMERA_FOV, kitchenCameraPose, roomCameraPose, STUDIO_FOV, type CameraPose } from './camera';
 import { createBasilKitchen } from './basilKitchen';
 import { createItem } from './catalog';
 import { footprintPieces, itemRect } from './geometry';
@@ -8,6 +8,18 @@ import { footprintPieces, itemRect } from './geometry';
 const room = { width: 4800, depth: 4000, height: 2700 };
 
 describe('3D camera views', () => {
+  it('fits the entire empty room below the phone toolbar, including the ceiling and near corners', () => {
+    const room = { width: 4400, depth: 7000, height: 3100 };
+    for (const [aspect, inset] of [[0.7, 0.24], [1.8, 0]]) for (const view of ['perspective', 'top', 'front', 'studio'] as const) {
+      const { position, target } = roomCameraPose(room, aspect, view, inset);
+      const camera = new PerspectiveCamera(view === 'studio' ? STUDIO_FOV : CAMERA_FOV, aspect, 0.05, 200);
+      camera.position.fromArray(position); camera.lookAt(...target); camera.updateMatrixWorld();
+      for (const x of [0, room.width]) for (const z of [0, room.depth]) for (const y of [0, room.height]) {
+        const p = new Vector3(x / 1000, y / 1000, z / 1000).project(camera);
+        expect(Math.abs(p.x)).toBeLessThan(1); expect(p.y).toBeGreaterThan(-1); expect(p.y).toBeLessThan(1 - 2 * inset);
+      }
+    }
+  });
   for (const aspect of [0.5, 1, 1.8]) {
     for (const view of ['perspective', 'front', 'top'] as const) {
       it(`${view} produces a valid room view at aspect ${aspect}`, () => {

@@ -1,9 +1,9 @@
 import { Grid2X2, Pipette } from 'lucide-react';
-import { DEFAULT_FLOOR_COLOR, DEFAULT_FLOOR_GROUT_COLOR, DEFAULT_FLOOR_TILE_SIZE, DEFAULT_WALL_COLOR, FLOOR_TILE_SIZE_LIMITS, ROOM_COLORS, type RoomColor } from '../../domain/style';
+import { DEFAULT_FLOOR_COLOR, DEFAULT_FLOOR_GROUT_COLOR, DEFAULT_FLOOR_TILE_SIZE, DEFAULT_WALL_COLOR, FLOOR_TILE_SIZE_LIMITS, FRONT_FINISHES, JOINERY_FINISHES, ROOM_COLORS, type FrontFinish, type RoomColor } from '../../domain/style';
 import { useT } from '../../i18n';
 import { setStyle } from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
-import { NumberField } from '../properties/NumberField';
+import { NumberField, SelectField } from '../properties/NumberField';
 
 function RoomColorPicker({ label, value, onChange }: { label: string; value: string; onChange: (color: string) => void }) {
   const t = useT();
@@ -25,11 +25,12 @@ function RoomColorPicker({ label, value, onChange }: { label: string; value: str
   </fieldset>;
 }
 
-/** The room inspector and 3D style palette edit the same saved finishes. */
 export function RoomSurfaces() {
   const t = useT();
   const style = useDesignStore((s) => s.design.style);
   const tiled = style.floorPattern === 'tiles';
+  const joineryOptions = [{ value: '' as const, label: t.style.defaultFinish },
+    ...(Object.keys(FRONT_FINISHES) as FrontFinish[]).map((value) => ({ value, label: t.style.frontFinishes[value] }))];
   return <div className="space-y-3">
     <h3 className="text-sm font-semibold text-studio-ink">{t.style.roomSurfaces}</h3>
     <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-studio-line bg-[#f7f7f1] px-3 text-sm font-semibold">
@@ -45,5 +46,10 @@ export function RoomSurfaces() {
       <p className="text-xs leading-relaxed text-studio-muted">{t.style.floorTilesNote}</p>
     </div>}
     <p className="text-xs leading-relaxed text-studio-muted">{t.style.roomColorNote}</p>
+    <div className="space-y-2 border-t border-studio-line pt-3">
+      <h3 className="text-sm font-semibold">{t.style.joinery}</h3>
+      {JOINERY_FINISHES.map((key) => <SelectField<FrontFinish | ''> key={key} label={t.style[key]}
+        value={style[key] ?? ''} options={joineryOptions} onChange={(value) => setStyle({ [key]: value || undefined })} />)}
+    </div>
   </div>;
 }

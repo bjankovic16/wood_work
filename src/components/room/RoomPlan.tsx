@@ -23,7 +23,7 @@ export function drawingButton(label: string, activate: (keyboard?: boolean) => v
     } };
 }
 
-export function RoomPlan({ onFaceWall }: { onFaceWall: (id: string, keyboard?: boolean) => void }) {
+export function RoomPlan({ onFaceWall, reference }: { onFaceWall: (id: string, keyboard?: boolean) => void; reference: boolean }) {
   const t = useT();
   const { room, openings, items, style } = useDesignStore((s) => s.design);
   const selection = useUiStore((s) => s.roomSelection);
@@ -74,7 +74,7 @@ export function RoomPlan({ onFaceWall }: { onFaceWall: (id: string, keyboard?: b
         <rect width={tile} height={tile} fill={floor} /><path d={`M0 ${tile}V0H${tile}`} fill="none" stroke={style.floorGroutColor ?? DEFAULT_FLOOR_GROUT_COLOR} strokeWidth={Math.max(3, px * 1.4)} />
       </pattern></defs>}
       <polygon data-plan-floor="" points={outline} fill={style.floorPattern === 'tiles' ? `url(#${tileId})` : floor} />
-      {items.flatMap((item) => footprintPieces(item).map((part, i) => <polygon key={`${item.id}-${i}`} points={points(part)} fill="#edf0e9" stroke="#95a198" strokeWidth={px} />))}
+      {reference && items.flatMap((item) => footprintPieces(item).map((part, i) => <polygon key={`${item.id}-${i}`} data-plan-cabinet={item.id} points={points(part)} fill="#edf0e9" stroke="#95a198" strokeWidth={px} />))}
       <polygon points={outline} fill="none" stroke="#43564f" strokeWidth={6 * px} strokeLinejoin="round" />
       <polygon data-wall-paint="" points={outline} fill="none" stroke={style.wallColor ?? DEFAULT_WALL_COLOR} strokeWidth={3 * px} strokeLinejoin="round" />
       {room.partitions?.map((p) => <polygon key={p.id} points={points(partitionPolygon(p))} fill="#b9af9c" />)}

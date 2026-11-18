@@ -62,7 +62,6 @@ interface UiState {
   roomOpen: boolean;
   roomSelection: RoomObjectSelection | null;
   roomElevationOpen: boolean;
-  wallEditing: boolean;
   selectedWallId: string | null;
   referenceOpen: boolean;
   cameraView: CameraView;
@@ -87,10 +86,10 @@ interface UiState {
   rememberWelcome: () => void;
   setProjectsOpen: (open: boolean) => void;
   setRoomOpen: (open: boolean) => void;
+  openRoomPlan: () => void;
   setRoomView: (view: 'plan' | '3d') => void;
   setRoomElevationOpen: (open: boolean) => void;
   selectRoomObject: (selection: RoomObjectSelection | null, wallId?: string) => void;
-  setWallEditing: (editing: boolean) => void;
   setSelectedWallId: (id: string | null) => void;
   setReferenceOpen: (open: boolean) => void;
   requestCamera: (view: CameraView, focusId?: string) => void;
@@ -134,7 +133,6 @@ export const useUiStore = create<UiState>()(
       roomOpen: false,
       roomSelection: null,
       roomElevationOpen: false,
-      wallEditing: false,
       selectedWallId: null,
       referenceOpen: false,
       cameraView: 'perspective',
@@ -160,16 +158,18 @@ export const useUiStore = create<UiState>()(
       setSettingsTab: (settingsTab) => set({ settingsTab }),
       setLayoutsOpen: (layoutsOpen) => set({ layoutsOpen, fitRequest: null }),
       reviewFit: (fitRequest) => set({ layoutsOpen: true, fitRequest }),
-      finishRoom: () => set({ roomOpen: false, view: 'plan', welcomeSeen: true, selectedId: null, cabinetTool: null }),
+      finishRoom: () => set({ roomOpen: false, view: 'plan', welcomeSeen: true, selectedId: null, cabinetTool: null,
+        selectedWallId: null, roomElevationOpen: false, roomSelection: null }),
       rememberWelcome: () => set({ welcomeSeen: true }),
       setProjectsOpen: (projectsOpen) => set({ projectsOpen }),
       setRoomOpen: (roomOpen) => set(roomOpen
-        ? { roomOpen, view: 'plan', selectedId: null, cabinetTool: null, wallEditing: false }
+        ? { roomOpen, view: 'plan', selectedId: null, cabinetTool: null }
         : { roomOpen }),
+      openRoomPlan: () => set({ roomOpen: true, view: 'plan', selectedId: null, selectedWallId: null,
+        roomSelection: null, roomElevationOpen: false, cabinetTool: null, previewLockedIds: [] }),
       setRoomView: (view) => set((state) => state.view === view ? state : { view, cabinetTool: null, previewLockedIds: [] }),
       setRoomElevationOpen: (roomElevationOpen) => set({ roomElevationOpen }),
       selectRoomObject: (roomSelection, wallId) => set({ roomSelection, ...(roomSelection ? { selectedId: null, cabinetTool: null } : {}), ...(wallId ? { selectedWallId: wallId } : {}) }),
-      setWallEditing: (wallEditing) => set({ wallEditing, selectedId: null }),
       setSelectedWallId: (selectedWallId) => set({ selectedWallId, roomSelection: null, selectedId: null, cabinetTool: null, ...(!selectedWallId ? { roomElevationOpen: false } : {}) }),
       setReferenceOpen: (referenceOpen) => set({ referenceOpen }),
       requestCamera: (cameraView, focusId) => set((state) => ({ cameraView, cameraFocusId: focusId ?? null, cameraReturn: false, cameraToken: state.cameraToken + 1 })),

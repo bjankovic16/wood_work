@@ -11,7 +11,9 @@ import { WallMeasureFields, WallMeasurements } from './WallMeasures';
 const tools = [{ key: 'dimensions', Icon: Ruler }, { key: 'objects', Icon: AppWindow }, { key: 'surfaces', Icon: Palette }] as const;
 type Tool = typeof tools[number]['key'];
 
-export function RoomInspector({ wall, wallNumber }: { wall?: WallSegment; wallNumber: number }) {
+export function RoomInspector({ wall, wallNumber, reference, onReference }: {
+  wall?: WallSegment; wallNumber: number; reference: boolean; onReference?: (visible: boolean) => void;
+}) {
   const t = useT();
   const id = useId();
   const tabs = useRef<HTMLDivElement>(null);
@@ -57,6 +59,9 @@ export function RoomInspector({ wall, wallNumber }: { wall?: WallSegment; wallNu
         </div>}
         <SelectedRoomCard />
       </> : <div className="p-4"><RoomSurfaces /></div>)}
+      {tool === key && key === 'dimensions' && onReference && <label className="flex min-h-11 cursor-pointer items-center gap-2 px-4 py-2 text-xs">
+        <input type="checkbox" checked={reference} onChange={(e) => onReference(e.target.checked)} />{t.room.cabinetReference}
+      </label>}
     </div>)}
   </>;
 }

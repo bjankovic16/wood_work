@@ -58,15 +58,20 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
    Returning to a saved project resumes it. To measure a different room, choose
    **Start fresh** in the desktop toolbar, in the phone's **⋯** menu, or in
    **Projects**. It opens a new empty kitchen; your previous kitchen stays in
-   **Projects**. To remeasure the *same* kitchen, choose **My room** instead.
+   **Projects**. To remeasure the *same* kitchen, choose **Room design** next to
+   **3D** (**Dizajn prostorije**; **Room / Prostorija** on a phone).
 2. Tap a wall **line** to face that wall, or tap its **number** to edit its
    measurement. The dropdown with the little floor plan lets you switch directly
    to any wall. In the wall view, choose **Add → Window** or **Door** and
    measure from the green start point. Add a chimney if needed. The
    selected object's measurements appear just below the room measurements.
    See [Measuring the room](#measuring-the-room) for diagonals and keyboard input.
-3. Use **3D preview** beside the plan on desktop, or switch between **2D**
-   and **3D** on a phone. The selected wall or object stays selected. Choose
+3. In Room design, choose **3D review / 3D pregled** to see just the room,
+   with dimension labels and a scrollable **Room measurements** list. It covers
+   floor area, ceiling height, every wall (including diagonals), openings,
+   fixed structures, partitions and wall finishes. On desktop, **3D preview**
+   also shows the room beside the drawing. The top-level **3D** tab always
+   shows the furnished kitchen in the same project. Choose
    **Continue to kitchen** to open the plan directly, or open **Ideas**
    to [try an idea in your room](#trying-an-idea-in-your-room). A measured
    empty project reopens on the plan; a new project still starts with measurements.
@@ -105,7 +110,8 @@ browsers, English otherwise. A language chosen manually is remembered.
   100 mm with Shift), or tap a wall's number to enter an exact measurement.
 - **Wall elevation:** tap the line or choose a numbered wall in **Drawing view**.
   The mini-plan marks which wall you're facing. The drawing shows its length,
-  height, openings and the outlines of cabinets set against it. Tap a perimeter
+  height and openings. In **Dimensions**, turn on **Show kitchen outlines for
+  reference** to see cabinets on the plan or against the current wall. Tap a perimeter
   wall's length or height to edit it. Use **Add → Window** or **Door**, then drag the opening with mouse or touch,
   or type its width, height and distance **from the marked start** to its
   near edge. A window also has a sill height (floor to bottom of frame);
@@ -241,8 +247,8 @@ or a cutting-list export for the workshop; the customer view is neither.
     the generated gallery images in `public/kitchens/` ship with the app. Pass
     preset IDs to render only changed previews, for example
     `npm run render:kitchens -- chimney-frame sage-oak-frame`.
-- **Wall and floor colours**: in **My room → Paint & tiles** (**Moja prostorija → Boje i pločice**)
-  or **3D → Style → Walls and floor**, pick a swatch or a
+- **Wall and floor colours**: in **Room design → Paint & tiles** (**Dizajn prostorije → Boje i pločice**),
+  pick a swatch or a
   custom colour for all painted walls, and another for the floor. Changes appear
   in 3D, persist with the project and support Undo. Backsplashes and wall cladding
   retain their own finishes; room colours do not change the cutting list.
@@ -386,10 +392,10 @@ or a cutting-list export for the workshop; the customer view is neither.
   position in 2D** and work in the wall elevation. Angled walls and either
   face of an interior partition are supported. These diagrams are not
   door-swing or glazing specifications.
-- On phones, **View / Prikaz** opens one bottom sheet in both **My room → 3D**
-  and the kitchen editor. Choose a camera, reset the view, change finishes under
-  **Style**, preview cabinets, try **Next kitchen**, or export the offline customer
-  HTML. In My room, Style starts with wall paint and floor tiles. Drag to orbit
+- On phones, **View / Prikaz** opens camera controls in both 3D workspaces.
+  In **Room → 3D review**, it also toggles dimension labels; the complete
+  measurement list stays below the scene. In kitchen **3D**, use **Style**,
+  preview cabinets, try **Next kitchen**, or export the offline customer HTML. Drag to orbit
   without moving objects; tap the scene to bring the bars back. The navigation
   tip disappears on a drag or after six seconds. Use **?** in View to see it again.
 - **Desktop 3D toolbar**: the toolbar above the viewport holds **Style**, **3D /

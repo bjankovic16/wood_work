@@ -278,7 +278,7 @@ export async function workspaceObjectChecks(page, touch = false, three = true) {
       await page.waitForFunction((id) => document.activeElement?.getAttribute('data-plan-feature') === id, f.id);
       await workspace.getByRole('button', { name: '3D preview' }).click();
     }
-    await page.getByRole('radio', { name: '3D', exact: true }).click();
+    await workspace.getByRole('radio', { name: '3D review', exact: true }).click();
     await assert3DIsReadOnly(page, f.id, 'feature', touch);
     assert.equal(await inspector.locator('input,select').count(), 0);
     assert.equal(await inspector.getByRole('button', { name: 'Chimney', exact: true }).count(), 0);
@@ -301,7 +301,9 @@ export async function workspaceObjectChecks(page, touch = false, three = true) {
   }
   assert.equal((await design(page)).openings[0].wallId, undefined, 'inspecting the legacy opening does not rewrite it');
   if (three) {
-    await page.getByRole('radio', { name: '3D', exact: true }).click();
+    await workspace.getByRole('radio', { name: '3D review', exact: true }).click();
+    assert.match(await workspace.locator('[data-measure="opening:legacy-door"]').innerText(), /From wall start: 1500 mm/);
+    assert.match(await workspace.locator('[data-measure="opening:legacy-window"]').innerText(), /From wall start: 2800 mm/);
     await assert3DIsReadOnly(page, 'legacy-door', 'opening', touch);
     await page.getByTestId('room-edit-position-2d').click();
     await elevation.waitFor();
@@ -329,6 +331,8 @@ export async function furnishedWallChecks(page, compact, output) {
   await workspace.getByRole('tab', { name: 'Boje i pločice' }).click();
   await workspace.getByRole('button', { name: 'Boja zidova: Maslina' }).click();
   await workspace.getByRole('tab', { name: 'Mere' }).click();
+  assert.equal(await plan.locator('[data-plan-cabinet]').count(), 0, 'The room drawing starts without kitchen outlines.');
+  await workspace.getByLabel('Prikaži obrise kuhinje kao orijentir').check();
   if (compact) await page.screenshot({ path: path.join(output, 'phone-floor-plan-sr.png') });
   await faceWall(page, plan, 'right', compact);
   assert.equal(await picker.inputValue(), 'right');

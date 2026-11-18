@@ -14,7 +14,6 @@ export function AdvancedRoomSettings() {
   const t = useT();
   const room = useDesignStore((s) => s.design.room);
   const selectedWallId = useUiStore((s) => s.selectedWallId);
-  const editing = useUiStore((s) => s.wallEditing);
   const [failed, setFailed] = useState(false);
   const frames = roomSegments(room);
   const outer = frames.filter((s) => !s.partitionId);
@@ -40,11 +39,9 @@ export function AdvancedRoomSettings() {
       <Button variant="outline" onClick={() => commit(() => actions.splitRoomWall(wall.id))}>{t.advancedRoom.split}</Button>
       <Button variant="outline" disabled={outer.length <= 3} onClick={() => commit(() => actions.removeRoomCorner(wall.id))}>{t.advancedRoom.remove}</Button>
     </div>
-    <Button active={editing} variant="outline" onClick={() => {
-      const ui = useUiStore.getState();
-      ui.setWallEditing(!editing);
-      ui.setView('plan');
-      ui.setRoomOpen(false);
+    <Button variant="outline" onClick={() => {
+      useUiStore.getState().openRoomPlan();
+      requestAnimationFrame(() => document.querySelector<SVGElement>('.room-corner-grip')?.focus({ preventScroll: true }));
     }}>{t.advancedRoom.edit}</Button>
     <details className="pt-3" open={room.partitions?.length ? true : undefined}>
       <summary className="cursor-pointer rounded text-xs font-medium text-stone-700">{t.advancedRoom.partitions}</summary>

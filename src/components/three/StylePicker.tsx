@@ -2,14 +2,12 @@ import { Shuffle } from 'lucide-react';
 import { useRef } from 'react';
 import { applyKitchenLook, KITCHEN_LOOK_PRESETS, type KitchenPreset } from '../../domain/kitchens';
 import { randomSeed, shuffled } from '../../domain/shuffle';
-import { APPLIANCE_FINISHES, BACKSPLASH_FINISHES, FRONT_FINISHES, HANDLE_STYLES, JOINERY_FINISHES, WORKTOP_FINISHES, type Finish, type FrontFinish } from '../../domain/style';
+import { APPLIANCE_FINISHES, BACKSPLASH_FINISHES, FRONT_FINISHES, HANDLE_STYLES, WORKTOP_FINISHES, type Finish } from '../../domain/style';
 import { useT } from '../../i18n';
 import { cn } from '../../lib/cn';
 import { setStyle } from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
 import { Button } from '../ui';
-import { SelectField } from '../properties/NumberField';
-import { RoomSurfaces } from '../room/RoomSurfaces';
 
 function swatchBackground(finish: Finish): string {
   if (finish.texture === 'granite') return `radial-gradient(#9b9490 0.7px, transparent 1px) 0 0 / 4px 5px, ${finish.color}`;
@@ -62,11 +60,9 @@ function Swatches<K extends string>({
 }
 
 /** Fronts, worktop and handles for the whole kitchen, as shown in 3D. */
-export function StylePicker({ roomFirst = false }: { roomFirst?: boolean }) {
+export function StylePicker() {
   const t = useT();
   const style = useDesignStore((s) => s.design.style);
-  const joineryOptions = [{ value: '' as const, label: t.style.defaultFinish },
-    ...(Object.keys(FRONT_FINISHES) as FrontFinish[]).map((value) => ({ value, label: t.style.frontFinishes[value] }))];
   // Looks are dealt from a shuffled pack, so none repeats until all have been seen.
   const pack = useRef<KitchenPreset[]>([]);
   const shuffleLook = () => useDesignStore.getState().apply((design) => {
@@ -79,7 +75,6 @@ export function StylePicker({ roomFirst = false }: { roomFirst?: boolean }) {
   });
   return (
     <div className="space-y-4">
-      {roomFirst && <RoomSurfaces />}
       <div>
         <Button variant="outline" className="h-10 w-full" title={t.style.shuffleTitle} onClick={shuffleLook}>
           <Shuffle className="size-4" />{t.style.shuffle}
@@ -132,12 +127,6 @@ export function StylePicker({ roomFirst = false }: { roomFirst?: boolean }) {
         value={style.backsplash ?? 'none'}
         onChange={(backsplash) => setStyle({ backsplash })}
       />
-      <div className="space-y-2 border-t border-zinc-100 pt-3">
-        <h3 className="text-sm font-semibold text-zinc-800">{t.style.joinery}</h3>
-        {JOINERY_FINISHES.map((key) => <SelectField<FrontFinish | ''> key={key} label={t.style[key]}
-          value={style[key] ?? ''} options={joineryOptions} onChange={(value) => setStyle({ [key]: value || undefined })} />)}
-      </div>
-      {!roomFirst && <div className="border-t border-zinc-100 pt-3"><RoomSurfaces /></div>}
       <div className="space-y-3 border-t border-zinc-100 pt-3">
         <label className="flex cursor-pointer items-start gap-2 text-xs leading-relaxed text-zinc-700">
           <input type="checkbox" className="mt-0.5 size-4 accent-blue-600" checked={style.decor ?? false} onChange={(event) => setStyle({ decor: event.target.checked })} />

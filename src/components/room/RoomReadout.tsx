@@ -1,6 +1,8 @@
 import { roomFeaturePose } from '../../domain/roomGeometry';
+import type { RoomObjectSelection } from '../../domain/roomObjectPlacement';
+import type { Opening, Room } from '../../domain/types';
 import { openingFrame, openingOnWall, roomSegments, wallPoint } from '../../domain/walls';
-import { useT } from '../../i18n';
+import { useT, type Messages } from '../../i18n';
 import { useDesignStore } from '../../store/designStore';
 import { useUiStore } from '../../store/uiStore';
 
@@ -8,10 +10,13 @@ export function useRoomReadout() {
   const t = useT();
   const selection = useUiStore((s) => s.roomSelection);
   const { room, openings } = useDesignStore((s) => s.design);
-  if (!selection) return null;
+  return selection && roomObjectReadout(room, openings, selection, t);
+}
+
+export function roomObjectReadout(room: Room, openings: Opening[], selection: RoomObjectSelection, t: Messages) {
   const segments = roomSegments(room);
   const mm = (value: number) => `${t.number(Math.round(value))} mm`;
-  if (selection?.type === 'opening') {
+  if (selection.type === 'opening') {
     const o = openings.find((o) => o.id === selection.id);
     if (!o) return null;
     const frame = openingFrame(room, o);
@@ -20,12 +25,14 @@ export function useRoomReadout() {
     return {
       name: `${t.room.opening(o.kind)} ${openings.filter((entry) => entry.kind === o.kind).indexOf(o) + 1}`,
       centre: wallPoint(frame, o.offset + o.width / 2), elevation: o.sill + o.height / 2, wallId: binding?.segment.id,
-      lines: [`${o.width} × ${o.height} mm`, ...(binding ? [`${t.advancedRoom.wall(segments.findIndex((s) => s.id === binding.segment.id) + 1)} · ${t.advancedRoom.offset}: ${mm(binding.offset)}`] : []),
+      lines: [`${o.width} × ${o.height} mm`, binding
+        ? `${t.advancedRoom.wall(segments.findIndex((s) => s.id === binding.segment.id) + 1)} · ${t.advancedRoom.offset}: ${mm(binding.offset)}`
+        : `${t.walls[o.wall]} · ${o.wall === 'top' || o.wall === 'bottom' ? t.item.fromLeftWall : t.item.fromTopWall}: ${mm(o.offset)}`,
         `${o.kind === 'window' ? t.room.sill : t.item.heightFromFloor}: ${mm(o.sill)}`],
     };
   }
 
-  const f = selection?.type === 'feature' && room.features?.find((f) => f.id === selection.id);
+  const f = room.features?.find((f) => f.id === selection.id);
   if (!f) return null;
   return {
     name: `${t.engine.roomFeatures[f.kind]} ${room.features!.indexOf(f) + 1}`,

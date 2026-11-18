@@ -41,7 +41,7 @@ export async function startFreshChecks(browser, url) {
   await width.press('Enter');
   await room.getByTestId('room-done').click();
   await desktop.locator('[data-preset="base-600"]').click();
-  await button(bar, 'My room').click();
+  await bar.getByRole('radio', { name: 'Room design' }).click();
   await button(room, '3D preview').click();
   await room.getByTestId('room-3d').waitFor();
   await room.getByRole('tab', { name: 'Paint & tiles' }).click();

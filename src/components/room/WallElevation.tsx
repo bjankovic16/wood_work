@@ -15,7 +15,7 @@ import { useDrawingSize } from './useDrawingSize';
 const steps: Partial<Record<string, [number, number]>> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] };
 const snapGrid = () => { const ui = useUiStore.getState(); return ui.snapEnabled ? ui.gridSize : 0; };
 
-export function WallElevation({ wall, number }: { wall: WallSegment; number: number }) {
+export function WallElevation({ wall, number, reference }: { wall: WallSegment; number: number; reference: boolean }) {
   const t = useT();
   const { room, openings, style } = useDesignStore((s) => s.design);
   const selection = useUiStore((s) => s.roomSelection);
@@ -30,7 +30,7 @@ export function WallElevation({ wall, number }: { wall: WallSegment; number: num
   return <section data-testid="wall-elevation" aria-label={`${t.room.elevation}: ${t.advancedRoom.wall(number)}`} className="room-elevation-paper flex min-h-0 min-w-0 flex-1 flex-col">
     <div ref={size.ref} className="relative min-h-0 flex-1">
       <svg className="absolute inset-0 h-full w-full touch-none" aria-label={t.room.elevation} viewBox={`${-left * px} ${-top * px} ${size.width * px} ${size.height * px}`}>
-        <ElevationBackdrop wall={wall} height={height} px={px} />
+        <ElevationBackdrop wall={wall} height={height} px={px} reference={reference} />
         <ElevationRuler x={wall.length / 2} y={height - wall.height - 19 * px} length={wall.length} px={px}
           label={t.advancedRoom.length} edit={wall.partitionId ? undefined : () => setMeasure('length')} />
         <ElevationRuler x={-23 * px} y={height - wall.height / 2} vertical length={wall.height} px={px}

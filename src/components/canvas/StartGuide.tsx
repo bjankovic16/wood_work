@@ -16,7 +16,7 @@ export function StartGuide({ compact, isEmpty }: { compact: boolean; isEmpty: bo
       <div className="space-y-4 p-4 text-sm">
         <p>{hint}</p>
         <Button variant="primary" onClick={() => setWelcome(false)}>{t.canvas.dismissStart}</Button>
-        <Button variant="outline" onClick={() => useUiStore.getState().setRoomOpen(true)}>{t.canvas.startWithRoom}</Button>
+        <Button variant="outline" onClick={useUiStore.getState().openRoomPlan}>{t.canvas.startWithRoom}</Button>
       </div>
     </Dialog>
   </>;

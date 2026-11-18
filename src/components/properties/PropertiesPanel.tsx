@@ -28,7 +28,7 @@ export function PropertiesPanel() {
       ) : (
         <>
           <div className="border-b border-studio-line bg-[#f6f3ec] px-4 py-5">
-            <div className="text-sm font-semibold text-zinc-900">{t.item.room}</div>
+            <div className="text-sm font-semibold text-zinc-900">{t.room.elements}</div>
             <div className="mt-1 text-xs leading-relaxed text-studio-muted">{view === '3d' ? t.item.roomHint3d : t.item.roomHint}</div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">

@@ -17,7 +17,6 @@ function openIssue(issue: Issue) {
   const item = items.find((i) => i.id === issue.itemIds[0]);
   // A collision with a room object is still a cabinet issue: show the cabinet first.
   if (item) {
-    if (ui.wallEditing) ui.setWallEditing(false);
     editCabinetPositionInPlan(item.id);
     requestAnimationFrame(() => {
       if (useUiStore.getState().selectedId === item.id) revealPlanRect(itemRect(item));

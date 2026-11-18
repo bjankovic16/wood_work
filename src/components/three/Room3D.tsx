@@ -40,8 +40,8 @@ function cutawayData(frame: WallSegment) {
   return frame.partitionId ? undefined : { cutaway: [m((frame.start.x + frame.end.x) / 2), m((frame.start.y + frame.end.y) / 2), frame.inward.x, frame.inward.y] };
 }
 
-export function Room3D({ room, openings, items, materials, selection, onSelect, selectedWallId, onWallSelect, exportModel = false, studio = false }: {
-  room: Room; openings: Opening[]; items: KitchenItem[]; materials: KitchenMaterials;
+export function Room3D({ room, openings, items = [], materials, selection, onSelect, selectedWallId, onWallSelect, exportModel = false, studio = false }: {
+  room: Room; openings: Opening[]; items?: KitchenItem[]; materials: KitchenMaterials;
   selection?: RoomObjectSelection | null; onSelect?: (selection: RoomObjectSelection) => void;
   selectedWallId?: string | null; onWallSelect?: (id: string) => void;
   exportModel?: boolean; studio?: boolean;

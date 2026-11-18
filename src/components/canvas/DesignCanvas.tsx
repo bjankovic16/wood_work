@@ -34,7 +34,6 @@ import { Clearances, Ghost, Guides, IssueOutlines, Selection, WallDimensions } f
 import { RoomPickTargets, RoomShape } from './RoomShape';
 import { KitchenPlanRoomReadout } from '../room/RoomReadout';
 import { StartGuide } from './StartGuide';
-import { WallCorners } from './WallCorners';
 
 /** Pointer travel (px) before a press turns into a drag; fingers wobble more than mice. */
 const DRAG_START_PX = { mouse: 3, touch: 8 };
@@ -100,8 +99,6 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
   const [fontVersion, setFontVersion] = useState(0);
 
   const room = useDesignStore((s) => s.design.room);
-  const wallEditing = useUiStore((s) => s.wallEditing);
-  const t = useT();
   const items = useDesignStore((s) => s.design.items);
   const zoom = useUiStore((s) => s.zoom);
   const pan = useUiStore((s) => s.pan);
@@ -461,7 +458,7 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
           <Layer name="plan-room" listening={false}>
             <PlanRoom key={fontVersion} room={room} zoom={zoom} openings={openings} />
           </Layer>
-          <Layer listening={!wallEditing}>
+          <Layer>
             <PlanRoomTargets room={room} openings={openings} px={px} />
             {ordered.map((item) => (
               <ItemShape
@@ -493,16 +490,11 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
               />
             )}
           </Layer>
-          {wallEditing && <Layer><WallCorners px={px} /></Layer>}
         </Stage>
       )}
-      <PlanControls zoom={zoom} viewFilter={viewFilter} isEmpty={items.length === 0 && !wallEditing} compact={compact}
+      <PlanControls zoom={zoom} viewFilter={viewFilter} isEmpty={items.length === 0} compact={compact}
         rows={rows} row={row} manualRow={manualRow} requestFit={requestFit} />
       <KitchenPlanRoomReadout />
-      {wallEditing && <div className="absolute inset-x-3 top-3 flex items-center justify-between gap-2 rounded-xl border border-stone-200 bg-white/95 p-3 text-xs text-stone-700 shadow-sm">
-        <span>{t.advancedRoom.editing}</span>
-        <Button onClick={() => useUiStore.getState().setWallEditing(false)}>{t.common.done}</Button>
-      </div>}
     </div>
   );
 }

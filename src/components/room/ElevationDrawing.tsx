@@ -27,7 +27,7 @@ export function ElevationRuler({ x, y, vertical = false, length, px, label, edit
   </g>;
 }
 
-export function ElevationBackdrop({ wall, height, px }: { wall: WallSegment; height: number; px: number }) {
+export function ElevationBackdrop({ wall, height, px, reference }: { wall: WallSegment; height: number; px: number; reference: boolean }) {
   const design = useDesignStore((s) => s.design);
   const { room, style, items } = design;
   const ctx = buildContext(design);
@@ -46,7 +46,7 @@ export function ElevationBackdrop({ wall, height, px }: { wall: WallSegment; hei
     <rect y={top} width={w} height={wall.height} fill={`url(#${id}-grid)`} stroke="#68796f" strokeWidth={px} />
     {room.treatments?.filter((t) => t.wallId === wall.id).map((t) => <rect key={t.id} x={t.offset} y={height - t.elevation - t.height}
       width={t.width} height={t.height} fill={{ ...WORKTOP_FINISHES, ...FRONT_FINISHES }[t.finish].color} stroke="#806e59" strokeWidth={px} />)}
-    {items.map((item) => {
+    {reference && items.map((item) => {
       const span = mountedSpan(item, wall);
       if (!span) return null;
       const width = span[1] - span[0], y = height - item.elevation - item.height;

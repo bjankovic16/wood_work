@@ -1,10 +1,10 @@
 import { ArrowRight, Box, CircleDot, Images, MousePointer2, Scaling } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { polygonArea } from '../../domain/polygons';
 import { roomOutline } from '../../domain/roomGeometry';
 import { useT } from '../../i18n';
 import { useUiStore } from '../../store/uiStore';
-import { RoomSettings } from '../properties/RoomPanel';
+import { roomMeasurements } from './roomMeasurements';
 import { View3D } from '../three/View3D';
 import { Button, Segmented } from '../ui';
 import { RoomPlan } from './RoomPlan';
@@ -26,37 +26,44 @@ function ProjectRoom({ compact }: { compact: boolean }) {
   const wallId = useUiStore((s) => s.selectedWallId);
   const elevation = useUiStore((s) => s.roomElevationOpen);
   const room = useDesignStore((s) => s.design.room);
+  const openings = useDesignStore((s) => s.design.openings);
+  const furnished = useDesignStore((s) => s.design.items.length > 0);
   const segments = roomSegments(room);
   const wall = segments.find((s) => s.id === wallId);
   const facing = elevation ? wall : undefined;
   const viewPicker = useRef<HTMLSelectElement>(null);
   const ui = useUiStore.getState();
   const [preview, setPreview] = useState(false);
+  const [reference, setReference] = useState(false);
+  const reviewing = view === '3d';
+  const rows = useMemo(() => reviewing || preview ? roomMeasurements(room, openings, t) : [], [reviewing, preview, room, openings, t]);
   const area = t.number(Math.round(polygonArea(roomOutline(room)) / 10000) / 100);
   const showDrawing = (id: string) => {
     if (id) ui.setSelectedWallId(id);
     ui.setRoomElevationOpen(!!id);
   };
   const actions = <>
-    {compact && <Button variant="outline" data-testid="room-ideas" onClick={() => ui.setLayoutsOpen(true)}>
-      <Images className="size-4" />{t.layouts.title}
+    {compact && <Button variant="outline" data-testid="room-ideas" aria-label={t.layouts.title} title={t.layouts.title} onClick={() => ui.setLayoutsOpen(true)}>
+      <Images className="size-4" /><span className="max-[459px]:hidden">{t.layouts.title}</span>
     </Button>}
-    <Button variant="primary" data-testid="room-done" onClick={finishRoom}>{t.room.continue}<ArrowRight className="size-4" /></Button>
+    <Button variant="primary" data-testid="room-done" aria-label={t.room.continue} onClick={finishRoom}>
+      <span className="max-[459px]:hidden">{t.room.continue}</span><span className="min-[460px]:hidden">{t.room.kitchenShort}</span><ArrowRight className="size-4" />
+    </Button>
   </>;
-  return <main data-testid="room-workspace" aria-label={t.room.setupTitle} className="flex h-full min-h-0 flex-1 flex-col bg-studio-canvas">
-    <header className="room-heading">
-      <div className="mr-auto min-w-0">
-        <div className="flex items-center gap-3">
-          <h1>{t.room.setupTitle}</h1>
-          <span className="room-area" title={t.room.area} aria-label={`${t.room.area}: ${area} m²`}><Scaling size={13} aria-hidden="true" />{area} m²</span>
-        </div>
-      </div>
-      {compact && <Segmented<'plan' | '3d'> ariaLabel={t.topBar.view} size="sm" value={view === '3d' ? '3d' : 'plan'}
-        options={[{ value: 'plan', label: '2D', title: t.room.plan }, { value: '3d', label: t.topBar.view3d }]}
-        onChange={(v) => ui.setRoomView(v)} />}
+  const title = <div className="mr-auto flex min-w-0 items-center gap-2">
+    <h1>{t.room.setupTitle}</h1>
+    <span className="room-area" title={t.room.area} aria-label={`${t.room.area}: ${area} m²`}><Scaling size={13} aria-hidden="true" />{area} m²</span>
+  </div>;
+  const views = <Segmented<'plan' | '3d'> ariaLabel={t.room.view} size="sm" value={reviewing ? '3d' : 'plan'}
+        options={[{ value: 'plan', label: '2D', title: t.room.plan }, { value: '3d', label: t.room.review }]}
+        onChange={(v) => { setPreview(false); ui.setRoomView(v); }} />;
+  const heading = <header className="room-heading">
+      {title}{views}
       {!compact && view === 'plan' && <Button variant="outline" active={preview} onClick={() => setPreview(!preview)}><Box className="size-4" />{t.room.preview}</Button>}
       {!compact && actions}
-    </header>
+    </header>;
+  return <main data-testid="room-workspace" aria-label={t.room.tab} className="flex h-full min-h-0 flex-1 flex-col bg-studio-canvas">
+    {!compact && heading}
     <div className="room-work-area" data-view={view}>
       <div className="room-drawing-area">
         {view === 'plan' && <div className="room-drawing-pane">
@@ -65,19 +72,35 @@ function ProjectRoom({ compact }: { compact: boolean }) {
               showDrawing('');
               if (facing) requestAnimationFrame(() => document.querySelector<SVGElement>(`[data-wall-id="${CSS.escape(facing.id)}"]`)?.focus({ preventScroll: true }));
             }} />
-          {facing ? <WallElevation key={facing.id} wall={facing} number={segments.indexOf(facing) + 1} />
-            : <RoomPlan onFaceWall={(id, keyboard) => { showDrawing(id); if (keyboard) viewPicker.current?.focus({ preventScroll: true }); }} />}
-          <p className="room-drawing-hint">{facing ? <><CircleDot size={13} />{t.room.originHint}</> : <><MousePointer2 size={13} />{t.room.measureHint}</>}</p>
+          {facing ? <WallElevation key={facing.id} wall={facing} number={segments.indexOf(facing) + 1} reference={reference} />
+            : <RoomPlan reference={reference} onFaceWall={(id, keyboard) => { showDrawing(id); if (keyboard) viewPicker.current?.focus({ preventScroll: true }); }} />}
+          {compact ? <header className="room-plan-caption">{title}<p>{facing ? t.room.originHint : t.room.cornerHintShort}</p></header>
+            : <p className="room-drawing-hint">{facing ? <><CircleDot size={13} />{t.room.originHint}</> : <><MousePointer2 size={13} />{t.room.measureHint}</>}</p>}
         </div>}
         {(view === '3d' || !compact && preview) && <div className="min-w-0 flex-1 border-studio-line lg:border-l" data-testid="room-3d" data-room-3d="" tabIndex={-1}
           onPointerDownCapture={(e) => { if (e.target instanceof HTMLCanvasElement) e.currentTarget.focus({ preventScroll: true }); }}>
-          <View3D compact={compact || view === 'plan'} roomPreview={view === 'plan'} />
+          <View3D rows={rows} split={view === 'plan'} />
         </div>}
       </div>
       <aside data-testid="room-inspector" className="room-inspector studio-panel">
-        {view === 'plan' ? <RoomInspector wall={facing} wallNumber={wall ? segments.indexOf(wall) + 1 : 0} /> : <RoomSettings />}
+        {view === 'plan' ? <RoomInspector wall={facing} wallNumber={wall ? segments.indexOf(wall) + 1 : 0}
+          reference={reference} onReference={furnished ? setReference : undefined} /> : <>
+          {compact && heading}
+          <section aria-label={t.room.measurements} data-testid="room-measurements" className="min-h-0 overflow-y-auto p-4">
+            <h2 className="text-sm font-semibold">{t.room.measurements}</h2>
+            <p className="pt-1 text-xs text-studio-muted">{t.room.reviewHint}</p>
+            {wall && <Button variant="outline" className="mt-2" onClick={() => {
+              ui.setRoomView('plan'); showDrawing(wall.id);
+              requestAnimationFrame(() => viewPicker.current?.focus({ preventScroll: true }));
+            }}>{t.advancedRoom.wall(segments.indexOf(wall) + 1)} · {t.room.editIn2D}</Button>}
+            <dl className="mt-2 divide-y divide-studio-line text-sm">{rows.map((row) =>
+              <div key={row.id} data-measure={row.id} className="py-2">
+                <dt className="font-semibold">{row.name}</dt><dd>{row.value}{row.details && <small className="block text-studio-muted">{row.details}</small>}</dd>
+              </div>)}</dl>
+          </section>
+        </>}
       </aside>
     </div>
-    {compact && <div className="room-footer">{actions}</div>}
+    {compact && !reviewing && <div className="room-footer">{views}{actions}</div>}
   </main>;
 }

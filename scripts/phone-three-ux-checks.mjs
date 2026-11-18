@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { open3DTools, waitForIdleRendering } from './three-test-helpers.mjs';
+import { close3DTools, open3DTools, waitForIdleRendering } from './three-test-helpers.mjs';
 
 const ready = (page) => page.waitForFunction(() => window.__kitchen3D?.scene.getObjectByName('room-floor'));
 const state = (page) => page.evaluate(() => {
@@ -112,9 +112,9 @@ export async function checkPhoneThreeUX(browser, url) {
       if (mode === 'room') {
         let release;
         const gate = new Promise((resolve) => { release = resolve; });
-        await page.route('**/src/components/three/Kitchen3D.tsx*', async (route) => { await gate; await route.continue(); });
+        await page.route('**/src/components/three/RoomReview3D.tsx*', async (route) => { await gate; await route.continue(); });
         try {
-          await page.getByRole('radio', { name: '3D', exact: true }).tap();
+          await page.getByRole('radio', { name: '3D review', exact: true }).tap();
           await page.getByRole('button', { name: 'View', exact: true }).tap();
           assert.equal(await page.evaluate(() => Boolean(window.__kitchen3D)), false, 'This tap deliberately precedes the lazy scene mount.');
         } finally { release(); }
@@ -137,7 +137,8 @@ export async function checkPhoneThreeUX(browser, url) {
       }
       await checkOrbit(page);
       await page.reload();
-      await page.getByRole('radio', { name: '3D', exact: true }).tap();
+      if (mode === 'room') await page.getByRole('radio', { name: 'Room design', exact: true }).tap();
+      await page.getByRole('radio', { name: mode === 'room' ? '3D review' : '3D', exact: true }).tap();
       await ready(page);
       assert.equal(await tip.count(), 0, 'Reloading must not resurrect the first-visit tip.');
       await open3DTools(page);
@@ -147,15 +148,16 @@ export async function checkPhoneThreeUX(browser, url) {
       const frame = await page.evaluate(() => window.__kitchen3D.renderer.info.render.frame);
       await page.waitForTimeout(350);
       assert.equal(await page.evaluate(() => window.__kitchen3D.renderer.info.render.frame), frame, 'Showing help must not animate the renderer.');
-      if (mode === 'editor') await checkHistory(page);
-      else {
+      if (mode === 'editor') {
         const before = await state(page);
         await open3DTools(page);
         const [file] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }), page.getByTestId('customer-export').tap()]);
         assert.match(file.suggestedFilename(), /\.html$/);
         assert.equal(await file.failure(), null);
         assert.deepEqual(await state(page), before, 'Exporting the offline view must not change the design or history.');
-      }
+        await close3DTools(page);
+        await checkHistory(page);
+      } else assert.equal(await page.getByTestId('customer-export').count(), 0);
     } finally { await context.close(); }
   }
 }

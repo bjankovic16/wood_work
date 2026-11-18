@@ -134,7 +134,6 @@ function show(id: string, design: Design): void {
   ui.setWallElevation(null);
   ui.setLibraryDrag(null);
   ui.setSelectedWallId(null);
-  ui.setWallEditing(false);
   if (needsRoomSetup(id, design)) ui.setRoomOpen(true);
   else if (!design.items.length) ui.setView('plan');
   else ui.setRoomOpen(false);

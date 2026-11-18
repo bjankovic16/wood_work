@@ -4,6 +4,7 @@ import { LANGUAGE_LABEL, LANGUAGES, useT, type Language } from '../../i18n';
 import { cn } from '../../lib/cn';
 import { redo, setProjectName } from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
+import { finishRoom } from '../../store/projects';
 import { GRID_SIZES, useUiStore, type MainView } from '../../store/uiStore';
 import { ChecksButton } from '../checks/ChecksButton';
 import { StartFreshButton } from '../projects/StartFreshButton';
@@ -59,21 +60,23 @@ function Logo() {
 function ViewTabs({ compact }: { compact: boolean }) {
   const t = useT();
   const view = useUiStore((s) => s.view);
-  const planLabel = useUiStore((s) => s.roomOpen) ? '2D' : t.topBar.plan;
+  const roomOpen = useUiStore((s) => s.roomOpen);
   return (
-    <Segmented<MainView>
-      ariaLabel={t.topBar.view}
+    <Segmented<MainView | 'room'>
+      ariaLabel={t.topBar.workspace}
       size={compact ? 'md' : 'sm'}
-      value={view}
+      value={roomOpen ? 'room' : view}
       onChange={(v) => {
         const ui = useUiStore.getState();
-        if (ui.roomOpen && v !== 'list') ui.setRoomView(v);
-        else ui.setView(v);
+        if (v === 'room') { ui.openRoomPlan(); return; }
+        if (ui.roomOpen) finishRoom();
+        ui.setView(v);
       }}
-      className={compact ? 'min-w-0 flex-1 max-[380px]:[&_svg]:hidden' : 'max-2xl:[&_svg]:hidden 2xl:w-64'}
+      className={compact ? 'min-w-0 flex-1 [&_button]:h-11 [&_button]:px-1.5 [&_svg]:hidden' : 'max-2xl:[&_svg]:hidden max-xl:[&_button]:px-1.5'}
       options={[
-        { value: 'plan', label: <><LayoutGrid className="size-3.5" /><span>{planLabel}</span></>, ariaLabel: planLabel, title: t.topBar.planTitle },
+        { value: 'plan', label: <><LayoutGrid className="size-3.5" /><span>{t.topBar.plan}</span></>, ariaLabel: t.topBar.plan, title: t.topBar.planTitle },
         { value: '3d', label: <><Box className="size-3.5" /><span>{t.topBar.view3d}</span></>, ariaLabel: t.topBar.view3d, title: t.topBar.view3dTitle },
+        { value: 'room', label: <><RulerDimensionLine className="size-3.5" /><span>{compact ? t.room.tabShort : t.room.tab}</span></>, ariaLabel: t.room.tab, title: t.room.tabHint },
         { value: 'list', label: <><List className="size-3.5" /><span>{compact ? t.topBar.listShort : t.topBar.list}</span></>, ariaLabel: t.topBar.list, title: t.topBar.listTitle },
       ]}
     />
@@ -179,7 +182,6 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
                 {t.topBar.projects}
               </Button>
               <StartFreshButton placement="menu" />
-              {roomOpen && <Button className="w-full justify-start" data-close-menu onClick={() => ui.setView('list')}><List className="size-4" />{t.topBar.list}</Button>}
               {view !== '3d' && <details>
                 <summary className="cursor-pointer rounded-lg px-2 py-3 text-[13px] font-medium text-studio-muted">{t.topBar.view}</summary>
                 <ViewOptions />
@@ -205,27 +207,21 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
           </div>
         </Menu>
         </div>
-        {!roomOpen && <div className="flex items-center gap-1 px-2 pb-2">
-          <Button variant="outline" aria-label={t.room.setupTitle} title={t.room.setupTitle} onClick={() => ui.setRoomOpen(true)}>
-            <RulerDimensionLine className="size-4" /><span className="hidden min-[430px]:inline">{t.room.setupTitle}</span>
-          </Button>
+        <div className="flex items-center gap-1 px-2 pb-1">
           <ViewTabs compact />
-          <ChecksButton compact />
-        </div>}
+          {!roomOpen && <ChecksButton compact />}
+        </div>
       </header>
     );
   }
 
   return (
-    <header className="studio-panel z-20 flex h-16 shrink-0 items-center gap-1 border-b px-2 shadow-[0_1px_8px_#332f2805] xl:px-4 [&>button]:shrink-0 [&>button]:whitespace-nowrap print:hidden">
+    <header className="studio-panel z-20 flex h-16 shrink-0 items-center gap-px border-b px-1 shadow-[0_1px_8px_#332f2805] xl:gap-1 xl:px-4 [&>button]:shrink-0 [&>button]:whitespace-nowrap max-xl:[&>button]:px-2 print:hidden">
       <div className="hidden items-center gap-2 xl:flex">
         <Logo />
         <span className="hidden whitespace-nowrap text-[13px] font-semibold text-zinc-900 2xl:inline">{t.appName}</span>
         <Divider />
       </div>
-      <Button active={roomOpen} aria-label={t.room.setupTitle} title={t.room.setupTitle} onClick={() => ui.setRoomOpen(true)}>
-        <RulerDimensionLine className="size-4" /><span className="hidden xl:inline">{t.room.setupTitle}</span>
-      </Button>
       <Button title={t.topBar.projectsTitle} onClick={() => ui.setProjectsOpen(true)}>
         <FolderOpen className="hidden size-4 xl:block" />
         {t.topBar.projects}

@@ -15,7 +15,6 @@ import { NumberField, SelectField } from './NumberField';
 import { RoomFeatureFields, RoomStructureSettings } from './RoomStructureSettings';
 import { AdvancedRoomSettings } from './AdvancedRoomSettings';
 import { openingOnWall, roomSegments } from '../../domain/walls';
-import { WallMeasurements } from '../room/WallMeasures';
 import { editRoomPositionIn2D, RoomReadout, useRoomReadout } from '../room/RoomReadout';
 
 function Stat({ label, value }: { label: string; value: number }) {
@@ -216,39 +215,11 @@ export function AdvancedRoomSection({ children }: { children?: ReactNode }) {
   </details>;
 }
 
-export function RoomSettings({ children }: { children?: ReactNode }) {
-  const t = useT();
-  const room = useDesignStore((s) => s.design.room);
-  const view = useUiStore((s) => s.view);
-  const selectedWallId = useUiStore((s) => s.selectedWallId);
-  const data = useRoomReadout();
-  if (view === '3d') {
-    const segments = roomSegments(room);
-    const wall = segments.find((s) => s.id === selectedWallId);
-    return <>
-      <PanelSection title={t.room.roomSize}><p className="text-sm">{room.width} × {room.depth} × {room.height} mm</p></PanelSection>
-      {data ? <PanelSection title={data.name}><RoomReadout data={data} testId="selected-room-card" /></PanelSection>
-        : <PanelSection title={wall ? t.advancedRoom.wall(segments.indexOf(wall) + 1) : t.room.setupTitle}>
-          {wall && <p className="text-xs">{t.advancedRoom.length}: {Math.round(wall.length)} mm · {t.advancedRoom.angle}: {t.number(Math.round(wall.angle * 10) / 10)}°</p>}
-          <Button variant="outline" onClick={editRoomPositionIn2D}>{t.room.editIn2D}</Button>
-        </PanelSection>}
-    </>;
-  }
-  return (
-    <>
-      <RoomDimensions />
-      <SelectedRoomCard />
-      <WallMeasurements />
-      <RoomObjectsSection />
-      <AdvancedRoomSection>{children}</AdvancedRoomSection>
-    </>
-  );
-}
-
-/** Room size, windows and doors, a summary of the elements, and help. */
 export function RoomPanel({ touch = false }: { touch?: boolean }) {
   const t = useT();
   const items = useDesignStore((s) => s.design.items);
+  const room = useDesignStore((s) => s.design.room);
+  const data = useRoomReadout();
   const wallUnits = items.filter(isWallMounted).length;
   const [confirming, setConfirming] = useState(false);
   const compact = useIsCompact();
@@ -256,8 +227,13 @@ export function RoomPanel({ touch = false }: { touch?: boolean }) {
 
   return (
     <>
-      <RoomSettings>
-
+      <PanelSection title={t.room.roomSize}>
+        <p className="text-sm">{room.width} × {room.depth} × {room.height} mm</p>
+        {data && <RoomReadout data={data} testId="selected-room-card" />}
+        <Button variant="outline" onClick={data ? editRoomPositionIn2D : useUiStore.getState().openRoomPlan}>
+          {data ? t.room.editIn2D : t.room.tab}
+        </Button>
+      </PanelSection>
       <PanelSection title={t.room.elements}>
         <div className="grid grid-cols-2 gap-2">
           <Stat label={t.room.floorUnits} value={items.length - wallUnits} />
@@ -318,7 +294,6 @@ export function RoomPanel({ touch = false }: { touch?: boolean }) {
           </div>
         )}
       </PanelSection>
-      </RoomSettings>
     </>
   );
 }

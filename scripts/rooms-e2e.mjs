@@ -79,11 +79,8 @@ async function advancedRoomChecks(page) {
   });
   await openAdvancedRoom(page);
   await page.getByRole('button', { name: 'Edit wall corners on plan', exact: true }).click();
-  const corner = await page.evaluate(() => {
-    const box = document.querySelector('.konvajs-content').getBoundingClientRect();
-    const { zoom, pan } = window.__kitchen.ui.getState();
-    return { x: box.x + pan.x + 4000 * zoom, y: box.y + pan.y + 3000 * zoom, zoom };
-  });
+  const grip = page.getByRole('button', { name: 'Move corner 3', exact: true });
+  const corner = await cornerPoint(grip);
   const history = await page.evaluate(() => window.__kitchen.design.getState().past.length);
   await page.mouse.move(corner.x, corner.y);
   await page.mouse.down();
@@ -98,7 +95,7 @@ async function advancedRoomChecks(page) {
   assert.equal((await design(page)).room.vertices, undefined);
   await page.getByRole('button', { name: 'Redo', exact: true }).click();
   assert.deepEqual((await design(page)).room, edited.room);
-  const movedCorner = { x: corner.x - 350 * corner.zoom, y: corner.y - 150 * corner.zoom };
+  const movedCorner = await cornerPoint(grip);
   await page.mouse.move(movedCorner.x, movedCorner.y);
   await page.mouse.down();
   await page.mouse.move(movedCorner.x - 30, movedCorner.y - 20, { steps: 6 });
@@ -128,7 +125,7 @@ async function advancedRoomChecks(page) {
   await page.getByTestId('room-plan').waitFor();
   assert.deepEqual(await design(page), finished);
   await page.getByRole('radio', { name: '3D', exact: true }).click();
-  await ready3D(page);
+  await page.waitForFunction(() => window.__kitchen3D?.scene.getObjectByName('room-floor'));
   await page.waitForFunction(() => {
     let found = false;
     window.__kitchen3D.scene.traverse((node) => { if (node.name.startsWith('wall-finish-')) found = true; });
@@ -147,7 +144,15 @@ async function ready3D(page) {
 
 async function openAdvancedRoom(root) {
   const summary = root.getByText('Advanced room', { exact: true });
+  if (!await summary.count()) await root.getByRole('radio', { name: 'Room design', exact: true }).click();
   if (!await summary.locator('..').evaluate((element) => element.open)) await summary.click();
+}
+
+function cornerPoint(grip) {
+  return grip.evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    return { x: box.x + box.width / 2, y: box.y + box.height / 2, zoom: el.getScreenCTM().a };
+  });
 }
 
 async function holdReferenceDecode(page) {
@@ -210,7 +215,7 @@ try {
   });
 
   console.log('Room geometry and structures');
-  await page.getByRole('button', { name: 'My room', exact: true }).click();
+  await page.getByRole('radio', { name: 'Room design', exact: true }).click();
   const setup = page.getByTestId('room-workspace');
   await openAdvancedRoom(setup);
   await setup.getByLabel('Floor shape').selectOption('notch');
@@ -479,13 +484,7 @@ try {
   const wallSetup = mobile.getByTestId('room-workspace');
   await openAdvancedRoom(wallSetup);
   await wallSetup.getByRole('button', { name: 'Edit wall corners on plan', exact: true }).tap();
-  await mobile.waitForSelector('.konvajs-content');
-  await mobile.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-  const corner = await mobile.evaluate(() => {
-    const box = document.querySelector('.konvajs-content').getBoundingClientRect();
-    const { zoom, pan } = window.__kitchen.ui.getState();
-    return { x: box.x + pan.x + 3600 * zoom, y: box.y + pan.y + 3000 * zoom, zoom };
-  });
+  const corner = await cornerPoint(wallSetup.getByRole('button', { name: 'Move corner 3', exact: true }));
   const touch = await phone.newCDPSession(mobile);
   await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: corner.x, y: corner.y }] });
   for (let step = 1; step <= 10; step++) {
@@ -494,7 +493,6 @@ try {
   await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   const touchRoom = (await design(mobile)).room;
   assert.ok(touchRoom.vertices?.[2].x < 3500);
-  await mobile.getByRole('button', { name: 'Done', exact: true }).tap();
   await mobile.getByRole('button', { name: 'Undo', exact: true }).tap();
   assert.equal((await design(mobile)).room.vertices, undefined);
   await mobile.getByRole('button', { name: 'Redo', exact: true }).tap();

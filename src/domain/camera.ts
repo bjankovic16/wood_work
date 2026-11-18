@@ -28,29 +28,42 @@ function studioPose(room: Room, items: readonly KitchenItem[], aspect: number): 
     points.push([x / 1000, y / 1000, z / 1000]);
 
   const azimuth = (faceX < -1 ? -1 : 1) * (faceZ < -1 ? Math.PI - 0.72 : 0.72);
-  const elevation = 20 * Math.PI / 180;
+  return framePoints(points, aspect, azimuth, 20 * Math.PI / 180, STUDIO_FOV);
+}
+
+/** Frame the architecture, independently of any cabinets, including the space behind the phone toolbar. */
+export function roomCameraPose(room: Room, aspect: number, view: CameraView, reservedTop = 0): CameraPose {
+  const points: ScenePoint[] = [];
+  for (const x of [0, room.width]) for (const z of [0, room.depth]) for (const y of [0, room.height])
+    points.push([x / 1000, y / 1000, z / 1000]);
+  const azimuth = view === 'front' || view === 'top' ? 0 : 0.65;
+  const elevation = view === 'top' ? Math.PI / 2 - 0.0001 : view === 'front' ? 0.05 : view === 'studio' ? 0.35 : 0.55;
+  return framePoints(points, Math.max(0.1, aspect), azimuth, elevation, view === 'studio' ? STUDIO_FOV : CAMERA_FOV, reservedTop);
+}
+
+function framePoints(points: ScenePoint[], aspect: number, azimuth: number, elevation: number, fov: number, reservedTop = 0): CameraPose {
   const sx = Math.sin(azimuth), cz = Math.cos(azimuth), up = Math.sin(elevation), level = Math.cos(elevation);
   const arm: ScenePoint = [sx * level, up, cz * level], right: ScenePoint = [cz, 0, -sx], vertical: ScenePoint = [-sx * up, level, -cz * up];
   const dot = (p: ScenePoint, v: ScenePoint) => p[0] * v[0] + p[1] * v[1] + p[2] * v[2];
   // Fit both edges of the frustum, including perspective magnification on the
   // nearer return. Otherwise a wide U appears small and low in the frame.
-  const axisFit = (v: ScenePoint, slope: number) => {
+  const axisFit = (v: ScenePoint, lower: number, upper = lower) => {
     let low = Infinity, high = -Infinity;
     for (const p of points) {
-      const axis = dot(p, v), extent = slope * dot(p, arm);
-      low = Math.min(low, axis - extent); high = Math.max(high, axis + extent);
+      const axis = dot(p, v), depth = dot(p, arm);
+      low = Math.min(low, axis - lower * depth); high = Math.max(high, axis + upper * depth);
     }
-    return { centre: (low + high) / 2, eye: (high - low) / (2 * slope) };
+    return { centre: (eye: number) => (low + high + (lower - upper) * eye) / 2, eye: (high - low) / (lower + upper) };
   };
-  const slope = 0.90 * Math.tan(STUDIO_FOV * Math.PI / 360);
-  const horizontal = axisFit(right, slope * aspect), upright = axisFit(vertical, slope);
-  const cx = horizontal.centre, cy = upright.centre;
+  const slope = 0.90 * Math.tan(fov * Math.PI / 360);
+  const horizontal = axisFit(right, slope * aspect), upright = axisFit(vertical, slope, slope * (1 - 2 * Math.min(0.8, reservedTop)));
   let near = -Infinity, far = Infinity;
   for (const p of points) { const z = dot(p, arm); near = Math.max(near, z); far = Math.min(far, z); }
+  const eye = Math.max(horizontal.eye, upright.eye, near + 0.2), cx = horizontal.centre(eye), cy = upright.centre(eye);
   const czDepth = (near + far) / 2;
   const target: ScenePoint = [right[0] * cx + vertical[0] * cy + arm[0] * czDepth, vertical[1] * cy + arm[1] * czDepth,
     right[2] * cx + vertical[2] * cy + arm[2] * czDepth];
-  const distance = Math.max(horizontal.eye, upright.eye, near + 0.2) - czDepth;
+  const distance = eye - czDepth;
   return { target, position: [target[0] + arm[0] * distance, target[1] + arm[1] * distance, target[2] + arm[2] * distance] };
 }
 
