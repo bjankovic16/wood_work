@@ -27,7 +27,7 @@ After `npm run build`, run
 `LANG=C.UTF-8 KITCHEN_E2E_PRODUCTION=1 npm run e2e:resize` to also check an
 actual resize against the production assets, without development test hooks.
 Set `KITCHEN_E2E_SMOKE=1` to exercise the editor/export/phone flows with one
-gallery example instead of opening all 52; normal `npm run e2e` checks them all.
+gallery example instead of opening all 60; normal `npm run e2e` checks them all.
 
 ## Public app
 
@@ -74,18 +74,20 @@ browsers, English otherwise. A language chosen manually is remembered.
 - **Ready-made layouts**: straight, L-shaped or U-shaped starter kitchens
   sized to the room.
 - **Next kitchen** (**Sledeća kuhinja** in Serbian): beside **Open all**, load
-  the next complete design from the 52-kitchen gallery, including its prepared
+  the next complete design from the 60-kitchen gallery, including its prepared
   room, cabinets, materials and finishes. This replaces the current design;
   one Undo restores it. Designs do not repeat until the whole gallery has
   been visited, and the sequence survives reloads and direct gallery selections.
   Close previews and finish Move/Resize first. Review utility connections and
   appliance clearances before using any inspiration design.
+  Prepared runs close unintended gaps with sized cupboards and fillers, including
+  upper corners and spaces around towers; window, hood and walkway clearances stay open.
 - **3D toolbar**: camera, appearance and extra tools share one group; cabinet
   previews and **Next kitchen** sit together in another. On phones these become
   two stable rows, with visible action labels. Hover or keyboard-focus a
   toolbar button to read its explanation; on touch screens, hold it briefly
   without activating it. Escape, scrolling or tapping outside dismisses the tooltip.
-- **52 kitchen inspiration designs**: open **Designs** (or **Kitchen designs**
+- **60 kitchen inspiration designs**: open **Designs** (or **Kitchen designs**
   in the phone's More menu), then click an image to load that exact kitchen
   in 3D. Choose straight, L-shaped, U-shaped or island kitchens in a range
   of finishes, with open-shelf and drawer variations. Every image is rendered
@@ -94,6 +96,11 @@ browsers, English otherwise. A language chosen manually is remembered.
   **Dark luxury** and **Japandi** collections, with finish swatches and public
   Pinterest inspiration links. These are style interpretations, not exact
   reconstructions of the linked photographs.
+  - Eight additional timber-and-green kitchens include four reference-inspired
+    layouts: an olive/oak L with a lit glass display, a compact olive/oak corner,
+    eucalyptus/walnut cabinetry, and a straight olive run by a window. Forest,
+    sage/ash, cashmere/walnut and terracotta/oak variants add further choices.
+    All models use editable cupboards, not the reference photographs as geometry.
   - **Framed kitchens** finds ten hand-composed examples inspired by warm
     neutral/timber references: Cashmere & walnut frame, Ivory & oak frame,
     Oak & stone frame, and Oak frame with island. Deep ceiling cupboards and
@@ -121,7 +128,16 @@ browsers, English otherwise. A language chosen manually is remembered.
     choose actual materials before ordering. The separate **My room layout**
     option keeps the existing room and settings.
   - Run `npm run render:kitchens` after changing presets or the 3D renderer;
-    the 52 generated gallery images in `public/kitchens/` ship with the app.
+    the 60 generated gallery images in `public/kitchens/` ship with the app.
+- **Wall and floor colours**: in **Style → Walls and floor**, pick a swatch or a
+  custom colour for all painted walls, and another for the floor. Changes appear
+  in 3D, persist with the project and support Undo. Backsplashes and wall cladding
+  retain their own finishes; room colours do not change the cutting list.
+  Enable **Floor tiles** (**Podne pločice**) for square tiles, choose a side
+  length from 100 to 1200 mm and a separate grout colour. Tile colour follows
+  the floor colour; grout lines are 3 mm. The scale stays consistent across
+  room shapes. Tile settings persist and support Undo, but are a visual preview,
+  not a laying plan or tile quantity calculation.
     Pass preset IDs to render only changed previews, for example
     `npm run render:kitchens -- chimney-frame sage-oak-frame`.
   - **Stacked uppers** includes the ten framed kitchens, all eighteen premium originals and Greige

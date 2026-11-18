@@ -11,7 +11,7 @@ export const LAYOUTS: Array<{ id: LayoutId }> = [{ id: 'straight' }, { id: 'l-sh
 const BASE_WIDTHS = [900, 800, 600, 500, 450, 400, 300];
 const WALL_WIDTHS = [800, 600, 500, 400, 300];
 /** Leftover space at least this wide gets a filler panel; anything narrower stays open. */
-const MIN_FILLER = 20;
+const MIN_FILLER = 10;
 const CORNER = 900;
 /** Space kept free at the open end of a side run, e.g. for a door. */
 const RUN_END_CLEARANCE = 600;
@@ -92,10 +92,15 @@ class Builder {
     if (from < end) segments.push([from, end]);
     for (const [a, b] of segments) {
       let along = a;
-      for (const width of fillWidths(b - a, WALL_WIDTHS)) {
+      const widths = fillWidths(b - a, WALL_WIDTHS);
+      const rest = b - a - widths.reduce((sum, width) => sum + width, 0);
+      if (widths.length) widths[widths.length - 1] += rest;
+      else if (rest >= 150) widths.push(rest);
+      for (const width of widths) {
         this.place('wall', wall, along, width);
         along += width;
       }
+      if (!widths.length && rest >= MIN_FILLER) this.place('filler', wall, along, rest, { depth: 320, elevation: 1450, height: 720 });
     }
   }
 }
@@ -163,6 +168,7 @@ export function buildLayout(id: LayoutId, room: Room, prefixes?: LabelPrefixes):
       if (sideEnd - rightEnd >= 600) b.run('right', rightEnd, [{ kind: 'fridge', width: 600 }]);
       b.wallUnits('top', CORNER, W - CORNER);
       b.wallUnits('left', CORNER, sideEnd, hobs(leftSpans));
+      b.wallUnits('right', CORNER, rightEnd);
       break;
     }
   }

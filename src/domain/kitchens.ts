@@ -1,12 +1,14 @@
-import { createItem, nextLabel, type LabelPrefixes } from './catalog';
+import { createItem, KIND_SPECS, nextLabel, WALL_DEPTH, WALL_ELEVATION, WALL_HEIGHT, type LabelPrefixes } from './catalog';
 import { createDesign } from './designOps';
-import { backWall, footprintsOverlap, isWallMounted, verticalOverlap } from './geometry';
+import { backWall, footprintRects, footprintsOverlap, isWallMounted, localRectToRoom, roomToLocal, verticalOverlap } from './geometry';
+import { newId } from './ids';
 import type { BacksplashFinish, FrontFinish, HandleStyle, KitchenStyle, WorktopFinish } from './style';
 import { buildLayout, type LayoutId } from './templates';
 import type { Design, KitchenItem, Room } from './types';
 import { withModuleMaterials } from '../engine/settings';
 import { createFramedKitchen, createLayeredKitchen, type FramedKitchen, type LayeredKitchen } from './layeredKitchens';
 import { PREMIUM_KITCHENS, premiumUpperRows, type KitchenCollection } from './premiumKitchens';
+import { createGreenKitchen, GREEN_KITCHENS, type GreenKitchen } from './greenKitchens';
 
 export interface KitchenPreset {
   id: string;
@@ -27,6 +29,7 @@ export interface KitchenPreset {
   inspiration?: string;
   stacked?: boolean;
   middleFinish?: FrontFinish;
+  green?: GreenKitchen;
 }
 
 function warmStyle(front: FrontFinish, worktop: WorktopFinish, handles: HandleStyle = 'brass', backsplash: BacksplashFinish = 'travertine'): KitchenStyle {
@@ -135,6 +138,7 @@ export const KITCHEN_DESIGNS = [
   { id: 'olive-stone-gallery', layout: 'l-shape', room: { width: 4200, depth: 3200, height: 2700 }, style: { ...warmStyle('olive', 'stone', 'none', 'stone'), appliances: 'black', plinthLighting: true }, layered: 'olive' },
   { id: 'walnut-noir-gallery', layout: 'l-shape', room: { width: 4200, depth: 3200, height: 2700 }, style: { ...warmStyle('anthracite', 'black', 'none', 'black'), appliances: 'black', plinthLighting: true }, layered: 'graphite' },
   ...PREMIUM_KITCHENS,
+  ...GREEN_KITCHENS,
 ] as const satisfies readonly KitchenPreset[];
 
 export type KitchenDesignId = (typeof KITCHEN_DESIGNS)[number]['id'];
@@ -150,6 +154,7 @@ export function createKitchenDesign(preset: KitchenPreset, name: string, prefixe
 }
 
 function buildKitchenDesign(preset: KitchenPreset, name: string, prefixes?: LabelPrefixes): Design {
+  if (preset.green) return createGreenKitchen(preset.green, preset.room, preset.style, preset.middleFinish ?? 'oak', name, prefixes);
   if (preset.framed) return createFramedKitchen(preset.framed, preset.room, preset.style, name, prefixes);
   if (preset.layered) return createLayeredKitchen(preset.layered, preset.room, preset.style, name, prefixes);
   const room = structuredClone(preset.room);
@@ -182,7 +187,34 @@ function buildKitchenDesign(preset: KitchenPreset, name: string, prefixes?: Labe
   if (preset.pantry) replaceModule('tall', (item) => (item.kind === 'base' || item.kind === 'drawer') && item.width >= 600);
   if (preset.pullOut) replaceModule('pullOut', (item) => (item.kind === 'base' || item.kind === 'filler' || (preset.drawerBases === true && item.kind === 'drawer')) && item.width >= 150 && item.width <= 600);
   const tallUnits = items.filter((item) => item.kind === 'tall' || item.kind === 'ovenTower' || item.kind === 'integratedFridge');
-  items = items.filter((item) => !isWallMounted(item) || !tallUnits.some((tall) => footprintsOverlap(item, tall) && verticalOverlap(item, tall)));
+  items = items.flatMap((item) => {
+    if (!isWallMounted(item)) return [item];
+    let spans = [[0, item.width]];
+    for (const tall of tallUnits.filter((tall) => footprintsOverlap(item, tall) && verticalOverlap(item, tall))) {
+      const projected = footprintRects(tall).flatMap((rect) => [
+        roomToLocal(item, { x: rect.x, y: rect.y }).x,
+        roomToLocal(item, { x: rect.x + rect.w, y: rect.y + rect.h }).x,
+      ]);
+      const from = Math.min(...projected);
+      const to = Math.max(...projected);
+      spans = spans.flatMap(([a, b]) => [[a, Math.min(b, from)], [Math.max(a, to), b]].filter(([start, end]) => end > start));
+    }
+    return spans.map(([from, to], index): KitchenItem => {
+      if (from === 0 && to === item.width) return item;
+      const width = to - from;
+      const kind = width < 150 ? 'filler' : width < KIND_SPECS[item.kind].limits.width.min ? 'wall' : item.kind;
+      const position = localRectToRoom(item, from, 0, to, item.depth);
+      return { ...item, id: index ? newId() : item.id, kind, x: position.x, y: position.y, width,
+        ...(kind !== item.kind ? { frontMaterial: undefined, doors: kind === 'filler' ? 0 : 1, shelves: 0 } : {}) };
+    });
+  });
+
+  for (const corner of items.filter((item) => item.kind === 'corner' && !isWallMounted(item))) {
+    items.push(createItem('corner', items, {
+      x: corner.x, y: corner.y, rotation: corner.rotation, width: corner.width, width2: corner.width2,
+      depth: WALL_DEPTH, height: WALL_HEIGHT, elevation: WALL_ELEVATION,
+    }, prefixes));
+  }
 
   for (const hob of items.filter((item) => item.kind === 'oven' || item.kind === 'hob')) {
     const hood = createItem('hood', items, { rotation: hob.rotation, width: hob.width, x: hob.x, y: hob.y }, prefixes);
