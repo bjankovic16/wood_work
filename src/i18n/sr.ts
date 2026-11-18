@@ -365,7 +365,15 @@ export const sr: Messages = {
     advanced: 'Napredna podešavanja sobe',
     setupTitle: 'Moja prostorija',
     plan: 'Osnova',
-    measureHint: 'Dodirnite zid za pogled, a broj za izmenu mere.',
+    measureHint: 'Povucite ugao da promenite oblik. Dodirnite zid za pogled, a broj za meru.',
+    cornerHandle: (n) => `Pomeri ugao ${n}`,
+    cornerKeys: 'Povucite ugao ili ga pomerite strelicama. Držite Shift za veći korak.',
+    cornerBlocked: {
+      outline: 'Pomeranje je zaustavljeno: zidovi moraju da čine ispravnu prostoriju.',
+      cabinet: 'Pomeranje je zaustavljeno: element više ne bi stao u prostoriju.',
+      opening: 'Pomeranje je zaustavljeno: vrata ili prozor više ne bi stali na zid.',
+      fixture: 'Pomeranje je zaustavljeno: fiksni objekat, pregrada ili zidna obloga više ne bi stali.',
+    },
     drawingView: 'Izaberi pogled',
     fromAbove: 'Pogled odozgo',
     facingWall: 'Pogled iznutra',
@@ -864,7 +872,9 @@ export const sr: Messages = {
 
   projects: {
     title: 'Projekti',
-    newProject: 'Novi projekat',
+    startFresh: 'Počni iznova',
+    startFreshHint: 'Otvorite praznu kuhinju. Trenutna ostaje u Projektima.',
+    startFreshSessionHint: 'Otvorite praznu kuhinju. Trenutna ostaje u Projektima samo dok je ova stranica otvorena.',
     openFile: 'Otvori fajl',
     projectFile: 'Fajl projekta',
     notProject: 'Taj fajl nije projekat kuhinje.',

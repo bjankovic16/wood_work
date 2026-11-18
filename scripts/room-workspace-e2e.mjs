@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
-import { furnishedWallChecks, workspaceObjectChecks } from './room-object-checks.mjs';
+import { furnishedWallChecks, planCornerChecks, workspaceObjectChecks } from './room-object-checks.mjs';
+import { startFreshChecks } from './start-fresh-checks.mjs';
 import { waitForIdleRendering } from './three-test-helpers.mjs';
 
 const server = await createServer({ logLevel: 'error', cacheDir: path.resolve('test-results/room-workspace/.vite'), server: { host: '127.0.0.1', port: 0 } });
@@ -188,10 +189,12 @@ try {
     await workspaceObjectChecks(page, compact, !planOnly);
     await furnishedWallChecks(page, compact, path.resolve('test-results/room-workspace'));
     if (compact && !planOnly) await phoneRoomPreview(page, workspace);
+    await planCornerChecks(page, compact);
     assert.deepEqual(errors, []);
     await page.close();
     console.log(`PASS room-first workspace, ${compact ? 'phone' : 'desktop'}`);
   }
+  if (!planOnly) await startFreshChecks(browser, url);
 } finally {
   await browser?.close();
   await server.close();

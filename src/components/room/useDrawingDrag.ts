@@ -5,7 +5,7 @@ import { useDesignStore } from '../../store/designStore';
 
 /** SVG units are millimetres. Capture the original transform and grab point until release. */
 export function useDrawingDrag() {
-  const active = useRef<{ id: number; target: SVGGElement; start: DOMPoint; frame: ReturnType<typeof pointerFrame>; base: ReturnType<typeof useDesignStore.getState>['design'] } | null>(null);
+  const active = useRef<{ id: number; target: SVGGElement; start: DOMPoint; frame: ReturnType<typeof pointerFrame>; base: ReturnType<typeof useDesignStore.getState>['design']; finish?: (cancelled: boolean) => void } | null>(null);
   const cancel = () => {
     const g = active.current;
     if (!g) return;
@@ -13,6 +13,7 @@ export function useDrawingDrag() {
     g.frame.cancel();
     if (useDesignStore.getState().gestureBase === g.base) useDesignStore.getState().cancelGesture();
     if (g.target.hasPointerCapture(g.id)) g.target.releasePointerCapture(g.id);
+    g.finish?.(true);
   };
   useEffect(() => {
     const escape = (e: KeyboardEvent) => { if (e.key === 'Escape' && active.current) { e.stopImmediatePropagation(); cancel(); } };
@@ -23,10 +24,10 @@ export function useDrawingDrag() {
     return () => { window.removeEventListener('keydown', escape, true); window.removeEventListener('blur', cancel); document.removeEventListener('visibilitychange', hidden); cancel(); };
   }, []);
   return {
-    start(e: ReactPointerEvent<SVGGElement>, move: (delta: Point) => void) {
-      if (e.button !== 0 || !e.isPrimary || active.current || useDesignStore.getState().gestureBase) return;
+    start(e: ReactPointerEvent<SVGGElement>, move: (delta: Point) => void, finish?: (cancelled: boolean) => void) {
+      if (e.button !== 0 || !e.isPrimary || active.current || useDesignStore.getState().gestureBase) return false;
       const transform = e.currentTarget.ownerSVGElement?.getScreenCTM()?.inverse();
-      if (!transform) return;
+      if (!transform) return false;
       const start = new DOMPoint(e.clientX, e.clientY);
       const origin = start.matrixTransform(transform);
       const base = useDesignStore.getState().design;
@@ -41,7 +42,8 @@ export function useDrawingDrag() {
       });
       e.currentTarget.focus({ preventScroll: true });
       e.currentTarget.setPointerCapture(e.pointerId);
-      active.current = { id: e.pointerId, target: e.currentTarget, start, frame, base };
+      active.current = { id: e.pointerId, target: e.currentTarget, start, frame, base, finish };
+      return true;
     },
     handlers: {
       onPointerMove(e: ReactPointerEvent<SVGGElement>) { if (active.current?.id === e.pointerId) active.current.frame.move(e.nativeEvent); },
@@ -52,7 +54,8 @@ export function useDrawingDrag() {
         active.current = null;
         g.frame.release(e.nativeEvent);
         if (useDesignStore.getState().gestureBase === g.base) useDesignStore.getState().endGesture();
-        g.target.releasePointerCapture(g.id);
+        if (g.target.hasPointerCapture(g.id)) g.target.releasePointerCapture(g.id);
+        g.finish?.(false);
       },
       onPointerCancel: cancel,
       onLostPointerCapture: cancel,

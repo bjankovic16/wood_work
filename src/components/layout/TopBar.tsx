@@ -6,6 +6,7 @@ import { redo, setProjectName } from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
 import { GRID_SIZES, useUiStore, type MainView } from '../../store/uiStore';
 import { ChecksButton } from '../checks/ChecksButton';
+import { StartFreshButton } from '../projects/StartFreshButton';
 import { Button, Divider, Menu, Segmented, TooltipButton } from '../ui';
 import { UndoButton } from './UndoButton';
 import { PhoneViewButton } from './PhoneThreeChrome';
@@ -69,7 +70,7 @@ function ViewTabs({ compact }: { compact: boolean }) {
         if (ui.roomOpen && v !== 'list') ui.setRoomView(v);
         else ui.setView(v);
       }}
-      className={compact ? 'min-w-0 flex-1 max-[380px]:[&_svg]:hidden' : 'w-72'}
+      className={compact ? 'min-w-0 flex-1 max-[380px]:[&_svg]:hidden' : 'max-2xl:[&_svg]:hidden 2xl:w-64'}
       options={[
         { value: 'plan', label: <><LayoutGrid className="size-3.5" /><span>{planLabel}</span></>, ariaLabel: planLabel, title: t.topBar.planTitle },
         { value: '3d', label: <><Box className="size-3.5" /><span>{t.topBar.view3d}</span></>, ariaLabel: t.topBar.view3d, title: t.topBar.view3dTitle },
@@ -171,35 +172,36 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
         <PhoneViewButton />
         <UndoRedo compact />
         <Menu label={t.topBar.more} icon={<Ellipsis className="size-4" />}>
-          <div className="space-y-1">
-            <Button className="w-full justify-start" data-close-menu onClick={() => ui.setProjectsOpen(true)}>
-              <FolderOpen className="size-4" />
-              {t.topBar.projects}
-            </Button>
-            {roomOpen && <>
-              <Button className="w-full justify-start" data-close-menu onClick={() => ui.setView('list')}><List className="size-4" />{t.topBar.list}</Button>
-              <div className="flex justify-end"><ChecksButton /></div>
-            </>}
-            {view !== '3d' && <details>
-              <summary className="cursor-pointer rounded-lg px-2 py-3 text-[13px] font-medium text-studio-muted">{t.topBar.view}</summary>
-              <ViewOptions />
-            </details>}
-            <Button className="w-full justify-start" data-close-menu onClick={() => ui.setSettingsTab('materials')}>
-              <Hammer className="size-4" />
-              {t.topBar.settings}
-            </Button>
-            <div className="px-1 pt-1">
-              <div className="flex items-center gap-1.5 px-1 pb-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-                <Languages className="size-3.5" />
-                {LANGUAGE_LABEL}
+          <div className="flex max-h-[calc(100dvh-5rem)] flex-col gap-1">
+            <div className="min-h-0 space-y-1 overflow-y-auto overscroll-contain">
+              <Button className="w-full justify-start" data-close-menu onClick={() => ui.setProjectsOpen(true)}>
+                <FolderOpen className="size-4" />
+                {t.topBar.projects}
+              </Button>
+              <StartFreshButton placement="menu" />
+              {roomOpen && <Button className="w-full justify-start" data-close-menu onClick={() => ui.setView('list')}><List className="size-4" />{t.topBar.list}</Button>}
+              {view !== '3d' && <details>
+                <summary className="cursor-pointer rounded-lg px-2 py-3 text-[13px] font-medium text-studio-muted">{t.topBar.view}</summary>
+                <ViewOptions />
+              </details>}
+              <Button className="w-full justify-start" data-close-menu onClick={() => ui.setSettingsTab('materials')}>
+                <Hammer className="size-4" />
+                {t.topBar.settings}
+              </Button>
+              <div className="px-1 pt-1">
+                <div className="flex items-center gap-1.5 px-1 pb-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                  <Languages className="size-3.5" />
+                  {LANGUAGE_LABEL}
+                </div>
+                <Segmented<Language>
+                  ariaLabel={LANGUAGE_LABEL}
+                  value={language}
+                  onChange={(next) => ui.setLanguage(next)}
+                  options={LANGUAGES.map((option) => ({ value: option.value, label: option.label }))}
+                />
               </div>
-              <Segmented<Language>
-                ariaLabel={LANGUAGE_LABEL}
-                value={language}
-                onChange={(next) => ui.setLanguage(next)}
-                options={LANGUAGES.map((option) => ({ value: option.value, label: option.label }))}
-              />
             </div>
+            {roomOpen && <div className="flex shrink-0 justify-end"><ChecksButton /></div>}
           </div>
         </Menu>
         </div>
@@ -215,24 +217,25 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
   }
 
   return (
-    <header className="studio-panel z-20 flex h-16 shrink-0 items-center gap-1 border-b px-4 shadow-[0_1px_8px_#332f2805] print:hidden">
-      <div className="flex items-center gap-2 pr-2">
+    <header className="studio-panel z-20 flex h-16 shrink-0 items-center gap-1 border-b px-2 shadow-[0_1px_8px_#332f2805] xl:px-4 [&>button]:shrink-0 [&>button]:whitespace-nowrap print:hidden">
+      <div className="hidden items-center gap-2 xl:flex">
         <Logo />
         <span className="hidden whitespace-nowrap text-[13px] font-semibold text-zinc-900 2xl:inline">{t.appName}</span>
+        <Divider />
       </div>
-      <Divider />
       <Button active={roomOpen} aria-label={t.room.setupTitle} title={t.room.setupTitle} onClick={() => ui.setRoomOpen(true)}>
         <RulerDimensionLine className="size-4" /><span className="hidden xl:inline">{t.room.setupTitle}</span>
       </Button>
       <Button title={t.topBar.projectsTitle} onClick={() => ui.setProjectsOpen(true)}>
-        <FolderOpen className="size-4" />
+        <FolderOpen className="hidden size-4 xl:block" />
         {t.topBar.projects}
       </Button>
+      <StartFreshButton placement="toolbar" />
       <Button variant="outline" title={t.layouts.title} aria-label={t.layouts.title} onClick={() => ui.setLayoutsOpen(true)}>
-        <Images className="size-4" />
+        <Images className="hidden size-4 xl:block" />
         <span>{t.layouts.title}</span>
       </Button>
-      <ProjectName className="w-40" />
+      <ProjectName className="w-24 xl:w-32 2xl:w-40" />
 
       <div className="flex flex-1 justify-center">
         <ViewTabs compact={false} />
@@ -242,13 +245,13 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
       <ChecksButton />
       <Divider />
       {view === 'plan' && (
-        <Menu label={t.topBar.view} text={t.topBar.view} icon={<LayoutGrid className="size-4" />}>
+        <Menu label={t.topBar.view} text={<span className="hidden 2xl:inline">{t.topBar.view}</span>} icon={<LayoutGrid className="size-4" />}>
           <ViewOptions />
         </Menu>
       )}
-      <Button title={t.topBar.settingsTitle} onClick={() => ui.setSettingsTab('materials')}>
+      <Button title={t.topBar.settingsTitle} aria-label={t.topBar.settings} onClick={() => ui.setSettingsTab('materials')}>
         <Hammer className="size-4" />
-        {t.topBar.settings}
+        <span className="hidden xl:inline">{t.topBar.settings}</span>
       </Button>
       <LanguageSelect />
     </header>

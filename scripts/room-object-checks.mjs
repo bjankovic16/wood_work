@@ -20,31 +20,104 @@ async function faceWall(page, plan, id, touch, normal = 0) {
   else await page.mouse.click(point.x, point.y);
 }
 
-async function drag(page, from, to, touch, cancel = false) {
+async function drag(page, from, to, touch, cancel = false, held) {
   if (touch) {
     const cdp = await page.context().newCDPSession(page);
     try {
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...from, id: 1 }] });
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ ...to, id: 1 }] });
+      if (held) await held(to);
       await cdp.send('Input.dispatchTouchEvent', { type: cancel ? 'touchCancel' : 'touchEnd', touchPoints: [] });
     } finally { await cdp.detach(); }
   } else {
     await page.mouse.move(from.x, from.y);
     await page.mouse.down();
     await page.mouse.move(to.x, to.y, { steps: 6 });
+    if (held) await held(to);
     if (cancel) await page.keyboard.press('Escape');
     await page.mouse.up();
   }
 }
 
-async function dragDrawing(page, target, dx, dy, touch, cancel = false) {
+async function dragDrawing(page, target, dx, dy, touch, cancel = false, held) {
   const { from, to } = await target.evaluate((node, delta) => {
     const rect = node.getBoundingClientRect();
     const matrix = node.ownerSVGElement.getScreenCTM();
     const from = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
     return { from, to: { x: from.x + delta.dx * matrix.a, y: from.y + delta.dy * matrix.d } };
   }, { dx, dy });
-  await drag(page, from, to, touch, cancel);
+  await drag(page, from, to, touch, cancel, held);
+}
+
+export async function planCornerChecks(page, touch) {
+  const workspace = page.getByTestId('room-workspace');
+  const plan = workspace.getByTestId('room-plan');
+  await page.evaluate(async () => {
+    const { createProject } = await import('/src/store/projects.ts');
+    const { design, ui } = window.__kitchen;
+    ui.getState().setLanguage('en');
+    createProject('Corner measurements');
+    design.getState().load({ ...design.getState().design, room: { width: 6404, depth: 8885, height: 2600, vertices: [
+      { id: 'north', x: 0, y: 0 }, { id: 'slope', x: 4000, y: 0 },
+      { id: 'east', x: 6404, y: 2404 }, { id: 'diagonal', x: 6404, y: 8885 },
+    ] } });
+  });
+  const grip = plan.getByRole('button', { name: 'Move corner 3', exact: true });
+  await grip.waitFor();
+  const start = await design(page);
+  const area = await workspace.locator('.room-area').innerText();
+  const halo = plan.locator('[data-corner-target="east"]');
+  const hit = await halo.boundingBox();
+  assert.ok(hit.width >= 43.9 && hit.height >= 43.9, 'A finger should not need to land exactly on the small dot.');
+  await tapOrClick(grip, touch);
+  assert.deepEqual(await design(page), start, 'Tapping a corner must not open the inside wall or change the room.');
+  await dragDrawing(page, grip, 750, -420, touch, false, async (finger) => {
+    await page.waitForFunction(() => window.__kitchen.design.getState().design.room.width > 7000);
+    const box = await grip.boundingBox();
+    assert.ok(Math.hypot(box.x + box.width / 2 - finger.x, box.y + box.height / 2 - finger.y) < 2, 'The grip must stay under the pointer while the room bounds change.');
+    const { room } = await design(page);
+    for (const i of [1, 2]) {
+      const a = room.vertices[i], b = room.vertices[i + 1];
+      assert.match(await plan.locator(`[data-wall-dimension="${a.id}"]`).textContent(), new RegExp(String(Math.round(Math.hypot(b.x - a.x, b.y - a.y)))));
+    }
+    assert.notEqual(await workspace.locator('.room-area').innerText(), area);
+    assert.equal(await history(page), 0);
+  });
+  const moved = await design(page);
+  assert.deepEqual(moved.room.vertices.filter((v) => v.id !== 'east'), start.room.vertices.filter((v) => v.id !== 'east'));
+  assert.equal(await history(page), 1);
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  assert.deepEqual(await design(page), start);
+  const topLeft = plan.getByRole('button', { name: 'Move corner 1', exact: true });
+  const fixed = await grip.boundingBox();
+  await dragDrawing(page, topLeft, -600, -300, touch, true, async () => {
+    await page.waitForFunction(() => window.__kitchen.design.getState().design.room.width > 6800);
+    const box = await grip.boundingBox();
+    assert.ok(Math.hypot(box.x - fixed.x, box.y - fixed.y) < 1, 'Rebasing top/left coordinates must not move any other corner on screen.');
+  });
+  assert.deepEqual(await design(page), start, 'Cancelling a drag restores its starting shape.');
+  assert.equal(await history(page), 0);
+  await page.getByRole('button', { name: 'Redo', exact: true }).click();
+  await page.reload();
+  await grip.waitFor();
+  assert.deepEqual(await design(page), moved, 'The saved project must reopen with the new outline.');
+
+  await page.evaluate(async () => {
+    const { createDesign } = await import('/src/domain/designOps.ts');
+    const d = createDesign('Window constraint');
+    d.openings = [{ id: 'window', wall: 'top', wallId: 'top', kind: 'window', width: 900, height: 1000, sill: 900, offset: 2300 }];
+    window.__kitchen.design.getState().load(d);
+  });
+  const savedWindow = (await design(page)).openings[0];
+  const topRight = plan.getByRole('button', { name: 'Move corner 2', exact: true });
+  await dragDrawing(page, plan.locator('[data-corner-target="right"]'), -1200, 0, touch);
+  const limited = await design(page);
+  assert.ok(Math.abs(limited.room.vertices[1].x - 3200) <= 1, 'Stop where the window still fits, even if a pointer sample went much further.');
+  assert.deepEqual(limited.openings[0], savedWindow);
+  await plan.getByRole('status').filter({ hasText: /window/ }).waitFor();
+  await topRight.press('Shift+ArrowDown');
+  assert.equal((await design(page)).room.vertices[1].y, limited.room.vertices[1].y + 100);
+  assert.ok(await plan.isVisible());
 }
 
 async function setField(root, name, value) {

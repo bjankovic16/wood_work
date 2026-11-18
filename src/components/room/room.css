@@ -35,6 +35,9 @@
 .room-ruler-button { cursor: pointer; }
 .room-ruler-button:is(:focus-visible, :hover) rect:last-of-type { stroke: #345b44; stroke-width: 2; }
 .room-drafting-paper [data-wall-id]:is(:focus-visible, :hover) .room-wall-edge { stroke: #427857; }
+.room-corner-grip { cursor: grab; }
+.room-corner-grip:active { cursor: grabbing; }
+.room-corner-grip:focus-visible { outline: 2px solid #285cb8; outline-offset: 3px; }
 @container (max-width: 350px) {
   .room-drawing-tools { padding-inline: .45rem; gap: .3rem; }
   .room-plan-back span { display: none; }

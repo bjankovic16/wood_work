@@ -35,8 +35,8 @@ const projectKey = (id: string) => `kitchen-designer:project:${id}`;
 const LEGACY_KEY = 'kitchen-designer:design';
 const SAVE_DELAY = 400;
 
-/** Designs of projects that are not open, kept here when storage is not available. */
-const memory = new Map<string, Design>();
+/** Session copies also cover browsers that can still read an old design but refuse new writes. */
+const memory = new Map<string, { design: Design; written: boolean }>();
 
 function read(key: string): unknown {
   const text = safeStorage.getItem(key);
@@ -48,8 +48,13 @@ function read(key: string): unknown {
   }
 }
 
-function write(key: string, value: unknown): void {
-  safeStorage.setItem(key, JSON.stringify(value));
+function write(key: string, value: unknown): boolean {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function saveIndex(): void {
@@ -61,12 +66,14 @@ function metaOf(id: string, design: Design): ProjectMeta {
 }
 
 function storeDesign(id: string, design: Design): void {
-  memory.set(id, design);
-  write(projectKey(id), design);
+  const written = write(projectKey(id), design);
+  memory.set(id, { design, written });
 }
 
 function loadDesign(id: string): Design | null {
-  return parseDesign(read(projectKey(id))) ?? memory.get(id) ?? null;
+  const cached = memory.get(id);
+  if (cached && !cached.written) return cached.design;
+  return parseDesign(read(projectKey(id))) ?? cached?.design ?? null;
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -178,10 +185,10 @@ export function initProjects(): void {
 }
 
 /** Creates a project and opens it. */
-export function createProject(name = nextName()): string {
+export function createProject(name?: string): string {
   flushSave();
   const id = newId();
-  const design = createDesign(name);
+  const design = createDesign(name ?? nextName());
   storeDesign(id, design);
   useProjectsStore.setState((state) => ({ projects: [metaOf(id, design), ...state.projects] }));
   show(id, design);

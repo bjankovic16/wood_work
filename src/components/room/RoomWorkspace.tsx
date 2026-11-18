@@ -13,9 +13,14 @@ import { RoomInspector } from './RoomInspector';
 import { WallElevation } from './WallElevation';
 import { roomSegments } from '../../domain/walls';
 import { useDesignStore } from '../../store/designStore';
-import { finishRoom } from '../../store/projects';
+import { finishRoom, useProjectsStore } from '../../store/projects';
 
 export function RoomWorkspace({ compact = false }: { compact?: boolean }) {
+  const activeId = useProjectsStore((s) => s.activeId);
+  return <ProjectRoom key={activeId} compact={compact} />;
+}
+
+function ProjectRoom({ compact }: { compact: boolean }) {
   const t = useT();
   const view = useUiStore((s) => s.view);
   const wallId = useUiStore((s) => s.selectedWallId);

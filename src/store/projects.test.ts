@@ -82,6 +82,39 @@ describe('projects', () => {
     expect(projects().projects.find((p) => p.id === first)?.units).toBe(1);
   });
 
+  it('starts fresh from the last committed edit, not a pending drag or a stale project name', () => {
+    initProjects();
+    const previous = projects().activeId;
+    const store = useDesignStore.getState();
+    const ui = useUiStore.getState();
+    ui.setLanguage('en');
+    finishRoom();
+    ui.setRoomOpen(true);
+    ui.setRoomView('3d');
+    const preferences = localStorage.getItem('kitchen-designer:preferences');
+
+    const item = createItem('base', [], { x: 100 });
+    store.apply((d) => ops.addItem(ops.setName(d, 'Kitchen 1'), item));
+    const committed = design();
+    store.beginGesture();
+    store.apply((d) => ops.updateItem(d, item.id, { x: 400 }));
+    const fresh = createProject(); // Before the pending rename and item edits have autosaved.
+
+    expect(projects().projects.map((p) => p.id)).toEqual([fresh, previous]);
+    expect(projects().activeId).toBe(fresh);
+    expect(design()).toEqual(ops.createDesign('Kitchen 2'));
+    expect(useDesignStore.getState()).toMatchObject({ gestureBase: null, past: [], future: [] });
+    expect(useUiStore.getState()).toMatchObject({ roomOpen: true, view: 'plan' });
+    expect(localStorage.getItem('kitchen-designer:preferences')).toBe(preferences);
+
+    resetProjectsForTests();
+    initProjects();
+    expect(projects().activeId).toBe(fresh);
+    openProject(previous);
+    expect(design()).toEqual(committed);
+    expect(projects().projects.find((p) => p.id === previous)).toMatchObject({ name: 'Kitchen 1', units: 1, roomMeasured: true });
+  });
+
   it('keeps projects across a reload', () => {
     initProjects();
     useDesignStore.getState().apply((d) => ops.setName(d, 'Saved'));
@@ -90,6 +123,18 @@ describe('projects', () => {
     useDesignStore.getState().load(ops.createDesign());
     initProjects();
     expect(design().name).toBe('Saved');
+  });
+
+  it('keeps the previous kitchen in Projects if a full store refuses its last edit', () => {
+    initProjects();
+    const previous = projects().activeId;
+    const full = vi.spyOn(localStorage, 'setItem').mockImplementation(() => { throw new Error('Storage full'); });
+    try {
+      useDesignStore.getState().apply((d) => ops.setRoom(d, { width: 4300 }));
+      createProject();
+      openProject(previous);
+      expect(design().room.width).toBe(4300);
+    } finally { full.mockRestore(); }
   });
 
   it('resumes a measured empty room on the plan, without skipping setup for a different new room', () => {

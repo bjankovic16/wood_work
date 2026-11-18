@@ -325,7 +325,7 @@ try {
   await premiumPage.waitForSelector('canvas');
   check('all new modules, materials and premium finishes survive a reload', sortedJson(await premiumDesign()) === sortedJson(savedPremium));
   await premiumPage.getByRole('button', { name: 'Projects', exact: true }).click();
-  await premiumPage.getByRole('dialog', { name: 'Projects' }).getByRole('button', { name: 'New project', exact: true }).click();
+  await premiumPage.getByRole('dialog', { name: 'Projects' }).getByRole('button', { name: 'Start fresh', exact: true }).click();
   await roomSetup.getByTestId('room-plan').waitFor();
   check('new projects open their own empty room', (await premiumDesign()).items.length === 0 && await roomSetup.getByRole('heading', { name: 'My room' }).isVisible());
   await roomSetup.getByTestId('room-done').click();
@@ -856,7 +856,7 @@ try {
   );
   await shot('17-projects.png');
 
-  await projectsDialog.getByRole('button', { name: 'New project' }).click();
+  await projectsDialog.getByRole('button', { name: 'Start fresh', exact: true }).click();
   check(
     'a new project starts empty in its room workspace, without a kitchen already chosen',
     (await design()).items.length === 0 && (await design()).name === 'Kitchen 1' && await workspace.getByTestId('room-plan').isVisible() && !(await gallery.isVisible()),

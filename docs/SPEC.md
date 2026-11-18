@@ -21,6 +21,9 @@ file for a customer. The customer does not need the editor or the cutting list.
 - On a first visit and for a new project, open **My room** (**Moja prostorija**)
   on the 2D plan. Show room measurements before suggesting kitchen ideas. On
   return, resume the saved project and keep **My room** within reach.
+  **Start fresh** in the desktop toolbar, the phone's **⋯** menu or **Projects**
+  saves the current kitchen and opens a separate empty project at the first
+  measurement step. It does not erase projects or reset preferences.
 - On desktop, offer a 3D preview beside the plan. On a phone, **2D / 3D**
   switches views in the same workspace. Plan, elevation, 3D and inspector
   share the selected wall, opening or structure; switching views neither
@@ -33,12 +36,15 @@ file for a customer. The customer does not need the editor or the cutting list.
   also be keyboard-focusable and activatable, with equivalent panel fields.
   Label quantities **Wall length**, **Height to ceiling** and **From wall
   start** rather than showing direction arrows without an origin.
-- A wall-length edit in a rectangle keeps the outline rectangular. For a
-  diagonal, drag a shared corner or enter length and angle. The end corner
-  and adjoining segment move; this is not a general constraint solver. Reject
-  degenerate or self-crossing outlines without replacing the last valid
-  geometry. Keep stable wall IDs and preserve the physical positions of
-  openings on import, including older offsets on the bottom and left walls.
+- Typing a wall length in a rectangle keeps it rectangular. On the 2D floor
+  plan, dragging a perimeter corner instead moves only that vertex, allowing
+  angled walls without changing views. Update the two adjacent wall lengths
+  and area live; keep the drawing steady under the pointer. Touch, mouse and
+  keyboard users can move a corner. A completed drag is one undo step; a tap
+  or cancelled gesture is not an edit. Stop at the last valid position if the
+  outline would cross or a cabinet, fixture or opening would no longer fit;
+  do not move or shrink it to make it fit. Keep stable wall IDs and account
+  for legacy bottom/left opening offsets.
 - Tapping a wall line opens its **2D inside elevation**. Provide a drawing
   dropdown for the plan and all wall faces, a mini-plan marking the current face,
   and a one-tap return. Show the green origin, length and height rulers, real

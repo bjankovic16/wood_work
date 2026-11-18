@@ -369,7 +369,15 @@ export const en = {
     advanced: 'Advanced room',
     setupTitle: 'My room',
     plan: 'Plan',
-    measureHint: 'Tap a wall to face it. Tap a number to edit it.',
+    measureHint: 'Drag a corner to reshape. Tap a wall for its view or a number to edit.',
+    cornerHandle: (n: number) => `Move corner ${n}`,
+    cornerKeys: 'Drag or use arrow keys to move. Hold Shift for a larger step.',
+    cornerBlocked: {
+      outline: 'Stopped: the walls must form a valid room.',
+      cabinet: 'Stopped: a cabinet would no longer fit.',
+      opening: 'Stopped: a door or window would no longer fit.',
+      fixture: 'Stopped: a structure, partition or wall finish would no longer fit.',
+    },
     drawingView: 'Drawing view',
     fromAbove: 'From above',
     facingWall: 'Inside elevation',
@@ -874,7 +882,9 @@ export const en = {
 
   projects: {
     title: 'Projects',
-    newProject: 'New project',
+    startFresh: 'Start fresh',
+    startFreshHint: 'Open a blank kitchen. Your current kitchen stays in Projects.',
+    startFreshSessionHint: 'Open a blank kitchen. Your current kitchen stays in Projects only while this page is open.',
     openFile: 'Open a file',
     projectFile: 'Project file',
     notProject: 'That file is not a kitchen project.',

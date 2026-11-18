@@ -55,8 +55,10 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
 
 1. On your first visit or in a new project, **My room** (**Moja prostorija**)
    opens in 2D. Enter inside measurements in millimetres (3 metres = 3000 mm).
-   Returning to a saved project resumes it; **My room** reopens its measurements
-   without starting over.
+   Returning to a saved project resumes it. To measure a different room, choose
+   **Start fresh** in the desktop toolbar, in the phone's **⋯** menu, or in
+   **Projects**. It opens a new empty kitchen; your previous kitchen stays in
+   **Projects**. To remeasure the *same* kitchen, choose **My room** instead.
 2. Tap a wall **line** to face that wall, or tap its **number** to edit its
    measurement. The dropdown with the little floor plan lets you switch directly
    to any wall. In the wall view, choose **Add → Window** or **Door** and
@@ -92,10 +94,15 @@ browsers, English otherwise. A language chosen manually is remembered.
   continuing around longer outlines. Select one to see its starting end. To
   change **Wall length**, click or tap the dimension, or focus it with Tab and
   activate it with Enter or Space. You can type the same value in the panel.
-  **Height to ceiling** is measured from the floor. Changing a wall length in
-  a rectangle keeps it rectangular. For a diagonal, move its shared corner
-  on the plan or enter the segment length and angle. An invalid or
-  self-crossing outline leaves the last valid room in place.
+  **Height to ceiling** is measured from the floor. Entering an exact wall
+  length keeps a rectangular room rectangular.
+- **Drag a corner:** in **My room → 2D → Floor plan** (**Moja prostorija → 2D
+  → Osnova**), grab the dot where two exterior walls meet. Only that corner
+  moves, even in a rectangle. Watch the two wall lengths and floor area as
+  you drag. A corner stops before the outline crosses itself, cuts through a
+  cabinet, or leaves too little wall for a door or window. One **Undo** restores
+  the room. You can also Tab to a corner and use the arrow keys (10 mm, or
+  100 mm with Shift), or tap a wall's number to enter an exact measurement.
 - **Wall elevation:** tap the line or choose a numbered wall in **Drawing view**.
   The mini-plan marks which wall you're facing. The drawing shows its length,
   height, openings and the outlines of cabinets set against it. Tap a perimeter

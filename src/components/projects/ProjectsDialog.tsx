@@ -1,4 +1,4 @@
-import { Copy, Download, Plus, Trash2, Upload } from 'lucide-react';
+import { Copy, Download, Trash2, Upload } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useCanSaveFiles } from '../../hooks/useCanSaveFiles';
 import { useIsCompact } from '../../hooks/useMediaQuery';
@@ -6,7 +6,6 @@ import { useT, type Messages } from '../../i18n';
 import { cn } from '../../lib/cn';
 import { safeFileName, saveTextFile, storageWorks } from '../../lib/platform';
 import {
-  createProject,
   deleteProject,
   duplicateProject,
   importProject,
@@ -16,6 +15,7 @@ import {
 } from '../../store/projects';
 import { useUiStore } from '../../store/uiStore';
 import { Button, Dialog } from '../ui';
+import { StartFreshButton } from './StartFreshButton';
 
 function edited(time: number, t: Messages): string {
   const minutes = Math.round((Date.now() - time) / 60_000);
@@ -66,17 +66,7 @@ export function ProjectsDialog() {
   return (
     <Dialog open={open} title={p.title} sheet={compact} wide onClose={close}>
       <div className="flex flex-wrap gap-2 border-b border-zinc-100 px-5 py-3">
-        <Button
-          variant="primary"
-          className="px-3"
-          onClick={() => {
-            createProject();
-            close();
-          }}
-        >
-          <Plus className="size-4" />
-          {p.newProject}
-        </Button>
+        <StartFreshButton placement="dialog" onCreated={close} />
         <Button variant="outline" onClick={() => fileInput.current?.click()}>
           <Upload className="size-4" />
           {p.openFile}

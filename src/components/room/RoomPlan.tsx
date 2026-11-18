@@ -12,6 +12,7 @@ import { WallMeasureDialog } from './WallMeasures';
 import { DrawingReadout, useRoomReadout } from './RoomReadout';
 import { useDrawingDrag } from './useDrawingDrag';
 import { useDrawingSize } from './useDrawingSize';
+import { usePlanCorners } from './usePlanCorners';
 import { updateRoomFeature } from '../../store/actions';
 
 export const points = (polygon: Point[]) => polygon.map((p) => `${p.x},${p.y}`).join(' ');
@@ -34,10 +35,12 @@ export function RoomPlan({ onFaceWall }: { onFaceWall: (id: string, keyboard?: b
   const tileId = useId();
   const [measure, setMeasure] = useState<string | null>(null);
   // Reserve actual screen space on all four sides for horizontal, tappable measurements.
-  const px = Math.max(room.width / Math.max(40, size.width - 158), room.depth / Math.max(25, size.height - 102));
-  const w = size.width * px, h = size.height * px;
+  const fitted = Math.max(room.width / Math.max(40, size.width - 158), room.depth / Math.max(25, size.height - 102));
   const allWalls = roomSegments(room);
   const segments = allWalls.filter((wall) => !wall.partitionId);
+  const corners = usePlanCorners(segments, { px: fitted, x: (room.width - size.width * fitted) / 2, y: (room.depth - size.height * fitted) / 2 }, drag,
+    (id) => { setMeasure(null); ui.setSelectedWallId(id); });
+  const { px, x, y } = corners.frame;
   const active = segments.find((s) => s.id === wallId);
   const measuring = active && measure === active.id;
   const floor = style.floorColor ?? DEFAULT_FLOOR_COLOR;
@@ -66,7 +69,7 @@ export function RoomPlan({ onFaceWall }: { onFaceWall: (id: string, keyboard?: b
     },
   });
   return <div ref={size.ref} data-testid="room-plan" className="room-drafting-paper relative min-h-0 min-w-0 flex-1">
-    <svg aria-label={t.room.plan} className="absolute inset-0 h-full w-full touch-none" viewBox={`${(room.width - w) / 2} ${(room.depth - h) / 2} ${w} ${h}`}>
+    <svg aria-label={t.room.plan} className="absolute inset-0 h-full w-full touch-none" viewBox={`${x} ${y} ${size.width * px} ${size.height * px}`}>
       {style.floorPattern === 'tiles' && <defs><pattern id={tileId} width={tile} height={tile} patternUnits="userSpaceOnUse">
         <rect width={tile} height={tile} fill={floor} /><path d={`M0 ${tile}V0H${tile}`} fill="none" stroke={style.floorGroutColor ?? DEFAULT_FLOOR_GROUT_COLOR} strokeWidth={Math.max(3, px * 1.4)} />
       </pattern></defs>}
@@ -87,6 +90,7 @@ export function RoomPlan({ onFaceWall }: { onFaceWall: (id: string, keyboard?: b
             wallPoint(s, s.length, inside), wallPoint(s, 0, inside)])} />
         </g>;
       })}
+      {corners.targets}
       {segments.map((s, i) => {
         const label = `${t.advancedRoom.wall(i + 1)} · ${Math.round(s.length)} mm`;
         const selected = s.id === wallId;
@@ -108,10 +112,6 @@ export function RoomPlan({ onFaceWall }: { onFaceWall: (id: string, keyboard?: b
           </g>
         </g>;
       })}
-      {active && <g pointerEvents="none" aria-label={t.advancedRoom.start}>
-        <circle cx={active.start.x} cy={active.start.y} r={5 * px} fill="#376b4a" stroke="white" strokeWidth={2 * px} />
-        <title>{t.advancedRoom.start} · 0 mm</title>
-      </g>}
       {room.features?.map((f, i) => <g key={f.id} data-plan-feature={f.id} style={{ touchAction: 'none' }}
         {...drawingButton(`${t.engine.roomFeatures[f.kind]} ${i + 1}`, () => ui.selectRoomObject({ type: 'feature', id: f.id }, f.wallId))}
         onPointerDown={(e) => {
@@ -140,9 +140,10 @@ export function RoomPlan({ onFaceWall }: { onFaceWall: (id: string, keyboard?: b
             wallPoint(frame, o.offset + o.width, 15 * px), wallPoint(frame, o.offset, 15 * px)])} />
         </g>;
       })}
+      {corners.grips}
     </svg>
-    {readout && !measuring && <DrawingReadout data={readout} x={size.width / 2 + (readout.centre.x - room.width / 2) / px}
-      y={size.height / 2 + (readout.centre.y - room.depth / 2) / px} />}
+    {corners.notice && <p role="status" className="pointer-events-none absolute inset-x-2 bottom-1 mx-auto w-fit rounded bg-amber-50 px-2 py-1 text-center text-xs text-amber-950">{corners.notice}</p>}
+    {readout && !measuring && <DrawingReadout data={readout} x={(readout.centre.x - x) / px} y={(readout.centre.y - y) / px} />}
     {measuring && <WallMeasureDialog wall={active} number={segments.indexOf(active) + 1} close={() => setMeasure(null)} />}
   </div>;
 }
