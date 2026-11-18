@@ -1,9 +1,9 @@
-import { CEILING_GAP, sizeLimits, type LabelPrefixes } from './catalog';
+import { CEILING_GAP, createItem, KIND_SPECS, sizeLimits, type LabelPrefixes } from './catalog';
 import { DEFAULT_ROOM } from './designOps';
 import { against, Envelope, topOf, type Run, type Span } from './fitEnvelope';
 import { placeIsland } from './fitIsland';
 import { cooker, floorUnit, packRow, value, type Module, type Prepared } from './fitRun';
-import { attachedWall, footprintPieces } from './geometry';
+import { attachedWall, footprintPieces, fridgeNextToOven } from './geometry';
 import { createKitchenDesign, type KitchenPreset } from './kitchens';
 import { validRoomPolygon } from './polygons';
 import { featureFitsRoom, openingFitsRoomWall, roomOutline } from './roomGeometry';
@@ -19,10 +19,10 @@ export interface FitOptions {
   prefixes?: LabelPrefixes;
 }
 
-export type FitReason = 'occupied' | 'wall' | 'space' | 'headroom' | 'opening' | 'structure' | 'corner' | 'passage';
+export type FitReason = 'occupied' | 'wall' | 'space' | 'headroom' | 'opening' | 'structure' | 'corner' | 'passage' | 'appliances';
 
 export interface FitChange {
-  type: 'resized' | 'omitted';
+  type: 'resized' | 'omitted' | 'added';
   kind: ItemKind;
   label: string;
   fromWidth: number;
@@ -40,12 +40,12 @@ export type LayoutFit = {
   mainWallId?: string;
 };
 
-type Target = Pick<Design, 'room' | 'openings' | 'items'>;
+type Target = Pick<Design, 'room' | 'openings' | 'items'> & Partial<Pick<Design, 'materials' | 'construction'>>;
 type Role = 'main' | 'left' | 'right';
 type Recipe = ReturnType<typeof recipe>;
 const near = (a: number, b: number) => Math.abs(a - b) < 0.01;
 
-function recipe(source: KitchenPreset | LayoutId, prefixes?: LabelPrefixes, starterRoom: Room = DEFAULT_ROOM) {
+function recipe(source: KitchenPreset | LayoutId, prefixes?: LabelPrefixes, starterRoom: Room = DEFAULT_ROOM, panelWidth?: number) {
   const starter = typeof source === 'string';
   const id = starter ? source : source.id;
   const layout = starter ? source : source.layout;
@@ -68,7 +68,25 @@ function recipe(source: KitchenPreset | LayoutId, prefixes?: LabelPrefixes, star
     const start = Math.min(...runs.main.map((m) => m.from));
     runs.main.forEach((m) => { m.from -= start; });
   }
-  return { items, runs, corners, island, layout };
+  const dividers = new Set<string>();
+  const fridge = (i: KitchenItem) => i.kind === 'fridge' || i.kind === 'integratedFridge';
+  const oven = (i: KitchenItem) => i.kind === 'oven' || i.kind === 'ovenTower';
+  if (panelWidth !== undefined) for (const modules of Object.values(runs)) {
+    const floor = modules.filter((m) => floorUnit(m.item)).sort((a, b) => a.from - b.from);
+    for (let i = 1; i < floor.length; i++) {
+      const a = floor[i - 1], b = floor[i];
+      if (!(fridge(a.item) && oven(b.item) || oven(a.item) && fridge(b.item)) || !near(a.from + a.item.width, b.from)) continue;
+      const from = b.from;
+      const panel = createItem('endPanel', items, { id: `fit-${id}-divider-${dividers.size + 1}`, width: panelWidth,
+        depth: Math.max(a.item.depth, b.item.depth), height: Math.min(KIND_SPECS.endPanel.limits.height.max, Math.max(...modules
+          .filter((m) => near(m.from, a.from) || near(m.from, b.from)).map((m) => topOf(m.item)))) }, prefixes);
+      modules.forEach((m) => { if (m.from >= from) m.from += panelWidth; });
+      modules.push({ item: panel, from });
+      items.push(panel);
+      dividers.add(panel.id);
+    }
+  }
+  return { items, runs, corners, island, layout, dividers };
 }
 
 /** Adjust only cuttable cabinetry at the ceiling; no stretching/lowering appliances or hoods. */
@@ -236,6 +254,10 @@ function proposal(target: Target, stock: Recipe, walls: WallSegment[], index: nu
     const fitted = trial.placed.get(original.id)?.item;
     const reason = trial.reasons.get(original.id) ?? 'space';
     const change = { kind: original.kind, label: original.label, fromWidth: original.width };
+    if (stock.dividers.has(original.id)) {
+      if (fitted) { items.push(fitted); changes.push({ ...change, type: 'added', toWidth: fitted.width, reason: 'appliances' }); }
+      continue;
+    }
     if (!fitted) { changes.push({ ...change, type: 'omitted', reason }); continue; }
     items.push(fitted);
     const shorter = !near(fitted.height, original.height), narrower = !near(fitted.width, original.width);
@@ -263,13 +285,24 @@ export function fitKitchenLayout(
   source: KitchenPreset | LayoutId,
   options: FitOptions = {},
 ): LayoutFit {
+  const fit = fitRuns(target, source, options);
+  const adjacent = (items: KitchenItem[]) => items.some((i) => items.some((other) => fridgeNextToOven(i, other)));
+  if (!adjacent(fit.items)) return fit;
+  const thickness = target.materials?.find((m) => m.id === target.construction?.frontMaterial)?.thickness ?? 18;
+  const limits = KIND_SPECS.endPanel.limits.width;
+  if (thickness < limits.min || thickness > limits.max) return fit;
+  const separated = fitRuns(target, source, options, thickness);
+  return separated.status !== 'cannot-fit' && !adjacent(separated.items) ? separated : fit;
+}
+
+function fitRuns(target: Target, source: KitchenPreset | LayoutId, options: FitOptions, panelWidth?: number): LayoutFit {
   if (target.items.length) return cannotFit('occupied', options.mainWallId);
   if (!validRoomPolygon(roomOutline(target.room))) return cannotFit('wall', options.mainWallId);
   if (target.openings.some((o) => !openingIsValid(target.room, o)
     || (!o.wallId && !openingFitsRoomWall(target.room, o.wall, o.offset, o.width)))) return cannotFit('opening', options.mainWallId);
   if (target.room.features?.some((f) => !featureFitsRoom(target.room, f))) return cannotFit('structure', options.mainWallId);
   const walls = roomSegments(target.room, false);
-  const gallery = typeof source !== 'string' ? recipe(source, options.prefixes) : null;
+  const gallery = typeof source !== 'string' ? recipe(source, options.prefixes, DEFAULT_ROOM, panelWidth) : null;
   let best: ReturnType<typeof proposal> | undefined;
   for (const [index, wall] of walls.entries()) {
     if (options.mainWallId !== undefined && wall.id !== options.mainWallId) continue;
@@ -280,7 +313,7 @@ export function fitKitchenLayout(
       : options.side === 'right' ? next.length : previous.length;
     const stock = gallery ?? recipe(source, options.prefixes, {
       width: Math.max(DEFAULT_ROOM.width, Math.floor(wall.length)), depth: Math.max(DEFAULT_ROOM.depth, Math.floor(sideLength)), height: DEFAULT_ROOM.height,
-    });
+    }, panelWidth);
     const attempt = proposal(target, stock, walls, index, options);
     if (attempt.fit.status === 'fits') return attempt.fit;
     if (!best || attempt.score > best.score) best = attempt;

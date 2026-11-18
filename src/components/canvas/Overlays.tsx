@@ -80,7 +80,7 @@ function ChainDimensions({ chain, room, px }: { chain: WallChain; room: Room; px
 
 /** Chained dimensions along every wall that has units against it, plus the overall room size. */
 export function WallDimensions({ room, items, px }: { room: Room; items: KitchenItem[]; px: number }) {
-  if (room.vertices || room.partitions?.length) return <Group listening={false}>
+  if (room.vertices || room.partitions?.length) return <Group name="plan-dimensions" listening={false}>
     {computeSegmentChains(room, items).map(({ segment, level, segments }) =>
       <Group key={`${segment.id}-${level}`} x={segment.start.x} y={segment.start.y} rotation={segment.angle}>
         {segments.map((span) => <Group key={span.from}>
@@ -95,7 +95,7 @@ export function WallDimensions({ room, items, px }: { room: Room; items: Kitchen
   const top = outsideWall('top', room, ROW_OFFSET_PX.room, px);
   const left = outsideWall('left', room, ROW_OFFSET_PX.room, px);
   return (
-    <Group listening={false}>
+    <Group name="plan-dimensions" listening={false}>
       {chains.map((chain) => (
         <ChainDimensions key={`${chain.wall}-${chain.level}`} chain={chain} room={room} px={px} />
       ))}

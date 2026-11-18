@@ -60,6 +60,15 @@ describe('checkDesign', () => {
     );
   });
 
+  it('allows a cap on a tall appliance and a real end panel between upper cabinets', () => {
+    const issues = checkDesign(design([
+      unit('integratedFridge', 'F1', { height: 2100 }), unit('wall', 'W1', { elevation: 2200, height: 350 }),
+      unit('endPanel', 'EP1', { x: 600, elevation: 0, width: 18, height: 2550 }),
+      unit('wall', 'W2', { x: 618, elevation: 2200, height: 350 }),
+    ]));
+    expect(issues.filter((i) => i.category !== 'precut')).toEqual([]);
+  });
+
   it('reports units in front of doors and over windows', () => {
     const door: Opening = { id: 'd', kind: 'door', wall: 'top', offset: 1000, width: 900, height: 2050, sill: 0 };
     expect(messages(design([unit('base', 'B1', { x: 1200 })], [door]))).toContain('error: B1 blocks the door on the top wall.');

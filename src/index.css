@@ -31,6 +31,34 @@ kbd {
   font-family: inherit;
 }
 
+/* One native disclosure treatment, including nested settings and fit reviews. */
+details > summary {
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  gap: .5rem;
+  padding: .375rem 1rem;
+  list-style: none;
+  cursor: pointer;
+  font-size: .84rem;
+  font-weight: 600;
+}
+
+details > summary::marker { content: ''; }
+details > summary::-webkit-details-marker { display: none; }
+details > summary::after {
+  content: '';
+  width: .5rem;
+  height: .5rem;
+  flex: none;
+  margin-inline-start: auto;
+  border: solid currentColor;
+  border-width: 0 1.75px 1.75px 0;
+  transform: translateY(-2px) rotate(45deg);
+}
+details[open] > summary::after { transform: translateY(2px) rotate(225deg); }
+details > summary:focus-visible { outline: 2px solid var(--color-studio-accent); outline-offset: -2px; }
+
 .studio-panel {
   background: var(--color-studio-paper);
   border-color: var(--color-studio-line);
@@ -51,54 +79,25 @@ kbd {
   box-shadow: 0 8px 24px #332f2810;
 }
 
-/* Kitchens dealt by "Shuffle" settle into place, so it is clear the set has changed. */
-.start-idea {
-  animation: start-idea-in 240ms ease-out both;
-}
-
-.start-idea:nth-child(2) {
-  animation-delay: 45ms;
-}
-
-.start-idea:nth-child(3) {
-  animation-delay: 90ms;
-}
-
-@keyframes start-idea-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-}
-
-/* Short screens keep the start card to its buttons, clear of the plan's own controls. */
-@media (max-height: 639px) {
-  .start-ideas {
-    display: none;
-  }
-}
-
-@media (min-height: 640px) and (max-width: 1023px) {
-  .start-hint {
-    display: none;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .kitchen-card,
   .kitchen-card svg {
     transition: none;
   }
 
-  .start-idea {
-    animation: none;
-  }
 }
 
 /* While an element is dragged from the library. */
 .is-dragging,
 .is-dragging * {
   cursor: grabbing !important;
+}
+
+/* On a short landscape phone the dimension chains alone can be taller than
+   the gap between the top controls and bottom sheet. Leave one side clear. */
+@media (orientation: landscape) and (max-height: 440px) and (max-width: 1023px) {
+  .phone-plan-zoom { left: 10rem; right: auto; }
+  .phone-plan-dock { right: auto; width: 19rem; max-width: 100%; }
 }
 
 @media (max-width: 1023px) {

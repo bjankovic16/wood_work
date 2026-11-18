@@ -1,4 +1,5 @@
 import type { KonvaEventObject } from 'konva/lib/Node';
+import type { Stage as KonvaStage } from 'konva/lib/Stage';
 import { Maximize, Minus, Plus } from 'lucide-react';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Layer, Stage } from 'react-konva';
@@ -19,16 +20,15 @@ import { useProjectsStore } from '../../store/projects';
 import { useUiStore, type ViewFilter } from '../../store/uiStore';
 import {
   clientToPlan,
-  fitRoomInView,
   MAX_ZOOM,
   MIN_ZOOM,
   REFERENCE_ZOOM,
   registerCanvasElement,
-  setFitInsets,
   snapSettings,
   zoomBy,
 } from '../../store/viewport';
-import { Button, Menu } from '../ui';
+import { Button } from '../ui';
+import { fitMeasuredPlan } from './fitMeasuredPlan';
 import { ItemShape } from './ItemShape';
 import { Clearances, Ghost, Guides, IssueOutlines, Selection, WallDimensions } from './Overlays';
 import { RoomPickTargets, RoomShape } from './RoomShape';
@@ -75,9 +75,8 @@ interface Pinch {
 const thresholdFor = (pointerType: string) => (pointerType === 'touch' ? DRAG_START_PX.touch : DRAG_START_PX.mouse);
 
 function isDimmed(item: KitchenItem, filter: ViewFilter, row?: UpperRow): boolean {
-  if (row && isWallMounted(item) && !inUpperRow(item, row)) return true;
   if (filter === 'all') return false;
-  return filter === 'floor' ? isWallMounted(item) : !isWallMounted(item);
+  return filter === 'floor' ? isWallMounted(item) : !isWallMounted(item) || Boolean(row && !inUpperRow(item, row));
 }
 
 /** Commits any half-typed value in the properties panel before the plan changes. */
@@ -88,6 +87,7 @@ function blurActiveField() {
 
 export function DesignCanvas({ compact = false }: { compact?: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<KonvaStage>(null);
   const gestureRef = useRef<Gesture | null>(null);
   /** Fingers currently on the plan, for pinch zoom. */
   const touchesRef = useRef(new Map<number, Point>());
@@ -96,6 +96,7 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [guides, setGuides] = useState<Guide[]>([]);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [movingItem, setMovingItem] = useState<KitchenItem | null>(null);
   const [fontVersion, setFontVersion] = useState(0);
 
   const room = useDesignStore((s) => s.design.room);
@@ -105,13 +106,22 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
   const zoom = useUiStore((s) => s.zoom);
   const pan = useUiStore((s) => s.pan);
   const selectedId = useUiStore((s) => s.selectedId);
-  const viewFilter = useUiStore((s) => s.viewFilter);
+  const planForegroundId = useUiStore((s) => s.planForegroundId);
+  const manualFilter = useUiStore((s) => s.viewFilter);
   const wallElevation = useUiStore((s) => s.wallElevation);
   const committedItems = useDesignStore((s) => committedDesign(s).items);
   const rows = useMemo(() => upperCabinetRows(committedItems), [committedItems]);
-  const row = rows.find((entry) => entry.elevation === wallElevation) ?? (viewFilter === 'wall' ? rows[0] : undefined);
   const showDimensions = useUiStore((s) => s.showDimensions);
   const libraryDrag = useUiStore((s) => s.libraryDrag);
+  const ghost = libraryDrag?.ghost ?? null;
+  const dragging = libraryDrag?.item ?? movingItem;
+  // A drag previews a layer; it never writes the user's layer or row choice.
+  const viewFilter = dragging ? (isWallMounted(dragging) ? 'wall' : 'floor') : manualFilter;
+  const manualRow = rows.find((entry) => entry.elevation === wallElevation) ?? rows[0];
+  const dragRow = dragging && viewFilter === 'wall' && (!manualRow || !inUpperRow(dragging, manualRow))
+    ? rows.find((entry) => entry.elevation === dragging.elevation) ?? { elevation: dragging.elevation, top: dragging.elevation + dragging.height }
+    : undefined;
+  const row = viewFilter === 'wall' ? dragRow ?? manualRow : undefined;
   const openings = useDesignStore((s) => s.design.openings);
   const issues = useIssues();
   const px = 1 / zoom;
@@ -150,20 +160,21 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
     };
   }, []);
 
-  // On phones the view switch and the buttons at the bottom cover part of the plan.
+  const projectId = useProjectsStore((s) => s.activeId);
+  const [fitRequest, setFitRequest] = useState(0);
+  const requestFit = useCallback(() => setFitRequest((n) => n + 1), []);
+  const fitPasses = useRef(0);
   useLayoutEffect(() => {
-    setFitInsets(compact ? { top: rows.length > 1 ? 116 : 68, bottom: 72 } : { top: rows.length > 1 ? 84 : 0, bottom: 0 });
-  }, [compact, rows.length]);
-
-  // Fit the room into view on first layout and whenever the room size changes.
-  const fittedRoom = useRef('');
-  useEffect(() => {
-    if (size.w === 0 || size.h === 0) return;
-    const key = `${room.width}x${room.depth}`;
-    if (fittedRoom.current === key) return;
-    fittedRoom.current = key;
-    fitRoomInView();
-  }, [size.w, size.h, room.width, room.depth]);
+    if (size.w > 0 && size.h > 0) fitPasses.current = 6;
+  }, [size.w, size.h, room.width, room.depth, room.height, fitRequest, projectId]);
+  // Text and ticks keep their *screen* size. Recheck their actual ink bounds after
+  // zooming (a previously hidden label can now fit), but never chase manual zoom/pan.
+  useLayoutEffect(() => {
+    if (fitPasses.current > 0 && stageRef.current) {
+      fitPasses.current--;
+      if (!fitMeasuredPlan(stageRef.current)) fitPasses.current = 0;
+    }
+  });
 
   // Wheel zooms around the pointer. Registered by hand to be able to cancel browser zoom.
   useEffect(() => {
@@ -192,6 +203,7 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
       const g = gestureRef.current;
       if (g && g.kind !== 'pan' && g.started && useDesignStore.getState().gestureBase === g.base) useDesignStore.getState().cancelGesture();
       gestureRef.current = null;
+      setMovingItem(null);
       setGuides([]);
       const [a, b] = [...touches.values()];
       const rect = element.getBoundingClientRect();
@@ -241,7 +253,10 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
         if (distance < g.threshold) return;
         g.started = true;
         store.beginGesture();
-        if (g.kind === 'move') setCursor('grabbing');
+        if (g.kind === 'move') {
+          setMovingItem(g.item);
+          setCursor('grabbing');
+        }
       }
       if (distance === 0) {
         store.apply((d) => replaceItem(d, g.item));
@@ -294,6 +309,7 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
       const g = gestureRef.current;
       if (!g || e.pointerId !== g.pointerId) return;
       gestureRef.current = null;
+      setMovingItem(null);
       setGuides([]);
       if (g.kind === 'pan') {
         if (!g.moved) useUiStore.getState().select(null);
@@ -311,6 +327,7 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
       touches.clear();
       pinchRef.current = null;
       gestureRef.current = null;
+      setMovingItem(null);
       setGuides([]);
       const ui = useUiStore.getState();
       if (pinch) ui.setViewport(pinch.startZoom, pinch.startPan);
@@ -365,7 +382,7 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
     e.cancelBubble = true;
     if (pinchRef.current || gestureRef.current || useDesignStore.getState().gestureBase) return;
     blurActiveField();
-    useUiStore.getState().select(item.id);
+    useUiStore.getState().select(item.id, 'plan');
     if (button !== 0) return;
     const pointer = clientToPlan(clientX, clientY);
     if (!pointer) return;
@@ -414,12 +431,15 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
     [setCursor],
   );
 
-  const ordered = useMemo(() => [...items.filter((i) => !isWallMounted(i)), ...items.filter(isWallMounted).sort((a, b) => a.elevation - b.elevation)]
-    .sort((a, b) => Number(isDimmed(b, viewFilter, row)) - Number(isDimmed(a, viewFilter, row))), [items, viewFilter, row]);
-  const visibleItems = useMemo(() => ordered.filter((item) => !isDimmed(item, viewFilter, row)), [ordered, viewFilter, row]);
-  const selected = items.find((i) => i.id === selectedId);
-  const activeSelection = selected && !isDimmed(selected, viewFilter, row) ? selected : undefined;
-  const ghost = libraryDrag?.ghost ?? null;
+  // Reveal an added unit or 3D edit target, even under another tier. Ordinary
+  // plan clicks keep the natural stacking (upper at the back, base front exposed).
+  const activeSelection = libraryDrag ? undefined : items.find((i) => i.id === selectedId);
+  const foregroundId = activeSelection?.id === planForegroundId ? planForegroundId : null;
+  const dimmed = useCallback((item: KitchenItem) => item.id !== activeSelection?.id && isDimmed(item, viewFilter, row), [activeSelection?.id, viewFilter, row]);
+  const ordered = useMemo(() => [...items].sort((a, b) => Number(dimmed(b)) - Number(dimmed(a))
+    || Number(a.id === foregroundId) - Number(b.id === foregroundId)
+    || Number(isWallMounted(a)) - Number(isWallMounted(b)) || a.elevation - b.elevation), [items, dimmed, foregroundId]);
+  const visibleItems = useMemo(() => ordered.filter((item) => !dimmed(item)), [ordered, dimmed]);
 
   return (
     <div
@@ -429,6 +449,7 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
     >
       {size.w > 0 && size.h > 0 && (
         <Stage
+          ref={stageRef}
           width={size.w}
           height={size.h}
           scaleX={zoom}
@@ -437,7 +458,7 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
           y={pan.y}
           onPointerDown={onStagePointerDown}
         >
-          <Layer listening={false}>
+          <Layer name="plan-room" listening={false}>
             <PlanRoom key={fontVersion} room={room} zoom={zoom} openings={openings} />
           </Layer>
           <Layer listening={!wallEditing}>
@@ -447,7 +468,7 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
                 key={item.id}
                 item={item}
                 px={px}
-                dimmed={isDimmed(item, viewFilter, row)}
+                dimmed={dimmed(item)}
                 hovered={hoveredId === item.id}
                 onPointerDown={onItemPointerDown}
                 onHoverChange={onHoverChange}
@@ -475,7 +496,8 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
           {wallEditing && <Layer><WallCorners px={px} /></Layer>}
         </Stage>
       )}
-      <PlanControls zoom={zoom} viewFilter={viewFilter} isEmpty={items.length === 0 && !wallEditing} compact={compact} rows={rows} row={row} />
+      <PlanControls zoom={zoom} viewFilter={viewFilter} isEmpty={items.length === 0 && !wallEditing} compact={compact}
+        rows={rows} row={row} manualRow={manualRow} requestFit={requestFit} />
       <KitchenPlanRoomReadout />
       {wallEditing && <div className="absolute inset-x-3 top-3 flex items-center justify-between gap-2 rounded-xl border border-stone-200 bg-white/95 p-3 text-xs text-stone-700 shadow-sm">
         <span>{t.advancedRoom.editing}</span>
@@ -494,75 +516,78 @@ interface CanvasControlsProps {
   compact: boolean;
   rows: UpperRow[];
   row?: UpperRow;
+  manualRow?: UpperRow;
+  requestFit: () => void;
 }
 
-function CanvasControls({ zoom, viewFilter, isEmpty, compact, rows, row }: CanvasControlsProps) {
+function CanvasControls({ zoom, viewFilter, isEmpty, compact, rows, row, manualRow, requestFit }: CanvasControlsProps) {
   const t = useT();
-  const setViewFilter = useUiStore((s) => s.setViewFilter);
   const projectId = useProjectsStore((state) => state.activeId);
+  const chooseLayer = (filter: ViewFilter, upper = manualRow) => {
+    const ui = useUiStore.getState();
+    const selected = useDesignStore.getState().design.items.find((item) => item.id === ui.selectedId);
+    if (selected && isDimmed(selected, filter, upper)) ui.select(null);
+    ui.setViewFilter(filter);
+    if (filter === 'wall' && upper) ui.setWallElevation(upper.elevation);
+  };
   return (
     <>
-      <div role="group" aria-label={t.canvas.filterLabel} className="studio-panel absolute left-3 top-3 flex rounded-lg border p-0.5 shadow-sm">
-        {FILTERS.map((id) => {
-          const filter = t.canvas.filters[id];
-          return (
-            <button
-              key={id}
-              type="button"
-              title={filter.title}
-              aria-label={filter.label}
-              aria-pressed={viewFilter === id}
-              onClick={() => setViewFilter(id)}
-              className={cn(
-                'h-7 touch-manipulation rounded-md text-xs font-medium transition-colors',
-                compact ? 'px-1.5' : 'px-2.5',
-                viewFilter === id ? 'bg-studio-accent text-white' : 'text-studio-muted hover:bg-[#ece8df] hover:text-studio-ink',
-              )}
-            >
-              {compact ? filter.short : filter.label}
-            </button>
-          );
-        })}
+      <div data-plan-controls className="pointer-events-none absolute left-3 top-3 flex max-w-[calc(100%-24px)] flex-col items-start gap-1">
+        <div role="group" aria-label={t.canvas.filterLabel} className="studio-panel pointer-events-auto flex rounded-lg border p-0.5 shadow-sm">
+          {FILTERS.map((id) => {
+            const filter = t.canvas.filters[id];
+            return (
+              <button
+                key={id}
+                type="button"
+                title={filter.title}
+                aria-label={filter.label}
+                aria-pressed={viewFilter === id}
+                onClick={() => chooseLayer(id)}
+                className={cn(
+                  'h-7 touch-manipulation rounded-md text-xs font-medium transition-colors',
+                  compact ? 'px-1.5' : 'px-2.5',
+                  viewFilter === id ? 'bg-studio-accent text-white' : 'text-studio-muted hover:bg-[#ece8df] hover:text-studio-ink',
+                )}
+              >
+                {compact ? filter.short : filter.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {rows.length > 1 && viewFilter === 'wall' && rows.some((entry) => entry.elevation === row?.elevation) && (
+          <select
+            aria-label={t.stacking.rowLabel}
+            value={row?.elevation ?? ''}
+            onChange={(event) => chooseLayer('wall', rows.find((entry) => entry.elevation === Number(event.target.value)))}
+            className="pointer-events-auto h-9 max-w-full rounded-md border border-zinc-300 bg-white px-2 text-xs font-medium text-zinc-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+          >
+            {rows.map((entry, index) => <option key={entry.elevation} value={entry.elevation}>{t.stacking.row(index + 1, t.mm(entry.elevation))}</option>)}
+          </select>
+        )}
+        {viewFilter !== 'all' && <p role="status" className="rounded-md bg-studio-paper/95 px-2 py-1 text-[11px] leading-tight text-studio-muted">
+          {t.canvas.dimmed[viewFilter === 'wall' && rows.length > 1 ? 'row' : viewFilter]}
+        </p>}
       </div>
 
-      {rows.length > 1 && viewFilter !== 'floor' && (
-        <select
-          aria-label={t.stacking.rowLabel}
-          value={row?.elevation ?? ''}
-          onChange={(event) => {
-            const ui = useUiStore.getState();
-            ui.setViewFilter('wall');
-            ui.setWallElevation(event.target.value === '' ? null : Number(event.target.value));
-            ui.select(null);
-          }}
-          className="absolute left-3 top-16 h-9 max-w-[calc(100%-24px)] rounded-md border border-zinc-300 bg-white px-2 text-xs font-medium text-zinc-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-        >
-          {rows.map((entry, index) => <option key={entry.elevation} value={entry.elevation}>{t.stacking.row(index + 1, t.mm(entry.elevation))}</option>)}
-        </select>
-      )}
-
       <div
+        data-plan-controls
         role="group"
         aria-label={t.canvas.zoomControls}
         className={cn(
           'studio-panel absolute right-3 flex items-center gap-0.5 rounded-lg border p-0.5 shadow-sm',
-          compact ? 'top-3' : 'bottom-3',
+          compact ? 'phone-plan-zoom top-3' : 'bottom-3',
         )}
       >
-        {compact ? <Menu label={t.canvas.zoomControls} icon={null} text={`${Math.round((zoom / REFERENCE_ZOOM) * 100)}%`}>
-          <div className="flex items-center justify-between gap-2">
-            <Button aria-label={t.canvas.zoomOut} onClick={() => zoomBy(1 / 1.25)}><Minus className="size-4" /></Button>
-            <Button aria-label={t.canvas.fit} onClick={fitRoomInView}><Maximize className="size-4" /></Button>
-            <Button aria-label={t.canvas.zoomIn} onClick={() => zoomBy(1.25)}><Plus className="size-4" /></Button>
-          </div>
-        </Menu> : <>
         <Button title={t.canvas.zoomOut} aria-label={t.canvas.zoomOut} className="h-7 min-w-7 px-1.5" onClick={() => zoomBy(1 / 1.25)}>
           <Minus className="size-4" />
         </Button>
         <button
           type="button"
           title={t.canvas.fit}
-          onClick={fitRoomInView}
+          aria-label={compact ? t.canvas.fit : undefined}
+          onClick={requestFit}
           className={cn('h-7 rounded-md text-xs font-medium tabular-nums text-studio-muted hover:bg-[#ece8df] hover:text-studio-ink', compact ? 'w-10' : 'w-12')}
         >
           {Math.round((zoom / REFERENCE_ZOOM) * 100)}%
@@ -570,10 +595,11 @@ function CanvasControls({ zoom, viewFilter, isEmpty, compact, rows, row }: Canva
         <Button title={t.canvas.zoomIn} aria-label={t.canvas.zoomIn} className="h-7 min-w-7 px-1.5" onClick={() => zoomBy(1.25)}>
           <Plus className="size-4" />
         </Button>
-        <div className="mx-0.5 h-4 w-px bg-zinc-200" />
-        <Button title={t.canvas.fit} aria-label={t.canvas.fit} className="h-7 min-w-7 px-1.5" onClick={fitRoomInView}>
-          <Maximize className="size-4" />
-        </Button>
+        {!compact && <>
+          <div className="mx-0.5 h-4 w-px bg-zinc-200" />
+          <Button title={t.canvas.fit} aria-label={t.canvas.fit} className="h-7 min-w-7 px-1.5" onClick={requestFit}>
+            <Maximize className="size-4" />
+          </Button>
         </>}
       </div>
 

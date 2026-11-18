@@ -12,6 +12,7 @@ import { RoomInspector } from './RoomInspector';
 import { WallElevation } from './WallElevation';
 import { roomSegments } from '../../domain/walls';
 import { useDesignStore } from '../../store/designStore';
+import { finishRoom } from '../../store/projects';
 
 export function RoomWorkspace({ compact = false }: { compact?: boolean }) {
   const t = useT();
@@ -25,10 +26,10 @@ export function RoomWorkspace({ compact = false }: { compact?: boolean }) {
   const [preview, setPreview] = useState(false);
   const area = t.number(Math.round(polygonArea(roomOutline(room)) / 10000) / 100);
   const actions = <>
-    <Button variant="outline" data-testid="room-ideas" aria-label={t.layouts.title} onClick={() => { ui.setRoomOpen(false); ui.setLayoutsOpen(true); }}>
-      <Images className="size-4" />{compact ? t.room.ideasShort : t.layouts.title}
-    </Button>
-    <Button variant="primary" data-testid="room-done" onClick={() => ui.setRoomOpen(false)}>{t.room.continue}<ArrowRight className="size-4" /></Button>
+    {compact && <Button variant="outline" data-testid="room-ideas" onClick={() => ui.setLayoutsOpen(true)}>
+      <Images className="size-4" />{t.layouts.title}
+    </Button>}
+    <Button variant="primary" data-testid="room-done" onClick={finishRoom}>{t.room.continue}<ArrowRight className="size-4" /></Button>
   </>;
   return <main data-testid="room-workspace" aria-label={t.room.setupTitle} className="flex h-full min-h-0 flex-1 flex-col bg-studio-canvas">
     <header className="room-heading">

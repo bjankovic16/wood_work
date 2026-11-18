@@ -7,16 +7,19 @@ import { useT } from '../../i18n';
 import { useIssues } from '../../store/derived';
 import { editRoomPositionIn2D, RoomReadout, useRoomReadout } from '../room/RoomReadout';
 import { Button } from '../ui';
+import { overlayTopInset } from './overlayInset';
 
 export function RoomObjectAnchor({ overlay }: { overlay: RefObject<HTMLDivElement | null> }) {
   const data = useRoomReadout();
   const point = useMemo(() => new Vector3(), []);
-  useFrame(({ camera, size }) => {
+  useFrame(({ camera, size, gl }) => {
     const el = overlay.current;
     if (!el || !data) return;
     point.set(data.centre.x / 1000, data.elevation / 1000, data.centre.y / 1000).project(camera);
     const x = Math.max(4, Math.min(size.width - el.offsetWidth - 4, (1 + point.x) * size.width / 2 + 8));
-    const y = Math.max(4, Math.min(size.height - el.offsetHeight - 4, (1 - point.y) * size.height / 2 + 8));
+    const maxY = size.height - el.offsetHeight - 4;
+    const minY = Math.min(maxY, overlayTopInset(el, gl.domElement.getBoundingClientRect().top) + 4);
+    const y = Math.max(minY, Math.min(maxY, (1 - point.y) * size.height / 2 + 8));
     el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
     el.style.visibility = Math.abs(point.z) <= 1 ? 'visible' : 'hidden';
   });

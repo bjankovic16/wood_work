@@ -1,12 +1,12 @@
 import { OrbitControls } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Copy, DoorClosed, DoorOpen, Download, LayoutGrid, Palette, PanelsTopLeft, Pencil, RotateCcw, Ruler, Scan, Shuffle, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { CircleHelp, Copy, DoorClosed, DoorOpen, Download, LayoutGrid, Palette, PanelsTopLeft, Pencil, RotateCcw, Ruler, Scan, Shuffle, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { lazy, memo, Suspense, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type RefObject } from 'react';
-import { isWallMounted } from '../../domain/geometry';
 import { blendPoses, CAMERA_FOV, kitchenCameraPose, type CameraPose, type CameraView } from '../../domain/camera';
 import { KIND_OPTIONS } from '../../engine/config';
 import type { Design, KitchenItem } from '../../domain/types';
 import { useCanSaveFiles } from '../../hooks/useCanSaveFiles';
+import { useCoarsePointer } from '../../hooks/useMediaQuery';
 import type { RoomObjectSelection } from '../../domain/roomObjectPlacement';
 import { openingOnWall } from '../../domain/walls';
 import { useT } from '../../i18n';
@@ -16,7 +16,9 @@ import { useBuildContext, useIssues } from '../../store/derived';
 import { deleteSelected, duplicateSelected, editCabinetPositionInPlan, shuffleKitchen, type ShuffleResult } from '../../store/actions';
 import { useUiStore } from '../../store/uiStore';
 import { Button, Dialog, TooltipButton } from '../ui';
-import { RoomPreviewToolbar, type RoomPreviewPanel } from '../room/RoomPreviewToolbar';
+import { usePhoneThreeChrome } from '../layout/PhoneThreeChrome';
+import { PhoneViewSheet } from './PhoneViewSheet';
+import { useThreeNavigation } from './useThreeNavigation';
 import { createMaterials, disposeMaterials } from './materials';
 import { Room3D } from './Room3D';
 import { RoomObjectAnchor, RoomObjectAnnotation, RoomObjectTools } from './RoomObjectTools';
@@ -27,7 +29,6 @@ import { Unit3D } from './Unit3D';
 import { PhotoReferencePanel } from '../references/PhotoReferences';
 import { ItemFields } from '../properties/ItemPanel';
 import { StackAboveButton } from '../properties/StackAboveButton';
-import { inUpperRow, upperCabinetRows } from '../../domain/upperCabinets';
 
 interface CameraRequest { view: CameraView; focusId?: string; back: boolean; token: number }
 const SceneRoom = memo(Room3D);
@@ -35,8 +36,6 @@ const CustomerExport = lazy(() => import('./CustomerExport'));
 
 /** How long the camera takes to glide to a new view. */
 const CAMERA_MOVE_MS = 520;
-/** The first-visit tip leaves by itself after this long. */
-const TIP_MS = 12000;
 
 function prefersReducedMotion(): boolean {
   return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
@@ -168,7 +167,9 @@ export default function Kitchen3D({ compact = false, roomPreview = false }: { co
   const previewLockedIds = useUiStore((s) => s.previewLockedIds);
   const editing = useDesignStore((s) => s.gestureBase !== null);
   const [shuffleResult, setShuffleResult] = useState<ShuffleResult | null>(null);
-  const moveHintSeen = useUiStore((s) => s.moveHintSeen);
+  const chrome = usePhoneThreeChrome();
+  const touch = useCoarsePointer();
+  const [sceneReady, setSceneReady] = useState(false);
   const referenceOpen = useUiStore((state) => state.referenceOpen);
   const cameraView = useUiStore((state) => state.cameraView);
   const cameraFocusId = useUiStore((state) => state.cameraFocusId);
@@ -188,10 +189,8 @@ export default function Kitchen3D({ compact = false, roomPreview = false }: { co
   }, []);
   const [styleOpen, setStyleOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
-  const [roomPanel, setRoomPanel] = useState<RoomPreviewPanel | null>(null);
   const [interior, setInterior] = useState(false);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const [tipTimedOut, setTipTimedOut] = useState(false);
 
   const [openedCabinets, setOpenedCabinets] = useState<Set<string>>(() => new Set());
   const opened = useRef(openedCabinets);
@@ -208,7 +207,6 @@ export default function Kitchen3D({ compact = false, roomPreview = false }: { co
     } else {
       next.add(id);
       ui.focusCamera(id);
-      ui.setMoveHintSeen();
     }
     opened.current = next;
     setOpenedCabinets(next);
@@ -229,7 +227,6 @@ export default function Kitchen3D({ compact = false, roomPreview = false }: { co
   const cancelResize = useCallback(() => setResizeBlocked(false), []);
   const roomSelection = useUiStore((s) => s.roomSelection);
   const roomOpen = useUiStore((s) => s.roomOpen);
-  const mobileRoomToolbar = compact && roomOpen && !roomPreview;
   const selectedWallId = useUiStore((s) => s.selectedWallId);
   const selectRoomObject = useCallback((selection: RoomObjectSelection | null) => {
     if (selection && useUiStore.getState().cabinetTool === 'resize') return;
@@ -257,7 +254,7 @@ export default function Kitchen3D({ compact = false, roomPreview = false }: { co
     measure();
     return () => observer.disconnect();
   }, [compact, canResize, selectedId]);
-  const showTip = !moveHintSeen && !tipTimedOut && items.length > 0 && !selected && !activeRoomSelection && !toolsOpen && !roomPanel;
+  const navigation = useThreeNavigation(sceneReady && !selected && !activeRoomSelection, Boolean(chrome?.open || toolsOpen || styleOpen));
 
   const materials = useMemo(() => createMaterials(style), [style]);
   useEffect(() => () => disposeMaterials(materials), [materials]);
@@ -286,23 +283,11 @@ export default function Kitchen3D({ compact = false, roomPreview = false }: { co
     ui.setPreviewLockedIds([]);
     if (ui.cameraFocusId) ui.requestCamera(ui.cameraView);
   }, []);
-  useEffect(() => {
-    const timer = window.setTimeout(() => setTipTimedOut(true), TIP_MS);
-    return () => window.clearTimeout(timer);
-  }, []);
 
   const select = useCallback((id: string) => {
     const ui = useUiStore.getState();
     if (ui.selectedId === id || ui.cabinetTool === 'resize') return;
     selectRoomObject(null);
-    const items = useDesignStore.getState().design.items;
-    const item = items.find((candidate) => candidate.id === id);
-    if (item && ui.wallElevation !== null) {
-      if (isWallMounted(item)) {
-        const row = upperCabinetRows(items).find((row) => row.elevation === ui.wallElevation);
-        if (!row || !inUpperRow(item, row)) ui.setWallElevation(item.elevation);
-      } else ui.setViewFilter('floor');
-    }
     ui.select(id);
   }, [selectRoomObject]);
 
@@ -316,7 +301,7 @@ export default function Kitchen3D({ compact = false, roomPreview = false }: { co
   };
   const interiorButton = (
     <TooltipButton tooltip={text.view3d.interiorHint} className="h-10" variant="outline" active={interior} onClick={() => {
-      useUiStore.getState().setCabinetTool(null); setInterior((shown) => !shown); setRoomPanel(null);
+      useUiStore.getState().setCabinetTool(null); setInterior((shown) => !shown); chrome?.setOpen(false);
     }}>
       <PanelsTopLeft className="size-4" />{text.view3d.interior}
     </TooltipButton>
@@ -325,12 +310,12 @@ export default function Kitchen3D({ compact = false, roomPreview = false }: { co
   const shuffleTitle = previewLockedIds.length > 0 ? text.shuffle.preview : cabinetTool || editing ? text.shuffle.busy : text.shuffle.hint;
   const kitchenName = shuffleResult?.ok ? text.kitchens.names[shuffleResult.presetId] : '';
   const openAllButton = <TooltipButton tooltip={allOpen ? text.view3d.closeAllHint : text.view3d.openAllHint} className="h-10 flex-1 whitespace-nowrap lg:flex-none"
-    variant="outline" active={allOpen} disabled={interior || openable.length === 0} onClick={() => { toggleAll(); setRoomPanel(null); }}>
+    variant="outline" active={allOpen} disabled={interior || openable.length === 0} onClick={() => { toggleAll(); chrome?.setOpen(false); }}>
     {allOpen ? <DoorClosed className="size-4" /> : <DoorOpen className="size-4" />}
     {allOpen ? text.view3d.closeAll : text.view3d.openAll}
   </TooltipButton>;
   const nextKitchenButton = <TooltipButton tooltip={shuffleTitle} className="h-10 flex-1 whitespace-nowrap lg:flex-none" variant="outline" disabled={shuffleDisabled} onClick={() => {
-    setRoomPanel(null);
+    chrome?.setOpen(false);
     const result = shuffleKitchen();
     setShuffleResult(!result.ok && result.reason === 'review' ? null : result);
     if (result.ok) { selectRoomObject(null); setOpenedCabinets(new Set()); }
@@ -340,7 +325,7 @@ export default function Kitchen3D({ compact = false, roomPreview = false }: { co
   const customerExport = <div className="flex flex-wrap items-center gap-2">
     <Button variant="outline" disabled={!canSave || Boolean(exportDesign) || editing} title={!canSave ? text.files.unavailable : undefined} data-testid="customer-export"
       onClick={() => { setExportNotice(''); setExportDesign(useDesignStore.getState().design); }}>
-      {mobileRoomToolbar && <Download className="size-4" />}{text.customerView.export}
+      {chrome && <Download className="size-4" />}{text.customerView.export}
     </Button>
     {(exportDesign || exportNotice) && <span role="status" className="text-xs text-studio-muted">{exportDesign ? text.customerView.busy : exportNotice}</span>}
   </div>;
@@ -349,14 +334,28 @@ export default function Kitchen3D({ compact = false, roomPreview = false }: { co
     <SlidersHorizontal className="size-4" />
     <span className={cn(compact && 'sr-only')}>{text.view3d.toolsShort}</span>
   </TooltipButton>;
+  const roomObjects = !roomOpen && roomOptions.length > 0 && <select aria-label={text.view3d.roomObjects} value={activeRoomSelection ? `${activeRoomSelection.type}:${activeRoomSelection.id}` : ''}
+    className="min-h-9 min-w-0 max-w-full rounded-lg border border-zinc-200 bg-white px-2 text-xs text-zinc-800 shadow-sm"
+    onChange={(event) => {
+      const option = roomOptions.find((option) => `${option.type}:${option.id}` === event.target.value);
+      selectRoomObject(option ? { type: option.type, id: option.id } : null);
+      chrome?.setOpen(false);
+    }}>
+    <option value="">{text.view3d.roomObjects}</option>
+    {roomOptions.map((option) => <option key={`${option.type}:${option.id}`} value={`${option.type}:${option.id}`}>{option.name}</option>)}
+  </select>;
+  const helpButton = <TooltipButton tooltip={text.view3d.showTip} aria-label={text.view3d.showTip} variant={chrome ? 'ghost' : 'outline'} onClick={() => {
+    setToolsOpen(false); setStyleOpen(false); navigation.showHelp();
+  }}><CircleHelp size={17} aria-hidden="true" />{chrome && text.view3d.showTip}</TooltipButton>;
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col bg-[#ebe8e3] lg:flex-row">
+    <div className="three-scene flex h-full min-h-0 w-full flex-col bg-[#ebe8e3] lg:flex-row">
       {referenceOpen && !roomOpen && <PhotoReferencePanel />}
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-      {mobileRoomToolbar ? <RoomPreviewToolbar panel={roomPanel} onPanel={setRoomPanel} view={request.focusId ? null : request.view}
-        previews={<>{openAllButton}{interiorButton}</>} nextKitchen={nextKitchenButton} shuffleHint={shuffleDisabled ? shuffleTitle : undefined} customerExport={customerExport} />
-      : !roomPreview && <div role="toolbar" aria-label={text.view3d.toolbar} data-testid="three-toolbar" className="studio-panel flex shrink-0 flex-col gap-2 border-b px-3 py-2 lg:flex-row lg:flex-wrap lg:items-center lg:gap-3">
+      {chrome?.open && <PhoneViewSheet id={chrome.id} onClose={() => chrome.setOpen(false)} view={request.focusId ? null : request.view} room={roomOpen}
+        previews={<>{openAllButton}{interiorButton}</>} nextKitchen={nextKitchenButton} shuffleHint={shuffleDisabled ? shuffleTitle : undefined}
+        customerExport={customerExport} roomObjects={roomObjects} help={helpButton} />}
+      {!chrome && !roomPreview && <div role="toolbar" aria-label={text.view3d.toolbar} data-testid="three-toolbar" className="studio-panel flex shrink-0 flex-col gap-2 border-b px-3 py-2 lg:flex-row lg:flex-wrap lg:items-center lg:gap-3">
         <div className="flex items-center justify-between gap-2">
         <div role="group" aria-label={text.view3d.camera} className="flex shrink-0 rounded-xl border border-studio-line bg-[#efede5] p-0.5">
           {(['perspective', 'front', 'top'] as const).map((view) => <TooltipButton key={view} tooltip={text.view3d.cameraHints[view]}
@@ -367,46 +366,31 @@ export default function Kitchen3D({ compact = false, roomPreview = false }: { co
           <Palette className="size-4" />
           <span className={cn(compact && 'sr-only')}>{text.style.style}</span>
         </TooltipButton>
-        {compact && toolsButton}
         </div>
-        {!compact && <TooltipButton tooltip={text.view3d.resetViewTitle} className="h-10 min-w-10" variant="outline" aria-label={text.view3d.resetView} onClick={() => useUiStore.getState().requestCamera('perspective')}>
+        <TooltipButton tooltip={text.view3d.resetViewTitle} className="h-10 min-w-10" variant="outline" aria-label={text.view3d.resetView} onClick={() => useUiStore.getState().requestCamera('perspective')}>
           <RotateCcw className="size-4" />
-        </TooltipButton>}
+        </TooltipButton>
         <div role="group" aria-label={text.view3d.kitchenActions} className="flex items-center gap-2 lg:border-l lg:border-studio-line lg:pl-3">
         {openAllButton}
         {nextKitchenButton}
         </div>
-        {!compact && interiorButton}
-        {!compact && <><div className="min-w-0 flex-1" />{toolsButton}</>}
+        {interiorButton}
+        <div className="min-w-0 flex-1" />{toolsButton}
       </div>}
 
       {shuffleResult && <div role={shuffleResult.ok ? 'status' : 'alert'} data-testid="shuffle-feedback"
-        className="studio-panel flex shrink-0 items-center gap-3 border-b px-3 py-2 text-xs text-studio-ink">
+        className="three-feedback studio-panel flex shrink-0 items-center gap-3 border-b px-3 py-2 text-xs text-studio-ink">
         <span className="flex-1">{shuffleResult.ok ? text.shuffle.success(kitchenName) : text.shuffle[shuffleResult.reason]}</span>
         <Button aria-label={text.common.close} onClick={() => setShuffleResult(null)}><X className="size-4" /></Button>
       </div>}
 
-      {activeRoomSelection && <div className="studio-panel shrink-0 border-b px-3 py-2">
+      {activeRoomSelection && <div data-three-object-tools="" className="studio-panel shrink-0 border-b px-3 py-2">
         <RoomObjectTools selection={activeRoomSelection} onClose={() => selectRoomObject(null)} />
       </div>}
 
       {toolsOpen && <div id={toolsId} data-testid="three-tools" className="flex max-h-[35dvh] shrink-0 flex-col items-start gap-2 overflow-y-auto overscroll-contain border-b border-studio-line bg-[#f7f5f0] px-3 py-3">
         {customerExport}
-        {(compact || roomOptions.length > 0) && <div className="flex max-w-full flex-wrap items-center gap-2">
-          {compact && interiorButton}
-          {compact && <Button variant="outline" title={text.view3d.resetViewTitle} onClick={() => useUiStore.getState().requestCamera('perspective')}>
-            <RotateCcw className="size-4" />{text.view3d.resetView}
-          </Button>}
-          {!roomOpen && roomOptions.length > 0 && <select aria-label={text.view3d.roomObjects} value={activeRoomSelection ? `${activeRoomSelection.type}:${activeRoomSelection.id}` : ''}
-            className="min-h-9 min-w-0 max-w-full rounded-lg border border-zinc-200 bg-white px-2 text-xs text-zinc-800 shadow-sm"
-            onChange={(event) => {
-              const option = roomOptions.find((option) => `${option.type}:${option.id}` === event.target.value);
-              selectRoomObject(option ? { type: option.type, id: option.id } : null);
-            }}>
-            <option value="">{text.view3d.roomObjects}</option>
-            {roomOptions.map((option) => <option key={`${option.type}:${option.id}`} value={`${option.type}:${option.id}`}>{option.name}</option>)}
-          </select>}
-        </div>}
+        {roomObjects}
         {!compact && selected && <SelectedCabinetTools key={selected.id} item={selected}
           invalid={invalid.has(selected.id)} onFocus={() => useUiStore.getState().focusCamera(selected.id)} />}
         {interior && <p className="max-w-xl text-xs leading-relaxed text-zinc-600">{text.view3d.interiorHint}</p>}
@@ -417,14 +401,17 @@ export default function Kitchen3D({ compact = false, roomPreview = false }: { co
         </details>
       </div>}
 
-      <div className="relative min-h-0 flex-1 touch-none overflow-hidden" data-testid="three-viewport">
+      <div className="relative min-h-0 flex-1 touch-none overflow-hidden" data-testid="three-viewport" {...navigation.handlers}>
       <Canvas
         style={{ height: resizeInset ? `calc(100% - ${resizeInset}px)` : '100%' }}
         flat
         frameloop="demand"
         dpr={[1, 2]}
         camera={{ fov: CAMERA_FOV, near: 0.05, far: 200 }}
-        onCreated={({ camera, scene, gl }) => { if (import.meta.env.DEV) Object.assign(window, { __kitchen3D: { camera, scene, renderer: gl } }); }}
+        onCreated={({ camera, scene, gl }) => {
+          if (import.meta.env.DEV) Object.assign(window, { __kitchen3D: { camera, scene, renderer: gl } });
+          setSceneReady(true);
+        }}
         onPointerMissed={(event) => {
           if (event.type === 'click' && useUiStore.getState().cabinetTool !== 'resize') {
             useUiStore.getState().select(null);
@@ -476,33 +463,34 @@ export default function Kitchen3D({ compact = false, roomPreview = false }: { co
       </>}
 
       {selected && <div ref={handlesRef} data-testid="cabinet-tools" className="studio-panel absolute left-0 top-0 z-10 flex items-center gap-1 rounded-2xl border p-1 shadow-[0_6px_24px_#332f2826]" style={{ visibility: 'hidden' }}>
-        <Button aria-label={text.room.editIn2D} title={text.room.editIn2D}
+        <TooltipButton aria-label={text.room.editIn2D} tooltip={text.room.editIn2D}
           onClick={() => editCabinetPositionInPlan(selected.id)} className="h-11 min-w-11 rounded-xl px-2">
           <LayoutGrid className="size-5" aria-hidden="true" />
           <span className={cn('text-[13px] font-semibold', compact && 'sr-only')}>{text.view3d.planShort}</span>
-        </Button>
-        {!roomPreview && <Button disabled={selectedLocked} active={cabinetTool === 'resize'} aria-pressed={cabinetTool === 'resize'} aria-label={text.view3d.resize} title={selectedLocked ? text.view3d.previewLocked : text.view3d.resizeModeHint}
+        </TooltipButton>
+        {!roomPreview && <TooltipButton disabled={selectedLocked} active={cabinetTool === 'resize'} aria-pressed={cabinetTool === 'resize'} aria-label={text.view3d.resize} tooltip={selectedLocked ? text.view3d.previewLocked : text.view3d.resizeModeHint}
           onClick={startResize} className="h-11 min-w-11 rounded-xl px-2">
           <Ruler className="size-5" aria-hidden="true" /><span className={cn('text-[13px] font-semibold', compact && 'sr-only')}>{text.view3d.resizeShort}</span>
-        </Button>}
-        {!interior && canOpen(selected) && <button type="button"
+        </TooltipButton>}
+        {!interior && canOpen(selected) && <TooltipButton
           aria-label={selectedOpen ? text.view3d.closeCabinet : text.view3d.openCabinet}
-          title={selectedOpen ? text.view3d.closeCabinet : text.view3d.openCabinet}
+          tooltip={selectedOpen ? text.view3d.closeCabinet : text.view3d.openCabinet}
           aria-pressed={selectedOpen} onClick={() => toggleOpening(selected.id)}
           className="flex h-11 touch-manipulation items-center justify-center gap-2 rounded-xl px-3 text-studio-ink transition-colors hover:bg-[#ece8df] aria-pressed:bg-[#e6ecdf] aria-pressed:text-[#3e5539] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-studio-accent">
           {selectedOpen ? <DoorClosed className="size-5" aria-hidden="true" /> : <DoorOpen className="size-5" aria-hidden="true" />}
           <span className={cn('text-[13px] font-semibold', compact && 'sr-only')}>{selectedOpen ? text.view3d.closeShort : text.view3d.openShort}</span>
-        </button>}
-        {cabinetTool && <Button aria-label={text.common.done} title={text.common.done} onClick={() => useUiStore.getState().setCabinetTool(null)} className="h-11 min-w-11 rounded-xl"><X className="size-5" /></Button>}
+        </TooltipButton>}
+        {cabinetTool && <TooltipButton aria-label={text.common.done} tooltip={text.common.done} onClick={() => useUiStore.getState().setCabinetTool(null)} className="h-11 min-w-11 rounded-xl"><X className="size-5" /></TooltipButton>}
       </div>}
 
       {selected && (selectedLocked || cabinetTool && (!canResize || resizeStatus === 'ready')) && <p role="status" data-testid="cabinet-mode-hint"
-        className="pointer-events-none absolute inset-x-3 top-3 z-10 mx-auto w-fit max-w-sm rounded-xl bg-studio-ink/90 px-3 py-2 text-center text-xs leading-snug text-white shadow-lg">
+        className="three-mode-hint pointer-events-none absolute inset-x-3 top-3 z-10 mx-auto w-fit max-w-sm rounded-xl bg-studio-ink/90 px-3 py-2 text-center text-xs leading-snug text-white shadow-lg">
         {selectedLocked ? text.view3d.previewLocked : text.view3d.resizeModeHint}
       </p>}
 
-      {showTip && <p role="status" className="pointer-events-none absolute inset-x-3 top-3 z-10 mx-auto w-fit max-w-full rounded-full bg-studio-ink/85 px-4 py-2 text-center text-xs font-medium leading-snug text-white shadow-lg backdrop-blur-sm">
-        {compact ? text.view3d.tipTouch : text.view3d.tipMouse}
+      {!chrome && <div className="absolute right-2 top-2 z-10">{helpButton}</div>}
+      {navigation.showTip && <p role="status" data-testid="three-tip" className="three-tip pointer-events-none absolute inset-x-3 top-3 z-10 mx-auto w-fit max-w-full rounded-full bg-studio-ink/85 px-4 py-2 text-center text-xs font-medium leading-snug text-white shadow-lg backdrop-blur-sm">
+        {touch ? text.view3d.tipTouch : text.view3d.tipMouse}
       </p>}
 
       {canResize && resizeBlocked && <p role="status" className="pointer-events-none absolute inset-x-3 bottom-20 z-10 mx-auto w-fit max-w-sm rounded-xl bg-amber-50 px-3 py-2 text-center text-xs leading-snug text-amber-900 shadow-lg ring-1 ring-amber-200">
@@ -523,13 +511,6 @@ export default function Kitchen3D({ compact = false, roomPreview = false }: { co
 
       </div>
 
-      {compact && (
-        <Dialog open={styleOpen} title={text.style.style} sheet onClose={() => setStyleOpen(false)}>
-          <div className="p-4 pb-[max(env(safe-area-inset-bottom),16px)]">
-            <StylePicker />
-          </div>
-        </Dialog>
-      )}
       </div>
     </div>
   );
@@ -545,11 +526,11 @@ function SelectedCabinetTools({ item, invalid, onFocus }: {
       <div role="group" aria-label={t.view3d.selectedActions} className="flex max-w-full flex-wrap items-center gap-1 rounded-lg border border-zinc-200 bg-white p-1 shadow-sm">
         <span className="px-2 text-xs font-semibold text-zinc-800">{item.label}</span>
         <div className="flex items-center gap-1">
-          <Button aria-label={t.view3d.focusSelection} title={t.view3d.focusSelection} onClick={onFocus}><Scan className="size-4" /></Button>
-          <Button aria-label={t.view3d.copySelected} title={t.view3d.copySelected} onClick={duplicateSelected}><Copy className="size-4" /></Button>
+          <TooltipButton aria-label={t.view3d.focusSelection} tooltip={t.view3d.focusSelection} onClick={onFocus}><Scan className="size-4" /></TooltipButton>
+          <TooltipButton aria-label={t.view3d.copySelected} tooltip={t.view3d.copySelected} onClick={duplicateSelected}><Copy className="size-4" /></TooltipButton>
           <StackAboveButton key={item.id} item={item} iconOnly />
-          <Button aria-label={t.view3d.editSelected} title={t.view3d.editSelected} onClick={() => setEditing(true)}><Pencil className="size-4" /></Button>
-          <Button aria-label={t.view3d.deleteSelected} title={t.view3d.deleteSelected} onClick={deleteSelected}><Trash2 className="size-4" /></Button>
+          <TooltipButton aria-label={t.view3d.editSelected} tooltip={t.view3d.editSelected} onClick={() => setEditing(true)}><Pencil className="size-4" /></TooltipButton>
+          <TooltipButton aria-label={t.view3d.deleteSelected} tooltip={t.view3d.deleteSelected} onClick={deleteSelected}><Trash2 className="size-4" /></TooltipButton>
         </div>
       </div>
       {invalid && <p role="status" className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-800">{t.view3d.invalidSelection}</p>}

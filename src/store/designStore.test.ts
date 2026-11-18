@@ -6,6 +6,8 @@ import { buildCuttingList } from '../engine/cuttingList';
 import { DEFAULT_CONSTRUCTION } from '../engine/settings';
 import * as actions from './actions';
 import { useDesignStore } from './designStore';
+import { prepareIdeaReview } from './ideaReview';
+import { en } from '../i18n/en';
 import { useUiStore } from './uiStore';
 
 const store = () => useDesignStore.getState();
@@ -344,7 +346,7 @@ describe('kitchen design gallery', () => {
       expect(loaded.partEdits).toBe(original.partEdits);
       expect(loaded.construction).toBe(original.construction);
       expect(store().past).toEqual([original]);
-      expect(useUiStore.getState()).toMatchObject({ selectedId: null, viewFilter: 'floor', view: '3d' });
+      expect(useUiStore.getState()).toMatchObject({ selectedId: null, viewFilter: 'wall', view: '3d' });
       store().undo();
       expect(store().design).toBe(original);
       store().redo();
@@ -357,8 +359,9 @@ describe('kitchen design gallery', () => {
       expect(actions.shuffleKitchen()).toEqual({ ok: false, reason: 'review' });
       expect(useUiStore.getState()).toMatchObject({ layoutsOpen: true, fitRequest: request });
       expect(store().design).toBe(source);
+      const review = prepareIdeaReview(source, request, {}, en.engine);
       actions.setRoomSize({ width: 4200 });
-      expect(actions.acceptFit(source, request, { status: 'fits', items: [createItem('sink', [])], changes: [] })).toBe(false);
+      expect(actions.acceptFit(review)).toBe(false);
       expect(store().design.items).toEqual([]);
     });
 

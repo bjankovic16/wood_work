@@ -57,7 +57,7 @@ async function phoneRoomPreview(page, workspace) {
     return d;
   });
   await workspace.getByRole('radio', { name: '3D', exact: true }).tap();
-  const bar = workspace.getByTestId('three-toolbar');
+  const bar = page.getByTestId('three-toolbar');
   const canvas = workspace.getByTestId('three-viewport').locator('canvas');
   const trigger = (name) => bar.getByRole('button', { name, exact: true });
   const sheet = (name) => page.getByRole('dialog', { name, exact: true });
@@ -66,60 +66,64 @@ async function phoneRoomPreview(page, workspace) {
     return { design, revisions: past.length };
   });
   await page.waitForFunction(() => window.__kitchen3D?.scene.getObjectByName('room-floor'));
-  for (const [width, height, lang, labels] of [[320, 568, 'en', ['Camera', 'Style', 'Kitchen']], [320, 568, 'sr', ['Kamera', 'Stil', 'Kuhinja']], [430, 778, 'sr', ['Kamera', 'Stil', 'Kuhinja']]]) {
+  for (const [width, height, lang, label] of [[320, 568, 'en', 'View'], [320, 568, 'sr', 'Prikaz'], [430, 778, 'sr', 'Prikaz']]) {
     await page.setViewportSize({ width, height });
     await page.evaluate((lang) => window.__kitchen.ui.getState().setLanguage(lang), lang);
     const buttons = bar.getByRole('button');
-    assert.deepEqual(await buttons.allInnerTexts(), labels);
-    const boxes = await Promise.all(labels.map((label) => trigger(label).boundingBox()));
-    assert.ok(boxes.every((b, i) => b && b.y === boxes[0].y && b.width >= 44 && b.height >= 44 && b.x + b.width <= width
-      && b.x >= (i ? boxes[i - 1].x + boxes[i - 1].width : 0)), 'All three labelled targets must fit on one row, without overlap.');
-    assert.ok((await bar.boundingBox()).height <= 64, 'Keep the preview toolbar to one touch-height row.');
+    assert.deepEqual(await buttons.allInnerTexts(), [label]);
+    const box = await trigger(label).boundingBox();
+    assert.ok(box && box.width >= 44 && box.height >= 44 && box.x >= 0 && box.x + box.width <= width);
+    assert.ok(await trigger(label).evaluate((b) => {
+      const { x, y, width, height } = b.getBoundingClientRect();
+      return b.contains(document.elementFromPoint(x + width / 2, y + height / 2));
+    }), 'The labelled View trigger must remain tappable at each width.');
   }
   await waitForIdleRendering(page);
   await page.screenshot({ path: path.resolve('test-results/room-workspace/phone-3d-preview-sr.png') });
 
   const before = await state();
   const viewport = await canvas.boundingBox();
-  await trigger('Kamera').press('Enter');
-  const camera = sheet('Kamera');
+  const view = trigger('Prikaz');
+  await view.press('Enter');
+  const camera = sheet('Prikaz');
   assert.deepEqual(await canvas.boundingBox(), viewport, 'The sheet must overlay the room, not resize it.');
   await camera.getByRole('button', { name: 'Odozgo' }).press('Enter');
   assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().cameraView), 'top');
-  assert.ok(await trigger('Kamera').evaluate((el) => el === document.activeElement));
-  await trigger('Kamera').tap();
+  assert.ok(await view.evaluate((el) => el === document.activeElement));
+  await view.tap();
   assert.equal(await camera.getByRole('button', { name: 'Odozgo' }).getAttribute('aria-pressed'), 'true');
   await camera.getByRole('button', { name: 'Vrati pogled' }).tap();
   assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().cameraView), 'perspective');
 
-  await trigger('Stil').tap();
+  await view.tap();
+  await camera.getByRole('button', { name: 'Stil', exact: true }).tap();
   const tiles = await sheet('Stil').getByRole('checkbox', { name: 'Podne pločice' }).boundingBox();
   assert.ok(tiles && tiles.y >= 0 && tiles.y + tiles.height <= 778, 'Room finishes should be immediately visible, without scrolling.');
   await page.keyboard.press('Escape');
-  assert.ok(await trigger('Stil').evaluate((el) => el === document.activeElement));
+  assert.ok(await view.evaluate((el) => el === document.activeElement));
 
-  const kitchen = sheet('Kuhinja');
+  const kitchen = sheet('Prikaz');
   const next = kitchen.getByRole('button', { name: 'Sledeća kuhinja' });
-  await trigger('Kuhinja').tap();
+  await view.tap();
   assert.ok(await kitchen.getByTestId('customer-export').isEnabled());
   await page.touchscreen.tap(8, 8);
   await kitchen.waitFor({ state: 'hidden' });
   for (const [on, off] of [['Otvori sve', 'Zatvori sve'], ['Unutrašnjost elemenata', 'Unutrašnjost elemenata']]) {
-    await trigger('Kuhinja').tap();
+    await view.tap();
     await kitchen.getByRole('button', { name: on }).tap();
     await kitchen.waitFor({ state: 'hidden' });
-    await trigger('Kuhinja').tap();
+    await view.tap();
     assert.ok(await next.isDisabled(), 'A cabinet preview still locks Next kitchen.');
     const disablePreview = kitchen.getByRole('button', { name: off });
     assert.equal(await disablePreview.getAttribute('aria-pressed'), 'true');
     await disablePreview.tap();
   }
   assert.deepEqual(await state(), before, 'Browsing cameras, finishes and cabinet previews must not edit the project or Undo history.');
-  await trigger('Kuhinja').tap();
+  await view.tap();
   await next.tap();
   assert.equal((await state()).revisions, before.revisions + 1);
   await page.getByRole('button', { name: 'Korak unazad', exact: true }).tap();
-  assert.deepEqual((await state()).design, original, 'The new Kitchen menu must use the existing undoable command.');
+  assert.deepEqual((await state()).design, original, 'The View sheet must use the existing undoable command.');
 }
 
 let browser;

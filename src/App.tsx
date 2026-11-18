@@ -8,6 +8,7 @@ import { PropertiesPanel } from './components/properties/PropertiesPanel';
 import { RoomWorkspace } from './components/room/RoomWorkspace';
 import { View3D } from './components/three/View3D';
 import { LayoutDialog } from './components/layouts/LayoutDialog';
+import { FitNotice } from './components/layouts/IdeaFitReview';
 import { ProjectsDialog } from './components/projects/ProjectsDialog';
 import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
@@ -69,5 +70,5 @@ export function App() {
   useEffect(() => {
     document.documentElement.lang = LANGUAGES.find((option) => option.value === language)?.htmlLang ?? language;
   }, [language]);
-  return useIsCompact() ? <CompactLayout /> : <DesktopLayout />;
+  return <>{useIsCompact() ? <CompactLayout /> : <DesktopLayout />}<FitNotice /></>;
 }

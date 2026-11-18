@@ -19,6 +19,7 @@ export interface ProjectMeta {
   /** Milliseconds since 1970. */
   updatedAt: number;
   units: number;
+  roomMeasured?: boolean;
 }
 
 interface ProjectsState {
@@ -82,7 +83,7 @@ export function flushSave(): void {
   storeDesign(activeId, design);
   savedDesign = design;
   useProjectsStore.setState((state) => ({
-    projects: state.projects.map((p) => (p.id === activeId ? metaOf(activeId, design) : p)),
+    projects: state.projects.map((p) => (p.id === activeId ? { ...p, ...metaOf(activeId, design) } : p)),
   }));
   saveIndex();
 }
@@ -97,10 +98,23 @@ function parseIndex(raw: unknown): ProjectsState | null {
   if (!v || !Array.isArray(v.projects)) return null;
   const projects = v.projects
     .filter((p): p is ProjectMeta => !!p && typeof p.id === 'string' && typeof p.name === 'string')
-    .map((p) => ({ id: p.id, name: p.name, updatedAt: Number(p.updatedAt) || 0, units: Number(p.units) || 0 }));
+    .map((p) => ({ id: p.id, name: p.name, updatedAt: Number(p.updatedAt) || 0, units: Number(p.units) || 0, ...(p.roomMeasured === true ? { roomMeasured: true } : {}) }));
   if (projects.length === 0) return null;
   const activeId = typeof v.activeId === 'string' && projects.some((p) => p.id === v.activeId) ? v.activeId : projects[0].id;
   return { activeId, projects };
+}
+
+function needsRoomSetup(id: string, design: Design): boolean {
+  return !design.items.length && !useProjectsStore.getState().projects.find((project) => project.id === id)?.roomMeasured;
+}
+
+export function finishRoom(): void {
+  const { activeId, projects } = useProjectsStore.getState();
+  if (projects.some((p) => p.id === activeId && !p.roomMeasured)) {
+    useProjectsStore.setState({ projects: projects.map((p) => p.id === activeId ? { ...p, roomMeasured: true } : p) });
+    saveIndex();
+  }
+  useUiStore.getState().finishRoom();
 }
 
 function show(id: string, design: Design): void {
@@ -109,11 +123,14 @@ function show(id: string, design: Design): void {
   useProjectsStore.setState({ activeId: id });
   const ui = useUiStore.getState();
   ui.select(null);
+  ui.setViewFilter('all');
   ui.setWallElevation(null);
   ui.setLibraryDrag(null);
   ui.setSelectedWallId(null);
   ui.setWallEditing(false);
-  ui.setRoomOpen(design.items.length === 0);
+  if (needsRoomSetup(id, design)) ui.setRoomOpen(true);
+  else if (!design.items.length) ui.setView('plan');
+  else ui.setRoomOpen(false);
   ui.setReferenceOpen(Boolean(design.referencePhoto));
   ui.requestCamera('perspective');
   saveIndex();
@@ -146,7 +163,8 @@ export function initProjects(): void {
   const active = useDesignStore.getState().design;
   const ui = useUiStore.getState();
   ui.setSelectedWallId(null);
-  ui.setRoomOpen(active.items.length === 0);
+  if (needsRoomSetup(useProjectsStore.getState().activeId, active)) ui.setRoomOpen(true);
+  else ui.setView('plan');
   ui.setReferenceOpen(Boolean(active.referencePhoto));
   useDesignStore.subscribe((state, previous) => {
     if (committedDesign(state) !== committedDesign(previous)) scheduleSave();
@@ -186,7 +204,7 @@ export function duplicateProject(id: string): string | null {
   const copyId = newId();
   const design = { ...structuredClone(source), name: currentMessages().names.copyOf(source.name) };
   storeDesign(copyId, design);
-  useProjectsStore.setState((state) => ({ projects: [metaOf(copyId, design), ...state.projects] }));
+  useProjectsStore.setState((state) => ({ projects: [{ ...metaOf(copyId, design), roomMeasured: state.projects.find((p) => p.id === id)?.roomMeasured }, ...state.projects] }));
   saveIndex();
   return copyId;
 }

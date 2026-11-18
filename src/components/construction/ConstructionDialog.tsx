@@ -1,11 +1,14 @@
-import { Copy, Plus, Trash2 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { Check, Copy, Plus, Trash2 } from 'lucide-react';
+import { useId, useMemo, type ReactNode } from 'react';
 import { materialInUse } from '../../domain/designOps';
 import type { ConstructionSettings, EdgeBand, Material } from '../../domain/types';
+import { unitParts } from '../../engine/parts';
 import { EDGE_LIMITS, MATERIAL_LIMITS, SETTING_LIMITS, type NumericSetting } from '../../engine/settings';
 import { useIsCompact } from '../../hooks/useMediaQuery';
 import { useT, type Messages } from '../../i18n';
+import { CURRENCY } from '../../i18n/money';
 import * as actions from '../../store/actions';
+import { useBuildContext } from '../../store/derived';
 import { useDesignStore } from '../../store/designStore';
 import { useUiStore, type SettingsTab } from '../../store/uiStore';
 import { CheckboxField, NumberField, SelectField, TextField } from '../properties/NumberField';
@@ -36,41 +39,55 @@ function SettingField({ settings, field, label, title }: { settings: Constructio
 /** A board as listed: its name in the interface language and its thickness. */
 const boardLabel = (m: Material, t: Messages) => `${t.engine.material(m)} ${t.mm(m.thickness)} mm`;
 
-function MaterialCard({ material, inUse }: { material: Material; inUse: boolean }) {
+function MaterialCard({ material, used, locked, group }: { material: Material; used: boolean; locked: boolean; group: string }) {
   const t = useT();
   const s = t.settings;
+  const name = t.engine.material(material);
   return (
-    <div className="space-y-1.5 rounded-lg border border-zinc-200 p-3" data-testid="material-card">
-      <TextField label={s.name} value={t.engine.material(material)} maxLength={60} onCommit={(name) => actions.updateMaterial(material.id, { name: name.trim() })} />
-      <NumberField label={s.thickness} value={material.thickness} precision={1} {...MATERIAL_LIMITS.thickness} onCommit={(thickness) => actions.updateMaterial(material.id, { thickness })} />
-      <NumberField label={s.sheetLength} value={material.sheetLength} {...MATERIAL_LIMITS.sheetLength} onCommit={(sheetLength) => actions.updateMaterial(material.id, { sheetLength })} />
-      <NumberField label={s.sheetWidth} value={material.sheetWidth} {...MATERIAL_LIMITS.sheetWidth} onCommit={(sheetWidth) => actions.updateMaterial(material.id, { sheetWidth })} />
-      <NumberField
-        label={s.pricePerSheet}
-        suffix=""
-        title={s.priceTitle}
-        value={material.price}
-        precision={2}
-        {...MATERIAL_LIMITS.price}
-        onCommit={(price) => actions.updateMaterial(material.id, { price })}
-      />
-      <div className="flex items-center justify-between pt-1">
-        <CheckboxField label={s.hasGrain} hint={s.grainHint} checked={material.grain} onChange={(grain) => actions.updateMaterial(material.id, { grain })} />
-        <div className="flex gap-1">
-          <Button title={s.duplicateBoard} aria-label={s.duplicateNamed(boardLabel(material, t))} onClick={() => actions.addMaterial(material)}>
-            <Copy className="size-4" />
-          </Button>
-          <Button
-            title={inUse ? s.inUse : s.removeBoard}
-            aria-label={s.removeNamed(boardLabel(material, t))}
-            disabled={inUse}
-            onClick={() => actions.removeMaterial(material.id)}
-          >
-            <Trash2 className="size-4" />
-          </Button>
+    <details name={group} className="min-w-0 rounded-lg border border-zinc-200 bg-white" data-testid="material-card" data-material-id={material.id}>
+      <summary className="rounded-lg">
+        <span className="min-w-0 flex-1 truncate" title={name}>{name}</span>
+        {used && <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-800" title={s.usedBoard}>
+          <Check className="size-3" aria-hidden="true" /><span className="max-[400px]:sr-only">{s.usedBoard}</span>
+        </span>}
+        <span className="shrink-0 whitespace-nowrap text-xs font-normal tabular-nums text-studio-muted">
+          {t.mm(material.sheetLength)}×{t.mm(material.sheetWidth)}×{t.mm(material.thickness)} mm
+        </span>
+        <span className="shrink-0 whitespace-nowrap text-xs tabular-nums">{material.price > 0 ? t.money(material.price) : `— ${CURRENCY}`}</span>
+      </summary>
+      <div className="grid gap-2 border-t border-zinc-100 p-3 sm:grid-cols-2">
+        <TextField label={s.name} value={name} maxLength={60} onCommit={(name) => actions.updateMaterial(material.id, { name: name.trim() })} />
+        <NumberField label={s.thickness} value={material.thickness} precision={1} {...MATERIAL_LIMITS.thickness} onCommit={(thickness) => actions.updateMaterial(material.id, { thickness })} />
+        <NumberField label={s.sheetLength} value={material.sheetLength} {...MATERIAL_LIMITS.sheetLength} onCommit={(sheetLength) => actions.updateMaterial(material.id, { sheetLength })} />
+        <NumberField label={s.sheetWidth} value={material.sheetWidth} {...MATERIAL_LIMITS.sheetWidth} onCommit={(sheetWidth) => actions.updateMaterial(material.id, { sheetWidth })} />
+        <NumberField
+          label={`${s.pricePerSheet} (${CURRENCY})`}
+          shortLabel={s.pricePerSheet}
+          suffix={CURRENCY}
+          title={s.priceTitle}
+          value={material.price}
+          precision={2}
+          {...MATERIAL_LIMITS.price}
+          onCommit={(price) => actions.updateMaterial(material.id, { price })}
+        />
+        <div className="flex items-center justify-between gap-2">
+          <CheckboxField label={s.hasGrain} hint={s.grainHint} checked={material.grain} onChange={(grain) => actions.updateMaterial(material.id, { grain })} />
+          <div className="flex gap-1">
+            <Button title={s.duplicateBoard} aria-label={s.duplicateNamed(boardLabel(material, t))} onClick={() => actions.addMaterial(material)}>
+              <Copy className="size-4" />
+            </Button>
+            <Button
+              title={locked ? s.inUse : s.removeBoard}
+              aria-label={s.removeNamed(boardLabel(material, t))}
+              disabled={locked}
+              onClick={() => actions.removeMaterial(material.id)}
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          </div>
         </div>
       </div>
-    </div>
+    </details>
   );
 }
 
@@ -84,7 +101,7 @@ function EdgeBandCard({ band }: { band: EdgeBand }) {
       <NumberField label={s.thickness} value={band.thickness} precision={1} {...EDGE_LIMITS.thickness} onCommit={(thickness) => actions.updateEdgeBand(band.id, { thickness })} />
       <div className="flex items-center gap-2">
         <div className="flex-1">
-          <NumberField label={s.pricePerMetre} suffix="" value={band.price} precision={2} {...EDGE_LIMITS.price} onCommit={(price) => actions.updateEdgeBand(band.id, { price })} />
+          <NumberField label={`${s.pricePerMetre} (${CURRENCY})`} shortLabel={s.pricePerMetre} suffix={CURRENCY} value={band.price} precision={2} {...EDGE_LIMITS.price} onCommit={(price) => actions.updateEdgeBand(band.id, { price })} />
         </div>
         <Button title={s.removeBand} aria-label={s.removeNamed(name)} onClick={() => actions.removeEdgeBand(band.id)}>
           <Trash2 className="size-4" />
@@ -98,6 +115,19 @@ function MaterialsTab() {
   const t = useT();
   const s = t.settings;
   const design = useDesignStore((st) => st.design);
+  const ctx = useBuildContext();
+  const group = useId();
+  // Count stock that will actually be cut, including per-piece overrides and extra pieces.
+  // Being protected from deletion (e.g. a kitchen default) is a separate rule.
+  const used = useMemo(() => {
+    const ids = new Set(design.customParts.filter((p) => p.quantity > 0).map((p) => p.materialId));
+    for (const item of design.items) {
+      for (const part of unitParts(item, ctx, design.partEdits[item.id])) {
+        if (part.quantity > 0) ids.add(part.materialId);
+      }
+    }
+    return ids;
+  }, [ctx, design.customParts, design.items, design.partEdits]);
   const { construction: c, materials, edgeBands } = design;
   const materialOptions = materials.map((m) => ({ value: m.id, label: boardLabel(m, t) }));
   const bandOptions = [{ value: '', label: s.noBand }, ...edgeBands.map((b) => ({ value: b.id, label: t.engine.edgeBand(b) }))];
@@ -137,9 +167,9 @@ function MaterialsTab() {
           </Button>
         }
       >
-        <div className="grid gap-2 sm:grid-cols-2">
-          {materials.map((m) => (
-            <MaterialCard key={m.id} material={m} inUse={materialInUse(design, m.id)} />
+        <div className="grid gap-1.5">
+          {[...materials].sort((a, b) => Number(used.has(b.id)) - Number(used.has(a.id))).map((m) => (
+            <MaterialCard key={m.id} material={m} used={used.has(m.id)} locked={materialInUse(design, m.id)} group={group} />
           ))}
         </div>
       </PanelSection>

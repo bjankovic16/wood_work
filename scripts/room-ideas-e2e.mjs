@@ -8,12 +8,86 @@ let browser;
 try {
   await server.listen();
   browser = await chromium.launch({ channel: 'chrome' });
-  const page = await browser.newPage({ locale: 'en-US', viewport: { width: 1400, height: 900 }, reducedMotion: 'reduce' });
+  const page = await browser.newPage({ locale: 'en-US', viewport: { width: 1440, height: 900 }, hasTouch: true, reducedMotion: 'reduce' });
   const errors = [];
   page.on('pageerror', (err) => errors.push(err.message));
   await page.goto(server.resolvedUrls.local[0], { waitUntil: 'domcontentloaded' });
   const room = page.getByTestId('room-workspace');
   await room.waitFor();
+  const design = () => page.evaluate(() => window.__kitchen.design.getState().design);
+  const initial = await design();
+  const ideas = page.getByRole('button', { name: 'Ideas', exact: true });
+  const gallery = page.getByRole('dialog', { name: 'Ideas', exact: true });
+  const within = gallery.getByRole('checkbox', { name: 'No larger than my room' });
+  const confirm = page.getByTestId('confirm-idea-fit');
+  const notice = page.getByTestId('fit-notice');
+  const previewReport = page.getByTestId('fit-checks');
+  const actualChecks = () => page.evaluate(async () => {
+    const { currentIssues } = await import('/src/store/derived.ts');
+    const { en } = await import('/src/i18n/en.ts');
+    return currentIssues(window.__kitchen.design.getState(), en.engine).map((i) => i.message);
+  });
+  const audited = await page.evaluate(async () => {
+    const { KITCHEN_DESIGNS } = await import('/src/domain/kitchens.ts');
+    const { prepareIdeaReview } = await import('/src/store/ideaReview.ts');
+    const { acceptFit } = await import('/src/store/actions.ts');
+    const { currentIssues } = await import('/src/store/derived.ts');
+    const { currentMessages } = await import('/src/i18n/index.ts');
+    const { design, ui } = window.__kitchen, original = design.getState().design, t = currentMessages();
+    // Exercise the real preview, apply, badge and history commands in one browser turn.
+    // The full UI (including card images, check text and Undo button) is exercised below.
+    const rows = KITCHEN_DESIGNS.map(({ id }) => {
+      const review = prepareIdeaReview(original, { type: 'idea', id }, { prefixes: t.labelPrefix }, t.engine);
+      const applied = acceptFit(review);
+      const actual = currentIssues(design.getState(), t.engine);
+      const row = { id, applied, items: design.getState().design.items.length, checks: actual.map((issue) => issue.message),
+        shown: review.issues.map((issue) => issue.message), count: ui.getState().fitNotice?.changes, changes: review.fit?.changes.length };
+      design.getState().undo();
+      return { ...row, restored: design.getState().design === original };
+    });
+    ui.getState().setView('plan');
+    return rows;
+  });
+  assert.equal(audited.length, 60);
+  for (const row of audited) {
+    assert.ok(row.applied && row.items > 0 && row.restored, row.id);
+    assert.deepEqual(row.checks, [], row.id);
+    assert.deepEqual(row.shown, row.checks, row.id);
+    assert.equal(row.count, row.changes, row.id);
+  }
+  for (const id of ['walnut-frame', 'olive-window-wall', 'urban-oak']) {
+    await ideas.click();
+    assert.ok(await within.isChecked(), 'The size filter is on each time the gallery opens.');
+    await within.uncheck();
+    const card = gallery.locator(`[data-kitchen-design="${id}"]`);
+    await card.locator('img').click();
+    assert.deepEqual(await design(), initial, `${id}: inspecting the picture must not change the project.`);
+    assert.equal(await previewReport.getAttribute('data-issues'), '0', id);
+    const changeCount = await page.getByTestId('fit-adjustments').locator('li').count();
+    await confirm.click();
+    assert.ok((await design()).items.length > 0, id);
+    assert.deepEqual(await actualChecks(), [], id);
+    assert.match(await notice.innerText(), new RegExp(`\\b${changeCount} layout adjustment`), id);
+    await notice.getByRole('button', { name: 'Undo' }).click();
+    assert.deepEqual(await design(), initial, `Undo ${id}`);
+  }
+  console.log('60/60 gallery ideas applied to the default room: zero workshop errors or warnings; preview, adjustment count and Undo match.');
+  // A custom piece cannot be fixed by moving cabinets. Disclose it, unchanged, before confirmation.
+  await page.evaluate(() => window.__kitchen.design.getState().apply((d) => ({
+    ...d, customParts: [{ id: 'rail', name: 'Existing rail', length: 7900, width: 110, quantity: 1,
+      materialId: d.construction.carcassMaterial, edgeBandId: null, edgesLength: 0, edgesWidth: 0, note: '' }],
+  })));
+  await ideas.click();
+  await within.uncheck();
+  await gallery.locator('[data-kitchen-design="walnut-frame"]').click();
+  const disclosed = await previewReport.locator('li').allTextContents();
+  assert.ok(disclosed.some((issue) => issue.includes('Existing rail')));
+  await confirm.click();
+  assert.deepEqual(await actualChecks(), disclosed);
+  await page.getByRole('textbox', { name: 'Project name' }).fill('Measured example');
+  await page.getByRole('textbox', { name: 'Project name' }).press('Enter');
+  assert.equal(await notice.count(), 0, 'A stale suggestion cannot undo a later edit.');
+  await page.evaluate((d) => window.__kitchen.design.getState().load(d), initial);
   const before = await page.evaluate(async () => {
     const { design } = window.__kitchen;
     const d = design.getState().design;
@@ -24,11 +98,15 @@ try {
     design.getState().load(target);
     return target;
   });
-  const design = () => page.evaluate(() => window.__kitchen.design.getState().design);
   for (const [side, expectedWall] of [['Left return', 'right'], ['Right return', 'left']]) {
-    await page.getByRole('button', { name: 'Kitchen designs', exact: true }).first().click();
+    await ideas.click();
+    await within.uncheck();
     await page.locator('[data-kitchen-design="warm-minimal"]').click();
-    await page.getByLabel('Main wall', { exact: true }).selectOption('bottom');
+    if (side === 'Left return') {
+      await page.locator('[data-fit-wall="bottom"]').focus();
+      await page.keyboard.press('Enter');
+      assert.equal(await page.getByLabel('Main wall', { exact: true }).inputValue(), 'bottom');
+    } else await page.getByLabel('Main wall', { exact: true }).selectOption('bottom');
     await page.getByRole('radio', { name: side, exact: true }).click();
     assert.deepEqual(await design(), before, 'Looking at a proposal never commits it.');
     await page.getByTestId('confirm-idea-fit').click();
@@ -43,7 +121,7 @@ try {
     });
     assert.equal(sideWall, expectedWall);
     if (side === 'Left return') {
-      await page.getByRole('button', { name: 'Undo', exact: true }).click();
+      await notice.getByRole('button', { name: 'Undo', exact: true }).click();
       assert.deepEqual(await design(), before);
     }
   }
@@ -55,8 +133,12 @@ try {
     return buildCuttingList(window.__kitchen.design.getState().design).units.map((u) => u.parts);
   });
   const priorParts = await parts();
-  await page.getByRole('button', { name: 'Kitchen designs', exact: true }).first().click();
+  await ideas.click();
+  await within.uncheck();
   await page.locator('[data-kitchen-design="walnut-frame"]').click();
+  await gallery.getByRole('heading', { name: /^Appearance only/ }).waitFor();
+  assert.deepEqual(await design(), fitted);
+  await confirm.click();
   const styled = await design();
   assert.deepEqual(transforms(styled), transforms(fitted));
   assert.deepEqual(styled.room, before.room);
@@ -66,8 +148,32 @@ try {
   assert.notDeepEqual(styled.style, fitted.style);
   assert.equal(styled.style.windowFrame, 'walnut');
   assert.equal(styled.style.doorFrame, 'walnut');
-  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await notice.getByRole('button', { name: 'Undo', exact: true }).click();
   assert.deepEqual(await design(), fitted);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate((empty) => {
+    window.__kitchen.design.getState().load(empty);
+    window.__kitchen.ui.getState().setRoomOpen(true);
+  }, initial);
+  await page.getByTestId('room-ideas').tap();
+  await gallery.locator('[data-kitchen-design] img').first().tap();
+  const sketch = gallery.getByRole('group', { name: 'Proposed layout in your room' });
+  await sketch.scrollIntoViewIfNeeded();
+  const bounds = await sketch.boundingBox();
+  assert.ok(bounds.width >= 350 && bounds.height >= 240, 'The phone sketch should use the sheet width and have room for fingers.');
+  const wall = sketch.locator('[data-fit-wall="right"]');
+  const p = await wall.locator('circle').boundingBox();
+  await page.touchscreen.tap(p.x + p.width / 2 + 21, p.y + p.height / 2);
+  assert.equal(await gallery.getByLabel('Main wall', { exact: true }).inputValue(), 'right');
+  assert.equal(await wall.getAttribute('aria-pressed'), 'true');
+  assert.ok((await wall.getAttribute('aria-label')).includes('3000 mm'));
+  await gallery.getByRole('button', { name: 'Close', exact: true }).tap();
+  await page.getByTestId('room-done').tap();
+  await page.getByTestId('empty-plan-hint').waitFor();
+  await page.reload();
+  await page.getByTestId('empty-plan-hint').waitFor();
+  assert.equal(await page.getByRole('dialog').count(), 0);
+  assert.equal(await ideas.count(), 1);
   assert.deepEqual(errors, []);
   console.log('Both L returns fit around the measured room; a subsequent idea keeps every cabinet, opening, structure and cut part, with one Undo.');
 } finally {

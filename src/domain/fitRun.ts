@@ -18,7 +18,7 @@ export function value(item: KitchenItem): number {
   if (cooker(item) || item.kind === 'sink') return 1e6;
   if (['integratedFridge', 'fridge', 'ovenTower'].includes(item.kind)) return 1e5;
   if (item.kind === 'dishwasher') return 1e4;
-  if (['corner', 'glassWall', 'hood', 'tall', 'bar'].includes(item.kind)) return 1000;
+  if (['corner', 'glassWall', 'hood', 'tall', 'bar', 'endPanel'].includes(item.kind)) return 1000;
   return item.kind === 'filler' ? 10 : 100;
 }
 
@@ -109,5 +109,18 @@ export function packRow(
   const result: Placement[] = [];
   let state: State | undefined = frontier.at(-1);
   while (state?.last) { result.push(state.last); state = state.previous; }
-  return result.reverse();
+  result.reverse();
+  // Cut an upper storage unit to meet the next unit or end panel. Standard
+  // module widths alone can leave a narrow sliver in a fitted timber frame.
+  for (const [i, p] of result.entries()) {
+    if (floorUnit(p.item) || !['wall', 'shelf'].includes(p.item.kind)) continue;
+    const span = available(p.item).spans.find((s) => contains(s, p.from, p.item.width));
+    if (!span) continue;
+    const width = Math.min(result[i + 1]?.from ?? Infinity, span.to) - p.from;
+    const growth = width - p.item.width;
+    if (growth > .01 && growth < 100 && width <= sizeLimits(p.item, 'width').max && width <= (p.item.doors ?? 1) * 600) {
+      p.item = against(run, { ...p.item, width }, p.from);
+    }
+  }
+  return result;
 }

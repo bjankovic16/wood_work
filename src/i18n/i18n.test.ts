@@ -15,6 +15,12 @@ import { sr } from './sr';
 import { browserLanguage } from './language';
 
 describe('browser language', () => {
+  it.each([en, sr])('uses one name per view in the room, editor and phone tabs', (t) => {
+    expect(t.room.plan).toBe(t.topBar.plan);
+    expect(t.topBar.listShort).toBe(t.topBar.list);
+    expect(t.cutting.title).toBe(t.topBar.list);
+    expect(t.room.ideasShort).toBe(t.layouts.title);
+  });
   it('uses Serbian only when it is the primary browser language', () => {
     expect(['sr', 'sr-Latn-RS', 'SR-rs', 'sr_Cyrl'].map((language) => browserLanguage([language, 'en']))).toEqual(['sr', 'sr', 'sr', 'sr']);
     expect([['en-US', 'sr'], ['de-DE'], [], ['']].map(browserLanguage)).toEqual(['en', 'en', 'en', 'en']);
@@ -26,6 +32,11 @@ const kitchen = () => {
   design.items = [createItem('base', [], { label: 'D1' }), createItem('wall', [], { label: 'G1', x: 0 })];
   return design;
 };
+
+it('keeps prices in dinars when the display language changes', () => {
+  expect(en.money(1234.5)).toMatch(/^RSD\s1,234\.50$/);
+  expect(sr.money(1234.5)).toMatch(/^1\.234,50\sRSD$/);
+});
 
 describe('Serbian', () => {
   it('uses the right noun form after a number', () => {

@@ -19,7 +19,7 @@ export function useBuildContext(): BuildContext {
 interface Report { issues: Issue[]; precut: Issue[] }
 const reports = new WeakMap<Design, Map<EngineLabels, Report>>();
 
-function workshopReport(design: Design, labels: EngineLabels): Report {
+export function workshopReport(design: Design, labels: EngineLabels): Report {
   let locales = reports.get(design);
   if (!locales) reports.set(design, locales = new Map());
   let report = locales.get(labels);

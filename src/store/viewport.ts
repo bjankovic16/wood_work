@@ -1,19 +1,17 @@
 import { clamp } from '../domain/math';
 import type { SnapSettings } from '../domain/snapping';
-import type { Point } from '../domain/types';
-import { useDesignStore } from './designStore';
+import type { Point, Rect } from '../domain/types';
 import { useUiStore } from './uiStore';
 
 /** Drawn thickness of the room walls (mm). */
 export const WALL_THICKNESS = 120;
-export const MIN_ZOOM = 0.03;
+// Large rooms must still fit a narrow phone, including the screen-sized dimension labels.
+export const MIN_ZOOM = 0.001;
 export const MAX_ZOOM = 3;
 /** The zoom shown as 100 % (1 m = 200 px). */
 export const REFERENCE_ZOOM = 0.2;
 /** Screen distance at which edges snap together. */
 export const SNAP_DISTANCE_PX = 10;
-/** Space kept around the room when fitting it into view, for the dimension lines. */
-const FIT_MARGIN_PX = 96;
 
 let canvasElement: HTMLElement | null = null;
 
@@ -41,31 +39,42 @@ export function clientToPlan(clientX: number, clientY: number, insideOnly = fals
   return { x: (sx - pan.x) / zoom, y: (sy - pan.y) / zoom };
 }
 
-/** Screen space covered by controls floating over the canvas (e.g. the phone's bottom buttons). */
-let fitInsets = { top: 0, bottom: 0 };
+type PlanArea = { left: number; top: number; right: number; bottom: number };
 
-export function setFitInsets(insets: { top: number; bottom: number }): void {
-  fitInsets = insets;
+/** Unobstructed regions in canvas coordinates, including space between floating controls in landscape. */
+export function clearPlanAreas(element: HTMLElement, width: number, height: number, margin: number): PlanArea[] {
+  const origin = element.getBoundingClientRect();
+  let areas = [{ left: 0, top: 0, right: width, bottom: height }];
+  for (const control of element.closest('main')?.querySelectorAll('[data-plan-controls], [data-plan-overlay]') ?? []) {
+    const r = control.getBoundingClientRect();
+    const left = r.left - origin.left, right = r.right - origin.left;
+    const top = r.top - origin.top, bottom = r.bottom - origin.top;
+    areas = areas.flatMap((area) => {
+      if (right <= area.left || left >= area.right || bottom <= area.top || top >= area.bottom) return [area];
+      return [{ ...area, top: bottom }, { ...area, bottom: top }, { ...area, left: right }, { ...area, right: left }]
+        .filter((a) => a.right - a.left > 2 * margin && a.bottom - a.top > 2 * margin);
+    });
+  }
+  return areas;
 }
 
-export function fitRoomInView(): void {
-  const size = canvasSize();
-  if (!size || size.w === 0 || size.h === 0) return;
-  const { room } = useDesignStore.getState().design;
-  // Small screens cannot spare the full margin for dimension lines.
-  const margin = clamp(Math.min(size.w, size.h) * 0.12, 28, FIT_MARGIN_PX);
-  const height = size.h - fitInsets.top - fitInsets.bottom;
-  const zoom = clamp(
-    Math.min(
-      (size.w - 2 * margin) / (room.width + 2 * WALL_THICKNESS),
-      (height - 2 * margin) / (room.depth + 2 * WALL_THICKNESS),
-    ),
-    MIN_ZOOM,
-    MAX_ZOOM,
-  );
-  useUiStore.getState().setViewport(zoom, {
-    x: size.w / 2 - (room.width / 2) * zoom,
-    y: fitInsets.top + height / 2 - (room.depth / 2) * zoom,
+/** Reveal a reported cabinet, retaining the current zoom/pan if it is already fully visible. */
+export function revealPlanRect(rect: Rect): void {
+  if (!canvasElement) return;
+  const canvas = canvasElement.getBoundingClientRect();
+  const margin = 12;
+  const areas = clearPlanAreas(canvasElement, canvas.width, canvas.height, margin);
+  const ui = useUiStore.getState();
+  const x = ui.pan.x + rect.x * ui.zoom, y = ui.pan.y + rect.y * ui.zoom;
+  if (areas.some((a) => x >= a.left + margin && x + rect.w * ui.zoom <= a.right - margin
+    && y >= a.top + margin && y + rect.h * ui.zoom <= a.bottom - margin)) return;
+  const scale = (a: PlanArea) => Math.min((a.right - a.left - 2 * margin) / rect.w, (a.bottom - a.top - 2 * margin) / rect.h);
+  const area = areas.sort((a, b) => scale(b) - scale(a))[0];
+  if (!area) return;
+  const zoom = Math.max(MIN_ZOOM, Math.min(ui.zoom, scale(area)));
+  ui.setViewport(zoom, {
+    x: (area.left + area.right) / 2 - (rect.x + rect.w / 2) * zoom,
+    y: (area.top + area.bottom) / 2 - (rect.y + rect.h / 2) * zoom,
   });
 }
 

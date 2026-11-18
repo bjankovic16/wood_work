@@ -1,12 +1,11 @@
 import { hasWorktop, WORKTOP_THICKNESS } from '../domain/catalog';
 import {
-  footprintRects,
+  fridgeNextToOven,
   footprintsOverlap,
   isFlushWith,
   isWallMounted,
   itemRect,
   mountingWalls,
-  rectsOverlap,
   verticalOverlap,
   WALLS,
   footprintPieces,
@@ -34,6 +33,8 @@ export interface Issue {
   /** Units involved; the first one is shown when the issue is opened. */
   itemIds: string[];
   roomFeatureId?: string;
+  roomOpeningId?: string;
+  roomWallId?: string;
   category?: 'precut';
   /** Re-evaluate this obstacle against the moving cabinet, without running workshop checks. */
   placement?: true;
@@ -67,8 +68,8 @@ export function checkPlacement(design: Design, labels: EngineLabels, moving?: Re
   const { room, items } = design;
   const say = labels.checks;
   const issues: Issue[] = [];
-  const add = (severity: Severity, key: string, message: string, itemIds: string[] = [], roomFeatureId?: string) =>
-    issues.push({ severity, key, message, itemIds, placement: true, ...(roomFeatureId ? { roomFeatureId } : {}) });
+  const add = (severity: Severity, key: string, message: string, itemIds: string[] = [], target?: Pick<Issue, 'roomFeatureId' | 'roomOpeningId' | 'roomWallId'>) =>
+    issues.push({ severity, key, message, itemIds, placement: true, ...target });
 
   const affected = moving ? items.filter((item) => moving.has(item.id)) : items;
   for (const a of affected) {
@@ -89,18 +90,20 @@ export function checkPlacement(design: Design, labels: EngineLabels, moving?: Re
   for (const [index, feature] of (room.features ?? []).entries()) {
     const name = `${labels.roomFeatures[feature.kind]} ${index + 1}`;
     const polygon = roomFeaturePolygon(room, feature);
-    if (!moving && !featureFitsRoom(room, feature)) add('error', `room-feature-${feature.id}`, say.roomFeatureOutside(name), [], feature.id);
+    if (!moving && !featureFitsRoom(room, feature)) add('error', `room-feature-${feature.id}`, say.roomFeatureOutside(name), [], { roomFeatureId: feature.id });
     if (!polygon.length) continue;
     for (const item of affected) {
       if (item.elevation < room.height && item.elevation + item.height > 0 && footprintPieces(item).some((footprint) => polygonsOverlap(footprint, polygon))) {
-        add('error', `structure-${feature.id}-${item.id}`, say.roomFeatureCollision(item.label, name), [item.id], feature.id);
+        add('error', `structure-${feature.id}-${item.id}`, say.roomFeatureCollision(item.label, name), [item.id], { roomFeatureId: feature.id });
       }
     }
   }
   for (const [index, partition] of (room.partitions ?? []).entries()) {
     const name = `${labels.roomPartition} ${index + 1}`;
     const polygon = partitionPolygon(partition);
-    if (!moving && !polygonContains(roomOutline(room), polygon)) add('error', `partition-outside-${partition.id}`, say.roomFeatureOutside(name));
+    if (!moving && !polygonContains(roomOutline(room), polygon)) {
+      add('error', `partition-outside-${partition.id}`, say.roomFeatureOutside(name), [], { roomWallId: roomSegments(room).find((s) => s.partitionId === partition.id)?.id });
+    }
     for (const item of affected) {
       if (item.elevation < partition.height && item.elevation + item.height > 0
         && footprintPieces(item).some((p) => polygonsOverlap(p, polygon))) add('error', `partition-${partition.id}-${item.id}`, say.roomFeatureCollision(item.label, name), [item.id]);
@@ -109,11 +112,11 @@ export function checkPlacement(design: Design, labels: EngineLabels, moving?: Re
   if (!moving) for (const treatment of room.treatments ?? []) {
     const segment = roomSegments(room).find((s) => s.id === treatment.wallId);
     if (!segment || treatment.offset + treatment.width > segment.length + 0.01 || treatment.elevation + treatment.height > segment.height)
-      add('error', `treatment-${treatment.id}`, say.roomFeatureOutside(labels.roomTreatment));
+      add('error', `treatment-${treatment.id}`, say.roomFeatureOutside(labels.roomTreatment), [], { roomWallId: segment?.id });
   }
   for (const opening of design.openings) {
     if (!moving && (!openingIsValid(room, opening) || (!opening.wallId && !openingFitsRoomWall(room, opening.wall, opening.offset, opening.width)))) {
-      add('error', `opening-${opening.id}`, say.openingDoesNotFit(opening.kind, opening.wall));
+      add('error', `opening-${opening.id}`, say.openingDoesNotFit(opening.kind, opening.wall), [], { roomOpeningId: opening.id });
     }
     const door = opening.kind === 'door';
     const clear = openingPolygon(room, opening, door ? Math.max(800, opening.width) : 650);
@@ -161,7 +164,8 @@ export function checkDesign(design: Design, labels: EngineLabels = EN_LABELS): I
       const rows = level === 'wall' ? upperCabinetRows(items) : [undefined];
       for (const row of rows) {
         const spans = items
-          .filter((item) => (level === 'wall') === isWallMounted(item) && (!row || inUpperRow(item, row)) && mountingWalls(item).includes(wall) && isFlushWith(itemRect(item), wall, room))
+          .filter((item) => (row ? inUpperRow(item, row) || item.kind === 'endPanel' && verticalOverlap(item, { elevation: row.elevation, height: row.top - row.elevation })
+            : !isWallMounted(item)) && mountingWalls(item).includes(wall) && isFlushWith(itemRect(item), wall, room))
           .map((item) => {
             const [start, end] = alongWall(itemRect(item), wall);
             return { item, start, end };
@@ -200,7 +204,7 @@ export function checkDesign(design: Design, labels: EngineLabels = EN_LABELS): I
 
     // Wall units too close to the worktop under them.
     if (isWallMounted(item)) {
-      const below = items.filter((other) => !isWallMounted(other) && !verticalOverlap(other, item) && footprintsOverlap(other, item) && workingTop(other) <= item.elevation);
+      const below = items.filter((other) => (hasWorktop(other) || other.kind === 'bar') && footprintsOverlap(other, item) && workingTop(other) <= item.elevation);
       if (below.length > 0) {
         const clearance = item.elevation - Math.max(...below.map(workingTop));
         if (clearance < MIN_WORKTOP_CLEARANCE) {
@@ -255,8 +259,7 @@ export function checkDesign(design: Design, labels: EngineLabels = EN_LABELS): I
   // A fridge right next to an oven gets warm.
   for (const fridge of items.filter((i) => i.kind === 'fridge' || i.kind === 'integratedFridge')) {
     for (const oven of items.filter((i) => i.kind === 'oven' || i.kind === 'ovenTower')) {
-      const grown = { ...itemRect(fridge), x: itemRect(fridge).x - 1, y: itemRect(fridge).y - 1, w: itemRect(fridge).w + 2, h: itemRect(fridge).h + 2 };
-      if (footprintRects(oven).some((r) => rectsOverlap(grown, r, 0))) {
+      if (fridgeNextToOven(fridge, oven)) {
         add('warning', `fridge-${fridge.id}-${oven.id}`, say.fridgeByOven(fridge.label, oven.label), [fridge.id, oven.id]);
       }
     }

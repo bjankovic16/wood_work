@@ -10,6 +10,7 @@ import { useDesignStore } from '../../store/designStore';
 import { pointerFrame } from '../../lib/pointerFrame';
 import { useUiStore } from '../../store/uiStore';
 import { HANDLE_COLOR } from './gizmoStyle';
+import { overlayTopInset } from './overlayInset';
 
 interface ResizeGesture {
   design: Design;
@@ -87,6 +88,8 @@ export function CabinetResize({ item, overlay, onStart, onReady, onCancel, onBlo
     const toolbarBox = toolbar?.getBoundingClientRect();
     const boxes: { x: number; y: number; w: number; h: number }[] = toolbar && toolbarBox && toolbar.style.visibility !== 'hidden'
       ? [{ x: toolbarBox.left - canvas.left, y: toolbarBox.top - canvas.top, w: toolbarBox.width, h: toolbarBox.height }] : [];
+    const inset = overlayTopInset(container, canvas.top);
+    if (inset) boxes.push({ x: 0, y: 0, w: size.width, h: inset });
     const hint = document.querySelector('[data-testid="cabinet-mode-hint"]')?.getBoundingClientRect();
     if (hint) boxes.push({ x: hint.left - canvas.left, y: hint.top - canvas.top, w: hint.width, h: hint.height });
     for (const arrow of tool.current?.children ?? []) {

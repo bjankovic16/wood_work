@@ -3,13 +3,18 @@ import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
-import { waitForIdleRendering } from './three-test-helpers.mjs';
+import { close3DTools, open3DTools, waitForIdleRendering } from './three-test-helpers.mjs';
+import { checkPlanUX } from './plan-ux-checks.mjs';
+import { checkPhoneThreeUX } from './phone-three-ux-checks.mjs';
+import { checkWorkshopPanels } from './workshop-panels-checks.mjs';
 
 const output = path.resolve('test-results/usability');
 await mkdir(output, { recursive: true });
 const server = await createServer({ logLevel: 'error', cacheDir: path.join(output, '.vite'), optimizeDeps: { entries: ['index.html'] }, server: { host: '127.0.0.1', port: 0, watch: null, hmr: false } });
 let browser;
 const errors = [];
+const checkButtonNames = async (screen, context) =>
+  assert.equal(await screen.getByRole('button', { name: '', exact: true }).count(), 0, `${context}: every visible button needs an accessible name.`);
 const roomShowsColours = ({ floorColor, wallColor }) => {
   const scene = window.__kitchen3D?.scene;
   const floor = scene?.getObjectByName('room-floor')?.material;
@@ -34,14 +39,19 @@ try {
   await workspace.getByRole('heading', { name: 'Moja prostorija', exact: true }).waitFor();
   assert.equal(await page.locator('html').getAttribute('lang'), 'sr-Latn', 'An explicit language preference must survive reload.');
   await page.getByLabel('Jezik / Language').selectOption('en');
-  await workspace.getByTestId('room-ideas').click();
-  const gallery = page.getByRole('dialog', { name: 'Kitchen designs', exact: true });
+  assert.equal(await page.getByRole('button', { name: 'Ideas', exact: true }).count(), 1);
+  await page.getByRole('button', { name: 'Ideas', exact: true }).click();
+  const gallery = page.getByRole('dialog', { name: 'Ideas', exact: true });
+  assert.equal(await gallery.getByRole('checkbox', { name: 'No larger than my room' }).isChecked(), true);
+  await gallery.getByRole('checkbox', { name: 'No larger than my room' }).uncheck();
   const firstPhoto = await gallery.locator('[data-kitchen-design] img').first().boundingBox();
+  await checkButtonNames(gallery, 'Ideas gallery');
   assert.ok(firstPhoto.y < 380, 'Kitchen photos must appear near the top, without a hero or duplicate filter rows.');
   assert.equal(await gallery.locator('[data-kitchen-design]').count(), 60);
   const filters = await Promise.all(['Design collection', 'Kitchen layout'].map((name) => gallery.getByLabel(name, { exact: true }).boundingBox()));
   assert.ok(Math.abs(filters[0].y - filters[1].y) < 2, 'Desktop filters must share one row.');
   await page.screenshot({ path: path.join(output, 'desktop-gallery.png') });
+  await gallery.locator('[data-kitchen-design="olive-oak-vitrine"]').locator('..').getByRole('button', { name: /^More options for / }).click();
   await gallery.locator('[data-kitchen-original="olive-oak-vitrine"]').click();
   await page.getByTestId('three-toolbar').waitFor();
   const nextKitchen = page.getByRole('button', { name: 'Next kitchen', exact: true });
@@ -104,7 +114,8 @@ try {
   await checks.click();
   await page.getByRole('radio', { name: 'Plan', exact: true }).click();
   await page.waitForSelector('.konvajs-content');
-  assert.equal(await page.getByRole('button', { name: 'Floor units', exact: true }).getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.getByRole('button', { name: 'All', exact: true }).getAttribute('aria-pressed'), 'true');
+  await page.getByRole('button', { name: 'Floor units', exact: true }).click();
   const verifyRow = async () => {
     await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     const layers = await page.evaluate(async () => {
@@ -244,6 +255,7 @@ try {
   await page.waitForFunction(() => window.__kitchen3D?.scene.getObjectByName(window.__kitchen.ui.getState().selectedId));
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   assert.equal(await page.getByRole('group', { name: 'Selected cabinet actions' }).count(), 0);
+  await checkButtonNames(page, 'Selected cabinet on phone');
   const smallTargets = await page.locator('button:visible').evaluateAll((buttons) => buttons.filter((button) => {
     const box = button.getBoundingClientRect();
     return box.height < 44 || box.width < 44;
@@ -251,22 +263,23 @@ try {
   assert.deepEqual(smallTargets, [], 'Phone buttons must have 44px touch targets.');
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
   await page.screenshot({ path: path.join(output, 'phone-selected.png') });
-  await page.getByTestId('three-tools-toggle').click();
+  await open3DTools(page);
   await interiorToggle.click();
+  await open3DTools(page);
   assert.equal(await interiorToggle.getAttribute('aria-pressed'), 'true');
-  await page.getByTestId('three-tools-toggle').click();
+  await close3DTools(page);
   assert.equal(await page.getByRole('group', { name: 'Selected cabinet actions' }).count(), 0);
   await page.evaluate(() => window.__kitchen.ui.getState().select(null));
   await page.getByRole('button', { name: 'Add element', exact: true }).waitFor();
-  await page.getByRole('button', { name: 'Room', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'My room', exact: true }).waitFor();
   await page.evaluate(() => localStorage.setItem('kitchen-designer:preferences', JSON.stringify({ version: 1, state: { language: 'sr', viewFilter: 'all' } })));
   await page.reload();
   await page.waitForFunction(() => window.__kitchen?.ui.getState().language === 'sr');
-  assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().viewFilter), 'floor', 'Existing all-layer preferences must upgrade to a readable single row.');
+  assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().viewFilter), 'all', 'Existing all-layer preferences must not be changed to floor.');
   await page.evaluate(() => localStorage.setItem('kitchen-designer:preferences', JSON.stringify({ version: 1, state: { language: 'en' } })));
   await page.reload();
   await page.waitForFunction(() => window.__kitchen?.ui.getState().language === 'en');
-  assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().viewFilter), 'floor', 'Older partial preferences must retain the new default row.');
+  assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().viewFilter), 'all', 'Older partial preferences must retain the new All default.');
   assert.deepEqual(errors, []);
   await context.close();
   const phoneContext = await browser.newContext({ viewport: { width: 320, height: 568 }, locale: 'sr-Latn-RS', isMobile: true, hasTouch: true });
@@ -274,16 +287,17 @@ try {
   await phone.goto(server.resolvedUrls.local[0], { waitUntil: 'domcontentloaded' });
   const phoneRoom = phone.getByTestId('room-workspace');
   await phoneRoom.getByRole('heading', { name: 'Moja prostorija', exact: true }).waitFor();
+  await checkButtonNames(phone, 'Phone room workspace');
   const [ideas, proceed] = await Promise.all(['room-ideas', 'room-done'].map((id) => phoneRoom.getByTestId(id).boundingBox()));
   assert.ok([ideas, proceed].every((box) => box && box.x >= 0 && box.x + box.width <= 320 && box.y + box.height <= 568 && box.height >= 44 && box.width >= 44), 'Room actions must fit the first screen and be tappable at 320px.');
   assert.ok(ideas.x + ideas.width <= proceed.x || ideas.y + ideas.height <= proceed.y, 'Room actions must not overlap.');
   await phone.screenshot({ path: path.join(output, 'phone-start-320.png') });
   await phoneRoom.getByTestId('room-done').tap();
-  const card = await phone.getByRole('region', { name: 'Započnite svoju kuhinju', exact: true }).boundingBox();
+  assert.equal(await phone.getByRole('dialog').count(), 0, 'Continue must go straight to the empty plan.');
+  const card = await phone.getByTestId('empty-plan-hint').boundingBox();
   const zoom = await phone.getByRole('group', { name: 'Uvećanje osnove', exact: true }).boundingBox();
   const filtersBox = await phone.getByRole('group', { name: 'Prikaz elemenata', exact: true }).boundingBox();
   assert.ok(zoom.y + zoom.height <= card.y && filtersBox.x + filtersBox.width < zoom.x, '44px plan controls must not cover the post-room suggestions or each other.');
-  await phone.getByRole('button', { name: 'Uvećanje osnove', exact: true }).tap();
   const zoomBefore = await phone.evaluate(() => window.__kitchen.ui.getState().zoom);
   await phone.getByRole('button', { name: 'Uvećaj', exact: true }).tap();
   assert.ok(await phone.evaluate(() => window.__kitchen.ui.getState().zoom) > zoomBefore);
@@ -295,17 +309,19 @@ try {
     window.__kitchen.design.getState().load(fixture);
     window.__kitchen.ui.getState().setView('3d');
   });
-  await phone.getByTestId('three-tools-toggle').tap();
+  await open3DTools(phone);
   const phoneInterior = phone.getByRole('button', { name: 'Unutrašnjost elemenata', exact: true });
   await phoneInterior.tap();
   await phone.waitForFunction(() => window.__kitchen3D?.scene.getObjectByName('phone-interior')?.getObjectByName('cabinet-interior'));
+  await open3DTools(phone);
   await phoneInterior.tap();
   await phone.waitForFunction(() => !window.__kitchen3D.scene.getObjectByName('phone-interior').getObjectByName('cabinet-interior'));
-  await phone.getByTestId('three-tools-toggle').tap();
+  await open3DTools(phone);
   const nextPhone = phone.getByRole('button', { name: 'Sledeća kuhinja', exact: true });
+  await nextPhone.scrollIntoViewIfNeeded();
   const nextBox = await nextPhone.boundingBox();
   const openBox = await phone.getByRole('button', { name: 'Otvori sve', exact: true }).boundingBox();
-  assert.ok(Math.abs(nextBox.y - openBox.y) < 2 && nextBox.x > openBox.x, 'Next kitchen and Open all must stay together on the second toolbar row.');
+  assert.ok(nextBox && openBox && nextBox.y >= openBox.y + openBox.height, 'Next kitchen is a project action, separate from cabinet previews.');
   const beforeHold = await phone.evaluate(() => JSON.stringify(window.__kitchen.design.getState().design));
   const cdp = await phoneContext.newCDPSession(phone);
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: nextBox.x + nextBox.width / 2, y: nextBox.y + nextBox.height / 2 }] });
@@ -316,7 +332,7 @@ try {
   const phoneTooltip = await phone.getByRole('tooltip').boundingBox();
   assert.ok(phoneTooltip.x >= 8 && phoneTooltip.x + phoneTooltip.width <= 312);
   await phone.screenshot({ path: path.join(output, 'phone-toolbar-tooltip-sr.png') });
-  await phone.touchscreen.tap(4, 4);
+  await phone.getByTestId('phone-view-sheet').getByRole('heading', { name: 'Projekat' }).tap();
   await phone.getByRole('tooltip').waitFor({ state: 'detached' });
   await nextPhone.tap();
   await phone.getByTestId('shuffle-feedback').getByText(/primenjen je na vaše elemente/).waitFor();
@@ -325,6 +341,7 @@ try {
   assert.equal(await phone.evaluate(() => JSON.stringify(window.__kitchen.design.getState().design)), beforeHold, 'Undo must restore the entire kitchen before the new look.');
   assert.ok(await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await phone.screenshot({ path: path.join(output, 'phone-toolbar-gallery-sr.png') });
+  await open3DTools(phone);
   await phone.getByRole('button', { name: 'Stil', exact: true }).tap();
   const styleSheet = phone.getByRole('dialog', { name: 'Stil', exact: true });
   await styleSheet.getByRole('button', { name: 'Boja zidova: Maslina', exact: true }).tap();
@@ -341,6 +358,7 @@ try {
   await phone.waitForTimeout(500);
   await phone.reload();
   await phone.getByRole('radio', { name: '3D', exact: true }).tap();
+  assert.equal(await phone.getByTestId('three-tip').count(), 0, 'The first-drag hint does not return on a later visit.');
   await phone.waitForFunction(() => window.__kitchen3D?.scene.getObjectByName('room-floor'));
   assert.deepEqual(await phone.evaluate(() => {
     const { wallColor, floorColor, floorPattern, floorTileSize, floorGroutColor } = window.__kitchen.design.getState().design.style;
@@ -355,6 +373,14 @@ try {
   assert.ok(await phone.evaluate(() => window.__kitchen3D.renderer.info.render.frame) - frame <= 1, 'Floor tiles must not animate an idle scene.');
   await phone.screenshot({ path: path.join(output, 'phone-floor-tiles-sr.png') });
   await phoneContext.close();
+  const planContext = await browser.newContext({ hasTouch: true, locale: 'en-US', reducedMotion: 'reduce' });
+  try {
+    const plan = await planContext.newPage();
+    await plan.goto(server.resolvedUrls.local[0]);
+    await checkPlanUX(plan);
+  } finally { await planContext.close(); }
+  await checkWorkshopPanels(browser, server.resolvedUrls.local[0]);
+  await checkPhoneThreeUX(browser, server.resolvedUrls.local[0]);
   console.log('All desktop/phone usability checks passed: rows, checklist, advanced room, Add, gallery, View, cut list, interiors, language and 44px controls.');
 } finally {
   await browser?.close();

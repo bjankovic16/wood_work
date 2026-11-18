@@ -1,4 +1,4 @@
-import { AppWindow, ChevronDown, Palette, Ruler } from 'lucide-react';
+import { AppWindow, Palette, Ruler } from 'lucide-react';
 import { useId, useLayoutEffect, useRef, useState } from 'react';
 import { useT } from '../../i18n';
 import { useDesignStore } from '../../store/designStore';
@@ -39,7 +39,7 @@ export function RoomInspector() {
       {tool === key && (key === 'dimensions' ? <>
         <RoomDimensions tiles />
         <details className="room-wall-details">
-          <summary>{t.advancedRoom.title}<ChevronDown size={16} aria-hidden="true" /></summary>
+          <summary>{t.advancedRoom.title}</summary>
           <WallMeasurements />
         </details>
         <AdvancedRoomSection />

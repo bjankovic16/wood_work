@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Plus, Ruler } from 'lucide-react';
+import { ChevronDown, ChevronUp, Images, Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { KitchenItem } from '../../domain/types';
 import { useT } from '../../i18n';
@@ -8,30 +8,41 @@ import { DesignCanvas } from '../canvas/DesignCanvas';
 import { ConstructionDialog } from '../construction/ConstructionDialog';
 import { CuttingListView } from '../cutting/CuttingListView';
 import { LibrarySections } from '../library/LibraryPanel';
-import { DeleteButton, DuplicateButton, ItemFields, ItemHeader, RotateButtons } from '../properties/ItemPanel';
+import { DeleteButton, DuplicateButton, ItemFields, ItemHeader, RotateButton } from '../properties/ItemPanel';
 import { RoomWorkspace } from '../room/RoomWorkspace';
 import { Button, Dialog } from '../ui';
 import { View3D } from '../three/View3D';
 import { LayoutDialog } from '../layouts/LayoutDialog';
 import { ProjectsDialog } from '../projects/ProjectsDialog';
 import { TopBar } from './TopBar';
+import { PhoneThreeChrome } from './PhoneThreeChrome';
+
+function PhoneIdeasButton() {
+  const t = useT();
+  return <Button data-plan-controls variant="outline" className="pointer-events-auto h-11 rounded-full px-3 text-sm" onClick={() => useUiStore.getState().setLayoutsOpen(true)}>
+    <Images className="size-4" />{t.layouts.title}
+  </Button>;
+}
 
 /** The selected unit, docked at the bottom of the plan; expands to show all its settings. */
 function ItemSheet({ item }: { item: KitchenItem }) {
   const t = useT();
   const [expanded, setExpanded] = useState(false);
   const manipulating = useUiStore((s) => s.view === '3d' && s.cabinetTool !== null);
+  const inPlan = useUiStore((s) => s.view === 'plan');
   return (
     <div
-      className={`studio-panel absolute inset-x-0 bottom-0 z-10 flex flex-col rounded-t-3xl border-t shadow-[0_-8px_30px_rgba(51,47,40,0.1)] ${manipulating ? 'max-h-[42%]' : 'max-h-[62%]'}`}
+      className={`studio-panel absolute inset-x-0 bottom-0 z-10 flex flex-col rounded-t-3xl border-t shadow-[0_-8px_30px_rgba(51,47,40,0.1)] ${inPlan ? 'phone-plan-dock' : ''} ${manipulating ? 'max-h-[42%]' : 'max-h-[62%]'}`}
       data-testid="item-sheet"
+      data-plan-overlay=""
     >
       <ItemHeader item={item} compact />
       <div className="flex items-center gap-1.5 px-4 pb-3">
-        <RotateButtons />
+        <RotateButton />
         <DuplicateButton iconOnly />
         <DeleteButton iconOnly />
         <div className="flex-1" />
+        <PhoneIdeasButton />
         <Button variant="outline" aria-expanded={expanded} onClick={() => setExpanded((e) => !e)}>
           {expanded ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
           {expanded ? t.phone.less : t.phone.edit}
@@ -67,26 +78,24 @@ export function CompactLayout() {
   }, [view, layoutsOpen, roomOpen]);
 
   return (
-    <div className="flex h-dvh select-none flex-col bg-studio-canvas text-studio-ink">
+    <PhoneThreeChrome mode={view === '3d' ? (roomOpen ? 'room' : 'editor') : null}>
       <TopBar compact />
       {roomOpen ? <RoomWorkspace compact /> : <main className="relative min-h-0 flex-1">
         {view === 'plan' && <DesignCanvas compact />}
         {view === '3d' && <View3D compact />}
         {view === 'list' && <CuttingListView />}
         {designing && !item && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center gap-2 bg-gradient-to-t from-studio-canvas/90 to-transparent px-3 pb-[max(env(safe-area-inset-bottom),14px)] pt-6">
-            <Button variant="primary" className="pointer-events-auto h-11 rounded-full px-5 text-sm shadow-lg" onClick={() => setSheet('add')}>
+          <div className={`pointer-events-none absolute inset-x-0 bottom-0 flex justify-center gap-2 bg-gradient-to-t from-studio-canvas/90 to-transparent px-3 pb-[max(env(safe-area-inset-bottom),14px)] pt-6 ${view === 'plan' ? 'phone-plan-dock' : ''}`}>
+            <Button data-plan-controls variant="primary" className="pointer-events-auto h-11 rounded-full px-5 text-sm shadow-lg" onClick={() => setSheet('add')}>
               <Plus className="size-4" />
               {t.phone.addElement}
             </Button>
-            <Button variant="outline" className="pointer-events-auto h-11 rounded-full px-4 text-sm shadow-lg" onClick={() => useUiStore.getState().setRoomOpen(true)}>
-              <Ruler className="size-4" />
-              {t.phone.room}
-            </Button>
+            <PhoneIdeasButton />
           </div>
         )}
         {designing && item && <ItemSheet key={item.id} item={item} />}
       </main>}
+      {!roomOpen && view === 'list' && <nav aria-label={t.layouts.title} className="studio-panel flex justify-center border-t py-1 print:hidden"><PhoneIdeasButton /></nav>}
 
       <Dialog open={sheet === 'add'} title={t.phone.addElement} sheet onClose={() => setSheet(null)}>
         <p className="px-4 pt-3 text-xs text-zinc-500">{t.phone.addHint}</p>
@@ -97,6 +106,6 @@ export function CompactLayout() {
       <ConstructionDialog />
       <LayoutDialog />
       <ProjectsDialog />
-    </div>
+    </PhoneThreeChrome>
   );
 }

@@ -3,7 +3,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
-import { assertBodyOrbits, assertScenePlacement, open3DTools } from './three-test-helpers.mjs';
+import { assertBodyOrbits, assertScenePlacement, close3DTools, open3DTools } from './three-test-helpers.mjs';
 import { roomObjectChecks } from './room-object-checks.mjs';
 
 const output = process.argv[2] ?? path.join('test-results', 'rooms');
@@ -75,7 +75,7 @@ async function advancedRoomChecks(page) {
     fixture.room = { width: 4000, depth: 3000, height: 2700 };
     window.__kitchen.design.getState().load(fixture);
     const ui = window.__kitchen.ui.getState();
-    ui.select(null); ui.setView('plan'); ui.setSelectedWallId(null);
+    ui.finishRoom(); ui.setSelectedWallId(null); // This fixture is already measured; go straight to editing.
   });
   await openAdvancedRoom(page);
   await page.getByRole('button', { name: 'Edit wall corners on plan', exact: true }).click();
@@ -300,7 +300,7 @@ try {
   pass('structural collisions are visible in 3D, not hidden behind a successful-looking placement');
   assert.equal(await actions.getByRole('button', { name: 'Rotate selected cabinet', exact: true }).count(), 0);
   await positionInPlan.click();
-  await page.getByRole('button', { name: 'Rotate right', exact: true }).click();
+  await page.getByRole('button', { name: 'Rotate cabinet 90° clockwise', exact: true }).click();
   assert.equal((await design(page)).items.find((item) => item.id === cabinet.id).rotation, (cabinet.rotation + 90) % 360);
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
 
@@ -320,9 +320,9 @@ try {
 
   console.log('Original-photo studio');
   assert.equal(await page.getByRole('button', { name: /^(Photo|Foto)$/ }).count(), 0, 'No standalone photo shortcut in the desktop 3D toolbar or tools.');
-  const gallery = page.getByRole('dialog', { name: 'Kitchen designs' });
+  const gallery = page.getByRole('dialog', { name: 'Ideas' });
   const openStudio = async () => {
-    await page.getByRole('button', { name: 'Kitchen designs', exact: true }).first().click();
+    await page.getByRole('button', { name: 'Ideas', exact: true }).click();
     await gallery.getByRole('radio', { name: 'Photo studio', exact: true }).click();
   };
   await openStudio();
@@ -444,12 +444,14 @@ try {
   await mobile.getByRole('radio', { name: 'English', exact: true }).tap();
   await mobile.getByRole('button', { name: 'More', exact: true }).tap();
   await mobile.getByTestId('room-ideas').tap();
-  await mobile.getByRole('dialog', { name: 'Kitchen designs' }).getByRole('radio', { name: 'Photo studio', exact: true }).tap();
+  await mobile.getByRole('dialog', { name: 'Ideas' }).getByRole('radio', { name: 'Photo studio', exact: true }).tap();
   await mobile.locator('[data-photo-design="warm-island"]').tap();
   await ready3D(mobile);
+  await close3DTools(mobile);
   assert.equal(await mobile.getByRole('button', { name: /^(Photo|Foto)$/ }).count(), 0, 'No standalone photo shortcut in the compact 3D tools.');
   await mobile.getByRole('complementary', { name: 'Original photo' }).waitFor();
   await shot(mobile, '08-photo-studio-phone.png');
+  await open3DTools(mobile);
   await mobile.getByRole('group', { name: '3D camera' }).getByRole('button', { name: 'Top', exact: true }).tap();
   await mobile.waitForTimeout(150);
   const phoneCabinet = (await design(mobile)).items.find((item) => item.kind === 'base');

@@ -1,4 +1,4 @@
-import { ChevronRight, Copy, RotateCcw, RotateCw, Trash2, TriangleAlert, X } from 'lucide-react';
+import { ChevronRight, Copy, RotateCwSquare, Trash2, TriangleAlert, X } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { BAR_MATERIAL_ID, ELEVATION_LIMITS, GLASS_MATERIAL_ID, sizeLimits, type SizeField } from '../../domain/catalog';
 import { aabbSize, attachedRoomSurface, attachedWall, backWall, isFlushWith, itemRect, mountingWalls, attachedSegment } from '../../domain/geometry';
@@ -14,7 +14,7 @@ import { useDesignStore } from '../../store/designStore';
 import { useBuildContext, useIssues } from '../../store/derived';
 import { useUiStore } from '../../store/uiStore';
 import { KindIcon } from '../library/KindIcon';
-import { Button, PanelSection, Segmented } from '../ui';
+import { PanelSection, Segmented, TooltipButton } from '../ui';
 import { FrontPreview } from './FrontPreview';
 import { NumberField, SelectField, TextField } from './NumberField';
 import { Stepper } from './Stepper';
@@ -51,9 +51,9 @@ export function ItemHeader({ item, compact = false }: { item: KitchenItem; compa
         </div>
         <div className="truncate text-xs text-zinc-500">{placementText(item, room, t)}</div>
       </div>
-      <Button title={t.item.deselectTitle} aria-label={t.item.deselect} onClick={() => useUiStore.getState().select(null)} className="-mr-2 -mt-1">
+      <TooltipButton tooltip={t.item.deselectTitle} aria-label={t.item.deselect} onClick={() => useUiStore.getState().select(null)} className="-mr-2 -mt-1">
         <X className="size-4" />
-      </Button>
+      </TooltipButton>
     </div>
   );
 }
@@ -377,38 +377,33 @@ function PartsSection({ item, ctx }: { item: KitchenItem; ctx: BuildContext }) {
   );
 }
 
-export function RotateButtons() {
+export function RotateButton() {
   const t = useT();
   const inPlan = useUiStore((s) => s.view === 'plan');
   if (!inPlan) return null;
   return (
-    <>
-      <Button variant="outline" title={t.item.rotateLeftTitle} aria-label={t.item.rotateLeft} onClick={() => actions.rotateSelected(-1)}>
-        <RotateCcw className="size-4" />
-      </Button>
-      <Button variant="outline" title={t.item.rotateRightTitle} aria-label={t.item.rotateRight} onClick={() => actions.rotateSelected(1)}>
-        <RotateCw className="size-4" />
-      </Button>
-    </>
+    <TooltipButton variant="outline" tooltip={t.item.turn90Hint} aria-label={t.item.turn90} onClick={() => actions.rotateSelected(1)}>
+      <RotateCwSquare className="size-4" aria-hidden="true" />90°
+    </TooltipButton>
   );
 }
 
 export function DuplicateButton({ className, iconOnly = false }: { className?: string; iconOnly?: boolean }) {
   const t = useT();
   return (
-    <Button variant="outline" className={className} title={t.item.duplicateTitle} aria-label={t.item.duplicate} onClick={actions.duplicateSelected}>
+    <TooltipButton variant="outline" className={className} tooltip={t.item.duplicateTitle} aria-label={t.item.duplicate} onClick={actions.duplicateSelected}>
       <Copy className="size-4" />
       {!iconOnly && t.item.duplicate}
-    </Button>
+    </TooltipButton>
   );
 }
 
 export function DeleteButton({ className, iconOnly = false }: { className?: string; iconOnly?: boolean }) {
   const t = useT();
   return (
-    <Button variant="danger" className={className} title={t.item.deleteTitle} aria-label={t.item.delete} onClick={actions.deleteSelected}>
+    <TooltipButton variant="danger" className={className} tooltip={t.item.deleteTitle} aria-label={t.item.delete} onClick={actions.deleteSelected}>
       <Trash2 className="size-4" />
       {!iconOnly && t.item.delete}
-    </Button>
+    </TooltipButton>
   );
 }

@@ -64,16 +64,18 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
    See [Measuring the room](#measuring-the-room) for diagonals and keyboard input.
 3. Use **3D preview** beside the plan on desktop, or switch between **Plan**
    and **3D** on a phone. The selected wall or object stays selected. Choose
-   **Continue to kitchen** to place cabinets yourself, or open **Kitchen designs**
-   to [try an idea in your room](#trying-an-idea-in-your-room).
+   **Continue to kitchen** to open the plan directly, or open **Ideas**
+   to [try an idea in your room](#trying-an-idea-in-your-room). A measured
+   empty project reopens on the plan; a new project still starts with measurements.
 4. **Position objects in 2D only:** move cabinets and structures on the plan
    and slide openings in their wall elevation. In **3D**, drag to orbit and
    scroll or pinch to zoom. You can select, preview, change finishes and
    resize a cabinet with its dimension handles, but dragging its body never
-   moves it. **Undo** (**Korak unazad**) is visible in both editors: a
-   completed edit or applied idea is one step. Camera gestures add no step.
+   moves it. Use the curved-arrow **Undo** and **Redo** buttons on phones;
+   desktop Undo keeps its text label. A completed edit or applied idea is one
+   step. Camera gestures add no step.
 5. For a customer, [export the 3D view as one HTML file](#sending-a-customer-the-3d-view).
-   For the workshop, use **Cut list**: review checks and material totals,
+   For the workshop, use **Cutting list**: review checks and material totals,
    then export the cutting list. The plan and cabinet drawings are below it.
 
 The interface follows the browser's primary language: Serbian for Serbian
@@ -114,10 +116,11 @@ browsers, English otherwise. A language chosen manually is remembered.
 
 ## Trying an idea in your room
 
-Choose **Apply to my kitchen** in the gallery, an idea after room setup, or
-**Next kitchen** (**Sledeća kuhinja**) in 3D. All three work in **your** room.
-They keep its outline, openings and fixed structures, as well as your project
-name and construction settings.
+Open **Ideas** in the desktop top bar or phone bottom bar. The size filter
+starts on; clear it to browse larger originals as well. Click any card or
+photo to review it in **your** room. Open the pictured original in a separate
+project via **⋯**. **Next kitchen** in 3D cycles looks on installed cabinets,
+or opens a layout review if the room is empty.
 
 | What's already in the room? | What happens when you apply an idea? |
 |---|---|
@@ -125,13 +128,15 @@ name and construction settings.
 | **One or more kitchen elements** | Change the **look only**. Every unit keeps its ID, position, dimensions, rotation and elevation. No rows, islands or units are added or removed; boards, thicknesses, manual part edits and the cutting list stay the same. |
 
 For an empty room, check the **Fit to my room** sketch before choosing
-**Apply this layout**. For an L, select **Main wall**, then **Left return** or
+**Apply this layout**. Tap a numbered wall or use **Main wall**, then for an L choose **Left return** or
 **Right return** as if facing that wall from inside: left joins its marked
 start, right joins its end. Only the furniture changes sides. The fit accounts
 for doors, window sills, chimneys, partitions and angled walls, and reserves
 at least 900 mm on all sides of a proposed island. It uses allowed cabinet
-widths and fillers, not scaled-down appliances. Review any shortened or omitted units before
-accepting. If the arrangement cannot fit, you get a reason and nothing is
+widths and fillers, not scaled-down appliances. **Adjustments** lists resized,
+added and omitted parts. The same **Checks** used in the editor run before
+confirmation with your actual boards and custom pieces. A remaining issue is
+listed, not counted as a clean fit. If the arrangement cannot fit, you get a reason and nothing is
 placed. Confirm utility connections and supplier clearances before building.
 
 **Shuffle look** uses the same finish transfer as an idea: fronts and their
@@ -148,8 +153,8 @@ separate from applying the idea.
 
 ## Sending a customer the 3D view
 
-1. In **My room → 3D** on a phone, open **Kitchen**. In the full kitchen
-   editor, open **3D → Tools**. Choose **Export 3D for customer (.html)**
+1. In either 3D workspace on a phone, open **View**. On desktop, open
+   **3D → Tools**. Choose **Export 3D for customer (.html)**
    and send that single file to the customer.
 2. The customer opens the file locally in a browser. Drag to rotate, scroll
    or pinch to zoom, and use **Reset view** to return to the starting angle.
@@ -173,8 +178,9 @@ or a cutting-list export for the workshop; the customer view is neither.
   cabinet to move it, nudge it with the arrow keys, or type its exact position
   in its properties. You can also resize, rotate, duplicate or delete a unit.
   Release to commit a changed drag in one Undo step; Escape or an interrupted
-  touch restores the starting position without a step. Floor units are active
-  first, with faint outlines for the uppers. Switch to wall units to work on
+  touch restores the starting position without a step. **All** is the initial
+  layer. A drag isolates its layer until release or cancellation. Tap the zoom
+  percentage to fit the room and dimensions again. Switch to wall units to work on
   one row at a time. **View** groups snapping, grid size and dimensions;
   **Settings** contains materials and construction.
 - **60 kitchen designs**: browse straight, L-shaped, U-shaped and island
@@ -267,7 +273,7 @@ or a cutting-list export for the workshop; the customer view is neither.
     Flat and Shaker-relief fronts are available; the relief is a visual preview,
     while the cutting list gives blanks rather than machining or joinery drawings.
     The 3D canvas renders on demand rather than continuously while idle.
-- **Photo studio** (**Foto studio**) is a tab in **Kitchen designs**, not a
+- **Photo studio** (**Foto studio**) is a tab in **Ideas**, not a
   **Photo/Foto** shortcut in the 3D toolbar. Browse the curated **Warm
   contemporary**, **Oak and walnut** and **Japandi** Pinterest sources there.
   A source link opens the original site; it isn't a bundled image or a 3D
@@ -316,6 +322,9 @@ or a cutting-list export for the workshop; the customer view is neither.
   - *Materials and edges*: a library of boards (thickness, sheet size, grain,
     price) and edge bands; which ones the carcass, backs and fronts use; which
     edges are banded; optionally cut parts smaller by the band thickness.
+    Boards start collapsed. Expand one row to edit it. Boards needed for
+    actual cut pieces, including overrides and extra pieces, are marked and
+    listed first. Sheet and edge-band prices are in RSD in either language.
   - *Construction*: bottom/top joints, rails or full top, nailed or grooved
     backs, door type, front gaps, shelf setback, wooden or metal drawers.
 - **Cutting list**: every piece, identical pieces grouped, banded edges per
@@ -332,7 +341,9 @@ or a cutting-list export for the workshop; the customer view is neither.
     be put back. A change stops applying once the unit itself changes the piece.
   - *Extra pieces*: anything the units do not include, with its own board and
     edge banding, counted in all totals.
-  - *Export*: a PDF cutting list (plan, board totals, construction summary,
+  - *Totals and export*: the piece and sheet counts come first; the info button
+    beside the sheet count explains the estimate. Export and Print stay in
+    reach while the list scrolls. Export a PDF (plan, board totals, construction summary,
     parts, hardware, parts by unit), an Excel workbook (parts, by unit,
     materials, hardware, project), CSV, a copy for pasting into a
     spreadsheet, and print.
@@ -349,19 +360,23 @@ or a cutting-list export for the workshop; the customer view is neither.
   filler, doors that will sag, drawers that cannot be built, wall units hung
   too low, parts larger than a sheet, units blocking a door or covering a
   window, a fridge next to the oven.
+  Hover, focus or tap the badge to preview the two highest-priority problems.
+  Select a problem to see its cabinet on the 2D plan, or its room object
+  when no cabinet is involved. Supplier reminders stay separate.
 - **Windows and doors** can be selected in 3D, including by their frames
   when the near wall is hidden. To change their location, select **Edit
   position in 2D** and work in the wall elevation. Angled walls and either
   face of an interior partition are supported. These diagrams are not
   door-swing or glazing specifications.
-- In **My room → 3D** on phones, the **Plan / 3D** switch changes workspace
-  view. Below it, **Camera** changes the viewing angle or resets it, **Style**
-  starts with wall paint and floor tiles, and **Kitchen** groups cabinet
-  previews separately from **Next kitchen** and the customer HTML export.
-- **Kitchen editor 3D toolbar**: the toolbar above the viewport holds **Style**, **3D /
+- On phones, **View / Prikaz** opens one bottom sheet in both **My room → 3D**
+  and the kitchen editor. Choose a camera, reset the view, change finishes under
+  **Style**, preview cabinets, try **Next kitchen**, or export the offline customer
+  HTML. In My room, Style starts with wall paint and floor tiles. Drag to orbit
+  without moving objects; tap the scene to bring the bars back. The navigation
+  tip disappears on a drag or after six seconds. Use **?** in View to see it again.
+- **Desktop 3D toolbar**: the toolbar above the viewport holds **Style**, **3D /
   Front / Top**, **Open all** and **Next kitchen**. **Tools** includes the room
-  object list, customer HTML export and help; **Interior view** is under
-  **Tools** on phones. A selected door, window or structure shows its own
+  object list, customer HTML export and help. A selected door, window or structure shows its own
   actions. Hover or focus a toolbar button to read its hint, or hold it
   briefly on a touch screen.
 - **Open a cabinet**: double-click it, or select it and press **Open**. Doors
@@ -375,7 +390,7 @@ or a cutting-list export for the workshop; the customer view is neither.
   handles again; cabinet placement is always edited in 2D.
   Animations are skipped when the system asks for reduced motion.
 - **See inside cabinets**: turn on **Interior view** in the toolbar (under
-  **Kitchen** in the mobile room preview or **Tools** in the mobile editor) to hide
+  **View** on phones) to hide
   fronts and reveal shelves, corner compartments and drawer boxes. Toggle it off
   to restore the finished kitchen. This schematic view does not change the
   project, Undo history or cutting list; appliance interiors and fitting details

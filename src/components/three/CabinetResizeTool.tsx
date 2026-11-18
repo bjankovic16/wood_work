@@ -29,7 +29,7 @@ function ResizeLoading({ onLoading }: { onLoading: () => void }) {
 export function ResizeFeedback({ failed }: { failed: boolean }) {
   const t = useT();
   return <div role={failed ? 'alert' : 'status'} data-testid="resize-status"
-    className="absolute left-3 top-3 z-20 w-60 max-w-[calc(100%-24px)] rounded-xl bg-white p-3 text-xs leading-relaxed text-zinc-700 shadow-lg"
+    className="three-resize-status absolute left-3 top-3 z-20 w-60 max-w-[calc(100%-24px)] rounded-xl bg-white p-3 text-xs leading-relaxed text-zinc-700 shadow-lg"
     style={{ pointerEvents: failed ? 'auto' : 'none' }}>
     {failed ? t.view3d.resizeLoadFailed : t.view3d.loadingResize}
     {failed && <Button variant="outline" className="mt-2" onClick={() => window.location.reload()}>{t.view3d.reloadResize}</Button>}

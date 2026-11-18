@@ -1,5 +1,5 @@
-import { ArrowRight, ChevronDown, ExternalLink, Search, Shuffle, SlidersHorizontal, X } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { ArrowRight, ChevronDown, Ellipsis, ExternalLink, Search, Shuffle, SlidersHorizontal, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { KITCHEN_DESIGNS, kitchenCategory, type KitchenCategory, type KitchenPreset } from '../../domain/kitchens';
 import { normalizeSearchText } from '../../domain/librarySearch';
 import { randomSeed, shuffled } from '../../domain/shuffle';
@@ -8,10 +8,11 @@ import { FRONT_FINISHES, WORKTOP_FINISHES } from '../../domain/style';
 import { LAYOUTS, type LayoutId } from '../../domain/templates';
 import { useIsCompact } from '../../hooks/useMediaQuery';
 import { useT } from '../../i18n';
-import { applyKitchenDesign, openKitchenOriginal } from '../../store/actions';
+import { openKitchenOriginal } from '../../store/actions';
+import { preferredIdeaWall, prepareIdeaReview } from '../../store/ideaReview';
 import { useDesignStore } from '../../store/designStore';
 import { useUiStore } from '../../store/uiStore';
-import { Button, Dialog, Segmented } from '../ui';
+import { Button, Dialog, Menu, Segmented } from '../ui';
 import { PhotoReferenceGallery } from '../references/PhotoReferences';
 import { IdeaFitReview } from './IdeaFitReview';
 
@@ -31,6 +32,23 @@ function LayoutSketch({ id }: { id: LayoutId }) {
 function KitchenCard({ kitchen }: { kitchen: (typeof KITCHEN_DESIGNS)[number] }) {
   const t = useT();
   const [previewFailed, setPreviewFailed] = useState(false);
+  const design = useDesignStore((s) => s.design);
+  const wall = useUiStore((s) => s.selectedWallId);
+  const card = useRef<HTMLElement>(null);
+  const [nearby, setNearby] = useState(false);
+  useEffect(() => {
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) { setNearby(true); observer.disconnect(); }
+    }, { rootMargin: '250px' });
+    observer.observe(card.current!);
+    return () => observer.disconnect();
+  }, []);
+  const badge = useMemo(() => {
+    if (design.items.length) return t.fit.appearance;
+    if (!nearby) return '';
+    const { fit, issues } = prepareIdeaReview(design, { type: 'idea', id: kitchen.id }, { mainWallId: preferredIdeaWall(design.room, wall), prefixes: t.labelPrefix }, t.engine);
+    return fit?.status === 'cannot-fit' ? t.fit.unavailable : issues.length ? t.fit.check : fit?.status === 'adjusted' ? t.fit.adapts : t.fit.fits;
+  }, [nearby, design, kitchen, t, wall]);
   const name = t.kitchens.names[kitchen.id];
   const preset: KitchenPreset = kitchen;
   const palette = [
@@ -39,13 +57,14 @@ function KitchenCard({ kitchen }: { kitchen: (typeof KITCHEN_DESIGNS)[number] })
     { color: WORKTOP_FINISHES[kitchen.style.worktop].color, label: t.style.worktopFinishes[kitchen.style.worktop] },
   ];
   return (
-    <article className="kitchen-card group min-w-0 overflow-hidden rounded-2xl border border-[#ded8ce] bg-[#fffefa]">
+    <article ref={card} className="kitchen-card group relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-[#ded8ce] bg-[#fffefa]">
     <button
       type="button"
       data-kitchen-design={kitchen.id}
       aria-label={t.kitchens.open(name)}
-      onClick={() => applyKitchenDesign(kitchen)}
-      className="block w-full min-w-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#637362]"
+      aria-describedby={`fit-badge-${kitchen.id}`}
+      onClick={() => useUiStore.getState().reviewFit({ type: 'idea', id: kitchen.id })}
+      className="flex w-full min-w-0 flex-1 flex-col text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#637362]"
     >
       {previewFailed ? (
         <span className="flex aspect-3/2 items-center justify-center bg-[#eae5da] p-6 text-center text-sm text-[#625b50]">
@@ -62,7 +81,8 @@ function KitchenCard({ kitchen }: { kitchen: (typeof KITCHEN_DESIGNS)[number] })
           className="aspect-3/2 w-full bg-[#ebe8e3] object-cover"
         />
       )}
-      <span className="block p-4">
+      <span className="flex w-full flex-1 flex-col p-4">
+        <span id={`fit-badge-${kitchen.id}`} className="mb-2 min-h-5 w-fit rounded-full bg-[#e6ecdf] px-2 py-1 text-[11px] font-semibold text-[#3e5539]" data-testid="fit-badge">{badge}</span>
         {preset.collection && <span className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.16em] text-[#74705f]">{t.kitchens.collections[preset.collection]}</span>}
         <span className="flex items-center justify-between gap-2 text-sm font-semibold text-zinc-900">
           {name}
@@ -86,20 +106,23 @@ function KitchenCard({ kitchen }: { kitchen: (typeof KITCHEN_DESIGNS)[number] })
           <span>{t.kitchens.roomSize(kitchen.room.width, kitchen.room.depth)}</span>
         </span>
         <span className="mt-1 block text-xs tabular-nums text-zinc-600">{t.kitchens.ceiling(kitchen.room.height)}</span>
-        <span className="mt-4 flex items-center justify-between gap-2 border-t border-[#e3ded4] pt-3 text-xs font-semibold text-[#4f6249]">
+        <span className="mt-auto flex min-h-11 items-end justify-between gap-2 pt-4 text-xs font-semibold text-[#4f6249]">
           {t.kitchens.customize}<ArrowRight className="size-4 shrink-0 transition-transform group-hover:translate-x-1" />
         </span>
       </span>
     </button>
-    <button type="button" data-kitchen-original={kitchen.id} onClick={() => openKitchenOriginal(kitchen)}
-      className="mx-4 mb-2 block min-h-11 text-left text-xs text-studio-muted underline underline-offset-4 focus-visible:ring-2">
+    <div className="absolute right-2 top-2 rounded-lg bg-studio-paper shadow-sm [&>div>span>button]:size-11">
+    <Menu label={t.kitchens.options(name)} icon={<Ellipsis className="size-5" />}>
+    <button type="button" data-kitchen-original={kitchen.id} data-close-menu onClick={() => openKitchenOriginal(kitchen)}
+      className="block min-h-11 w-full rounded-md px-2 text-left text-sm hover:bg-studio-canvas">
       {t.kitchens.original}
     </button>
     {preset.inspiration && (
-      <a href={preset.inspiration} target="_blank" rel="noopener noreferrer" aria-label={`${t.kitchens.inspiration}: ${name}`} className="mx-4 mb-2 inline-flex min-h-11 items-center gap-1.5 text-xs text-[#59664f] underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#637362]">
+      <a href={preset.inspiration} data-close-menu target="_blank" rel="noopener noreferrer" aria-label={`${t.kitchens.inspiration}: ${name}`} className="inline-flex min-h-11 items-center gap-1.5 px-2 text-xs text-[#59664f] underline underline-offset-4">
         {t.kitchens.inspiration}<ExternalLink className="size-3" />
       </a>
     )}
+    </Menu></div>
     </article>
   );
 }
@@ -112,7 +135,7 @@ function LayoutChoices({ onClose }: { onClose: () => void }) {
   const [filter, setFilter] = useState<KitchenCategory | 'all' | 'layered' | 'framed'>('all');
   const [collection, setCollection] = useState<KitchenCollection | 'all'>('all');
   const [query, setQuery] = useState('');
-  const [withinRoom, setWithinRoom] = useState(false);
+  const [withinRoom, setWithinRoom] = useState(true);
   const [filtersOpen, setFiltersOpen] = useState(false);
   /** Seed of the order chosen with "Shuffle"; null shows the collections in their own order. */
   const [shuffle, setShuffle] = useState<number | null>(null);
@@ -277,7 +300,8 @@ export function LayoutDialog() {
 
   return (
     <Dialog open={open} title={t.layouts.title} sheet={compact} wide onClose={close}>
-      {fitRequest ? <IdeaFitReview key={`${fitRequest.type}:${fitRequest.id}`} request={fitRequest} /> : <LayoutChoices onClose={close} />}
+      <div hidden={!!fitRequest}><LayoutChoices onClose={close} /></div>
+      {fitRequest && <IdeaFitReview key={`${fitRequest.type}:${fitRequest.id}`} request={fitRequest} />}
     </Dialog>
   );
 }

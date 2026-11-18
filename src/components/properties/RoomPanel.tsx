@@ -1,4 +1,4 @@
-import { AppWindow, DoorOpen, Hammer, Info, LayoutTemplate, Plus, Trash2 } from 'lucide-react';
+import { AppWindow, DoorOpen, Hammer, Info, Plus, Trash2 } from 'lucide-react';
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { ROOM_LIMITS } from '../../domain/designOps';
 import { isWallMounted } from '../../domain/geometry';
@@ -229,10 +229,6 @@ export function RoomPanel({ touch = false }: { touch?: boolean }) {
           <Stat label={t.room.floorUnits} value={items.length - wallUnits} />
           <Stat label={t.room.wallUnits} value={wallUnits} />
         </div>
-        <Button variant="outline" className="w-full" onClick={() => useUiStore.getState().setLayoutsOpen(true)}>
-          <LayoutTemplate className="size-4" />
-          {t.room.readyMadeLayouts}
-        </Button>
         <Button variant="outline" className="w-full" onClick={() => useUiStore.getState().setSettingsTab('construction')}>
           <Hammer className="size-4" />
           {t.room.constructionSettings}

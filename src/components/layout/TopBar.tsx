@@ -8,6 +8,7 @@ import { GRID_SIZES, useUiStore, type MainView } from '../../store/uiStore';
 import { ChecksButton } from '../checks/ChecksButton';
 import { Button, Divider, Menu, Segmented, TooltipButton } from '../ui';
 import { UndoButton } from './UndoButton';
+import { PhoneViewButton } from './PhoneThreeChrome';
 
 function ProjectName({ className }: { className?: string }) {
   const t = useT();
@@ -78,14 +79,14 @@ function ViewTabs({ compact }: { compact: boolean }) {
   );
 }
 
-function UndoRedo() {
+function UndoRedo({ compact = false }: { compact?: boolean }) {
   const t = useT();
   const canRedo = useDesignStore((s) => !s.gestureBase && s.future.length > 0);
   return (
     <div role="group" aria-label={`${t.topBar.undo} / ${t.topBar.redo}`} className="flex items-center">
-      <UndoButton />
-      <TooltipButton tooltip={t.topBar.redoTitle} aria-label={t.topBar.redo} disabled={!canRedo} onClick={redo}>
-        <Redo2 className="size-4" />
+      <UndoButton iconOnly={compact} />
+      <TooltipButton tooltip={t.topBar.redoTitle} className={compact ? 'size-11 p-0' : undefined} aria-label={t.topBar.redo} disabled={!canRedo} onClick={redo}>
+        <Redo2 className="size-4" aria-hidden="true" />
       </TooltipButton>
     </div>
   );
@@ -167,25 +168,22 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
         <div className="flex h-14 items-center gap-1 px-2">
         <span className="hidden shrink-0 min-[430px]:inline-flex"><Logo /></span>
         <ProjectName className="flex-1" />
-        <UndoRedo />
+        <PhoneViewButton />
+        <UndoRedo compact />
         <Menu label={t.topBar.more} icon={<Ellipsis className="size-4" />}>
           <div className="space-y-1">
             <Button className="w-full justify-start" data-close-menu onClick={() => ui.setProjectsOpen(true)}>
               <FolderOpen className="size-4" />
               {t.topBar.projects}
             </Button>
-            <Button className="w-full justify-start" data-close-menu onClick={() => ui.setLayoutsOpen(true)}>
-              <Images className="size-4" />
-              {t.layouts.title}
-            </Button>
             {roomOpen && <>
               <Button className="w-full justify-start" data-close-menu onClick={() => ui.setView('list')}><List className="size-4" />{t.topBar.list}</Button>
               <div className="flex justify-end"><ChecksButton /></div>
             </>}
-            <details>
+            {view !== '3d' && <details>
               <summary className="cursor-pointer rounded-lg px-2 py-3 text-[13px] font-medium text-studio-muted">{t.topBar.view}</summary>
               <ViewOptions />
-            </details>
+            </details>}
             <Button className="w-full justify-start" data-close-menu onClick={() => ui.setSettingsTab('materials')}>
               <Hammer className="size-4" />
               {t.topBar.settings}
@@ -232,7 +230,7 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
       </Button>
       <Button variant="outline" title={t.layouts.title} aria-label={t.layouts.title} onClick={() => ui.setLayoutsOpen(true)}>
         <Images className="size-4" />
-        <span className="hidden xl:inline">{t.kitchens.browse}</span>
+        <span>{t.layouts.title}</span>
       </Button>
       <ProjectName className="w-40" />
 

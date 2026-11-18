@@ -10,6 +10,7 @@ import {
   deleteProject,
   duplicateProject,
   flushSave,
+  finishRoom,
   importProject,
   initProjects,
   openProject,
@@ -89,6 +90,22 @@ describe('projects', () => {
     useDesignStore.getState().load(ops.createDesign());
     initProjects();
     expect(design().name).toBe('Saved');
+  });
+
+  it('resumes a measured empty room on the plan, without skipping setup for a different new room', () => {
+    initProjects();
+    const measured = projects().activeId;
+    useDesignStore.getState().apply((d) => ({ ...d, room: { ...d.room, width: 4100 } }));
+    finishRoom();
+    flushSave();
+    resetProjectsForTests();
+    initProjects();
+    expect(design().room.width).toBe(4100);
+    expect(useUiStore.getState()).toMatchObject({ roomOpen: false, view: 'plan', welcomeSeen: true });
+    createProject('Another room');
+    expect(useUiStore.getState().roomOpen).toBe(true);
+    openProject(measured);
+    expect(useUiStore.getState().roomOpen).toBe(false);
   });
 
   it('saves and restores a gallery look in place, while an explicit original uses a separate project', () => {

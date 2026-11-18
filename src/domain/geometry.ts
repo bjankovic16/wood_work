@@ -26,6 +26,12 @@ export function isWallMounted(item: Pick<KitchenItem, 'elevation'>): boolean {
   return item.elevation >= WALL_UNIT_MIN_ELEVATION;
 }
 
+export function fridgeNextToOven(fridge: KitchenItem, oven: KitchenItem): boolean {
+  if (!['fridge', 'integratedFridge'].includes(fridge.kind) || !['oven', 'ovenTower'].includes(oven.kind) || !verticalOverlap(fridge, oven)) return false;
+  const r = itemRect(fridge);
+  return footprintRects(oven).some((other) => rectsOverlap({ x: r.x - 1, y: r.y - 1, w: r.w + 2, h: r.h + 2 }, other, 0));
+}
+
 /** Extent of the footprint from back to front, before rotation. */
 export function localDepthExtent(item: Placed): number {
   return item.kind === 'corner' ? (item.width2 ?? item.width) : item.depth;

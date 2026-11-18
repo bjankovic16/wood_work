@@ -1,7 +1,26 @@
 import assert from 'node:assert/strict';
 
-/** Opens the "Tools" panel of the 3D toolbar, where the advanced and selected-cabinet tools live. */
+/** A real canvas tap restores the overlaid phone bars; it must not change the selection. */
+export async function revealPhone3DChrome(page) {
+  const toggle = page.getByTestId('phone-view-toggle');
+  await toggle.waitFor({ state: 'attached' });
+  if (!await toggle.isVisible()) {
+    await page.getByTestId('three-viewport').locator('canvas').tap({ position: { x: 16, y: 20 } });
+    await toggle.waitFor();
+  }
+}
+
+/** Desktop Tools stays docked. Phones share a modal View sheet between the room and the editor. */
 export async function open3DTools(page) {
+  if (page.viewportSize().width < 1024) {
+    const sheet = page.getByTestId('phone-view-sheet');
+    if (!await sheet.isVisible()) {
+      await revealPhone3DChrome(page);
+      await page.getByTestId('phone-view-toggle').click();
+    }
+    await sheet.waitFor();
+    return;
+  }
   const toggle = page.getByTestId('three-tools-toggle');
   await toggle.waitFor();
   if (await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click();
@@ -9,6 +28,12 @@ export async function open3DTools(page) {
 }
 
 export async function close3DTools(page) {
+  if (page.viewportSize().width < 1024) {
+    const sheet = page.getByTestId('phone-view-sheet');
+    if (await sheet.isVisible()) await page.keyboard.press('Escape');
+    await sheet.waitFor({ state: 'detached' });
+    return;
+  }
   const toggle = page.getByTestId('three-tools-toggle');
   await toggle.waitFor();
   if (await toggle.getAttribute('aria-expanded') === 'true') await toggle.click();

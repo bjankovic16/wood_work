@@ -3,6 +3,7 @@ import { useEffect, type RefObject } from 'react';
 import * as THREE from 'three';
 import { localToRoom } from '../../domain/geometry';
 import type { KitchenItem } from '../../domain/types';
+import { overlayTopInset } from './overlayInset';
 
 /** Keeps the floating buttons just above the selected cabinet on screen. */
 export function SelectionOverlay({ item, overlay }: { item: KitchenItem; overlay: RefObject<HTMLDivElement | null> }) {
@@ -41,7 +42,7 @@ export function SelectionOverlay({ item, overlay }: { item: KitchenItem; overlay
     const sheet = document.querySelector('[data-testid="item-sheet"]')?.getBoundingClientRect();
     const availableHeight = Math.min(box.height, sheet ? sheet.top - box.top - 8 : box.height);
     const hint = document.querySelector('[data-testid="cabinet-mode-hint"]')?.getBoundingClientRect();
-    const minY = hint ? Math.max(8, hint.bottom - box.top + 8) : 8;
+    const minY = Math.max(overlayTopInset(element, box.top), hint ? hint.bottom - box.top : 0) + 8;
     const x = THREE.MathUtils.clamp((point.x + 1) * box.width / 2, width / 2 + 8, Math.max(width / 2 + 8, box.width - width / 2 - 8));
     const above = top - height - 12;
     const maxY = Math.max(8, availableHeight - height - 8);

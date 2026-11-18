@@ -1,11 +1,11 @@
 import { createItem, findPreset, itemFromPreset, nextLabel, type SizeField } from '../domain/catalog';
 import { cabinetResize } from '../domain/cabinetResize';
 import * as ops from '../domain/designOps';
-import { isWallMounted, rotateItem, aabbSize, clampToRoom } from '../domain/geometry';
+import { rotateItem, aabbSize, clampToRoom } from '../domain/geometry';
 import { newId } from '../domain/ids';
 import { createKitchenDesign, KITCHEN_DESIGNS, type KitchenDesignId } from '../domain/kitchens';
 import { applyKitchenLook } from '../domain/kitchenLook';
-import type { LayoutFit } from '../domain/fitLayout';
+import type { IdeaReview } from './ideaReview';
 import { centreOfRoom, findFreeSpot, placeCopy } from '../domain/placement';
 import { computeDragPlacement } from '../domain/snapping';
 import { planCabinetAbove, planThreeTier, type StackPlan, type ThreeTierOptions, type ThreeTierPlan } from '../domain/upperCabinets';
@@ -17,11 +17,11 @@ import { attachFeature, featureDragPlacement, freeFeature } from '../domain/room
 import { createRoomExample, type RoomExampleId } from '../domain/roomExamples';
 import { createPhotoDesign } from '../domain/photoDesigns';
 import type { PairedPhotoId, PhotoReference } from '../domain/photoReferences';
-import { createProject } from './projects';
-import { DEFAULT_CONSTRUCTION, withModuleMaterials } from '../engine/settings';
+import { createProject, finishRoom } from './projects';
+import { DEFAULT_CONSTRUCTION } from '../engine/settings';
 import { currentMessages } from '../i18n';
 import { useDesignStore } from './designStore';
-import { cabinetIsLocked, useUiStore, type FitRequest } from './uiStore';
+import { cabinetIsLocked, useUiStore } from './uiStore';
 import { clientToPlan, snapSettings } from './viewport';
 import { normalizeAngle } from '../domain/polygons';
 import { openingOnWall, openingsOnSegment, roomSegments, wallCoordinates } from '../domain/walls';
@@ -55,8 +55,6 @@ export function editCabinetPositionInPlan(id: string): void {
   if (!item) return;
   const ui = useUiStore.getState();
   ui.setView('plan');
-  ui.setViewFilter(isWallMounted(item) ? 'wall' : 'floor');
-  if (isWallMounted(item)) ui.setWallElevation(item.elevation);
   ui.select(id);
 }
 
@@ -73,9 +71,6 @@ function insertAndSelect(item: KitchenItem, focusWidth = false, partEdits?: Reco
     return partEdits ? { ...next, partEdits: { ...next.partEdits, [item.id]: partEdits } } : next;
   });
   const ui = useUiStore.getState();
-  // A new unit hidden by the view filter would look as if nothing happened.
-  if (ui.viewFilter !== 'all' && (ui.viewFilter === 'wall') !== isWallMounted(item)) ui.setViewFilter(isWallMounted(item) ? 'wall' : 'floor');
-  if (ui.viewFilter === 'wall' && isWallMounted(item)) ui.setWallElevation(item.elevation);
   ui.select(item.id);
   ui.requestFocus(focusWidth ? 'width' : null);
 }
@@ -94,14 +89,16 @@ export function addPresetToPlan(presetId: string): boolean {
 export function updateLibraryDrag(presetId: string, clientX: number, clientY: number): void {
   const ui = useUiStore.getState();
   const preset = findPreset(presetId);
+  if (!preset) { ui.setLibraryDrag(null); return; }
+  const { room, items } = current();
   const pointer = clientToPlan(clientX, clientY, true);
   const previous = ui.libraryDrag?.presetId === presetId ? ui.libraryDrag : null;
-  if (!preset || !pointer) {
-    ui.setLibraryDrag({ presetId, clientX, clientY, ghost: null, wall: null, guides: [] });
+  const source = previous?.item ?? itemFromPreset(preset, items, currentMessages().labelPrefix, room);
+  if (!pointer) {
+    ui.setLibraryDrag({ presetId, item: source, clientX, clientY, ghost: null, wall: null, guides: [] });
     return;
   }
-  const { room, items } = current();
-  const item = previous?.ghost ?? itemFromPreset(preset, items, currentMessages().labelPrefix, room);
+  const item = previous?.ghost ?? source;
   const result = computeDragPlacement({
     room,
     others: items,
@@ -113,6 +110,7 @@ export function updateLibraryDrag(presetId: string, clientX: number, clientY: nu
   });
   ui.setLibraryDrag({
     presetId,
+    item: source,
     clientX,
     clientY,
     ghost: { ...item, x: result.x, y: result.y, rotation: result.rotation },
@@ -159,8 +157,6 @@ export function stackCabinetAbove(id: string): StackPlan {
   const plan = planCabinetAbove(room, items, source, openings);
   if (!plan.ok) return plan;
   const cabinet = createItem(plan.cabinet.kind, items, { ...plan.cabinet, shelves: 0 }, currentMessages().labelPrefix);
-  useUiStore.getState().setViewFilter('wall');
-  useUiStore.getState().setWallElevation(cabinet.elevation);
   insertAndSelect(cabinet);
   return plan;
 }
@@ -193,8 +189,6 @@ export function addThreeTierRun(id: string, options: ThreeTierOptions): ThreeTie
   for (const placement of plan.cabinets) items.push(createItem(placement.kind, items, placement, currentMessages().labelPrefix));
   apply((value) => ({ ...value, items }));
   const selected = items.at(-1)!;
-  useUiStore.getState().setViewFilter('wall');
-  useUiStore.getState().setWallElevation(selected.elevation);
   useUiStore.getState().select(selected.id);
   return plan;
 }
@@ -535,8 +529,8 @@ export function setStyle(patch: Partial<KitchenStyle>): void {
 
 function showKitchen(view: 'plan' | '3d', front = false): void {
   const ui = useUiStore.getState();
+  finishRoom();
   ui.select(null);
-  ui.setViewFilter('floor');
   ui.setLayoutsOpen(false);
   ui.setView(view);
   ui.setReferenceOpen(false);
@@ -558,14 +552,11 @@ export function applyKitchenDesign(preset: GalleryKitchen): boolean {
 }
 
 /** Commit exactly what was drawn, never a stale preview from another room or project. */
-export function acceptFit(source: Design, request: FitRequest, fit: LayoutFit): boolean {
-  if (current() !== source || fit.status === 'cannot-fit' || !fit.items.length) return false;
-  const preset = request.type === 'idea' ? KITCHEN_DESIGNS.find((p) => p.id === request.id) : undefined;
-  if (request.type === 'idea' && (!preset || source.items.length > 0)) return false;
-  const { galleryPresetId: _lastIdea, ...rest } = source;
-  const next = { ...rest, items: fit.items, partEdits: {}, materials: withModuleMaterials(source.materials, fit.items) };
-  apply(() => preset ? { ...applyKitchenLook(next, preset), galleryPresetId: preset.id } : next);
+export function acceptFit({ source, request, fit, candidate }: IdeaReview): boolean {
+  if (!candidate || current() !== source || useDesignStore.getState().gestureBase) return false;
+  apply(() => candidate);
   showKitchen(request.type === 'idea' ? '3d' : 'plan');
+  useUiStore.setState({ fitNotice: candidate !== source ? { design: candidate, changes: fit?.changes.length ?? 0 } : null });
   return true;
 }
 
@@ -585,7 +576,6 @@ export function openPhotoDesign(id: PairedPhotoId): void {
   useDesignStore.getState().load(design);
   const ui = useUiStore.getState();
   ui.select(null);
-  ui.setViewFilter('floor');
   ui.setView('3d');
   ui.setReferenceOpen(true);
   ui.requestCamera('perspective');

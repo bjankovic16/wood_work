@@ -18,14 +18,14 @@ import { backsplashTop, canStackCabinet, inUpperRow, planCabinetAbove, upperCabi
 const room = { width: 4000, depth: 3200, height: 2600 };
 
 describe('stacked upper cabinetry', () => {
-  it('reveals an added ceiling cupboard when wall mode defaults to the first upper row', () => {
+  it('selects an added ceiling cupboard without changing the chosen upper row', () => {
     const source = createItem('wall', []);
     useDesignStore.getState().load({ ...createDesign(), room, items: [source] });
     useUiStore.getState().setViewFilter('wall');
-    expect(useUiStore.getState().wallElevation).toBeNull();
+    useUiStore.getState().setWallElevation(source.elevation);
     expect(addPresetToPlan('ceiling-600')).toBe(true);
     const added = useDesignStore.getState().design.items.at(-1)!;
-    expect(useUiStore.getState()).toMatchObject({ viewFilter: 'wall', wallElevation: added.elevation, selectedId: added.id });
+    expect(useUiStore.getState()).toMatchObject({ viewFilter: 'wall', wallElevation: source.elevation, selectedId: added.id });
   });
   it('adds a full connected base run as two independent upper rows in one undo step', () => {
     const first = createItem('base', [], { x: 600 });
@@ -131,7 +131,7 @@ describe('stacked upper cabinetry', () => {
     expect(added.frontMaterial).toBeUndefined();
   });
 
-  it('records one undoable change and reveals the new row without copying edited cut parts', () => {
+  it('selects the stacked cabinet in one undoable change without copying edited cut parts or switching layers', () => {
     const source = createItem('wall', []);
     const design = { ...createDesign(), room, items: [source], partEdits: { [source.id]: { 'side-0': { quantity: 0 } } } };
     useDesignStore.getState().load(design);
@@ -140,7 +140,7 @@ describe('stacked upper cabinetry', () => {
     const after = useDesignStore.getState().design;
     expect(after.items).toHaveLength(2);
     expect(useUiStore.getState().selectedId).toBe(after.items[1].id);
-    expect(useUiStore.getState().wallElevation).toBe(2170);
+    expect(useUiStore.getState().viewFilter).toBe('floor');
     expect(after.partEdits[after.items[1].id]).toBeUndefined();
     useDesignStore.getState().undo();
     expect(useDesignStore.getState().design).toEqual(design);

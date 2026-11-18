@@ -127,8 +127,8 @@ async function assertLocked(page, original) {
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('r');
   assert.deepEqual(await design(page), original, 'Preview shortcuts must not change the cabinet.');
-  await open3DTools(page);
   if (page.viewportSize().width < 1024) await page.getByTestId('item-sheet').getByRole('button', { name: 'Edit', exact: true }).click();
+  else await open3DTools(page);
   assert.equal(await page.getByLabel('Width', { exact: true }).isDisabled(), true);
   assert.equal(await page.getByLabel('From left wall', { exact: true }).count(), 0);
   assert.equal(await page.getByLabel('From top wall', { exact: true }).count(), 0);
@@ -309,6 +309,8 @@ try {
   assert.equal(await page.locator('[data-resize-field]').count(), 0);
   await page.getByTestId('cabinet-tools').getByRole('button', { name: 'Edit position in 2D', exact: true }).click();
   await page.locator('.konvajs-content').waitFor();
+  assert.equal(await page.getByRole('button', { name: 'All', exact: true }).getAttribute('aria-pressed'), 'true',
+    'Editing position from 3D must not switch to a filtered layer.');
   assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().selectedId), 'untouched');
   const planX = (await design(page)).items[1].x;
   await page.keyboard.press('ArrowRight');
@@ -411,7 +413,7 @@ try {
   await phone.getByTestId('item-sheet').getByRole('button', { name: 'Less', exact: true }).tap();
   await phone.getByRole('button', { name: 'Open cabinet', exact: true }).tap();
   await assertLocked(phone, original);
-  // Closing Tools changes the canvas height and repositions the floating cabinet controls.
+  // Wait for the cabinet preview to settle before using its floating controls.
   await waitForIdleRendering(phone);
   await phone.getByRole('button', { name: 'Close cabinet', exact: true }).tap();
   await phone.getByRole('button', { name: 'Open cabinet', exact: true }).waitFor();
@@ -423,10 +425,9 @@ try {
   await phone.waitForTimeout(300);
   assert.ok(await phone.evaluate(() => window.__kitchen3D.renderer.info.render.frame) - idle <= 1);
   await done(phone).tap();
+  await open3DTools(phone);
   assert.equal(await shuffle(phone).isEnabled(), true);
-  const openAllBox = await phone.getByRole('button', { name: 'Open all', exact: true }).boundingBox();
-  const shuffleBox = await shuffle(phone).boundingBox();
-  assert.ok(Math.abs(openAllBox.y - shuffleBox.y) < 2 && shuffleBox.x > openAllBox.x, 'Shuffle must be beside Open all, not inside More.');
+  assert.ok(await phone.getByTestId('phone-view-sheet').getByRole('button', { name: 'Open all', exact: true }).isEnabled());
   original = await design(phone);
   await shuffle(phone).tap();
   await phone.getByTestId('shuffle-feedback').getByText(/^Applied /).waitFor();

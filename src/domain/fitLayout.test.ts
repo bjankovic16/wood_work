@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createItem, hasWorktop, WORKTOP_THICKNESS } from './catalog';
+import { createDesign } from './designOps';
+import { checkDesign } from '../engine/checks';
 import { fitKitchenLayout, type LayoutFit } from './fitLayout';
 import { attachedSegment, footprintPieces, itemInsideRoom, localToRoom } from './geometry';
 import { createKitchenDesign, KITCHEN_DESIGNS } from './kitchens';
@@ -31,6 +33,15 @@ function expectUsable(fit: LayoutFit, { room, openings }: ReturnType<typeof empt
 }
 
 describe('fit an idea in the measured envelope (without replacing it)', () => {
+  it('separates fitted towers with the actual board thickness and keeps the upper caps continuous', () => {
+    const target = createDesign();
+    target.materials = target.materials.map((m) => m.id === target.construction.frontMaterial ? { ...m, thickness: 25 } : m);
+    const fit = fitKitchenLayout(target, idea('olive-window-wall'));
+    const panel = fit.items.find((i) => i.kind === 'endPanel')!;
+    expect(panel.width).toBe(25);
+    expect(fit.changes).toContainEqual(expect.objectContaining({ type: 'added', reason: 'appliances', toWidth: 25 }));
+    expect(checkDesign({ ...target, items: fit.items }).filter((i) => !i.category)).toEqual([]);
+  });
   it('transfers the framed work zone, stacked tiers, timber returns and canopy together to another wall', () => {
     const preset = idea('walnut-frame');
     const stock = createKitchenDesign(preset, '').items;

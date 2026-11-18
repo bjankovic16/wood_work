@@ -48,6 +48,8 @@ function startPointerDrag(presetId: string, event: ReactPointerEvent, onAdded?: 
     window.removeEventListener('pointermove', onMove);
     window.removeEventListener('pointerup', onUp);
     window.removeEventListener('pointercancel', onCancel);
+    window.removeEventListener('blur', abort);
+    document.removeEventListener('visibilitychange', onVisibility);
     window.removeEventListener('keydown', onKey, true);
     document.documentElement.classList.remove('is-dragging');
   };
@@ -61,24 +63,27 @@ function startPointerDrag(presetId: string, event: ReactPointerEvent, onAdded?: 
   const onUp = (e: PointerEvent) => {
     if (e.pointerId !== pointerId) return;
     cleanup();
+    if (dragging) updateLibraryDrag(presetId, e.clientX, e.clientY);
     const added = dragging ? finishLibraryDrag(true) : addPresetToPlan(presetId);
     if (added) onAdded?.();
   };
-  const onCancel = (e: PointerEvent) => {
-    if (e.pointerId !== pointerId) return;
+  const abort = () => {
     cleanup();
     finishLibraryDrag(false);
   };
+  const onCancel = (e: PointerEvent) => { if (e.pointerId === pointerId) abort(); };
+  const onVisibility = () => { if (document.visibilityState === 'hidden') abort(); };
   const onKey = (e: KeyboardEvent) => {
     if (e.key !== 'Escape') return;
     e.stopPropagation();
-    cleanup();
-    finishLibraryDrag(false);
+    abort();
   };
 
   window.addEventListener('pointermove', onMove);
   window.addEventListener('pointerup', onUp);
   window.addEventListener('pointercancel', onCancel);
+  window.addEventListener('blur', abort);
+  document.addEventListener('visibilitychange', onVisibility);
   window.addEventListener('keydown', onKey, true);
 }
 

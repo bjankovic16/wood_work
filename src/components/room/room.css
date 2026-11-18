@@ -29,9 +29,6 @@
 .room-size-grid input:focus { background: white; border-color: #55725c; }
 .room-size-grid input + span { right: .4rem; font-size: .61rem; color: #5a6a5e; }
 .room-wall-details { border-block: 1px solid var(--color-studio-line); }
-.room-wall-details > summary { display: flex; min-height: 46px; cursor: pointer; list-style: none; align-items: center; justify-content: space-between; padding-inline: 1rem; font-size: .84rem; font-weight: 600; }
-.room-wall-details > summary::-webkit-details-marker { display: none; }
-.room-wall-details[open] > summary svg { transform: rotate(180deg); }
 .room-swatches { clear: both; display: flex; flex-wrap: wrap; gap: .15rem; }
 .room-swatches button { display: grid; width: 35px; height: 35px; place-items: center; border-radius: 50%; cursor: pointer; }
 .room-swatches button span { width: 28px; height: 28px; border: 1px solid #0002; border-radius: 50%; }
@@ -43,9 +40,6 @@
 .room-footer button { height: 44px; border-radius: .7rem; }
 .room-footer button:first-child { flex: 1; }
 .room-footer button:last-child { flex: 2; }
-.room-preview-bar { display: grid; flex: none; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .4rem; padding: .35rem .65rem; background: #f4f5ef; border-bottom: 1px solid var(--color-studio-line); }
-.room-preview-bar button { width: 100%; gap: .3rem; padding-inline: .25rem; border-radius: .65rem; font-weight: 600; }
-.room-preview-bar svg { color: #466350; flex-shrink: 0; }
 .room-preview-actions { display: grid; gap: .4rem; }
 .room-preview-actions h3 { font-size: .75rem; font-weight: 600; color: var(--color-studio-muted); }
 .room-preview-actions button { width: 100%; justify-content: flex-start; gap: .65rem; padding-inline: .75rem; }

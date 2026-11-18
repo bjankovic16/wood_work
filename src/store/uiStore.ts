@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { Guide } from '../domain/snapping';
-import type { KitchenItem, Point, Wall } from '../domain/types';
+import type { Design, KitchenItem, Point, Wall } from '../domain/types';
 import type { CameraView } from '../domain/camera';
 import type { KitchenDesignId } from '../domain/kitchens';
 import type { LayoutId } from '../domain/templates';
@@ -23,6 +23,7 @@ export const PLAN_AXES: ViewAxes = { right: [1, 0], up: [0, -1] };
 
 export interface LibraryDrag {
   presetId: string;
+  item: KitchenItem;
   clientX: number;
   clientY: number;
   /** Where the item would land if dropped now; null while the pointer is outside the plan. */
@@ -33,6 +34,8 @@ export interface LibraryDrag {
 
 interface UiState {
   selectedId: string | null;
+  /** An explicit edit/add request may target a cabinet hidden behind another tier. */
+  planForegroundId: string | null;
   cabinetTool: CabinetTool;
   previewLockedIds: string[];
   /** Screen pixels per millimetre. */
@@ -53,6 +56,8 @@ interface UiState {
   settingsTab: SettingsTab | null;
   layoutsOpen: boolean;
   fitRequest: FitRequest | null;
+  fitNotice: { design: Design; changes: number } | null;
+  welcomeSeen: boolean;
   projectsOpen: boolean;
   roomOpen: boolean;
   roomSelection: RoomObjectSelection | null;
@@ -70,7 +75,7 @@ interface UiState {
   /** Language of the interface and of everything exported. */
   language: Language;
 
-  select: (id: string | null) => void;
+  select: (id: string | null, source?: 'plan') => void;
   setCabinetTool: (tool: CabinetTool) => void;
   setPreviewLockedIds: (ids: string[]) => void;
   setLanguage: (language: Language) => void;
@@ -78,6 +83,8 @@ interface UiState {
   setSettingsTab: (tab: SettingsTab | null) => void;
   setLayoutsOpen: (open: boolean) => void;
   reviewFit: (request: FitRequest | null) => void;
+  finishRoom: () => void;
+  rememberWelcome: () => void;
   setProjectsOpen: (open: boolean) => void;
   setRoomOpen: (open: boolean) => void;
   setRoomView: (view: 'plan' | '3d') => void;
@@ -105,6 +112,7 @@ export const useUiStore = create<UiState>()(
   persist(
     (set) => ({
       selectedId: null,
+      planForegroundId: null,
       cabinetTool: null,
       previewLockedIds: [],
       zoom: 0.2,
@@ -112,7 +120,7 @@ export const useUiStore = create<UiState>()(
       snapEnabled: true,
       gridSize: 50,
       showDimensions: true,
-      viewFilter: 'floor',
+      viewFilter: 'all',
       wallElevation: null,
       libraryDrag: null,
       focusRequest: null,
@@ -120,6 +128,8 @@ export const useUiStore = create<UiState>()(
       settingsTab: null,
       layoutsOpen: false,
       fitRequest: null,
+      fitNotice: null,
+      welcomeSeen: false,
       projectsOpen: false,
       roomOpen: false,
       roomSelection: null,
@@ -134,7 +144,10 @@ export const useUiStore = create<UiState>()(
       moveHintSeen: false,
       language: browserLanguage(),
 
-      select: (selectedId) => set((state) => ({ selectedId, roomSelection: null, cabinetTool: selectedId === state.selectedId ? state.cabinetTool : null })),
+      select: (selectedId, source) => set((state) => ({
+        selectedId, roomSelection: null, cabinetTool: selectedId === state.selectedId ? state.cabinetTool : null,
+        planForegroundId: source === 'plan' && selectedId !== state.planForegroundId ? null : selectedId,
+      })),
       setCabinetTool: (cabinetTool) => set((state) => ({
         cabinetTool: state.view === '3d' && state.selectedId && !state.previewLockedIds.includes(state.selectedId) ? cabinetTool : null,
       })),
@@ -147,6 +160,8 @@ export const useUiStore = create<UiState>()(
       setSettingsTab: (settingsTab) => set({ settingsTab }),
       setLayoutsOpen: (layoutsOpen) => set({ layoutsOpen, fitRequest: null }),
       reviewFit: (fitRequest) => set({ layoutsOpen: true, fitRequest }),
+      finishRoom: () => set({ roomOpen: false, view: 'plan', welcomeSeen: true, selectedId: null, cabinetTool: null }),
+      rememberWelcome: () => set({ welcomeSeen: true }),
       setProjectsOpen: (projectsOpen) => set({ projectsOpen }),
       setRoomOpen: (roomOpen) => set(roomOpen
         ? { roomOpen, view: 'plan', selectedId: null, cabinetTool: null, wallEditing: false }
@@ -165,31 +180,30 @@ export const useUiStore = create<UiState>()(
       setSnapEnabled: (snapEnabled) => set({ snapEnabled }),
       setGridSize: (gridSize) => set({ gridSize }),
       setShowDimensions: (showDimensions) => set({ showDimensions }),
-      setViewFilter: (viewFilter) => set({ viewFilter, wallElevation: null }),
+      setViewFilter: (viewFilter) => set({ viewFilter }),
       setWallElevation: (wallElevation) => set({ wallElevation }),
       setLibraryDrag: (libraryDrag) => set({ libraryDrag }),
       requestFocus: (focusRequest) => set({ focusRequest }),
     }),
     {
       name: 'kitchen-designer:preferences',
-      version: 2,
-      migrate: (persisted) => {
-        const stored = (persisted ?? {}) as Partial<UiState>;
-        return { ...stored, ...(stored.viewFilter === 'all' ? { viewFilter: 'floor' } : {}) };
-      },
+      version: 3,
+      migrate: (persisted) => (persisted ?? {}) as Partial<UiState>,
       storage: createJSONStorage(() => safeStorage),
       partialize: (s) => ({
         snapEnabled: s.snapEnabled,
         gridSize: s.gridSize,
         showDimensions: s.showDimensions,
-        viewFilter: s.viewFilter,
         language: s.language,
+        welcomeSeen: s.welcomeSeen,
         moveHintSeen: s.moveHintSeen,
       }),
       // A stored language this version does not know falls back to the default.
       merge: (persisted, current) => {
         const stored = (persisted ?? {}) as Partial<UiState>;
-        return { ...current, ...stored, language: isLanguage(stored.language) ? stored.language : current.language };
+        // Layers are a choice for the open kitchen, not a preference for the next visit.
+        return { ...current, ...stored, viewFilter: current.viewFilter, wallElevation: current.wallElevation,
+          language: isLanguage(stored.language) ? stored.language : current.language };
       },
     },
   ),

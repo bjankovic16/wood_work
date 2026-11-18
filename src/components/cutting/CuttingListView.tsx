@@ -4,6 +4,7 @@ import {
   Download,
   FileSpreadsheet,
   FileText,
+  Info,
   Pencil,
   Plus,
   Printer,
@@ -12,7 +13,7 @@ import {
   Undo2,
   X,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { evaluateExpression } from '../../domain/math';
 import type { CustomPart, Design, Material, PartEdit } from '../../domain/types';
 import { buildCuttingList, cuttingListCsv, edgeText, type CuttingList, type CuttingRow } from '../../engine/cuttingList';
@@ -325,6 +326,8 @@ export function CuttingListView() {
   const [grouping, setGrouping] = useState<'pieces' | 'units'>('pieces');
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const [showEstimate, setShowEstimate] = useState(false);
+  const estimateId = useId();
   const canSave = useCanSaveFiles();
   const unitsWithParts = list.units.filter((u) => u.parts.length > 0);
   const preview = unitsWithParts.find(({ item }) => item.id === previewId) ?? unitsWithParts[0];
@@ -374,14 +377,17 @@ export function CuttingListView() {
   };
 
   return (
-    <div className="h-full select-text overflow-y-auto bg-[#f5f2eb] print:h-auto print:overflow-visible print:bg-white">
-      <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8 print:max-w-none print:p-0">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-lg font-semibold text-zinc-900">{c.title}</h1>
-            <p className="text-[13px] text-zinc-500">{c.summary(design.name, list.pieceCount, unitsWithParts.length)}</p>
-          </div>
-          <div className="flex flex-wrap gap-2 print:hidden">
+    <div className="flex h-full select-text flex-col bg-[#f5f2eb] print:block print:h-auto print:bg-white">
+      <header className="relative z-10 shrink-0 border-b border-studio-line bg-studio-paper print:border-0 print:bg-white">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-3 py-2 sm:px-4 lg:px-8 print:max-w-none print:p-0">
+          <h1 className="text-lg font-semibold text-zinc-900">{c.title}</h1>
+          <div className="flex shrink-0 items-center gap-1.5 print:hidden">
+            {!embedded && !empty && (
+              <Button variant="outline" onClick={() => window.print()}>
+                <Printer className="size-4" />
+                {c.print}
+              </Button>
+            )}
             {!empty && (
               <Menu label={c.exportLabel} text={c.export} icon={<Download className="size-4" />} variant="outline">
                 <div className="space-y-1">
@@ -408,44 +414,31 @@ export function CuttingListView() {
                 </div>
               </Menu>
             )}
-            {!embedded && !empty && (
-              <Button variant="outline" onClick={() => window.print()}>
-                <Printer className="size-4" />
-                {c.print}
-              </Button>
-            )}
           </div>
         </div>
         {status && (
-          <p role="status" className="mt-2 text-[13px] font-medium text-blue-700 print:hidden">
+          <p role="status" className="mx-auto max-w-7xl px-4 pb-2 text-[13px] font-medium text-blue-700 lg:px-8 print:hidden">
             {status}
           </p>
         )}
-
-        {errors.length > 0 && (
-          <div className="mt-4 flex gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-800" role="alert">
-            <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-            <div>
-              <div className="font-semibold">{c.problems(errors.length)}</div>
-              <ul className="mt-1 list-disc pl-4">
-                {errors.slice(0, 4).map((issue) => (
-                  <li key={issue.key}>{issue.message}</li>
-                ))}
-              </ul>
-            </div>
+      </header>
+      <div className="min-h-0 flex-1 overflow-y-auto print:overflow-visible" data-testid="cutting-scroll">
+        <div className="mx-auto max-w-7xl px-4 py-4 lg:px-8 print:max-w-none print:p-0">
+          <div data-testid="cutting-summary" className="space-y-1">
+            <p className="text-sm font-medium text-studio-ink">{c.summary(design.name, list.pieceCount, unitsWithParts.length)}</p>
+            {!empty && <>
+              <div className="flex flex-wrap items-center gap-x-2">
+                <strong className="text-xl tabular-nums">{c.sheetCount(list.materials.reduce((sum, m) => sum + m.sheets, 0))}</strong>
+                <Button aria-label={c.aboutEstimate} aria-expanded={showEstimate} aria-controls={estimateId}
+                  className="rounded-full print:hidden" onClick={() => setShowEstimate(!showEstimate)}>
+                  <Info className="size-4" />
+                </Button>
+                {list.cost !== null && <span className="text-sm font-medium text-studio-muted">{c.materialCost(t.money(list.cost))}</span>}
+              </div>
+              <p id={estimateId} className={cn('max-w-prose text-xs text-studio-muted', !showEstimate && 'hidden print:block')}>{c.estimateNote}</p>
+            </>}
           </div>
-        )}
-        {empty ? (
-          <div className="mt-8 rounded-xl border border-dashed border-zinc-300 bg-white px-6 py-12 text-center">
-            <p className="text-sm font-medium text-zinc-700">{c.emptyTitle}</p>
-            <p className="mt-1 text-[13px] text-zinc-500">{c.emptyText}</p>
-            <Button variant="primary" className="mt-4 px-4" onClick={() => ui.setView('plan')}>
-              {c.goToPlan}
-            </Button>
-          </div>
-        ) : (
-          <>
-            <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3" data-testid="material-totals">
+          {!empty && <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3" data-testid="material-totals">
               {list.materials.map((total) => (
                 <div key={`${total.materialId}-${total.thickness}`} className="rounded-xl border border-zinc-200 bg-white px-4 py-3 print:rounded-none">
                   <div className="text-[13px] font-medium text-zinc-900">
@@ -475,24 +468,37 @@ export function CuttingListView() {
                   </div>
                 </div>
               ))}
+          </div>}
+          {errors.length > 0 && (
+            <div className="mt-4 flex gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-800" role="alert">
+              <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+              <div>
+                <div className="font-semibold">{c.problems(errors.length)}</div>
+                <ul className="mt-1 list-disc pl-4">
+                  {errors.slice(0, 4).map((issue) => <li key={issue.key}>{issue.message}</li>)}
+                </ul>
+              </div>
             </div>
-            <p className="mt-2 text-[11px] text-zinc-400">
-              {c.estimateNote}
-              {list.cost !== null && <span className="font-medium text-zinc-600">{c.materialCost(t.money(list.cost))}</span>}
-            </p>
-
+          )}
+          {empty ? (
+            <div className="mt-8 rounded-xl border border-dashed border-zinc-300 bg-white px-6 py-12 text-center">
+              <p className="text-sm font-medium text-zinc-700">{c.emptyTitle}</p>
+              <p className="mt-1 text-[13px] text-zinc-500">{c.emptyText}</p>
+              <Button variant="primary" className="mt-4 px-4" onClick={() => ui.setView('plan')}>{c.goToPlan}</Button>
+            </div>
+          ) : <>
             {warnings.length > 0 && (
-              <details className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-900">
-                <summary className="cursor-pointer font-semibold">{c.reviewWarnings(warnings.length)}</summary>
-                <ul className="mt-2 list-disc space-y-1 pl-4">
+              <details className="mt-4 rounded-xl border border-amber-200 bg-amber-50 text-[13px] text-amber-900">
+                <summary>{c.reviewWarnings(warnings.length)}</summary>
+                <ul className="list-disc space-y-1 px-8 pb-3">
                   {warnings.map((issue) => <li key={issue.key}>{issue.message}</li>)}
                 </ul>
               </details>
             )}
-            {checklist.length > 0 && <details className="mt-4 rounded-xl border border-studio-line bg-studio-paper px-4 py-3 text-[13px] text-studio-muted" data-testid="precut-checklist">
-              <summary className="cursor-pointer font-semibold">{t.checks.precut} ({checklist.length})</summary>
-              <p className="mt-2">{t.checks.precutHint}</p>
-              <ul className="mt-2 list-disc space-y-1 pl-4">{checklist.map((issue) => <li key={issue.key}>{issue.message}</li>)}</ul>
+            {checklist.length > 0 && <details className="mt-4 rounded-xl border border-studio-line bg-studio-paper text-[13px] text-studio-muted" data-testid="precut-checklist">
+              <summary>{t.checks.precut} ({checklist.length})</summary>
+              <p className="px-4">{t.checks.precutHint}</p>
+              <ul className="mt-2 list-disc space-y-1 px-8 pb-3">{checklist.map((issue) => <li key={issue.key}>{issue.message}</li>)}</ul>
             </details>}
 
             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 print:hidden">
@@ -544,9 +550,9 @@ export function CuttingListView() {
               )}
             </div>
 
-            <details className="mt-6 rounded-2xl border border-studio-line bg-studio-paper p-4">
-              <summary className="cursor-pointer text-sm font-semibold text-studio-ink">{c.overview}</summary>
-              <section aria-label={c.overview} className="mt-4 grid gap-4 lg:grid-cols-2" data-testid="cutting-overview">
+            <details className="mt-6 rounded-2xl border border-studio-line bg-studio-paper">
+              <summary className="text-studio-ink">{c.overview}</summary>
+              <section aria-label={c.overview} className="grid gap-4 p-4 pt-1 lg:grid-cols-2" data-testid="cutting-overview">
                 <figure className="min-w-0">
                   <figcaption className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#625b50]">{c.planPreview}</figcaption>
                   <img
@@ -611,10 +617,10 @@ export function CuttingListView() {
                 </div>
               </section>
             )}
-          </>
-        )}
+          </>}
 
-        {(!empty || design.customParts.length > 0) && <ExtraPieces design={design} />}
+          {(!empty || design.customParts.length > 0) && <ExtraPieces design={design} />}
+        </div>
       </div>
     </div>
   );

@@ -107,13 +107,15 @@ try {
   const upper = state.items[1];
   assert.equal(upper.elevation, lower.elevation + lower.height);
   assert.equal(upper.elevation + upper.height, state.room.height - 30);
-  assert.equal(await page.getByLabel('Upper cabinet row', { exact: true }).inputValue(), String(upper.elevation));
+  assert.equal(await page.getByRole('button', { name: 'All', exact: true }).getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().selectedId), upper.id);
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   assert.equal((await design(page)).items.length, 1);
   await page.getByRole('button', { name: 'Redo', exact: true }).click();
   assert.equal((await design(page)).items.length, 2);
   pass('one click adds an aligned cabinet with a ceiling gap and one complete Undo step');
 
+  await page.getByRole('button', { name: 'Wall units', exact: true }).click();
   await page.getByLabel('Upper cabinet row', { exact: true }).selectOption(String(lower.elevation));
   await clickPlanUnit(page, lower);
   assert.equal(await page.getByRole('button', { name: 'Add cabinet above', exact: true }).isDisabled(), true);
@@ -149,6 +151,8 @@ try {
   await page.reload();
   await page.waitForSelector('.konvajs-content');
   assert.deepEqual(await design(page), saved);
+  assert.equal(await page.getByRole('button', { name: 'All', exact: true }).getAttribute('aria-pressed'), 'true');
+  await page.getByRole('button', { name: 'Wall units', exact: true }).click();
   assert.equal(await page.getByLabel('Upper cabinet row', { exact: true }).locator('option').count(), 3);
   await page.getByRole('button', { name: 'Browse all parts', exact: true }).click();
   await page.locator('[data-preset="ceiling-600"]').click();
@@ -164,8 +168,9 @@ try {
   });
   assert.equal(expected.length, 4);
   for (const [index, preset] of expected.entries()) {
-    await page.getByRole('button', { name: 'Kitchen designs', exact: true }).first().click();
-    const gallery = page.getByRole('dialog', { name: 'Kitchen designs' });
+    await page.getByRole('button', { name: 'Ideas', exact: true }).click();
+    const gallery = page.getByRole('dialog', { name: 'Ideas' });
+    await gallery.getByRole('checkbox', { name: 'No larger than my room' }).uncheck();
     await gallery.getByLabel('Kitchen layout', { exact: true }).selectOption('layered');
     assert.equal(await gallery.locator('[data-kitchen-design]').count(), 40);
     await gallery.locator('img').evaluateAll((images) => {
@@ -173,7 +178,9 @@ try {
       return Promise.all(images.map((image) => image.decode()));
     });
     if (index === 0) await shot(page, '04-premium-gallery.png');
-    await gallery.locator(`[data-kitchen-original="${preset.id}"]`).click();
+    const card = gallery.getByRole('article').filter({ has: page.locator(`[data-kitchen-design="${preset.id}"]`) });
+    await card.getByRole('button', { name: /^More options for / }).click();
+    await card.locator(`[data-kitchen-original="${preset.id}"]`).click();
     await ready3D(page);
     assert.deepEqual(snapshot(await design(page)), snapshot(preset.design));
     const issues = await page.evaluate(async () => {
@@ -260,6 +267,11 @@ try {
   await phone.getByRole('button', { name: 'Add cabinet above', exact: true }).tap();
   assert.equal((await design(phone)).items.length, 2);
   await phone.setViewportSize({ width: 320, height: 740 });
+  assert.equal(await phone.getByRole('button', { name: 'All', exact: true }).getAttribute('aria-pressed'), 'true');
+  await phone.getByRole('button', { name: 'Wall units', exact: true }).tap();
+  const phoneUpper = (await design(phone)).items[1];
+  await phone.getByLabel('Upper cabinet row', { exact: true }).selectOption(String(phoneUpper.elevation));
+  await clickPlanUnit(phone, phoneUpper, true);
   const bounds = await phone.getByLabel('Upper cabinet row', { exact: true }).boundingBox();
   assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 320);
   assert.equal(await phone.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
@@ -268,9 +280,9 @@ try {
   await phone.getByLabel('Red gornjih elemenata', { exact: true }).waitFor();
   assert.equal(await phone.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
   const narrowUndo = phone.getByRole('button', { name: 'Korak unazad', exact: true });
-  assert.equal(await narrowUndo.innerText(), 'Korak unazad');
+  assert.equal(await narrowUndo.innerText(), '', 'The phone Undo control is a labelled icon, including at the narrowest width.');
   const undoBox = await narrowUndo.boundingBox();
-  assert.ok(undoBox?.width > 0 && undoBox.x >= 0 && undoBox.x + undoBox.width <= 320);
+  assert.ok(undoBox?.width === 44 && undoBox.height === 44 && undoBox.x >= 0 && undoBox.x + undoBox.width <= 320);
   await shot(phone, '09-phone-320-sr.png');
   pass('phone users can choose rows, see blocked stacking, add a cabinet, and use the controls at 320px in both languages');
 
@@ -281,7 +293,7 @@ try {
   await ready3D(phone);
   await phone.getByRole('group', { name: '3D camera' }).getByRole('button', { name: 'Top', exact: true }).tap();
   assert.equal(await phone.getByRole('group', { name: 'Selected cabinet actions' }).count(), 0);
-  await phone.getByTestId('three-tools-toggle').tap();
+  await phone.getByTestId('phone-view-sheet').waitFor({ state: 'detached' });
   const less = phone.getByRole('button', { name: 'Less', exact: true });
   if (await less.isVisible()) await less.tap();
   await phone.waitForTimeout(300);

@@ -7,7 +7,7 @@ import ExcelJS from 'exceljs';
 import { chromium } from 'playwright-core';
 import { assertShuffledLook } from './look-checks.mjs';
 import { createServer } from 'vite';
-import { assertNeutralScene, cabinetBodyDrag, open3DTools, waitForIdleRendering } from './three-test-helpers.mjs';
+import { assertNeutralScene, cabinetBodyDrag, close3DTools, open3DTools, waitForIdleRendering } from './three-test-helpers.mjs';
 
 const shotsDir = process.argv[2] ?? 'test-results';
 await mkdir(shotsDir, { recursive: true });
@@ -91,7 +91,7 @@ try {
     await page.evaluate(() => document.documentElement.lang),
   );
   check('the first project has a Serbian name', (await design()).name === 'Moja kuhinja', (await design()).name);
-  await workspace.getByTestId('room-ideas').click();
+  await page.getByRole('button', { name: 'Ideje', exact: true }).click();
   await page.getByRole('radio', { name: 'Moj raspored' }).click();
   await page.getByRole('button', { name: /^L-oblik/ }).click();
   check('reviewing the Serbian layout has not added any units', (await design()).items.length === 0);
@@ -118,17 +118,20 @@ try {
   await page.getByLabel('Jezik / Language').selectOption('en');
   check(
     'the language can be switched to English',
-    (await page.evaluate(() => document.documentElement.lang)) === 'en' && await page.locator('header').getByRole('button', { name: 'Kitchen designs', exact: true }).isVisible(),
+    (await page.evaluate(() => document.documentElement.lang)) === 'en' && await page.locator('header').getByRole('button', { name: 'Ideas', exact: true }).isVisible(),
   );
   await shot('01-empty.png');
 
   console.log('Kitchen inspiration gallery');
-  const openIdeas = () => page.locator('header').getByRole('button', { name: 'Kitchen designs', exact: true }).click();
+  const openIdeas = () => page.locator('header').getByRole('button', { name: 'Ideas', exact: true }).click();
   await openIdeas();
-  const gallery = page.getByRole('dialog', { name: 'Kitchen designs' });
+  const gallery = page.getByRole('dialog', { name: 'Ideas' });
   const kitchenCards = gallery.locator('[data-kitchen-design]');
   const sourceProject = await design();
   const beforeGallerySearch = sortedJson(sourceProject);
+  const roomLimit = gallery.getByRole('checkbox', { name: 'No larger than my room', exact: true });
+  check('the gallery initially filters by all three room dimensions', await roomLimit.isChecked() && await kitchenCards.count() === 5);
+  await roomLimit.uncheck();
   check('the gallery offers exactly 60 kitchen images', (await kitchenCards.count()) === 60 && (await kitchenCards.locator('img').count()) === 60);
   const collections = gallery.getByRole('combobox', { name: 'Design collection', exact: true });
   for (const [name, count] of [['Warm contemporary', 15], ['Dark luxury', 11], ['Japandi', 10]]) {
@@ -142,7 +145,6 @@ try {
   check('empty searches explain how to recover', (await kitchenCards.count()) === 0 && await gallery.getByRole('heading', { name: 'No kitchens match these filters', exact: true }).isVisible());
   await gallery.getByRole('button', { name: 'Reset filters', exact: true }).click();
   check('reset restores every design and keeps search ready for typing', (await kitchenCards.count()) === 60 && (await designSearch.inputValue()) === '' && await designSearch.evaluate((input) => input === document.activeElement));
-  const roomLimit = gallery.getByRole('checkbox', { name: 'No larger than my room', exact: true });
   await roomLimit.check();
   check('room-size filtering includes compact kitchens and excludes larger rooms', (await kitchenCards.count()) === 5 && (await gallery.locator('[data-kitchen-design="birch-alcove"]').count()) === 1);
   await designSearch.fill('velvet');
@@ -184,10 +186,11 @@ try {
   });
   const galleryPresets = process.env.KITCHEN_E2E_SMOKE === '1' ? kitchenPresets.slice(0, 1) : kitchenPresets;
   for (const [index, preset] of galleryPresets.entries()) {
-    if (index > 0) await openIdeas();
+    if (index > 0) { await openIdeas(); await roomLimit.uncheck(); }
     const card = gallery.locator(`[data-kitchen-design="${preset.id}"]`);
     await card.scrollIntoViewIfNeeded();
     await page.waitForFunction((id) => document.querySelector(`[data-kitchen-design="${id}"] img`)?.naturalWidth === 900, preset.id);
+    await card.locator('..').getByRole('button', { name: /^More options for / }).click();
     const original = gallery.locator(`[data-kitchen-original="${preset.id}"]`);
     if (index === 0) {
       await original.focus();
@@ -219,7 +222,7 @@ try {
   check('each original is a separate saved project', (await projectRows.count()) === projectsWithOriginals);
   await projectRows.filter({ has: page.getByText(sourceProject.name, { exact: true }) }).getByRole('button', { name: 'Open', exact: true }).click();
   check('opening originals left the source project untouched', sortedJson(await design()) === beforeGallerySearch);
-  await workspace.getByTestId('room-done').click();
+  await page.getByTestId('empty-plan-hint').waitFor();
 
   console.log('Premium library and finishes');
   const premiumContext = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
@@ -233,7 +236,7 @@ try {
   await roomSetup.getByTestId('room-plan').waitFor();
   await premiumPage.getByLabel('Jezik / Language').selectOption('en');
   const premiumDesign = () => premiumPage.evaluate(() => window.__kitchen.design.getState().design);
-  check('blank kitchens start with the room, not an inspiration gallery', await roomSetup.getByRole('heading', { name: 'My room' }).isVisible() && !(await premiumPage.getByRole('dialog', { name: 'Kitchen designs' }).isVisible()));
+  check('blank kitchens start with the room, not an inspiration gallery', await roomSetup.getByRole('heading', { name: 'My room' }).isVisible() && !(await premiumPage.getByRole('dialog', { name: 'Ideas' }).isVisible()));
   await roomSetup.getByLabel('Width', { exact: true }).fill('4200');
   await roomSetup.getByLabel('Width', { exact: true }).press('Enter');
   await roomSetup.getByLabel('Depth', { exact: true }).fill('3200');
@@ -241,10 +244,10 @@ try {
   await premiumPage.screenshot({ path: path.join(shotsDir, 'usability-room-setup-desktop.png') });
   await roomSetup.getByTestId('room-done').click();
   const partSearch = premiumPage.getByRole('searchbox', { name: 'Search kitchen parts' });
-  const optionalStart = premiumPage.getByRole('region', { name: 'Start your kitchen', exact: true });
+  const optionalStart = premiumPage.getByRole('dialog', { name: 'Start your kitchen', exact: true });
   await partSearch.waitFor();
   check('finishing room setup opens the parts library for the measured room', (await premiumDesign()).room.width === 4200 && (await premiumDesign()).room.depth === 3200 && !(await roomSetup.isVisible()));
-  await optionalStart.getByRole('button', { name: 'Use the blank plan', exact: true }).click();
+  check('the measured room goes directly to the plan', await optionalStart.isHidden() && await premiumPage.getByTestId('empty-plan-hint').isVisible());
   check('the parts library starts with eight most-used parts', await premiumPage.locator('[data-preset]').count() === 8);
   await premiumPage.getByRole('button', { name: 'Browse all parts', exact: true }).click();
   check('specialist modules start collapsed without being removed', (await premiumPage.getByRole('button', { name: 'Storage & display', exact: true }).getAttribute('aria-expanded')) === 'false');
@@ -282,7 +285,9 @@ try {
     await premiumPage.getByRole('button', { name: 'Undo', exact: true }).click();
   }
   await partSearch.fill('');
-  await premiumPage.getByRole('button', { name: 'Kitchen designs', exact: true }).first().click();
+  await premiumPage.getByRole('button', { name: 'Ideas', exact: true }).click();
+  await premiumPage.getByRole('checkbox', { name: 'No larger than my room' }).uncheck();
+  await premiumPage.locator('[data-kitchen-design="oak-island"]').locator('..').getByRole('button', { name: /^More options for / }).click();
   await premiumPage.locator('[data-kitchen-original="oak-island"]').click();
   await open3DTools(premiumPage);
   await premiumPage.getByRole('button', { name: 'Style', exact: true }).click();
@@ -324,8 +329,7 @@ try {
   await roomSetup.getByTestId('room-plan').waitFor();
   check('new projects open their own empty room', (await premiumDesign()).items.length === 0 && await roomSetup.getByRole('heading', { name: 'My room' }).isVisible());
   await roomSetup.getByTestId('room-done').click();
-  await optionalStart.getByRole('button', { name: 'Use the blank plan', exact: true }).click();
-  check('each project can dismiss its own suggestions and continue to a blank plan', !(await optionalStart.isVisible()) && await premiumPage.locator('.konvajs-content').isVisible() && (await premiumDesign()).items.length === 0);
+  check('another measured project also goes straight to the blank plan', !(await optionalStart.isVisible()) && await premiumPage.locator('.konvajs-content').isVisible() && (await premiumDesign()).items.length === 0);
   await premiumContext.close();
 
   console.log('Ready-made layouts');
@@ -460,6 +464,8 @@ try {
   check('Escape during a drag puts the unit back', b1After.x === b1.x && b1After.y === b1.y, b1After);
 
   console.log('View');
+  // The drawing now has cabinet chains that were not present when this room first opened.
+  await page.getByRole('button', { name: 'Fit the room in view' }).click();
   const fitZoom = (await view()).zoom;
   const centre = await screen(1800, 1500);
   await page.mouse.move(centre.x, centre.y);
@@ -471,8 +477,8 @@ try {
   check('Fit returns to the whole room', Math.abs((await view()).zoom - fitZoom) < 1e-9);
 
   const panBefore = (await view()).pan;
-  const emptyPoint = await screen(-600, 1500);
-  const empty = { x: Math.round(emptyPoint.x), y: Math.round(emptyPoint.y) };
+  const stageBox = await page.locator('.konvajs-content').boundingBox();
+  const empty = { x: Math.round(stageBox.x + 7), y: Math.round(stageBox.y + stageBox.height / 2) };
   await drag(empty, { x: empty.x + 150, y: empty.y + 60 });
   const panAfter = (await view()).pan;
   check('dragging empty space pans the view', Math.round(panAfter.x - panBefore.x) === 150 && Math.round(panAfter.y - panBefore.y) === 60, { panBefore, panAfter });
@@ -576,7 +582,12 @@ try {
 
   await page.getByRole('button', { name: 'Wall units' }).click();
   await page.click('[data-preset="base-300"]');
-  check('adding a floor unit while only wall units are shown reveals "Floor units"', await page.evaluate(() => window.__kitchen.ui.getState().viewFilter === 'floor'));
+  check('adding a floor unit keeps the chosen wall layer and the new cabinet selected', await page.evaluate(() => {
+    const ui = window.__kitchen.ui.getState();
+    const added = window.__kitchen.design.getState().design.items.at(-1);
+    const node = window.Konva.stages[0].findOne(`#${added.id}`);
+    return ui.viewFilter === 'wall' && ui.selectedId === added.id && node?.opacity() === 1 && node.isListening();
+  }));
   await page.keyboard.press('Control+z');
   await page.keyboard.press('Escape');
   await page.waitForTimeout(100);
@@ -612,6 +623,7 @@ try {
   await page.waitForSelector('canvas');
 
   console.log('Fronts, construction and cutting list');
+  await page.getByRole('button', { name: 'Floor units', exact: true }).click();
   const b1Front = await screen(1200, 470);
   await page.mouse.click(b1Front.x, b1Front.y);
   check('clicking B1 selects it', (await view()).selectedId === (await byLabel('B1')).id);
@@ -645,10 +657,12 @@ try {
   const boardsBefore = (await design()).materials.length;
   await settings.getByRole('button', { name: 'Add board' }).click();
   check('a board can be added to the library', (await design()).materials.length === boardsBefore + 1);
-  const price = settings.getByTestId('material-card').first().getByLabel('Price per sheet');
+  const carcassBoard = settings.locator(`[data-material-id="${chosen.carcassMaterial}"]`);
+  await carcassBoard.locator('summary').click();
+  const price = carcassBoard.getByRole('textbox', { name: 'Price per sheet (RSD)', exact: true });
   await price.fill('60');
   await price.press('Enter');
-  check('a board can be given a price', (await design()).materials[0].price === 60, (await design()).materials[0]);
+  check('a board can be given a price', (await design()).materials.find((m) => m.id === chosen.carcassMaterial)?.price === 60);
   await shot('11-materials.png');
   await settings.getByRole('radio', { name: 'Construction' }).click();
   await settings.getByRole('radio', { name: 'Under the sides' }).click();
@@ -690,7 +704,7 @@ try {
   );
   check('drawers on the metal system only need a bottom and a back', tableText.includes('Drawer back') && !tableText.includes('Drawer side'));
   const totalsText = await page.getByTestId('material-totals').innerText();
-  check('board totals give sheets and a price', /sheets? of 2800 × 2070/.test(totalsText) && /\d+\.\d\d/.test(totalsText), totalsText);
+  check('board totals give sheets and a price in the project currency', /sheets? of 2800 × 2070/.test(totalsText) && /RSD\s+[\d,]+\.\d\d/.test(totalsText), totalsText);
   check(
     'the hardware list is shown',
     (await page.getByRole('heading', { name: 'Hardware' }).isVisible()) && (await page.getByText('Concealed hinge, full overlay').first().isVisible()),
@@ -885,6 +899,7 @@ try {
   check('the checks count the overlap as an error', /error/.test(await checksButton.getAttribute('aria-label')), await checksButton.getAttribute('aria-label'));
   await checksButton.click();
   const overlap = page.getByRole('button', { name: 'B1 and S1 overlap.' });
+  if (!await overlap.isVisible()) await page.getByRole('dialog', { name: 'Checks', exact: true }).locator('summary').filter({ hasText: /^Show all/ }).click();
   check('the checks list names the units', await overlap.isVisible());
   await shot('14b-checks.png');
   await overlap.click();
@@ -978,8 +993,8 @@ try {
   await mobile.getByRole('radio', { name: 'English' }).tap();
   await mobile.getByRole('button', { name: 'More' }).tap();
   check('the phone layout shows the plan with an "Add element" button', await mobile.getByRole('button', { name: 'Add element' }).isVisible());
-  check('the phone keeps the project name and navigation labels visible', (await mobile.getByLabel('Project name').isVisible()) && (await mobile.getByRole('radio', { name: 'Plan', exact: true }).getByText('Plan', { exact: true }).isVisible()) && (await mobile.getByRole('radio', { name: 'Cutting list', exact: true }).getByText('Cut list', { exact: true }).isVisible()));
-  await mobile.getByRole('button', { name: 'Room', exact: true }).tap();
+  check('the phone keeps consistent navigation labels visible', (await mobile.getByLabel('Project name').isVisible()) && (await mobile.getByRole('radio', { name: 'Plan', exact: true }).getByText('Plan', { exact: true }).isVisible()) && (await mobile.getByRole('radio', { name: 'Cutting list', exact: true }).getByText('Cutting list', { exact: true }).isVisible()));
+  await mobile.getByRole('button', { name: 'My room', exact: true }).tap();
   await phoneRoom.getByTestId('room-plan').waitFor();
   await mobile.screenshot({ path: path.join(shotsDir, 'usability-room-setup-phone.png') });
   await phoneRoom.getByTestId('room-done').tap();
@@ -1007,7 +1022,6 @@ try {
   const zoomAfter = (await mobileView()).zoom;
   check('pinching with two fingers zooms in', zoomAfter > zoomBefore * 2.5, { zoomBefore, zoomAfter });
   check('a pinch does not move the unit', (await mobileDesign()).items[0].x === 1200);
-  await mobile.getByRole('button', { name: 'Plan zoom', exact: true }).tap();
   await mobile.getByRole('button', { name: 'Fit the room in view' }).tap();
 
   await mobile.getByRole('button', { name: 'Edit' }).tap();
@@ -1036,9 +1050,9 @@ try {
   await open3DTools(mobile);
   check('the 3D view opens on the phone', await mobile.getByRole('button', { name: 'Style' }).isVisible());
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-05-3d.png') });
-
+  await close3DTools(mobile);
   await mobile.getByRole('button', { name: 'Deselect' }).tap();
-  await mobile.getByRole('button', { name: 'Room', exact: true }).tap();
+  await mobile.getByRole('button', { name: 'My room', exact: true }).tap();
   await phoneRoom.getByTestId('room-ideas').tap();
   const beforeStarter = await mobileDesign();
   await mobile.getByRole('radio', { name: 'My room layout' }).tap();
@@ -1051,14 +1065,14 @@ try {
   await mobile.waitForTimeout(2000);
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-06-u-3d.png') });
 
-  await mobile.getByRole('button', { name: 'More' }).tap();
-  await mobile.getByRole('button', { name: 'Kitchen designs', exact: true }).tap();
-  const phoneGallery = mobile.getByRole('dialog', { name: 'Kitchen designs' });
-  check('all sixty inspiration kitchens are available on the phone', (await phoneGallery.locator('[data-kitchen-design]').count()) === 60);
+  await mobile.getByRole('button', { name: 'Ideas', exact: true }).tap();
+  const phoneGallery = mobile.getByRole('dialog', { name: 'Ideas' });
   check('phone gallery keeps advanced filters collapsed until requested', !(await phoneGallery.locator('#kitchen-design-filters').isVisible()));
+  await phoneGallery.getByRole('button', { name: 'Reset filters', exact: true }).tap();
+  check('all sixty inspiration kitchens are available on the phone', (await phoneGallery.locator('[data-kitchen-design]').count()) === 60);
   await mobile.setViewportSize({ width: 320, height: 568 });
   await mobile.evaluate(() => window.__kitchen.ui.getState().setLanguage('sr'));
-  await mobile.getByRole('dialog', { name: 'Ideje za kuhinju' }).waitFor();
+  await mobile.getByRole('dialog', { name: 'Ideje', exact: true }).waitFor();
   await mobile.getByRole('searchbox', { name: 'Pretraži dizajne kuhinja', exact: true }).fill('sodji');
   check('phone search matches Serbian names without diacritics', (await mobile.locator('[data-kitchen-design]').count()) === 1 && await mobile.locator('[data-kitchen-design="shoji-retreat"]').isVisible());
   await mobile.getByRole('button', { name: 'Obriši pretragu dizajna', exact: true }).tap();
@@ -1086,6 +1100,7 @@ try {
   await phoneGallery.getByRole('button', { name: 'Filter designs', exact: true }).tap();
   check('phone users can reveal the style, layout and room-size filters', await phoneGallery.locator('#kitchen-design-filters').isVisible());
   await phoneGallery.getByLabel('Kitchen layout', { exact: true }).selectOption('island');
+  await phoneGallery.locator('[data-kitchen-design="monochrome-island"]').locator('..').getByRole('button', { name: /^More options for / }).tap();
   await phoneGallery.locator('[data-kitchen-original="monochrome-island"]').tap();
   check(
     'opening an original on the phone opens its exact editable kitchen without an underlying room sheet',

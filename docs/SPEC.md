@@ -115,8 +115,9 @@ Requirements:
 - Undo and redo.
 - Support straight kitchens, L-shaped kitchens, and U-shaped kitchens.
 
-The plan initially labels floor units only. Other rows are faint, noninteractive
-outlines without labels, symbols or dimensions. Wall-unit mode defaults to one
+The plan opens on **All**, with a fit control on the zoom percentage. During a
+drag, isolate its layer and restore the user's filter on release or cancellation.
+Filtered rows are faint, noninteractive outlines. Wall-unit mode defaults to one
 upper height band and allows selecting another band. **View** groups snapping,
 grid size and dimensions. One **Settings** dialog contains materials and
 construction. On phones keep the selected cabinet's plan controls in a bottom
@@ -157,16 +158,25 @@ When selecting a cabinet, show:
 Show the effect of valid property edits when the user commits a value. Keep
 placement fields in 2D, including when the selection came from the 3D view.
 
-The cutting-list screen leads with material totals and export; the plan and
-cabinet drawings sit in a collapsed overview below the list. Supplier/appliance,
+Board settings expand one row at a time; mark boards used by actual cut pieces
+and list those first. Show the priced sheet's currency in the row and editor.
+The cutting-list screen leads with piece and sheet counts and material totals;
+an info button explains the sheet estimate. Keep Export and Print accessible
+while the list scrolls. The plan and cabinet drawings sit in a collapsed overview
+below the list. Supplier/appliance,
 glass, front-profile, handleless-system and chimney-clearance confirmations are
 neutral pre-cutting reminders, not problem badges or canvas warning outlines.
 Collisions and actionable design/manufacturing warnings remain visible problems.
+Hover, focus or tap Checks to preview at most two of these (errors first).
+Selecting a cabinet issue reveals that cabinet on the 2D plan at either width.
 
 ### Ideas: fitting a room versus changing a look
 
-The gallery, ideas shown after taking room measurements, and **Next kitchen**
-must use the same apply command. The decision depends on the number of
+**Continue to kitchen** goes directly to the plan, even when it is still empty.
+Remember measured projects separately from new ones. Provide a single **Ideas**
+entry in the desktop top bar and the phone bottom actions. Cards open review;
+opening the original as a separate project is a secondary menu action. Start
+with the original room-size filter on. The decision depends on the number of
 **kitchen elements**, not the presence of room objects:
 
 1. **Empty of kitchen elements:** derive a proposal from the idea's runs,
@@ -181,11 +191,14 @@ must use the same apply command. The decision depends on the number of
      start and the right return its end. Use the chosen main segment and its
      adjacent return; do not silently switch walls or mirror the room, its
      openings or its obstacles.
-   - If the fit needs adjustments, identify resized or omitted elements and
-     show the changes before acceptance. If no valid arrangement fits, explain
+   - If the fit needs adjustments, identify resized, added or omitted elements.
+     Validate the exact candidate with **Checks**, including board sizes and
+     manual pieces. List every remaining issue before acceptance and show the
+     adjustment count with an Undo action afterwards. If no valid arrangement fits, explain
      the blocking constraint. Do not insert overlapping units, partially apply
      a rejected proposal or substitute the example room.
-2. **At least one kitchen element:** transfer only the visual finishes. Preserve
+2. **At least one kitchen element:** review and transfer only the visual finishes;
+   the 3D **Next kitchen** shortcut can cycle these directly. Preserve
    every item's identity, kind, position, dimensions, rotation and elevation.
    Do not add a missing upper row or island, reorient an existing L, remove
    furniture or recalculate its layout.
@@ -195,7 +208,7 @@ fabrication rules. A fitted layout generates parts for the **new** cabinets.
 Changing only the appearance must leave the **existing** cutting list unchanged.
 
 Apply the look by role: base cabinets, towers, upper rows, island and visible
-side panels. Both **Apply to my kitchen** and **Shuffle look** set fronts, profile,
+side panels. Both **Apply this look** and **Next kitchen** set fronts, profile,
 carcasses, handles, worktop and visible room joinery (window frames, door frames
 and door leaves). Update existing per-unit finishes as well as common defaults;
 do not flatten a two-tone design into one finish or leave the old per-unit
@@ -216,12 +229,15 @@ project.
 
 ### Editing and previewing in 3D
 
-- In the mobile **My room → 3D** workspace, keep **Plan / 3D** as the mode
-  switch. Give the preview one row: **Camera** (perspective/front/top, reset
-  and help), **Style** (room surfaces first) and **Kitchen** (cabinet previews,
-  next design and customer export). Opening these sheets must not resize the
-  canvas or change the project.
-- In the kitchen editor, dock **3D / Front / Top**, **Style**, cabinet previews and **Next kitchen**
+- In both full phone 3D views, use at most 120 CSS px above the usable canvas at
+  390 × 844. **View / Prikaz** opens a bottom sheet for camera presets/reset,
+  **Style** (room surfaces first in room setup), cabinet previews, **Next kitchen**,
+  customer export and help. Keep **Plan / 3D** distinct from camera choices.
+  Opening the sheet does not reframe the camera or edit the project. Real orbit
+  drags hide the bars; a tap restores them without moving or selecting anything.
+  The first tip disappears on drag or after six seconds, and stays dismissed
+  across visits unless explicitly requested via **?**.
+- In the desktop editor, dock **3D / Front / Top**, **Style**, cabinet previews and **Next kitchen**
   above the viewport. **Tools** includes room objects, help and customer export.
   Click or tap a cabinet, wall, opening or structure to select it. Mouse
   drags and touch swipes on the background **or an object's body** orbit the
@@ -263,7 +279,7 @@ project.
 
 ### Photo studio
 
-Keep the **Photo studio** (**Foto studio**) tab in Kitchen designs, but no
+Keep the **Photo studio** (**Foto studio**) tab in Ideas, but no
 **Photo/Foto shortcut in 3D**, including under Tools. Distinguish:
 
 - **Reference photograph:** a bundled image with its own author credit,
@@ -285,7 +301,7 @@ project files; omit them from the customer presentation.
 
 ### Customer presentation
 
-In the full editor's **3D → Tools**, **Export 3D for customer (.html)** saves
+In the desktop editor's **3D → Tools** or either phone **View** sheet, **Export 3D for customer (.html)** saves
 one self-contained HTML file. The customer opens the file locally, drags to
 orbit, scrolls or pinches to zoom, and can reset the initial view. No install,
 account or hosted project is required. The file must make no external network
