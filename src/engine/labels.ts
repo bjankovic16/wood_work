@@ -84,6 +84,8 @@ export interface CheckLabels {
   windowBelowWorktop: (wall: Wall, sill: number, unit: string, top: number) => string;
   specialistModule: (unit: string) => string;
   glassSupplier: (unit: string) => string;
+  floatingSupports: (unit: string) => string;
+  shelfSpacing: (unit: string) => string;
   roomFeatureCollision: (unit: string, feature: string) => string;
   roomFeatureOutside: (feature: string) => string;
   chimneyClearance: (feature: string) => string;
@@ -217,6 +219,8 @@ export const EN_LABELS: EngineLabels = {
     ceiling: (unit, top, ceiling) => `${unit} reaches ${top} mm, above the ${ceiling} mm ceiling.`,
     specialistModule: (unit) => `${unit}: confirm the chosen appliance/system's niche, ventilation, load capacity, fixings and clearances with its manufacturer before production.`,
     glassSupplier: (unit) => `${unit}: glass sizes are blanks; ask the glazing supplier to confirm safety glass, polished edges, hinge holes and operating clearances.`,
+    floatingSupports: (unit) => `${unit}: specify floating shelf supports for the wall, board and intended load; fixings are not in the hardware list.`,
+    shelfSpacing: (unit) => `${unit}: the boards do not leave an opening between shelves. Increase the height or use fewer shelves.`,
     roomFeatureCollision: (unit, feature) => `${unit} overlaps ${feature}; leave the fixed room structure clear.`,
     roomFeatureOutside: (feature) => `${feature} extends beyond the usable room footprint.`,
     chimneyClearance: (feature) => `${feature}: reserve the required fire/heat clearances with a qualified installer. The modeled block is geometry, not a fire-safety calculation.`,

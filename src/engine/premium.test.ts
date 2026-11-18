@@ -19,6 +19,15 @@ const module = (kind: ItemKind) => {
 };
 
 describe('premium kitchen modules', () => {
+  it('distinguishes overlapping floating boards from the normal supplier note about supports', () => {
+    const shelf = createItem('shelf', [], { shelfForm: 'floating', height: 100, shelves: 4 });
+    const design = addItem(createDesign(), shelf);
+    expect(unitHardware(shelf, buildContext(design))).toEqual([]);
+    expect(checkDesign(design)).toContainEqual(expect.objectContaining({ severity: 'error', key: `shelf-spacing-${shelf.id}` }));
+    const spaced = checkDesign({ ...design, items: [{ ...shelf, height: 500 }] });
+    expect(spaced.filter((i) => !i.category)).toEqual([]);
+    expect(spaced.some((i) => i.key === `supports-${shelf.id}` && i.category === 'precut')).toBe(true);
+  });
   for (const kind of ['pullOut', 'glassWall', 'ovenTower', 'integratedFridge', 'hood', 'hob', 'bar'] as const) {
     it(`${kind} has valid geometry, parts, purchased fittings and a lossless project round trip`, () => {
       const { design, hardware } = module(kind);
@@ -105,8 +114,8 @@ describe('premium kitchen modules', () => {
     expect(parseStyle(style)).toEqual(style);
     const layeredStyle = { ...style, backsplash: 'black', plinthLighting: true } as const;
     expect(parseStyle(layeredStyle)).toEqual(layeredStyle);
-    expect(Object.keys(FRONT_FINISHES)).toHaveLength(17);
-    expect(Object.keys(WORKTOP_FINISHES)).toHaveLength(7);
+    expect(Object.keys(FRONT_FINISHES)).toHaveLength(18);
+    expect(Object.keys(WORKTOP_FINISHES)).toHaveLength(8);
     expect(Object.keys(HANDLE_STYLES)).toHaveLength(6);
     expect(Object.keys(BACKSPLASH_FINISHES)).toHaveLength(5);
   });

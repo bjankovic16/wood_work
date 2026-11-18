@@ -12,6 +12,7 @@ import { SelectField } from '../properties/NumberField';
 import { RoomSurfaces } from '../room/RoomSurfaces';
 
 function swatchBackground(finish: Finish): string {
+  if (finish.texture === 'granite') return `radial-gradient(#9b9490 0.7px, transparent 1px) 0 0 / 4px 5px, ${finish.color}`;
   // Wood finishes get a streaky gradient to hint at the grain.
   return finish.wood
     ? `repeating-linear-gradient(100deg, ${finish.color} 0 5px, color-mix(in srgb, ${finish.color} 82%, #3b2410) 5px 7px)`

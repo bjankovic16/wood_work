@@ -29,6 +29,7 @@ try {
   await page.addInitScript((design) => localStorage.setItem('kitchen-designer:design', JSON.stringify({ state: { design }, version: 1 })), fixture);
   await page.goto(editor.resolvedUrls.local[0], { waitUntil: 'domcontentloaded' });
   await page.getByRole('radio', { name: '3D', exact: true }).click();
+  await page.getByRole('group', { name: '3D camera' }).getByRole('button', { name: 'Studio', exact: true }).click();
   await page.getByTestId('three-tools-toggle').click();
   const [download] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }), page.getByTestId('customer-export').click()]);
   assert.equal(download.suggestedFilename(), 'Kitchen & oak.html');
@@ -37,10 +38,12 @@ try {
   const html = await readFile(file, 'utf8');
   assert.ok(html.includes('Kitchen &amp; &lt;oak&gt;'));
   assert.ok(!html.includes('PRIVATE-REFERENCE') && !html.includes(pixel));
+  assert.equal(JSON.parse(html.match(/id="pose">([^<]+)<\/script>/)[1]).studio, true);
   const model = Buffer.from(html.match(/id="model">([^<]+)<\/script>/)[1], 'base64');
   assert.equal(model.toString('ascii', 0, 4), 'glTF');
   const json = JSON.parse(model.toString('utf8', 20, 20 + model.readUInt32LE(12)));
   assert.ok(json.meshes.length > 10 && json.materials.length > 5 && json.textures.length > 0);
+  assert.ok(json.nodes.some((node) => node.name === 'arched-mixer') && json.materials.some((mat) => mat.extras?.studioFinish));
   assert.equal(json.nodes.filter((n) => n.extras?.cutaway).length, 5, 'All four walls and the door travel with the model, regardless of editor camera.');
   assert.ok(!json.nodes.some((n) => /selection|gizmo|kitchen-resize-tool/i.test(n.name ?? '')));
   const floor = json.nodes.find((n) => n.name === 'room-floor');

@@ -1,4 +1,4 @@
-import { ArrowLeft, Box, Check, ChevronRight, LayoutGrid, Palette, PanelsTopLeft, RotateCcw, X } from 'lucide-react';
+import { ArrowLeft, Box, Camera, Check, ChevronRight, LayoutGrid, Palette, PanelsTopLeft, RotateCcw, X } from 'lucide-react';
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { CameraView } from '../../domain/camera';
 import { useT } from '../../i18n';
@@ -6,7 +6,7 @@ import { useUiStore } from '../../store/uiStore';
 import { Button, TooltipButton } from '../ui';
 import { StylePicker } from './StylePicker';
 
-const views = [{ key: 'perspective', Icon: Box }, { key: 'front', Icon: PanelsTopLeft }, { key: 'top', Icon: LayoutGrid }] as const;
+const views = [{ key: 'perspective', Icon: Box }, { key: 'studio', Icon: Camera }, { key: 'front', Icon: PanelsTopLeft }, { key: 'top', Icon: LayoutGrid }] as const;
 
 /** One native modal keeps the scene in place and the background inert, including in the finishes subpage. */
 export function PhoneViewSheet({ id, onClose, view, room, previews, nextKitchen, shuffleHint, customerExport, roomObjects, help }: {
@@ -48,7 +48,7 @@ export function PhoneViewSheet({ id, onClose, view, room, previews, nextKitchen,
               <RotateCcw size={15} />{t.view3d.resetView}
             </TooltipButton>
           </div>
-          <div role="group" aria-label={t.view3d.camera} className="room-preview-options grid grid-cols-3 gap-2">
+          <div role="group" aria-label={t.view3d.camera} className="room-preview-options grid grid-cols-2 gap-2 min-[380px]:grid-cols-4">
             {views.map(({ key, Icon }) => <TooltipButton key={key} tooltip={t.view3d.cameraHints[key]}
               variant="outline" active={view === key} className="relative h-16 w-full flex-col" onClick={() => chooseView(key)}>
               <Icon size={18} aria-hidden="true" />{key === 'perspective' ? t.view3d.perspectiveName : t.view3d[key]}

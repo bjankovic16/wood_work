@@ -137,6 +137,8 @@ export interface KitchenItem {
   drawers?: number;
   /** Adjustable shelves. */
   shelves?: number;
+  /** A stack of wall-mounted boards without a surrounding carcass (shelf units only). */
+  shelfForm?: 'floating';
   doorType?: DoorType;
   /** Single doors: the side the hinges are on. */
   hinge?: 'left' | 'right';

@@ -1,7 +1,7 @@
 /** Finishes used to show the kitchen in 3D. They do not change any cut sizes. */
 
-export type FrontFinish = 'white' | 'cream' | 'grey' | 'sage' | 'navy' | 'anthracite' | 'oak' | 'walnut' | 'cashmere' | 'sand' | 'taupe' | 'olive' | 'clay' | 'espresso' | 'ash' | 'forest' | 'eucalyptus';
-export type WorktopFinish = 'stone' | 'oak' | 'concrete' | 'black' | 'marble' | 'travertine' | 'walnut';
+export type FrontFinish = 'white' | 'cream' | 'grey' | 'sage' | 'navy' | 'anthracite' | 'oak' | 'walnut' | 'cashmere' | 'sand' | 'taupe' | 'olive' | 'clay' | 'espresso' | 'ash' | 'forest' | 'eucalyptus' | 'basil';
+export type WorktopFinish = 'stone' | 'oak' | 'concrete' | 'black' | 'marble' | 'travertine' | 'walnut' | 'graphite';
 export type HandleStyle = 'steel' | 'black' | 'brass' | 'none' | 'bronze' | 'copper';
 export type BacksplashFinish = 'none' | 'stone' | 'marble' | 'travertine' | 'black';
 export type ApplianceFinish = 'white' | 'steel' | 'black';
@@ -54,7 +54,7 @@ export interface Finish {
   color: string;
   /** Drawn with a wood grain. */
   wood?: boolean;
-  texture?: 'marble' | 'travertine';
+  texture?: 'marble' | 'travertine' | 'granite';
 }
 
 export const FRONT_FINISHES: Record<FrontFinish, Finish> = {
@@ -75,6 +75,7 @@ export const FRONT_FINISHES: Record<FrontFinish, Finish> = {
   ash: { color: '#d1b58c', wood: true },
   forest: { color: '#3f4b40' },
   eucalyptus: { color: '#677267' },
+  basil: { color: '#58964f' },
 };
 
 export const WORKTOP_FINISHES: Record<WorktopFinish, Finish> = {
@@ -85,6 +86,7 @@ export const WORKTOP_FINISHES: Record<WorktopFinish, Finish> = {
   marble: { color: '#f0e9dd', texture: 'marble' },
   travertine: { color: '#d7c4a4', texture: 'travertine' },
   walnut: { color: '#775038', wood: true },
+  graphite: { color: '#514e4c', texture: 'granite' },
 };
 
 export const HANDLE_STYLES: Record<HandleStyle, { color: string | null; metal: boolean }> = {

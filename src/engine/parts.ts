@@ -297,8 +297,11 @@ export function generatedParts(item: KitchenItem, ctx: BuildContext): Part[] {
       ];
     case 'wall':
     case 'glassWall':
-    case 'shelf':
       return [...carcass(item, config, ctx, true), ...shelves(item, config, ctx), ...frontParts(item, fronts, config, ctx)];
+    case 'shelf':
+      if (item.shelfForm === 'floating') return [piece({ name: 'shelf', quantity: config.shelves + 2, a: item.width, b: item.depth,
+        material: config.carcass, band: carcassBand(ctx), edgesA: 1, edgesB: 2 }, ctx)];
+      return [...carcass(item, config, ctx, true), ...shelves(item, config, ctx)];
     case 'tall': {
       // Doors split in two rows get a fixed shelf behind the split to keep the sides straight.
       const doorRows = new Set(fronts.filter((f) => f.kind === 'door').map((f) => f.y)).size;

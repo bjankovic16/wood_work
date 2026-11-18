@@ -43,7 +43,9 @@ export function FrontPreview({ item, ctx }: { item: KitchenItem; ctx: BuildConte
         role="img"
         aria-label={text.item.frontViewAria(W, H)}
       >
-        {item.kind === 'bar' ? (
+        {item.shelfForm === 'floating' ? Array.from({ length: config.shelves + 2 }, (_, i) =>
+          <rect key={i} x={0} y={(H - t) * i / (config.shelves + 1)} width={W} height={t} fill="#d6b38b" stroke="#71717a" strokeWidth={px} />)
+        : item.kind === 'bar' ? (
           <g stroke="#71717a" strokeWidth={3 * px}>
             <rect x={0} y={0} width={W} height={t} fill="#d6b38b" strokeWidth={px} />
             <line x1={W * 0.06} x2={W * 0.06} y1={t} y2={H} />
@@ -54,7 +56,7 @@ export function FrontPreview({ item, ctx }: { item: KitchenItem; ctx: BuildConte
         ) : (
           <rect x={0} y={0} width={W} height={H} fill="#f4f4f5" stroke="#a1a1aa" strokeWidth={px} />
         )}
-        {shelfLines.map((y) => (
+        {item.shelfForm !== 'floating' && shelfLines.map((y) => (
           <line key={y} x1={t} x2={W - t} y1={H - y} y2={H - y} stroke="#a1a1aa" strokeWidth={px} strokeDasharray={`${4 * px} ${3 * px}`} />
         ))}
         {item.kind === 'oven' && <Oven W={W} px={px} />}

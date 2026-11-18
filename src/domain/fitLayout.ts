@@ -162,7 +162,12 @@ class Trial {
       return p ? [{ source: { from: m.from, to: m.from + m.item.width }, target: { from: p.from, to: p.from + p.item.width } }] : [];
     }).sort((a, b) => a.source.from - b.source.from);
     if (!links.length) return;
-    const bounds = { from: links[0].target.from, to: links[links.length - 1].target.to };
+    // A continuous upper or a shelf can reach over the corner base, which is not
+    // part of this straight floor run. Preserve that overhang, not space from omitted units.
+    const startOverhang = Math.min(...floor.map((m) => m.from)) - Math.min(...modules.map((m) => m.from));
+    const endOverhang = Math.max(...modules.map((m) => m.from + m.item.width)) - Math.max(...floor.map((m) => m.from + m.item.width));
+    const bounds = { from: Math.max(0, links[0].target.from - startOverhang),
+      to: Math.min(run.wall.length, links[links.length - 1].target.to + endOverhang) };
     const rows = new Map<number, Prepared[]>();
     const caps = new Set(modules.filter((m) => ['tall', 'ovenTower', 'integratedFridge', 'fridge', 'hood'].includes(m.item.kind)
       || (floorUnit(m.item) && m.item.kind === 'glassWall'))

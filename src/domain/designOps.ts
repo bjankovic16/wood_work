@@ -171,6 +171,7 @@ function parseItem(raw: unknown): { item: KitchenItem; legacy: LegacyThickness }
   if (v.doorType === 'overlay' || v.doorType === 'inset') item.doorType = v.doorType;
   if (v.hinge === 'left' || v.hinge === 'right') item.hinge = v.hinge;
   if (v.drawerLayout === 'equal' || v.drawerLayout === 'shallowTop') item.drawerLayout = v.drawerLayout;
+  if (item.kind === 'shelf' && v.shelfForm === 'floating') item.shelfForm = v.shelfForm;
   for (const key of ['carcassMaterial', 'backMaterial', 'frontMaterial'] as const) {
     if (typeof v[key] === 'string') item[key] = v[key];
   }
@@ -372,7 +373,7 @@ export function setPartEdit(design: Design, itemId: string, key: string, edit: P
 }
 
 type CountKey = 'doors' | 'drawers' | 'shelves';
-type OptionKey = 'doorType' | 'hinge' | 'drawerLayout' | 'carcassMaterial' | 'backMaterial' | 'frontMaterial' | 'frontFinish' | 'carcassFinish';
+type OptionKey = 'doorType' | 'hinge' | 'drawerLayout' | 'shelfForm' | 'carcassMaterial' | 'backMaterial' | 'frontMaterial' | 'frontFinish' | 'carcassFinish';
 
 function without<K extends keyof KitchenItem>(item: KitchenItem, key: K): KitchenItem {
   if (item[key] === undefined) return item;

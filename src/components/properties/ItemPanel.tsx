@@ -182,6 +182,8 @@ export function ItemFields({ item }: { item: KitchenItem }) {
 
       <PanelSection title={hasCounts ? t.item.frontsAndShelves : t.item.frontView}>
         <FrontPreview item={item} ctx={ctx} />
+        {item.kind === 'shelf' && <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox"
+          checked={item.shelfForm === 'floating'} onChange={(e) => actions.setItemOption(item.id, 'shelfForm', e.target.checked ? 'floating' : undefined)} />{t.item.floatingShelves}</label>}
         {options.doors && (
           <Stepper
             label={t.item.doors}
@@ -204,7 +206,7 @@ export function ItemFields({ item }: { item: KitchenItem }) {
         )}
         {options.shelves && !drawersOnly && (
           <Stepper
-            label={t.item.shelves}
+            label={item.shelfForm === 'floating' ? t.item.intermediateShelves : t.item.shelves}
             fewerLabel={t.item.fewer.shelves}
             moreLabel={t.item.more.shelves}
             value={config.shelves}
@@ -259,7 +261,7 @@ export function ItemFields({ item }: { item: KitchenItem }) {
       {(options.carcass || options.fronts) && (
         <PanelSection title={t.item.materials}>
           {options.carcass && <MaterialField item={item} field="carcassMaterial" label={item.kind === 'bar' ? t.item.barTop : t.item.carcass} kitchenWide={item.kind === 'bar' ? BAR_MATERIAL_ID : construction.carcassMaterial} />}
-          {options.back && <MaterialField item={item} field="backMaterial" label={t.item.backPanel} kitchenWide={construction.backMaterial} />}
+          {options.back && item.shelfForm !== 'floating' && <MaterialField item={item} field="backMaterial" label={t.item.backPanel} kitchenWide={construction.backMaterial} />}
           {options.fronts && <MaterialField item={item} field="frontMaterial" label={item.kind === 'glassWall' ? t.item.glass : t.item.fronts} kitchenWide={item.kind === 'glassWall' ? GLASS_MATERIAL_ID : construction.frontMaterial} />}
         </PanelSection>
       )}

@@ -3,7 +3,8 @@ import { cabinetResize } from '../domain/cabinetResize';
 import * as ops from '../domain/designOps';
 import { rotateItem, aabbSize, clampToRoom } from '../domain/geometry';
 import { newId } from '../domain/ids';
-import { createKitchenDesign, KITCHEN_DESIGNS, type KitchenDesignId } from '../domain/kitchens';
+import { createKitchenDesign, KITCHEN_DESIGNS, originalView, type KitchenDesignId, type KitchenPreset } from '../domain/kitchens';
+import type { CameraView } from '../domain/camera';
 import { applyKitchenLook } from '../domain/kitchenLook';
 import type { IdeaReview } from './ideaReview';
 import { centreOfRoom, findFreeSpot, placeCopy } from '../domain/placement';
@@ -405,7 +406,7 @@ export function setItemCount(id: string, key: 'doors' | 'drawers' | 'shelves', v
 }
 
 /** Door type, hinge side, drawer layout or material of one unit; undefined goes back to the kitchen setting. */
-export function setItemOption<K extends 'doorType' | 'hinge' | 'drawerLayout' | 'carcassMaterial' | 'backMaterial' | 'frontMaterial' | 'frontFinish' | 'carcassFinish'>(
+export function setItemOption<K extends 'doorType' | 'hinge' | 'drawerLayout' | 'shelfForm' | 'carcassMaterial' | 'backMaterial' | 'frontMaterial' | 'frontFinish' | 'carcassFinish'>(
   id: string,
   key: K,
   value: KitchenItem[K] | undefined,
@@ -527,14 +528,14 @@ export function setStyle(patch: Partial<KitchenStyle>): void {
   apply((design) => ops.setStyle(design, patch));
 }
 
-function showKitchen(view: 'plan' | '3d', front = false): void {
+function showKitchen(view: 'plan' | '3d', camera: CameraView = 'perspective'): void {
   const ui = useUiStore.getState();
   finishRoom();
   ui.select(null);
   ui.setLayoutsOpen(false);
   ui.setView(view);
   ui.setReferenceOpen(false);
-  ui.requestCamera(front ? 'front' : 'perspective');
+  ui.requestCamera(camera);
 }
 
 /** Furniture is never relocated by a gallery idea. In an empty room, review a fit first. */
@@ -547,7 +548,8 @@ export function applyKitchenDesign(preset: GalleryKitchen): boolean {
     const styled = applyKitchenLook(design, preset);
     return styled.galleryPresetId === preset.id ? styled : { ...styled, galleryPresetId: preset.id };
   });
-  showKitchen('3d');
+  const { previewView }: KitchenPreset = preset;
+  showKitchen('3d', previewView);
   return true;
 }
 
@@ -555,7 +557,8 @@ export function applyKitchenDesign(preset: GalleryKitchen): boolean {
 export function acceptFit({ source, request, fit, candidate }: IdeaReview): boolean {
   if (!candidate || current() !== source || useDesignStore.getState().gestureBase) return false;
   apply(() => candidate);
-  showKitchen(request.type === 'idea' ? '3d' : 'plan');
+  const preset: KitchenPreset | undefined = request.type === 'idea' ? KITCHEN_DESIGNS.find((p) => p.id === request.id) : undefined;
+  showKitchen(request.type === 'idea' ? '3d' : 'plan', preset?.previewView);
   useUiStore.setState({ fitNotice: candidate !== source ? { design: candidate, changes: fit?.changes.length ?? 0 } : null });
   return true;
 }
@@ -566,7 +569,7 @@ export function openKitchenOriginal(preset: GalleryKitchen): void {
   const name = t.kitchens.names[preset.id];
   createProject(name);
   useDesignStore.getState().load(createKitchenDesign(preset, name, t.labelPrefix));
-  showKitchen('3d', 'framed' in preset && Boolean(preset.framed));
+  showKitchen('3d', originalView(preset));
 }
 
 export function openPhotoDesign(id: PairedPhotoId): void {

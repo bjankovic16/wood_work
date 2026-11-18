@@ -62,11 +62,12 @@ export function IdeaFitReview({ request }: { request: FitRequest }) {
   const walls = useMemo(() => roomSegments(design.room, false), [design.room]);
   const [mainWallId, setWall] = useState(() => preferredIdeaWall(design.room, selectedWall) ?? '');
   const [side, setSide] = useState<'left' | 'right'>('left');
+  const [referenceRoomLook, setReferenceRoomLook] = useState<boolean>();
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => { heading.current?.focus(); }, []);
   const source = request.type === 'starter' ? request.id : KITCHEN_DESIGNS.find((preset) => preset.id === request.id)!;
-  const review = useMemo(() => prepareIdeaReview(design, request, { mainWallId: mainWallId || undefined, side, prefixes: t.labelPrefix }, t.engine),
-    [design, request, mainWallId, side, t]);
+  const review = useMemo(() => prepareIdeaReview(design, request, { mainWallId: mainWallId || undefined, side, referenceRoomLook, prefixes: t.labelPrefix }, t.engine),
+    [design, request, mainWallId, side, referenceRoomLook, t]);
   const { fit, issues, appearanceOnly } = review;
   const look = appearanceOnly ? review.candidate?.style : undefined;
   const activeWall = walls.findIndex((s) => s.id === fit?.mainWallId);
@@ -80,6 +81,8 @@ export function IdeaFitReview({ request }: { request: FitRequest }) {
       <FitSketch design={review.candidate ?? design} items={review.candidate?.items ?? []} mainWall={fit?.mainWallId} onSelect={appearanceOnly ? undefined : setWall} />
       <div className="space-y-3">
         {appearanceOnly && <p className="text-sm">{t.fit.keepInstalled(design.items.length)}</p>}
+        {review.offersRoomLook && <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm"><input type="checkbox"
+          checked={review.referenceRoomLook} onChange={(e) => setReferenceRoomLook(e.target.checked)} />{t.fit.referenceRoomLook}</label>}
         {look && review.candidate && <div className="space-y-2 text-sm text-studio-muted">
           {[...new Set(review.candidate.items.map((i) => i.frontFinish ?? look.front))].map((front) =>
             <p key={front} className="flex items-center gap-2"><span className="size-5 rounded-full border border-black/10" style={{ backgroundColor: FRONT_FINISHES[front].color }} />

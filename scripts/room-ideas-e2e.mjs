@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
+import { assertNeutralScene, open3DTools } from './three-test-helpers.mjs';
 
 const server = await createServer({ logLevel: 'error', cacheDir: path.resolve('test-results/room-ideas/.vite'), optimizeDeps: { entries: ['index.html'] }, server: { host: '127.0.0.1', port: 0, watch: null, hmr: false } });
 let browser;
@@ -11,6 +12,7 @@ try {
   const page = await browser.newPage({ locale: 'en-US', viewport: { width: 1440, height: 900 }, hasTouch: true, reducedMotion: 'reduce' });
   const errors = [];
   page.on('pageerror', (err) => errors.push(err.message));
+  page.on('console', (m) => { if (/shader error/i.test(m.text())) errors.push(m.text()); });
   await page.goto(server.resolvedUrls.local[0], { waitUntil: 'domcontentloaded' });
   const room = page.getByTestId('room-workspace');
   await room.waitFor();
@@ -48,14 +50,14 @@ try {
     ui.getState().setView('plan');
     return rows;
   });
-  assert.equal(audited.length, 60);
+  assert.equal(audited.length, 61);
   for (const row of audited) {
     assert.ok(row.applied && row.items > 0 && row.restored, row.id);
     assert.deepEqual(row.checks, [], row.id);
     assert.deepEqual(row.shown, row.checks, row.id);
     assert.equal(row.count, row.changes, row.id);
   }
-  for (const id of ['walnut-frame', 'olive-window-wall', 'urban-oak']) {
+  for (const id of ['walnut-frame', 'olive-window-wall', 'urban-oak', 'basil-studio']) {
     await ideas.click();
     assert.ok(await within.isChecked(), 'The size filter is on each time the gallery opens.');
     await within.uncheck();
@@ -67,11 +69,21 @@ try {
     await confirm.click();
     assert.ok((await design()).items.length > 0, id);
     assert.deepEqual(await actualChecks(), [], id);
+    if (id === 'basil-studio') {
+      await page.waitForFunction(() => window.__kitchen3D?.scene.getObjectByName('studio-sink') && window.__kitchen3D.camera.fov === 28);
+      await assertNeutralScene(page);
+      const staged = await design();
+      const camera = page.getByRole('group', { name: '3D camera' });
+      await camera.getByRole('button', { name: 'Front', exact: true }).click();
+      await page.waitForFunction(() => !window.__kitchen3D.scene.getObjectByName('studio-sink') && window.__kitchen3D.camera.fov === 45);
+      await camera.getByRole('button', { name: 'Studio', exact: true }).click();
+      assert.deepEqual(await design(), staged, 'Changing presentation must not change any project data.');
+    }
     assert.match(await notice.innerText(), new RegExp(`\\b${changeCount} layout adjustment`), id);
     await notice.getByRole('button', { name: 'Undo' }).click();
     assert.deepEqual(await design(), initial, `Undo ${id}`);
   }
-  console.log('60/60 gallery ideas applied to the default room: zero workshop errors or warnings; preview, adjustment count and Undo match.');
+  console.log(`${audited.length}/${audited.length} gallery ideas applied to the default room: zero workshop errors or warnings; preview, adjustment count and Undo match.`);
   // A custom piece cannot be fixed by moving cabinets. Disclose it, unchanged, before confirmation.
   await page.evaluate(() => window.__kitchen.design.getState().apply((d) => ({
     ...d, customParts: [{ id: 'rail', name: 'Existing rail', length: 7900, width: 110, quantity: 1,
@@ -174,6 +186,18 @@ try {
   await page.getByTestId('empty-plan-hint').waitFor();
   assert.equal(await page.getByRole('dialog').count(), 0);
   assert.equal(await ideas.count(), 1);
+  await ideas.tap();
+  await gallery.locator('[data-kitchen-design="basil-studio"]').tap();
+  await gallery.getByRole('checkbox', { name: /pictured wall paint/ }).uncheck();
+  await confirm.tap();
+  await page.waitForFunction(() => window.__kitchen3D?.scene.getObjectByName('arched-mixer'));
+  assert.equal((await design()).style.floorPattern, undefined);
+  await open3DTools(page);
+  await page.getByTestId('phone-view-sheet').getByRole('button', { name: 'Top', exact: true }).tap();
+  await open3DTools(page);
+  await page.getByTestId('phone-view-sheet').getByRole('button', { name: 'Studio', exact: true }).tap();
+  await page.waitForFunction(() => window.__kitchen3D?.camera.fov === 28);
+  await assertNeutralScene(page);
   assert.deepEqual(errors, []);
   console.log('Both L returns fit around the measured room; a subsequent idea keeps every cabinet, opening, structure and cut part, with one Undo.');
 } finally {

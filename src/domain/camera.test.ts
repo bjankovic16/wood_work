@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { blendPoses, cabinetFocusPose, kitchenCameraPose, type CameraPose } from './camera';
+import { PerspectiveCamera, Vector3 } from 'three';
+import { blendPoses, cabinetFocusPose, kitchenCameraPose, STUDIO_FOV, type CameraPose } from './camera';
+import { createBasilKitchen } from './basilKitchen';
 import { createItem } from './catalog';
-import { itemRect } from './geometry';
+import { footprintPieces, itemRect } from './geometry';
 
 const room = { width: 4800, depth: 4000, height: 2700 };
 
@@ -55,6 +57,23 @@ describe('3D camera views', () => {
     const item = createItem('base', [], { x: room.width - 560, y: 1500, rotation: 90 });
     const pose = cabinetFocusPose(room, item, 1.4);
     expect(pose.position[0]).toBeLessThan(pose.target[0] - 1);
+  });
+
+  it('frames both arms and the uppers in Studio on portrait and landscape screens, even in a much larger room', () => {
+    const { items } = createBasilKitchen('');
+    for (const aspect of [0.46, 1.68]) {
+      const { position, target } = kitchenCameraPose({ width: 15000, depth: 12000, height: 3300 }, items, aspect, 'studio');
+      const camera = new PerspectiveCamera(STUDIO_FOV, aspect, 0.05, 200);
+      camera.position.fromArray(position); camera.lookAt(...target); camera.updateMatrixWorld();
+      const vertices = items.flatMap((item) => footprintPieces(item).flat().flatMap((p) =>
+        [item.elevation, item.elevation + item.height].map((y) => new Vector3(p.x / 1000, y / 1000, p.y / 1000).project(camera))));
+      const xs = vertices.map((v) => v.x), ys = vertices.map((v) => v.y);
+      expect([...xs, ...ys].every((v) => Math.abs(v) <= 0.93)).toBe(true);
+      expect(Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys))).toBeGreaterThan(1.67);
+      expect(position[0]).toBeGreaterThan(target[0]);
+      expect(position[1]).toBeGreaterThan(target[1]);
+      expect(position[2]).toBeGreaterThan(target[2]);
+    }
   });
 });
 

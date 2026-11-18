@@ -12,7 +12,7 @@ try {
   await server.listen();
   browser = await chromium.launch({ channel: 'chrome', headless: true });
   // Every view must be in place for its picture: no camera glides.
-  const page = await browser.newPage({ viewport: { width: 1200, height: 800 }, deviceScaleFactor: 1, reducedMotion: 'reduce' });
+  const page = await browser.newPage({ viewport: { width: 1200, height: 800 }, deviceScaleFactor: 2, reducedMotion: 'reduce' });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(server.resolvedUrls.local[0], { waitUntil: 'domcontentloaded' });
@@ -20,10 +20,10 @@ try {
   // Capture the same camera aspect regardless of toolbar language, wrapping or room setup.
   await page.addStyleTag({ content: '[data-testid="three-viewport"] { position: fixed !important; left: 0; top: 0; width: 900px; height: 537px; z-index: 100; } main .absolute { visibility: hidden !important; }' });
   const jobs = await page.evaluate(async () => {
-    const { KITCHEN_DESIGNS } = await import('/src/domain/kitchens.ts');
+    const { KITCHEN_DESIGNS, originalView } = await import('/src/domain/kitchens.ts');
     const { PAIRED_PHOTOS } = await import('/src/domain/photoReferences.ts');
     return [
-      ...KITCHEN_DESIGNS.map((kitchen) => ({ kind: 'kitchen', id: kitchen.id, directory: 'kitchens', filename: `${kitchen.id}.jpg`, view: kitchen.framed ? 'front' : 'perspective' })),
+      ...KITCHEN_DESIGNS.map((kitchen) => ({ kind: 'kitchen', id: kitchen.id, directory: 'kitchens', filename: `${kitchen.id}.jpg`, view: originalView(kitchen) })),
       ...PAIRED_PHOTOS.map((photo) => ({ kind: 'photo', id: photo.id, directory: 'references', filename: photo.modelPreview, view: 'perspective' })),
     ];
   });
@@ -53,7 +53,7 @@ try {
     await page.waitForFunction((id) => !!window.__kitchen3D?.scene.getObjectByName(id), firstUnitId);
     await waitForIdleRendering(page);
     await assertNeutralScene(page);
-    const image = await page.getByTestId('three-viewport').locator('canvas').screenshot({ type: 'jpeg', quality: 90 });
+    const image = await page.getByTestId('three-viewport').locator('canvas').screenshot({ type: 'jpeg', quality: 90, scale: 'css' });
     if (image.length < 8000) throw new Error(`Preview for ${job.id} appears empty (${image.length} bytes).`);
     const directory = path.join(output, job.directory);
     await mkdir(directory, { recursive: true });

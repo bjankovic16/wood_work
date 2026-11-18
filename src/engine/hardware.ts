@@ -27,6 +27,8 @@ const PINS_PER_SHELF = 4;
 
 /** Fittings for one unit: hinges, drawer slides, handles, shelf pins, legs and wall hangers. */
 export function unitHardware(item: KitchenItem, ctx: BuildContext): Hardware[] {
+  // Wall-specific concealed supports are specified separately, not shelf pins or cabinet hangers.
+  if (item.kind === 'shelf' && item.shelfForm === 'floating') return [];
   const options = KIND_OPTIONS[item.kind];
   const config = resolveConfig(item, ctx);
   const fronts = frontLayout(item, config, ctx.settings);

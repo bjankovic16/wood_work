@@ -1,6 +1,7 @@
 import type { CameraPose } from '../domain/camera';
 import type { Messages } from '../i18n';
 
+export type CustomerCamera = CameraPose & { studio: boolean; aspect: number };
 const escapeText = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 export async function blobDataUrl(blob: Blob): Promise<string> {
@@ -13,7 +14,7 @@ export async function blobDataUrl(blob: Blob): Promise<string> {
 }
 
 /** The customer file contains a closed model and a camera pose, never an editor/project snapshot. */
-export function customerHtml(name: string, modelBase64: string, poster: string, camera: CameraPose, script: string, t: Messages): Blob {
+export function customerHtml(name: string, modelBase64: string, poster: string, camera: CustomerCamera, script: string, t: Messages): Blob {
   if (!/^[\w+/=]+$/.test(modelBase64) || !/^data:image\/jpeg;base64,[\w+/=]+$/.test(poster)) throw new Error('Invalid embedded kitchen preview.');
   const title = escapeText(name);
   const words = t.customerView;

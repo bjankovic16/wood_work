@@ -244,6 +244,8 @@ export const sr: Messages = {
     depth: 'Dubina',
     height: 'Visina',
     frontsAndShelves: 'Fronte i police',
+    floatingShelves: 'Lebdeće police (bez bočnih stranica)',
+    intermediateShelves: 'Police između gornje i donje',
     frontView: 'Izgled spreda',
     frontViewCaption: (width, height) => `${width} × ${height} mm, pogled spreda`,
     frontViewAria: (width, height) => `Pogled spreda, ${width} × ${height} mm`,
@@ -427,6 +429,7 @@ export const sr: Messages = {
   },
 
   fit: {
+    referenceRoomLook: 'Primeni boju zidova, podne pločice i dekoraciju sa slike',
     title: 'Uklapanje u moju prostoriju', back: 'Nazad na ideje', main: 'Glavni zid', auto: 'Pronađi odgovarajući zid', side: 'Krak L kada gledate u glavni zid',
     left: 'Levi krak', right: 'Desni krak', confirm: 'Primeni ovaj raspored', sketch: 'Predlog rasporeda u vašoj prostoriji',
     fitted: (count) => `Broj predloženih elemenata: ${count}. Prostorija i otvori ostaju na mestu.`,
@@ -512,6 +515,7 @@ export const sr: Messages = {
     previewUnavailable: 'Pregled nije dostupan. Kuhinju i dalje možete otvoriti.',
     names: {
       'olive-oak-vitrine': 'Maslina i hrast sa vitrinom',
+      'basil-studio': 'Bosiljak i grafit',
       'olive-oak-compact': 'Kompaktna maslina i hrast',
       'eucalyptus-walnut': 'Eukaliptus i orah',
       'olive-window-wall': 'Maslinasta kuhinja uz prozor',
@@ -635,8 +639,9 @@ export const sr: Messages = {
       ash: 'Prirodni jasen',
       forest: 'Šumska zelena',
       eucalyptus: 'Eukaliptus zelena',
+      basil: 'Bosiljak zelena',
     },
-    worktopFinishes: { stone: 'Beli kamen', oak: 'Hrast', concrete: 'Beton', black: 'Crna', marble: 'Topli mermer', travertine: 'Travertin', walnut: 'Orah' },
+    worktopFinishes: { stone: 'Beli kamen', oak: 'Hrast', concrete: 'Beton', black: 'Crna', marble: 'Topli mermer', travertine: 'Travertin', walnut: 'Orah', graphite: 'Grafitni granit' },
     handleStyles: { steel: 'Čelična šipka', black: 'Crna šipka', brass: 'Mesingana šipka', none: 'Bez ručki', bronze: 'Bronzana šipka', copper: 'Bakarna šipka' },
     backsplash: 'Zidna obloga',
     backsplashFinishes: { none: 'Obojen zid', stone: 'Beli kamen', marble: 'Topli mermer', travertine: 'Travertin', black: 'Tamni kamen' },
@@ -660,6 +665,7 @@ export const sr: Messages = {
     appearanceHint: 'Promenite fronte, radnu ploču, boje zidova i poda i ručice bez promene rasporeda.',
     cameraHints: {
       perspective: 'Pogledajte celu kuhinju u prostoru. Prevucite pozadinu da okrenete pogled.',
+      studio: 'Pogled na elemente ukoso i odozgo, sa tamnom pozadinom i naglašenim detaljima materijala.',
       front: 'Pogledajte kuhinju pravo spreda, u nivou frontova.',
       top: 'Pogledajte kuhinju odozgo radi provere rasporeda i slobodnog prostora.',
     },
@@ -680,6 +686,7 @@ export const sr: Messages = {
     interiorHint: 'Fronte su skrivene da vidite police i fioke. Prikaz je šematski, bez detalja aparata i okova; projekat i krojna lista ostaju nepromenjeni.',
     camera: '3D kamera',
     perspective: '3D',
+    studio: 'Studio',
     front: 'Spreda',
     top: 'Odozgo',
     focusSelection: 'Približi izabrani element',

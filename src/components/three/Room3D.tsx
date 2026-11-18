@@ -35,12 +35,12 @@ function WallBox({ piece, thickness, inset = -thickness / 2, material, color = '
   </mesh>;
 }
 
-function Treatment({ treatment, segment, holes }: { treatment: WallTreatment; segment: WallSegment; holes: WallPiece[] }) {
+function Treatment({ treatment, segment, holes, studio }: { treatment: WallTreatment; segment: WallSegment; holes: WallPiece[]; studio: boolean }) {
   const materials = useMemo(() => createMaterials({
     front: Object.hasOwn(FRONT_FINISHES, treatment.finish) ? treatment.finish as keyof typeof FRONT_FINISHES : 'white',
     worktop: Object.hasOwn(WORKTOP_FINISHES, treatment.finish) ? treatment.finish as keyof typeof WORKTOP_FINISHES : 'stone',
     handles: 'none',
-  }), [treatment.finish]);
+  }, studio), [treatment.finish, studio]);
   const material = Object.hasOwn(FRONT_FINISHES, treatment.finish) ? materials.front : materials.worktop;
   const pieces = solidWallPieces(segment, holes, { from: treatment.offset, to: Math.min(segment.length, treatment.offset + treatment.width),
     bottom: treatment.elevation, top: Math.min(segment.height, treatment.elevation + treatment.height) });
@@ -53,11 +53,11 @@ function cutawayData(frame: WallSegment) {
   return frame.partitionId ? undefined : { cutaway: [m((frame.start.x + frame.end.x) / 2), m((frame.start.y + frame.end.y) / 2), frame.inward.x, frame.inward.y] };
 }
 
-export function Room3D({ room, openings, items, materials, selection, onSelect, selectedWallId, onWallSelect, exportModel = false }: {
+export function Room3D({ room, openings, items, materials, selection, onSelect, selectedWallId, onWallSelect, exportModel = false, studio = false }: {
   room: Room; openings: Opening[]; items: KitchenItem[]; materials: KitchenMaterials;
   selection?: RoomObjectSelection | null; onSelect?: (selection: RoomObjectSelection) => void;
   selectedWallId?: string | null; onWallSelect?: (id: string) => void;
-  exportModel?: boolean;
+  exportModel?: boolean; studio?: boolean;
 }) {
   const outline = useMemo(() => roomOutline(room), [room]);
   const segments = useMemo(() => roomSegments(room), [room]);
@@ -151,7 +151,7 @@ export function Room3D({ room, openings, items, materials, selection, onSelect, 
         </mesh>}
         {physicalWall && pieces.map((piece, i) => <WallBox key={`wall-${i}`} name={`room-wall-${segment.id}-${i}`} piece={piece} thickness={thickness} material={materials.wall} />)}
         {materials.backsplash && cladding.map((piece, i) => <WallBox key={`cladding-${i}`} name={`kitchen-backsplash-${segment.id}-${i}`} piece={piece} thickness={12} inset={6} material={materials.backsplash!} />)}
-        {treatments.map((treatment) => <Treatment key={treatment.id} treatment={treatment} segment={segment} holes={holes} />)}
+        {treatments.map((treatment) => <Treatment key={treatment.id} treatment={treatment} segment={segment} holes={holes} studio={studio} />)}
       </group>;
     })}
   </>;

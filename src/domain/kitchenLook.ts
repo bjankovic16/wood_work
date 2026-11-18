@@ -12,7 +12,7 @@ export function kitchenLook(preset: KitchenPreset) {
   const { style, framed, layered, green, stacked } = preset;
   const front = style.front;
   // The simpler references use the standard neutral carcass, not a front-coloured one.
-  const base: CabinetFinish = framed || layered || green ? matching(front) : {};
+  const base: CabinetFinish = framed || layered || green || preset.shelfFinish ? matching(front) : {};
   let tall = base, middle = base, upper = base, endPanel = base, island = base;
   let display: CabinetFinish | undefined;
   if (framed) {
@@ -33,7 +33,8 @@ export function kitchenLook(preset: KitchenPreset) {
   }
   const trim = (framed ? endPanel : middle).frontFinish ?? front;
   return {
-    cabinets: { base, tall, middle, upper, towerCap: green ? base : upper, endPanel, island, display },
+    cabinets: { base, tall, middle, upper, towerCap: green ? base : upper, endPanel, island, display,
+      shelf: preset.shelfFinish ? matching(preset.shelfFinish) : undefined },
     style: {
       front, frontProfile: style.frontProfile ?? 'flat', worktop: style.worktop, handles: style.handles,
       backsplash: style.backsplash ?? 'none', appliances: style.appliances ?? 'white',
@@ -61,6 +62,7 @@ function finishesForRoom(design: Design, palette: CabinetPalette) {
   const onLowerGlass = (item: KitchenItem) => rows.some((lower) => lower.kind === 'glassWall'
     && lower.elevation + lower.height <= item.elevation + 1 && footprintsOverlap(lower, item));
   return (item: KitchenItem): CabinetFinish => {
+    if (item.kind === 'shelf' && palette.shelf) return palette.shelf;
     if (item.kind === 'endPanel') return palette.endPanel;
     if (item.kind === 'glassWall' && palette.display) return palette.display;
     if (isTower(item)) return palette.tall;

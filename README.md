@@ -32,7 +32,7 @@ After `npm run build`, run
 `LANG=C.UTF-8 KITCHEN_E2E_PRODUCTION=1 npm run e2e:resize` to also check an
 actual resize against the production assets, without development test hooks.
 Set `KITCHEN_E2E_SMOKE=1` to exercise the editor/export/phone flows with one
-gallery example instead of opening all 60; normal `npm run e2e` checks them all.
+gallery example instead of opening the whole collection; normal `npm run e2e` checks them all.
 
 `npm run profile:move` replays a 2D cabinet move with mouse and touch. It
 reports frame times (95th percentile and worst frame) and counts placement,
@@ -183,13 +183,21 @@ or a cutting-list export for the workshop; the customer view is neither.
   percentage to fit the room and dimensions again. Switch to wall units to work on
   one row at a time. **View** groups snapping, grid size and dimensions;
   **Settings** contains materials and construction.
-- **60 kitchen designs**: browse straight, L-shaped, U-shaped and island
+- **61 kitchen designs**: browse straight, L-shaped, U-shaped and island
   kitchens. The thumbnails show the **original models**, not a prediction of
   the fit in your room and not photographs. Eighteen premium originals form
   **Warm contemporary**, **Dark luxury** and **Japandi** collections.
   **Next kitchen** cycles through the gallery without repeating an idea until
   the collection has been visited. Close cabinet previews and finish resizing
   before using it.
+  - **Basil & graphite / Bosiljak i grafit** is a green U-shaped kitchen with an
+    under-counter oven, inset sink, oak niche and floating shelves. Select the
+    card to review it in your room, or use **⋯ → Open original in a separate
+    project** for the pictured composition. The reference paint, floor tiles and
+    accessories are optional; existing room finishes are kept unless you opt in.
+    Any kitchen can use **3D → Studio** (on a phone: **3D → View → Studio**).
+    This three-quarter view changes the presentation, not your measurements or
+    finishes. Exporting in Studio keeps that presentation in the offline HTML.
   - Eight additional timber-and-green kitchens include four reference-inspired
     layouts: an olive/oak L with a glass display, a compact olive/oak corner,
     eucalyptus/walnut cabinetry, and a straight olive run by a window. Forest,

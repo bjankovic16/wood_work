@@ -19,7 +19,8 @@ import { isUpperCabinet } from './upperCabinets';
 
 describe('kitchen inspiration designs', () => {
   it('fills prepared upper runs through corners and around towers without covering intentional window openings', () => {
-    for (const preset of KITCHEN_DESIGNS) {
+    // The Studio U intentionally leaves its short return open (checked separately below).
+    for (const preset of KITCHEN_DESIGNS.filter((p) => p.id !== 'basil-studio')) {
       const design = createKitchenDesign(preset, preset.id);
       const level = Math.min(...design.items.filter(isUpperCabinet).map((item) => item.elevation)) + 1;
       for (const wall of ['top', 'left', 'right', 'bottom'] as const) {
@@ -57,11 +58,28 @@ describe('kitchen inspiration designs', () => {
     }
   });
 
-  it('offers sixty unique kitchens, including stacked collections and all three wall layouts', () => {
-    expect(KITCHEN_DESIGNS).toHaveLength(60);
-    expect(new Set(KITCHEN_DESIGNS.map((kitchen) => kitchen.id)).size).toBe(60);
+  it('offers distinct kitchens, including stacked collections and all three wall layouts', () => {
+    expect(KITCHEN_DESIGNS).toHaveLength(61);
+    expect(new Set(KITCHEN_DESIGNS.map((kitchen) => kitchen.id)).size).toBe(KITCHEN_DESIGNS.length);
     expect(KITCHEN_DESIGNS.filter((kitchen) => 'layered' in kitchen)).toHaveLength(4);
     expect(new Set(KITCHEN_DESIGNS.map(kitchenCategory))).toEqual(new Set(['straight', 'l-shape', 'u-shape', 'island']));
+  });
+
+  it('keeps the Studio U’s open return, oak niche and freestanding shelf boards in the actual model and cut list', () => {
+    const d = createKitchenDesign(KITCHEN_DESIGNS.find((p) => p.id === 'basil-studio')!, '');
+    expect(d.items.filter((i) => i.rotation === 90).every((i) => !isWallMounted(i))).toBe(true);
+    const row = d.items.filter((i) => !i.rotation && isWallMounted(i) && i.elevation === 1470).sort((a, b) => a.x - b.x);
+    expect(row[0].x).toBe(0);
+    expect(row.every((i, j) => !j || i.x === row[j - 1].x + row[j - 1].width)).toBe(true);
+    expect(row.at(-1)!.x + row.at(-1)!.width).toBe(d.room.width);
+    expect(row.some((i) => i.kind === 'shelf' && i.carcassFinish === 'oak')).toBe(true);
+    const shelves = buildCuttingList(d).units.filter(({ item }) => item.shelfForm === 'floating');
+    expect(shelves).toHaveLength(2);
+    for (const { item, parts } of shelves) {
+      expect(parts).toHaveLength(1);
+      expect(parts[0]).toMatchObject({ name: 'Shelf', quantity: 2, length: item.width, width: item.depth });
+    }
+    expect(checkDesign(d).filter((i) => !i.category)).toEqual([]);
   });
 
   it('frames the reference-inspired work zones with continuous deep ceiling cupboards, recessed uppers and real timber side panels', () => {

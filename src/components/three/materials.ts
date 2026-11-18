@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { studioFinish } from './studioFinish';
 import { APPLIANCE_FINISHES, BACKSPLASH_FINISHES, DEFAULT_FLOOR_COLOR, DEFAULT_FLOOR_GROUT_COLOR, DEFAULT_FLOOR_TILE_SIZE, DEFAULT_WALL_COLOR, FRONT_FINISHES, HANDLE_STYLES, WORKTOP_FINISHES, type Finish, type FrontFinish, type KitchenStyle } from '../../domain/style';
 
 /** Millimetres to scene units (metres). */
@@ -68,6 +69,7 @@ export interface KitchenMaterials {
   worktop: THREE.MeshStandardMaterial;
   handle: THREE.MeshStandardMaterial | null;
   steel: THREE.MeshStandardMaterial;
+  basin: THREE.MeshStandardMaterial;
   glass: THREE.MeshStandardMaterial;
   appliance: THREE.MeshStandardMaterial;
   dark: THREE.MeshStandardMaterial;
@@ -102,6 +104,29 @@ function stoneTexture(finish: Finish): THREE.CanvasTexture {
       ctx.bezierCurveTo(start - 90, 160, start + 140, 320, start + 180, 512);
       ctx.stroke();
     }
+  } else if (finish.texture === 'granite') {
+    const noise = (size: number) => {
+      const grid = Array.from({ length: size * size }, random);
+      const at = (x: number, y: number) => grid[(y % size) * size + x % size];
+      return (x: number, y: number) => {
+        const u = x * size / 512, v = y * size / 512, i = Math.floor(u), j = Math.floor(v);
+        const dx = u - i, dy = v - j;
+        return (1 - dy) * ((1 - dx) * at(i, j) + dx * at(i + 1, j))
+          + dy * ((1 - dx) * at(i, j + 1) + dx * at(i + 1, j + 1)) - 0.5;
+      };
+    };
+    const cloud = noise(6), mineral = noise(36);
+    const field = ctx.getImageData(0, 0, 512, 512);
+    for (let y = 0; y < 512; y++) for (let x = 0; x < 512; x++) {
+      const grain = 20 * cloud(x, y) + 13 * mineral(x, y) + 11 * (random() - 0.5);
+      const at = (y * 512 + x) * 4;
+      for (let c = 0; c < 3; c++) field.data[at + c] += grain;
+    }
+    ctx.putImageData(field, 0, 0);
+    for (let i = 0; i < 14500; i++) {
+      ctx.fillStyle = random() < 0.6 ? `rgba(225,220,210,${0.04 + random() * 0.22})` : `rgba(25,21,19,${random() * 0.38})`;
+      ctx.fillRect(random() * 512, random() * 512, 0.7 + random() * 1.8, 0.6 + random() * 1.5);
+    }
   } else {
     for (let i = 0; i < 1400; i++) {
       const x = random() * 512;
@@ -121,11 +146,13 @@ function finishMap(finish: Finish, across = false): THREE.CanvasTexture | null {
   return finish.wood ? woodTexture(finish.color, across) : finish.texture ? stoneTexture(finish) : null;
 }
 
-export function cabinetMaterial(key: FrontFinish, roughness?: number): THREE.MeshStandardMaterial {
+export function cabinetMaterial(key: FrontFinish, roughness?: number, studio = false): THREE.MeshStandardMaterial {
   const finish = FRONT_FINISHES[key];
-  return new THREE.MeshStandardMaterial({
+  const material = new THREE.MeshStandardMaterial({
     color: finish.wood ? '#ffffff' : finish.color, map: finishMap(finish), roughness: roughness ?? (finish.wood ? 0.7 : 0.55),
   });
+  if (studio) studioFinish(material);
+  return material;
 }
 
 function floorTileTexture(style: KitchenStyle): THREE.CanvasTexture {
@@ -165,13 +192,13 @@ function floorTileTexture(style: KitchenStyle): THREE.CanvasTexture {
 }
 
 /** The shared materials for one style. Callers should dispose them when the style changes. */
-export function createMaterials(style: KitchenStyle, carcassFinish?: FrontFinish): KitchenMaterials {
+export function createMaterials(style: KitchenStyle, studio = false): KitchenMaterials {
   const worktop = WORKTOP_FINISHES[style.worktop];
   const handle = HANDLE_STYLES[style.handles];
   const backsplash = BACKSPLASH_FINISHES[style.backsplash ?? 'none'];
   const frame = (finish?: FrontFinish) => finish ? cabinetMaterial(finish) : new THREE.MeshStandardMaterial({ color: '#fafafa', roughness: 0.9 });
   const pane = (color: string, opacity: number) => new THREE.MeshStandardMaterial({ color, transparent: true, opacity, roughness: 0.2, depthWrite: false });
-  return {
+  const materials: KitchenMaterials = {
     wall: new THREE.MeshStandardMaterial({ color: style.wallColor ?? DEFAULT_WALL_COLOR, roughness: 0.9 }),
     floor: new THREE.MeshStandardMaterial({
       color: style.floorPattern === 'tiles' ? '#ffffff' : style.floorColor ?? DEFAULT_FLOOR_COLOR,
@@ -182,7 +209,7 @@ export function createMaterials(style: KitchenStyle, carcassFinish?: FrontFinish
     windowGlass: pane('#cfe6f5', 0.35),
     doorFrame: frame(style.doorFrame),
     doorLeaf: style.doorLeaf ? cabinetMaterial(style.doorLeaf) : pane('#cbb89c', 0.16),
-    carcass: carcassFinish ? cabinetMaterial(carcassFinish, 0.78) : new THREE.MeshStandardMaterial({ color: '#f3f2ee', roughness: 0.78 }),
+    carcass: new THREE.MeshStandardMaterial({ color: '#f3f2ee', roughness: 0.78 }),
     front: cabinetMaterial(style.front),
     worktop: new THREE.MeshStandardMaterial({
       color: worktop.wood || worktop.texture ? '#ffffff' : worktop.color,
@@ -193,6 +220,7 @@ export function createMaterials(style: KitchenStyle, carcassFinish?: FrontFinish
       ? new THREE.MeshStandardMaterial({ color: handle.color, metalness: handle.metal ? 0.85 : 0.1, roughness: handle.metal ? 0.3 : 0.5 })
       : null,
     steel: new THREE.MeshStandardMaterial({ color: '#c3c7cc', metalness: 0.8, roughness: 0.32 }),
+    basin: new THREE.MeshStandardMaterial({ color: '#878c8e', metalness: 0.6, roughness: 0.42 }),
     glass: new THREE.MeshStandardMaterial({ color: '#141518', metalness: 0.2, roughness: 0.15 }),
     appliance: new THREE.MeshStandardMaterial({ color: APPLIANCE_FINISHES[style.appliances ?? 'white'].color, metalness: style.appliances === 'steel' ? 0.55 : 0.15, roughness: 0.4 }),
     dark: new THREE.MeshStandardMaterial({ color: '#4a4c50', roughness: 0.6 }),
@@ -204,6 +232,8 @@ export function createMaterials(style: KitchenStyle, carcassFinish?: FrontFinish
       ? new THREE.MeshStandardMaterial({ color: backsplash.texture ? '#ffffff' : backsplash.color, map: finishMap(backsplash), roughness: 0.55 })
       : null,
   };
+  if (studio) for (const material of Object.values(materials)) if (material) studioFinish(material);
+  return materials;
 }
 
 export function disposeMaterials(materials: KitchenMaterials): void {

@@ -33,6 +33,15 @@ function expectUsable(fit: LayoutFit, { room, openings }: ReturnType<typeof empt
 }
 
 describe('fit an idea in the measured envelope (without replacing it)', () => {
+  it('keeps the continuous upper run and oak shelves over the corner bases when the reference fits', () => {
+    const preset = idea('basil-studio'), source = createKitchenDesign(preset, '').items;
+    const fit = fitKitchenLayout(createDesign(), preset, { mainWallId: 'top' });
+    expect(fit.changes).toEqual([]);
+    expect(fit.items.map(({ id, ...i }) => i)).toEqual(source.map(({ id, ...i }) => i));
+    const window: Opening = { id: 'win', kind: 'window', wall: 'top', offset: 100, width: 800, sill: 1000, height: 1300 };
+    const target = empty(preset.room, [window]);
+    expectUsable(fitKitchenLayout(target, preset, { mainWallId: 'top' }), target);
+  });
   it('separates fitted towers with the actual board thickness and keeps the upper caps continuous', () => {
     const target = createDesign();
     target.materials = target.materials.map((m) => m.id === target.construction.frontMaterial ? { ...m, thickness: 25 } : m);

@@ -201,6 +201,11 @@ export function checkDesign(design: Design, labels: EngineLabels = EN_LABELS): I
       add('warning', `manufacturer-${item.id}`, say.specialistModule(item.label), [item.id], 'precut');
     }
     if (item.kind === 'glassWall') add('warning', `glass-${item.id}`, say.glassSupplier(item.label), [item.id], 'precut');
+    if (item.kind === 'shelf' && item.shelfForm === 'floating') {
+      add('warning', `supports-${item.id}`, say.floatingSupports(item.label), [item.id], 'precut');
+      if ((config.shelves + 2) * config.carcass.thickness >= item.height)
+        add('error', `shelf-spacing-${item.id}`, say.shelfSpacing(item.label), [item.id]);
+    }
 
     // Wall units too close to the worktop under them.
     if (isWallMounted(item)) {

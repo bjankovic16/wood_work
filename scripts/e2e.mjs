@@ -130,11 +130,11 @@ try {
   const sourceProject = await design();
   const beforeGallerySearch = sortedJson(sourceProject);
   const roomLimit = gallery.getByRole('checkbox', { name: 'No larger than my room', exact: true });
-  check('the gallery initially filters by all three room dimensions', await roomLimit.isChecked() && await kitchenCards.count() === 5);
+  check('the gallery initially filters by all three room dimensions', await roomLimit.isChecked() && await kitchenCards.count() === 6);
   await roomLimit.uncheck();
-  check('the gallery offers exactly 60 kitchen images', (await kitchenCards.count()) === 60 && (await kitchenCards.locator('img').count()) === 60);
+  check('the gallery offers all 61 kitchen images', (await kitchenCards.count()) === 61 && (await kitchenCards.locator('img').count()) === 61);
   const collections = gallery.getByRole('combobox', { name: 'Design collection', exact: true });
-  for (const [name, count] of [['Warm contemporary', 15], ['Dark luxury', 11], ['Japandi', 10]]) {
+  for (const [name, count] of [['Warm contemporary', 15], ['Dark luxury', 12], ['Japandi', 10]]) {
     await collections.selectOption({ label: name });
     check(`${name}: collection filtering shows ${count} original kitchens`, (await kitchenCards.count()) === count);
   }
@@ -144,13 +144,13 @@ try {
   await designSearch.fill('no-such-kitchen');
   check('empty searches explain how to recover', (await kitchenCards.count()) === 0 && await gallery.getByRole('heading', { name: 'No kitchens match these filters', exact: true }).isVisible());
   await gallery.getByRole('button', { name: 'Reset filters', exact: true }).click();
-  check('reset restores every design and keeps search ready for typing', (await kitchenCards.count()) === 60 && (await designSearch.inputValue()) === '' && await designSearch.evaluate((input) => input === document.activeElement));
+  check('reset restores every design and keeps search ready for typing', (await kitchenCards.count()) === 61 && (await designSearch.inputValue()) === '' && await designSearch.evaluate((input) => input === document.activeElement));
   await roomLimit.check();
-  check('room-size filtering includes compact kitchens and excludes larger rooms', (await kitchenCards.count()) === 5 && (await gallery.locator('[data-kitchen-design="birch-alcove"]').count()) === 1);
+  check('room-size filtering includes compact kitchens and excludes larger rooms', (await kitchenCards.count()) === 6 && (await gallery.locator('[data-kitchen-design="birch-alcove"]').count()) === 1);
   await designSearch.fill('velvet');
   check('room-size filtering also respects the ceiling height', (await kitchenCards.count()) === 0);
   await gallery.getByRole('button', { name: 'Reset filters', exact: true }).click();
-  check('reset clears the size limit as well as the query and collection', !(await roomLimit.isChecked()) && (await kitchenCards.count()) === 60);
+  check('reset clears the size limit as well as the query and collection', !(await roomLimit.isChecked()) && (await kitchenCards.count()) === 61);
   await designSearch.fill('walnut, travertine');
   check('search matches materials as well as design names', (await kitchenCards.count()) === 2);
   await gallery.getByRole('button', { name: 'Clear design search', exact: true }).click();
@@ -1069,14 +1069,14 @@ try {
   const phoneGallery = mobile.getByRole('dialog', { name: 'Ideas' });
   check('phone gallery keeps advanced filters collapsed until requested', !(await phoneGallery.locator('#kitchen-design-filters').isVisible()));
   await phoneGallery.getByRole('button', { name: 'Reset filters', exact: true }).tap();
-  check('all sixty inspiration kitchens are available on the phone', (await phoneGallery.locator('[data-kitchen-design]').count()) === 60);
+  check('all inspiration kitchens are available on the phone', (await phoneGallery.locator('[data-kitchen-design]').count()) === 61);
   await mobile.setViewportSize({ width: 320, height: 568 });
   await mobile.evaluate(() => window.__kitchen.ui.getState().setLanguage('sr'));
   await mobile.getByRole('dialog', { name: 'Ideje', exact: true }).waitFor();
   await mobile.getByRole('searchbox', { name: 'Pretraži dizajne kuhinja', exact: true }).fill('sodji');
   check('phone search matches Serbian names without diacritics', (await mobile.locator('[data-kitchen-design]').count()) === 1 && await mobile.locator('[data-kitchen-design="shoji-retreat"]').isVisible());
   await mobile.getByRole('button', { name: 'Obriši pretragu dizajna', exact: true }).tap();
-  check('phone users can clear search and recover all designs', (await mobile.locator('[data-kitchen-design]').count()) === 60);
+  check('phone users can clear search and recover all designs', (await mobile.locator('[data-kitchen-design]').count()) === 61);
   const narrowOverflow = await mobile.getByRole('dialog').evaluate((dialog) =>
     [...dialog.querySelectorAll('button, [role="radiogroup"], p, summary')]
       .filter((element) => element.scrollWidth > element.clientWidth + 1)

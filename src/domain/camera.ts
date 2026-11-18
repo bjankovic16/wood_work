@@ -1,10 +1,58 @@
 import { backWall, isWallMounted, itemRect, localDepthExtent, localToRoom, WALLS } from './geometry';
 import type { KitchenItem, Room, Wall } from './types';
 
-export type CameraView = 'perspective' | 'front' | 'top';
+export type CameraView = 'perspective' | 'studio' | 'front' | 'top';
 export type ScenePoint = [number, number, number];
 export interface CameraPose { position: ScenePoint; target: ScenePoint }
 export const CAMERA_FOV = 45;
+export const STUDIO_FOV = 28;
+export const STUDIO_BACKDROP = '#27272b';
+
+/** Fit the projected furniture, not the empty envelope around a small kitchen. */
+function studioPose(room: Room, items: readonly KitchenItem[], aspect: number): CameraPose {
+  const points: ScenePoint[] = [];
+  let faceX = 0, faceZ = 0;
+  for (const item of items) {
+    const r = item.rotation * Math.PI / 180;
+    const weight = item.width * (isWallMounted(item) ? 2 : 1);
+    faceX -= weight * Math.sin(r);
+    faceZ += weight * Math.cos(r);
+    const depth = localDepthExtent(item);
+    for (const x of [0, item.width]) for (const z of [0, depth + 40]) {
+      const p = localToRoom(item, x, z);
+      for (const y of [isWallMounted(item) ? item.elevation : 0, item.elevation + item.height + 38])
+        points.push([p.x / 1000, y / 1000, p.y / 1000]);
+    }
+  }
+  if (!points.length) for (const x of [0, room.width]) for (const z of [0, room.depth]) for (const y of [0, room.height])
+    points.push([x / 1000, y / 1000, z / 1000]);
+
+  const azimuth = (faceX < -1 ? -1 : 1) * (faceZ < -1 ? Math.PI - 0.72 : 0.72);
+  const elevation = 20 * Math.PI / 180;
+  const sx = Math.sin(azimuth), cz = Math.cos(azimuth), up = Math.sin(elevation), level = Math.cos(elevation);
+  const arm: ScenePoint = [sx * level, up, cz * level], right: ScenePoint = [cz, 0, -sx], vertical: ScenePoint = [-sx * up, level, -cz * up];
+  const dot = (p: ScenePoint, v: ScenePoint) => p[0] * v[0] + p[1] * v[1] + p[2] * v[2];
+  // Fit both edges of the frustum, including perspective magnification on the
+  // nearer return. Otherwise a wide U appears small and low in the frame.
+  const axisFit = (v: ScenePoint, slope: number) => {
+    let low = Infinity, high = -Infinity;
+    for (const p of points) {
+      const axis = dot(p, v), extent = slope * dot(p, arm);
+      low = Math.min(low, axis - extent); high = Math.max(high, axis + extent);
+    }
+    return { centre: (low + high) / 2, eye: (high - low) / (2 * slope) };
+  };
+  const slope = 0.90 * Math.tan(STUDIO_FOV * Math.PI / 360);
+  const horizontal = axisFit(right, slope * aspect), upright = axisFit(vertical, slope);
+  const cx = horizontal.centre, cy = upright.centre;
+  let near = -Infinity, far = Infinity;
+  for (const p of points) { const z = dot(p, arm); near = Math.max(near, z); far = Math.min(far, z); }
+  const czDepth = (near + far) / 2;
+  const target: ScenePoint = [right[0] * cx + vertical[0] * cy + arm[0] * czDepth, vertical[1] * cy + arm[1] * czDepth,
+    right[2] * cx + vertical[2] * cy + arm[2] * czDepth];
+  const distance = Math.max(horizontal.eye, upright.eye, near + 0.2) - czDepth;
+  return { target, position: [target[0] + arm[0] * distance, target[1] + arm[1] * distance, target[2] + arm[2] * distance] };
+}
 
 export function kitchenCameraPose(room: Room, items: readonly KitchenItem[], aspect: number, view: CameraView = 'perspective', focus?: KitchenItem): CameraPose {
   const W = room.width / 1000;
@@ -12,6 +60,7 @@ export function kitchenCameraPose(room: Room, items: readonly KitchenItem[], asp
   const tanHalf = Math.tan(CAMERA_FOV * Math.PI / 360);
   const ratio = Math.max(0.1, aspect);
   if (focus) return cabinetFocusPose(room, focus, ratio);
+  if (view === 'studio') return studioPose(room, items, ratio);
   if (view === 'top') {
     const height = room.height / 1000 + Math.max(3, (Math.max(W / ratio, D) / 2 + 0.4) / tanHalf);
     return { position: [W / 2, height, D / 2 + 0.001], target: [W / 2, 0, D / 2] };

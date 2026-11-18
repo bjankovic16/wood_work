@@ -322,6 +322,28 @@ describe('parseDesign', () => {
 });
 
 describe('kitchen design gallery', () => {
+    it('authentically stages an empty Studio idea without silently repainting existing rooms or changing their furniture', () => {
+      const request = { type: 'idea', id: 'basil-studio' } as const;
+      const blank = ops.createDesign();
+      const untouched = prepareIdeaReview(blank, request, {}, en.engine);
+      expect(untouched.candidate?.style).toMatchObject({ front: 'basil', worktop: 'graphite', floorPattern: 'tiles', decor: true });
+      expect(untouched.candidate?.items.filter((i) => i.shelfForm === 'floating')).toHaveLength(2);
+      const painted = { ...blank, style: { ...blank.style, wallColor: '#fefefe', decor: false } };
+      expect(prepareIdeaReview(painted, request, {}, en.engine).candidate?.style).toMatchObject({ wallColor: '#fefefe', decor: false });
+      const cabinet = createItem('wall', [], { x: 1500 });
+      const existing = { ...painted, items: [cabinet] };
+      const kept = prepareIdeaReview(existing, request, {}, en.engine);
+      expect(kept.candidate?.style.wallColor).toBe('#fefefe');
+      expect(kept.candidate?.items).toMatchObject([cabinet]);
+      const optedIn = prepareIdeaReview(existing, request, { referenceRoomLook: true }, en.engine);
+      store().load(existing);
+      expect(actions.acceptFit(optedIn)).toBe(true);
+      expect(store().design.style.wallColor).toBe(untouched.candidate!.style.wallColor);
+      expect(store().design.items).toMatchObject([cabinet]);
+      expect(useUiStore.getState().cameraView).toBe('studio');
+      store().undo();
+      expect(store().design).toBe(existing);
+    });
     it('keeps the existing kitchen, window, construction settings and custom work when a gallery idea is applied', () => {
       const item = createItem('base', []);
       const original = {

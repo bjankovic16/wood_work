@@ -10,6 +10,8 @@ import { createFramedKitchen, createLayeredKitchen, type FramedKitchen, type Lay
 import { PREMIUM_KITCHENS, premiumUpperRows, type KitchenCollection } from './premiumKitchens';
 import { createGreenKitchen, GREEN_KITCHENS, type GreenKitchen } from './greenKitchens';
 import { kitchenLook, type CabinetPalette } from './kitchenLook';
+import { BASIL_KITCHEN, createBasilKitchen } from './basilKitchen';
+import type { CameraView } from './camera';
 export { applyKitchenLook } from './kitchenLook';
 
 export interface KitchenPreset {
@@ -32,6 +34,8 @@ export interface KitchenPreset {
   stacked?: boolean;
   middleFinish?: FrontFinish;
   green?: GreenKitchen;
+  shelfFinish?: FrontFinish;
+  previewView?: CameraView;
 }
 
 function warmStyle(front: FrontFinish, worktop: WorktopFinish, handles: HandleStyle = 'brass', backsplash: BacksplashFinish = 'travertine'): KitchenStyle {
@@ -115,6 +119,7 @@ export const FRAMED_KITCHENS = [
 
 const PRESETS = [
   ...FRAMED_KITCHENS,
+  BASIL_KITCHEN,
   { id: 'nordic-light', layout: 'straight', room: { width: 3600, depth: 2800, height: 2600 }, style: warmStyle('ash', 'marble', 'brass', 'marble'), glassFronts: true },
   { id: 'oak-studio', layout: 'straight', room: { width: 3800, depth: 2800, height: 2600 }, style: warmStyle('oak', 'travertine', 'bronze'), openShelves: true, glassFronts: true, ovenTower: true },
   { id: 'soft-sage', layout: 'straight', room: { width: 3400, depth: 2600, height: 2600 }, style: warmStyle('sage', 'stone'), glassFronts: true, pullOut: true },
@@ -159,6 +164,7 @@ export function createKitchenDesign(preset: KitchenPreset, name: string, prefixe
 }
 
 function buildKitchenDesign(preset: KitchenPreset, cabinets: CabinetPalette, name: string, prefixes?: LabelPrefixes): Design {
+  if (preset.id === BASIL_KITCHEN.id) return createBasilKitchen(name, prefixes);
   if (preset.green) return createGreenKitchen(preset.green, preset.room, preset.style, cabinets, name, prefixes);
   if (preset.framed) return createFramedKitchen(preset.framed, preset.room, preset.style, cabinets, name, prefixes);
   if (preset.layered) return createLayeredKitchen(preset.layered, preset.room, preset.style, cabinets, name, prefixes);
@@ -247,6 +253,10 @@ function buildKitchenDesign(preset: KitchenPreset, cabinets: CabinetPalette, nam
 
   const design = createDesign(name);
   return { ...design, room, items: labelled, style: { ...preset.style }, materials: withModuleMaterials(design.materials, labelled) };
+}
+
+export function originalView(preset: KitchenPreset): CameraView {
+  return preset.previewView ?? (preset.framed ? 'front' : 'perspective');
 }
 
 /** One representative per whole palette, including contrasting rows and islands. */

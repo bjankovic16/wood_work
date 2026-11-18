@@ -219,7 +219,7 @@ the purchased boards, thicknesses, edge bands, manual part edits and extra piece
 **Open original in a separate project** opens the exact example, including
 its prepared room, as a new project. Keep the user's current project saved.
 Generate gallery thumbnails from these originals, not from a fit to whichever
-room happens to be open. The 60 designs include
+room happens to be open. The 61 designs include
 the Warm contemporary, Dark luxury and Japandi collections, framed kitchens
 and stacked uppers. Search translated names, finishes, styles and features
 without requiring accents. The optional gallery size filter compares original
@@ -237,13 +237,19 @@ project.
   drags hide the bars; a tap restores them without moving or selecting anything.
   The first tip disappears on drag or after six seconds, and stays dismissed
   across visits unless explicitly requested via **?**.
-- In the desktop editor, dock **3D / Front / Top**, **Style**, cabinet previews and **Next kitchen**
+- In the desktop editor, dock **3D / Studio / Front / Top**, **Style**, cabinet previews and **Next kitchen**
   above the viewport. **Tools** includes room objects, help and customer export.
   Click or tap a cabinet, wall, opening or structure to select it. Mouse
   drags and touch swipes on the background **or an object's body** orbit the
   camera; scroll or pinch to zoom. This holds even when the object is already
   selected or **Resize** is active. There is no 3D translation mode, move
   handle, nudge shortcut or numeric position control that moves an object.
+- **Studio** frames the actual furniture from an elevated three-quarter angle
+  with a charcoal background and detailed material surfaces. The same view is
+  available in the phone camera sheet and travels in the offline customer file.
+  It does not change the design or add lights, reflections of scene objects or shadows.
+  **Basil & graphite** opens in Studio. Its oak floating shelves have board cuts
+  but no cabinet sides, back or shelf pins; wall fixings are specified separately.
 - **Resize** is the exception for **dimensions**, not position: only a drag
   starting on a selected cabinet's dedicated width, height, depth or corner-arm
   handle changes its size. Show live measurements, keep its back anchor and

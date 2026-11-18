@@ -51,9 +51,10 @@ function KitchenCard({ kitchen }: { kitchen: (typeof KITCHEN_DESIGNS)[number] })
   }, [nearby, design, kitchen, t, wall]);
   const name = t.kitchens.names[kitchen.id];
   const preset: KitchenPreset = kitchen;
+  const accent = preset.middleFinish ?? preset.shelfFinish;
   const palette = [
     { color: FRONT_FINISHES[kitchen.style.front].color, label: t.style.frontFinishes[kitchen.style.front] },
-    ...(preset.middleFinish ? [{ color: FRONT_FINISHES[preset.middleFinish].color, label: t.style.frontFinishes[preset.middleFinish] }] : []),
+    ...(accent ? [{ color: FRONT_FINISHES[accent].color, label: t.style.frontFinishes[accent] }] : []),
     { color: WORKTOP_FINISHES[kitchen.style.worktop].color, label: t.style.worktopFinishes[kitchen.style.worktop] },
   ];
   return (
@@ -156,6 +157,7 @@ function LayoutChoices({ onClose }: { onClose: () => void }) {
     const text = normalizeSearchText([
       kitchen.id, t.kitchens.names[kitchen.id], t.style.frontFinishes[kitchen.style.front],
       preset.middleFinish ? t.style.frontFinishes[preset.middleFinish] : '',
+      preset.shelfFinish ? t.style.frontFinishes[preset.shelfFinish] : '',
       t.style.worktopFinishes[kitchen.style.worktop], t.layouts.names[kitchen.layout].name,
       preset.collection ? t.kitchens.collections[preset.collection] : '',
       preset.layered || preset.stacked ? `${t.kitchens.layered} ${t.kitchens.threeTier}` : '',

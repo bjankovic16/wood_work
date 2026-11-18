@@ -2,7 +2,7 @@ import { OrbitControls } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { CircleHelp, Copy, DoorClosed, DoorOpen, Download, LayoutGrid, Palette, PanelsTopLeft, Pencil, RotateCcw, Ruler, Scan, Shuffle, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { lazy, memo, Suspense, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type RefObject } from 'react';
-import { blendPoses, CAMERA_FOV, kitchenCameraPose, type CameraPose, type CameraView } from '../../domain/camera';
+import { blendPoses, CAMERA_FOV, kitchenCameraPose, STUDIO_BACKDROP, STUDIO_FOV, type CameraPose, type CameraView } from '../../domain/camera';
 import { KIND_OPTIONS } from '../../engine/config';
 import type { Design, KitchenItem } from '../../domain/types';
 import { useCanSaveFiles } from '../../hooks/useCanSaveFiles';
@@ -92,6 +92,10 @@ function CameraRig({ request, comparison, controls }: { request: CameraRequest; 
     if (!asked && !first && (moved.current || request.back)) return;
 
     const items = useDesignStore.getState().design.items;
+    if ('fov' in camera) {
+      camera.fov = request.view === 'studio' && !request.focusId ? STUDIO_FOV : CAMERA_FOV;
+      camera.updateProjectionMatrix();
+    }
     let pose: CameraPose;
     if (request.back) {
       if (!before.current) return;
@@ -153,7 +157,7 @@ export default function Kitchen3D({ compact = false, roomPreview = false }: { co
   const text = useT();
   const toolsId = useId();
   const canSave = useCanSaveFiles();
-  const [exportDesign, setExportDesign] = useState<Design | null>(null);
+  const [exportDesign, setExportDesign] = useState<{ design: Design; studio: boolean } | null>(null);
   const [exportNotice, setExportNotice] = useState('');
   const exportFinished = useCallback((message: string) => { setExportDesign(null); setExportNotice(message); }, []);
   const room = useDesignStore((s) => s.design.room);
@@ -256,7 +260,8 @@ export default function Kitchen3D({ compact = false, roomPreview = false }: { co
   }, [compact, canResize, selectedId]);
   const navigation = useThreeNavigation(sceneReady && !selected && !activeRoomSelection, Boolean(chrome?.open || toolsOpen || styleOpen));
 
-  const materials = useMemo(() => createMaterials(style), [style]);
+  const studio = cameraView === 'studio';
+  const materials = useMemo(() => createMaterials(style, studio), [style, studio]);
   useEffect(() => () => disposeMaterials(materials), [materials]);
   useLayoutEffect(() => {
     useUiStore.getState().setPreviewLockedIds(committedItems.filter((item) => interior || openedCabinets.has(item.id)).map((item) => item.id));
@@ -324,7 +329,7 @@ export default function Kitchen3D({ compact = false, roomPreview = false }: { co
   </TooltipButton>;
   const customerExport = <div className="flex flex-wrap items-center gap-2">
     <Button variant="outline" disabled={!canSave || Boolean(exportDesign) || editing} title={!canSave ? text.files.unavailable : undefined} data-testid="customer-export"
-      onClick={() => { setExportNotice(''); setExportDesign(useDesignStore.getState().design); }}>
+      onClick={() => { setExportNotice(''); setExportDesign({ design: useDesignStore.getState().design, studio }); }}>
       {chrome && <Download className="size-4" />}{text.customerView.export}
     </Button>
     {(exportDesign || exportNotice) && <span role="status" className="text-xs text-studio-muted">{exportDesign ? text.customerView.busy : exportNotice}</span>}
@@ -358,7 +363,7 @@ export default function Kitchen3D({ compact = false, roomPreview = false }: { co
       {!chrome && !roomPreview && <div role="toolbar" aria-label={text.view3d.toolbar} data-testid="three-toolbar" className="studio-panel flex shrink-0 flex-col gap-2 border-b px-3 py-2 lg:flex-row lg:flex-wrap lg:items-center lg:gap-3">
         <div className="flex items-center justify-between gap-2">
         <div role="group" aria-label={text.view3d.camera} className="flex shrink-0 rounded-xl border border-studio-line bg-[#efede5] p-0.5">
-          {(['perspective', 'front', 'top'] as const).map((view) => <TooltipButton key={view} tooltip={text.view3d.cameraHints[view]}
+          {(['perspective', 'studio', 'front', 'top'] as const).map((view) => <TooltipButton key={view} tooltip={text.view3d.cameraHints[view]}
             className="h-10 px-2.5" active={request.view === view && !request.focusId}
             onClick={() => useUiStore.getState().requestCamera(view)}>{text.view3d[view]}</TooltipButton>)}
         </div>
@@ -419,10 +424,10 @@ export default function Kitchen3D({ compact = false, roomPreview = false }: { co
           }
         }}
       >
-        <color attach="background" args={['#ebe8e3']} />
+        <color attach="background" args={[studio ? STUDIO_BACKDROP : '#ebe8e3']} />
         {/* Unit diffuse exposure, without filmic tone mapping or directional sources. */}
         <ambientLight intensity={Math.PI} />
-        <SceneRoom room={room} openings={openings} items={committedItems} materials={materials} selection={activeRoomSelection} onSelect={selectRoomObject}
+        <SceneRoom room={room} openings={openings} items={committedItems} materials={materials} studio={studio} selection={activeRoomSelection} onSelect={selectRoomObject}
           selectedWallId={roomOpen ? selectedWallId : null} onWallSelect={roomOpen ? useUiStore.getState().setSelectedWallId : undefined} />
         {items.map((item) => (
           <Unit3D
@@ -430,6 +435,7 @@ export default function Kitchen3D({ compact = false, roomPreview = false }: { co
             item={item}
             ctx={ctx}
             materials={materials}
+            studio={studio}
             selected={item.id === selectedId}
             onSelect={select}
             invalid={invalid.has(item.id)}
@@ -450,10 +456,10 @@ export default function Kitchen3D({ compact = false, roomPreview = false }: { co
           enableDamping
           maxPolarAngle={Math.PI / 2 - 0.04}
           minDistance={0.6}
-          maxDistance={30}
+          maxDistance={studio ? 180 : 30}
         />
         <CameraRig request={request} comparison={referenceOpen} controls={controls} />
-        {exportDesign && <Suspense fallback={null}><CustomerExport design={exportDesign} t={text} finish={exportFinished} /></Suspense>}
+        {exportDesign && <Suspense fallback={null}><CustomerExport {...exportDesign} t={text} finish={exportFinished} /></Suspense>}
       </Canvas>
       {activeRoomSelection && <RoomObjectAnnotation overlay={roomLabelRef} />}
 

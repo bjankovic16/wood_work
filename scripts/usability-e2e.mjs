@@ -47,7 +47,7 @@ try {
   const firstPhoto = await gallery.locator('[data-kitchen-design] img').first().boundingBox();
   await checkButtonNames(gallery, 'Ideas gallery');
   assert.ok(firstPhoto.y < 380, 'Kitchen photos must appear near the top, without a hero or duplicate filter rows.');
-  assert.equal(await gallery.locator('[data-kitchen-design]').count(), 60);
+  assert.equal(await gallery.locator('[data-kitchen-design]').count(), 61);
   const filters = await Promise.all(['Design collection', 'Kitchen layout'].map((name) => gallery.getByLabel(name, { exact: true }).boundingBox()));
   assert.ok(Math.abs(filters[0].y - filters[1].y) < 2, 'Desktop filters must share one row.');
   await page.screenshot({ path: path.join(output, 'desktop-gallery.png') });

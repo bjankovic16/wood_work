@@ -248,6 +248,8 @@ export const en = {
     depth: 'Depth',
     height: 'Height',
     frontsAndShelves: 'Fronts and shelves',
+    floatingShelves: 'Floating shelves (no cabinet sides)',
+    intermediateShelves: 'Shelves between top and bottom',
     frontView: 'Front view',
     frontViewCaption: (width: string, height: string) => `${width} × ${height} mm, front view`,
     frontViewAria: (width: number, height: number) => `Front view, ${width} by ${height} mm`,
@@ -431,6 +433,7 @@ export const en = {
   },
 
   fit: {
+    referenceRoomLook: 'Use the pictured wall paint, floor tiles and shelf accessories',
     title: 'Fit to my room', back: 'Back to designs', main: 'Main wall', auto: 'Find a suitable wall', side: 'L return (facing the main wall)',
     left: 'Left return', right: 'Right return', confirm: 'Apply this layout', sketch: 'Proposed layout in your room',
     fitted: (count: number) => `Proposed layout: ${count} elements. Your room and openings stay in place.`,
@@ -516,6 +519,7 @@ export const en = {
     previewUnavailable: 'Preview unavailable. You can still open this kitchen.',
     names: {
       'olive-oak-vitrine': 'Olive & oak display corner',
+      'basil-studio': 'Basil & graphite',
       'olive-oak-compact': 'Compact olive & oak',
       'eucalyptus-walnut': 'Eucalyptus & walnut',
       'olive-window-wall': 'Olive beside the window',
@@ -639,8 +643,9 @@ export const en = {
       ash: 'Natural ash',
       forest: 'Forest green',
       eucalyptus: 'Eucalyptus green',
+      basil: 'Basil green',
     } satisfies Record<FrontFinish, string> as Record<FrontFinish, string>,
-    worktopFinishes: { stone: 'White stone', oak: 'Oak', concrete: 'Concrete', black: 'Black', marble: 'Warm marble', travertine: 'Travertine', walnut: 'Walnut' } satisfies Record<WorktopFinish, string> as Record<
+    worktopFinishes: { stone: 'White stone', oak: 'Oak', concrete: 'Concrete', black: 'Black', marble: 'Warm marble', travertine: 'Travertine', walnut: 'Walnut', graphite: 'Graphite granite' } satisfies Record<WorktopFinish, string> as Record<
       WorktopFinish,
       string
     >,
@@ -670,6 +675,7 @@ export const en = {
     appearanceHint: 'Change fronts, worktops, wall and floor colours, and handles without changing the layout.',
     cameraHints: {
       perspective: 'See the whole kitchen in perspective. Drag the background to turn the view.',
+      studio: 'Frame the cabinetry from above and to one side, with a charcoal backdrop and more surface detail.',
       front: 'Look straight at the kitchen fronts.',
       top: 'Look down from above to check the arrangement and free space.',
     },
@@ -690,6 +696,7 @@ export const en = {
     interiorHint: 'Fronts are hidden to reveal shelves and drawer boxes. This is a schematic view, not appliance or fitting detail; your design and cutting list stay unchanged.',
     camera: '3D camera',
     perspective: '3D',
+    studio: 'Studio',
     front: 'Front',
     top: 'Top',
     focusSelection: 'Focus selected cabinet',
