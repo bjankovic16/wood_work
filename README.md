@@ -91,6 +91,17 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
 The interface follows the browser's primary language: Serbian for Serbian
 browsers, English otherwise. A language chosen manually is remembered.
 
+**Find your next step:** open **? → Planning guide** on desktop or **⋯ → Vodič za
+planiranje** on a phone in Serbian. Choose room measurements, cabinet layout,
+furnished 3D or the cutting list to go there in the current project.
+
+**Try a different layout:** open **Compare layouts / Uporedi rasporede** from
+the guide or **Projects**. **Edit a copy of this kitchen** opens a separately
+named variant with the same room, cabinets and finishes. After editing, compare
+it with the original: both plans use the same scale, alongside floor area, unit
+count, cut pieces and net board area (not purchased sheet area). Comparing
+does not switch projects or change either design.
+
 ## Measuring the room
 
 - In **My room**, use **Dimensions** for room size and wall geometry, **Objects**

@@ -4,6 +4,7 @@ import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
 import { draftedWindowCheck, furnishedWallChecks, planCornerChecks, workspaceObjectChecks } from './room-object-checks.mjs';
 import { startFreshChecks } from './start-fresh-checks.mjs';
+import { plannerChecks } from './planner-checks.mjs';
 import { waitForIdleRendering } from './three-test-helpers.mjs';
 
 const server = await createServer({ logLevel: 'error', cacheDir: path.resolve('test-results/room-workspace/.vite'), server: { host: '127.0.0.1', port: 0 } });
@@ -294,7 +295,10 @@ try {
     await page.close();
     console.log(`PASS room-first workspace, ${compact ? 'phone' : 'desktop'}`);
   }
-  if (!planOnly) await startFreshChecks(browser, url);
+  if (!planOnly) {
+    await startFreshChecks(browser, url);
+    await plannerChecks(browser, url);
+  }
 } finally {
   await browser?.close();
   await server.close();

@@ -1,4 +1,4 @@
-import { Copy, Download, Trash2, Upload } from 'lucide-react';
+import { Columns2, Copy, Download, Trash2, Upload } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useCanSaveFiles } from '../../hooks/useCanSaveFiles';
 import { useIsCompact } from '../../hooks/useMediaQuery';
@@ -16,6 +16,8 @@ import {
 import { useUiStore } from '../../store/uiStore';
 import { Button, Dialog } from '../ui';
 import { StartFreshButton } from './StartFreshButton';
+import { PlanningGuide } from './PlanningGuide';
+import { ProjectComparison } from './ProjectComparison';
 
 function edited(time: number, t: Messages): string {
   const minutes = Math.round((Date.now() - time) / 60_000);
@@ -30,19 +32,22 @@ function edited(time: number, t: Messages): string {
 export function ProjectsDialog() {
   const t = useT();
   const p = t.projects;
-  const open = useUiStore((s) => s.projectsOpen);
+  const page = useUiStore((s) => s.projectPage);
+  const setPage = useUiStore((s) => s.setProjectPage);
   const projects = useProjectsStore((s) => s.projects);
   const activeId = useProjectsStore((s) => s.activeId);
   const compact = useIsCompact();
   const canSave = useCanSaveFiles();
   const [confirming, setConfirming] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [returnPage, setReturnPage] = useState<'guide' | 'projects'>('projects');
   const fileInput = useRef<HTMLInputElement>(null);
   const close = () => {
     setConfirming(null);
     setMessage(null);
-    useUiStore.getState().setProjectsOpen(false);
+    setPage(null);
   };
+  const compare = (from: 'guide' | 'projects') => { setConfirming(null); setReturnPage(from); setPage('compare'); };
   const sorted = [...projects].sort((a, b) => b.updatedAt - a.updatedAt);
 
   const readFile = async (file: File) => {
@@ -63,10 +68,18 @@ export function ProjectsDialog() {
     if (outcome === 'busy' || outcome === 'format' || outcome === 'unavailable') setMessage(t.files[outcome]);
   };
 
+  if (page === 'guide' || page === 'compare') return <Dialog key={page} open title={page === 'guide' ? t.planner.guide : t.planner.compare}
+    sheet={compact} wide={page === 'compare'} onClose={close}>
+    {page === 'guide' ? <PlanningGuide compare={() => compare('guide')} /> : <ProjectComparison close={close}
+      back={() => setPage(returnPage)} backLabel={returnPage === 'guide' ? t.planner.guide : p.title} />}
+  </Dialog>;
   return (
-    <Dialog open={open} title={p.title} sheet={compact} wide onClose={close}>
+    <Dialog open={page === 'projects'} title={p.title} sheet={compact} wide onClose={close}>
       <div className="flex flex-wrap gap-2 border-b border-zinc-100 px-5 py-3">
         <StartFreshButton placement="dialog" onCreated={close} />
+        <Button variant="outline" onClick={() => compare('projects')}>
+          <Columns2 className="size-4" />{t.planner.compare}
+        </Button>
         <Button variant="outline" onClick={() => fileInput.current?.click()}>
           <Upload className="size-4" />
           {p.openFile}

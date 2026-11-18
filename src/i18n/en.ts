@@ -903,6 +903,22 @@ export const en = {
     runnersNote: 'Runners are the longest standard size (250–650 mm) that fits inside the unit.',
   },
 
+  planner: {
+    guide: 'Planning guide', intro: 'Choose what you want to do. Each step opens the same kitchen.', here: 'You are here',
+    steps: {
+      room: ['Measure the room', 'Draw walls and place windows and doors. Check the room on its own in 3D.'],
+      plan: ['Arrange the kitchen', 'Add cabinets and appliances. Move them on the 2D plan.'],
+      '3d': ['View the furnished kitchen', 'Rotate the view and try different cabinet fronts and worktops.'],
+      list: ['Prepare the cutting list', 'Check the parts and material quantities, then export for the workshop.'],
+    },
+    compare: 'Compare layouts', compareHint: 'See two saved kitchens side by side at the same scale. Comparing does not change either one.',
+    choose: 'Compare the current kitchen with', current: 'Current kitchen', alternative: 'Other layout', planOf: (name: string) => `Floor plan: ${name}`,
+    units: 'Kitchen units', pieces: 'Parts to cut', boardArea: 'Net board area',
+    empty: 'There is only one project. Make an editable copy to try another layout without changing the original.',
+    editCopy: 'Edit a copy of this kitchen', copyHint: 'The copy starts with the same room, cabinets and finishes.', variant: 'Variant',
+    unavailable: 'This saved kitchen could not be read. Choose another project.', copyFailed: 'The copy could not be opened.',
+  },
+
   projects: {
     title: 'Projects',
     startFresh: 'Start fresh',

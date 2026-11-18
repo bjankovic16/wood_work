@@ -9,11 +9,13 @@ import {
   createProject,
   deleteProject,
   duplicateProject,
+  editLayoutVariant,
   flushSave,
   finishRoom,
   importProject,
   initProjects,
   openProject,
+  projectDesign,
   resetProjectsForTests,
   useProjectsStore,
 } from './projects';
@@ -29,6 +31,28 @@ beforeEach(() => {
 });
 
 describe('projects', () => {
+  it('opens a uniquely named editable variant of the committed kitchen without changing the source', () => {
+    initProjects();
+    const original = projects().activeId;
+    finishRoom();
+    const store = useDesignStore.getState();
+    store.apply((d) => ops.addItem(ops.setName(d, 'Kuhinja A'), createItem('base', [])));
+    const starting = design();
+    store.beginGesture();
+    store.apply((d) => ops.updateItem(d, d.items[0].id, { x: 900 }));
+    const first = editLayoutVariant()!;
+    expect(projects().activeId).toBe(first);
+    expect(design()).toEqual({ ...starting, name: 'Kuhinja A · Varijanta 1' });
+    expect(useDesignStore.getState().past).toHaveLength(0);
+    store.apply((d) => ops.setRoom(d, { width: 4600 }));
+    expect(projectDesign(original)).toEqual(starting);
+    openProject(original);
+    expect(projectDesign(first)?.room.width).toBe(4600);
+    expect(editLayoutVariant()).not.toBe(first);
+    expect(design().name).toBe('Kuhinja A · Varijanta 2');
+    expect(projectDesign(original)).toEqual(starting);
+  });
+
   it('does not save a paused or interrupted drag, including a forced save on page hide', () => {
     vi.useFakeTimers();
     try {

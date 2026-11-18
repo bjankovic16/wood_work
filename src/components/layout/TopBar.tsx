@@ -1,10 +1,10 @@
-import { Box, Ellipsis, FolderOpen, Hammer, Images, Languages, LayoutGrid, List, Magnet, Redo2, RulerDimensionLine } from 'lucide-react';
+import { Box, CircleHelp, Ellipsis, FolderOpen, Hammer, Images, Languages, LayoutGrid, List, Magnet, Redo2, RulerDimensionLine } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { LANGUAGE_LABEL, LANGUAGES, useT, type Language } from '../../i18n';
 import { cn } from '../../lib/cn';
 import { redo, setProjectName } from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
-import { finishRoom } from '../../store/projects';
+import { openWorkspace } from '../../store/projects';
 import { GRID_SIZES, useUiStore, type MainView } from '../../store/uiStore';
 import { ChecksButton } from '../checks/ChecksButton';
 import { StartFreshButton } from '../projects/StartFreshButton';
@@ -66,17 +66,12 @@ function ViewTabs({ compact }: { compact: boolean }) {
       ariaLabel={t.topBar.workspace}
       size={compact ? 'md' : 'sm'}
       value={roomOpen ? 'room' : view}
-      onChange={(v) => {
-        const ui = useUiStore.getState();
-        if (v === 'room') { ui.openRoomPlan(); return; }
-        if (ui.roomOpen) finishRoom();
-        ui.setView(v);
-      }}
+      onChange={openWorkspace}
       className={compact ? 'min-w-0 flex-1 [&_button]:h-11 [&_button]:px-1.5 [&_svg]:hidden' : 'max-2xl:[&_svg]:hidden max-xl:[&_button]:px-1.5'}
       options={[
         { value: 'plan', label: <><LayoutGrid className="size-3.5" /><span>{t.topBar.plan}</span></>, ariaLabel: t.topBar.plan, title: t.topBar.planTitle },
         { value: '3d', label: <><Box className="size-3.5" /><span>{t.topBar.view3d}</span></>, ariaLabel: t.topBar.view3d, title: t.topBar.view3dTitle },
-        { value: 'room', label: <><RulerDimensionLine className="size-3.5" /><span>{compact ? t.room.tabShort : t.room.tab}</span></>, ariaLabel: t.room.tab, title: t.room.tabHint },
+        { value: 'room', label: <><RulerDimensionLine className="size-3.5" />{compact ? t.room.tabShort : <><span className="xl:hidden">{t.room.tabShort}</span><span className="hidden xl:inline">{t.room.tab}</span></>}</>, ariaLabel: t.room.tab, title: t.room.tabHint },
         { value: 'list', label: <><List className="size-3.5" /><span>{compact ? t.topBar.listShort : t.topBar.list}</span></>, ariaLabel: t.topBar.list, title: t.topBar.listTitle },
       ]}
     />
@@ -166,6 +161,10 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
   const language = useUiStore((s) => s.language);
   const ui = useUiStore.getState();
 
+  const guide = <Button aria-label={t.planner.guide} title={t.planner.guide} aria-haspopup="dialog" data-close-menu={compact || undefined}
+    className={compact ? 'w-full justify-start' : undefined} onClick={() => ui.setProjectPage('guide')}>
+    <CircleHelp className="size-4" aria-hidden="true" />{compact && t.planner.guide}
+  </Button>;
   if (compact) {
     return (
       <header className="studio-panel shrink-0 border-b print:hidden">
@@ -177,7 +176,8 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
         <Menu label={t.topBar.more} icon={<Ellipsis className="size-4" />}>
           <div className="flex max-h-[calc(100dvh-5rem)] flex-col gap-1">
             <div className="min-h-0 space-y-1 overflow-y-auto overscroll-contain">
-              <Button className="w-full justify-start" data-close-menu onClick={() => ui.setProjectsOpen(true)}>
+              {guide}
+              <Button className="w-full justify-start" data-close-menu onClick={() => ui.setProjectPage('projects')}>
                 <FolderOpen className="size-4" />
                 {t.topBar.projects}
               </Button>
@@ -217,12 +217,12 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
 
   return (
     <header className="studio-panel z-20 flex h-16 shrink-0 items-center gap-px border-b px-1 shadow-[0_1px_8px_#332f2805] xl:gap-1 xl:px-4 [&>button]:shrink-0 [&>button]:whitespace-nowrap max-xl:[&>button]:px-2 print:hidden">
-      <div className="hidden items-center gap-2 xl:flex">
+      <div className="hidden items-center gap-2 min-[1440px]:flex">
         <Logo />
         <span className="hidden whitespace-nowrap text-[13px] font-semibold text-zinc-900 2xl:inline">{t.appName}</span>
         <Divider />
       </div>
-      <Button title={t.topBar.projectsTitle} onClick={() => ui.setProjectsOpen(true)}>
+      <Button title={t.topBar.projectsTitle} onClick={() => ui.setProjectPage('projects')}>
         <FolderOpen className="hidden size-4 xl:block" />
         {t.topBar.projects}
       </Button>
@@ -239,6 +239,7 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
 
       <UndoRedo />
       <ChecksButton />
+      {guide}
       <Divider />
       {view === 'plan' && (
         <Menu label={t.topBar.view} text={<span className="hidden 2xl:inline">{t.topBar.view}</span>} icon={<LayoutGrid className="size-4" />}>

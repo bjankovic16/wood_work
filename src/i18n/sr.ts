@@ -893,6 +893,22 @@ export const sr: Messages = {
     runnersNote: 'Vođice su najduža standardna dužina (250–650 mm) koja staje u element.',
   },
 
+  planner: {
+    guide: 'Vodič za planiranje', intro: 'Izaberite šta želite da uradite. Svaki korak otvara istu kuhinju.', here: 'Trenutni korak',
+    steps: {
+      room: ['Izmeri prostoriju', 'Nacrtajte zidove i postavite prozore i vrata. U 3D pregledu vidite samo prostoriju.'],
+      plan: ['Rasporedi elemente', 'Dodajte elemente i uređaje, pa ih pomerajte na 2D osnovi.'],
+      '3d': ['Pogledaj nameštenu kuhinju', 'Razgledajte kuhinju i isprobajte frontove, radne ploče i završne obrade.'],
+      list: ['Pripremi krojnu listu', 'Proverite delove i količine materijala, pa izvezite spisak za radionicu.'],
+    },
+    compare: 'Uporedi rasporede', compareHint: 'Pogledajte dve sačuvane kuhinje jednu pored druge, u istoj razmeri. Poređenje ne menja nijedan projekat.',
+    choose: 'Uporedi trenutnu kuhinju sa', current: 'Trenutna kuhinja', alternative: 'Drugi raspored', planOf: (name) => `Osnova: ${name}`,
+    units: 'Kuhinjski elementi', pieces: 'Delovi za krojenje', boardArea: 'Neto površina ploča',
+    empty: 'Za sada imate jedan projekat. Napravite kopiju i isprobajte drugi raspored bez menjanja originala.',
+    editCopy: 'Uredi kopiju ove kuhinje', copyHint: 'Kopija počinje sa istom prostorijom, elementima i završnim obradama.', variant: 'Varijanta',
+    unavailable: 'Sačuvana kuhinja ne može da se učita. Izaberite drugi projekat.', copyFailed: 'Kopija ne može da se otvori.',
+  },
+
   projects: {
     title: 'Projekti',
     startFresh: 'Počni iznova',

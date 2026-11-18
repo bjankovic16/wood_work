@@ -184,16 +184,27 @@ export function Dialog({ open, title, onClose, children, footer, sheet = false, 
     if (!open) return;
     const token = {};
     openDialogs.push(token);
+    const panel = panelRef.current!;
+    const trigger = document.activeElement;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || openDialogs[openDialogs.length - 1] !== token) return;
-      e.stopPropagation();
-      onCloseRef.current();
+      if (openDialogs.at(-1) !== token || document.querySelector('dialog:modal')) return;
+      if (e.key === 'Escape') { e.stopPropagation(); onCloseRef.current(); }
+      if (e.key !== 'Tab') return;
+      const targets = [...panel.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href], summary, [tabindex]')]
+        .filter((el) => el.tabIndex >= 0 && !el.matches(':disabled') && el.getClientRects().length && getComputedStyle(el).visibility === 'visible');
+      const boundary = e.shiftKey ? targets[0] : targets.at(-1);
+      if (document.activeElement === boundary || document.activeElement === panel && e.shiftKey || !panel.contains(document.activeElement)) {
+        e.preventDefault();
+        (e.shiftKey ? targets.at(-1) : targets[0])?.focus();
+      }
     };
     window.addEventListener('keydown', onKey, true);
-    panelRef.current?.focus();
+    panel.focus();
     return () => {
       window.removeEventListener('keydown', onKey, true);
       openDialogs.splice(openDialogs.indexOf(token), 1);
+      if (trigger instanceof HTMLElement && trigger.isConnected && (document.activeElement === document.body || panel.contains(document.activeElement)))
+        trigger.focus({ preventScroll: true });
     };
   }, [open]);
 

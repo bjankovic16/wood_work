@@ -5,7 +5,7 @@ import type { Design } from '../domain/types';
 import { currentMessages } from '../i18n';
 import { safeStorage } from '../lib/platform';
 import { committedDesign, useDesignStore } from './designStore';
-import { useUiStore } from './uiStore';
+import { useUiStore, type MainView } from './uiStore';
 
 /**
  * Projects: every kitchen is saved in this browser under its own key, with a
@@ -124,6 +124,13 @@ export function finishRoom(): void {
   useUiStore.getState().finishRoom();
 }
 
+export function openWorkspace(view: MainView | 'room'): void {
+  const ui = useUiStore.getState();
+  if (view === 'room') { ui.openRoomPlan(); return; }
+  if (ui.roomOpen) finishRoom();
+  ui.setView(view);
+}
+
 function show(id: string, design: Design): void {
   useDesignStore.getState().load(design);
   savedDesign = design;
@@ -203,16 +210,34 @@ export function openProject(id: string): void {
   show(id, design);
 }
 
-export function duplicateProject(id: string): string | null {
+export function duplicateProject(id: string, name?: string): string | null {
   flushSave();
   const source = loadDesign(id);
   if (!source) return null;
   const copyId = newId();
-  const design = { ...structuredClone(source), name: currentMessages().names.copyOf(source.name) };
+  const design = { ...structuredClone(source), name: name ?? currentMessages().names.copyOf(source.name) };
   storeDesign(copyId, design);
   useProjectsStore.setState((state) => ({ projects: [{ ...metaOf(copyId, design), roomMeasured: state.projects.find((p) => p.id === id)?.roomMeasured }, ...state.projects] }));
   saveIndex();
   return copyId;
+}
+
+/** Start editing an independent alternative; copying from Projects alone still leaves the original open. */
+export function editLayoutVariant(): string | null {
+  const { activeId, projects } = useProjectsStore.getState();
+  const source = committedDesign(useDesignStore.getState());
+  const names = new Set(projects.map((p) => p.name));
+  let name = '', n = 1;
+  do {
+    const suffix = ` · ${currentMessages().planner.variant} ${n++}`;
+    name = source.name.slice(0, 60 - suffix.length) + suffix;
+  } while (names.has(name));
+  const id = duplicateProject(activeId, name);
+  if (id) {
+    openProject(id);
+    if (!useUiStore.getState().roomOpen) useUiStore.getState().setView('plan');
+  }
+  return id;
 }
 
 /** Deletes a project. Deleting the open one opens the most recent other, or a new empty one. */
@@ -249,7 +274,7 @@ export function importProject(raw: unknown): boolean {
   return true;
 }
 
-/** The design of a project, for exporting it. */
+/** Read without switching: the latest committed active design or a saved/session project. */
 export function projectDesign(id: string): Design | null {
   if (id === useProjectsStore.getState().activeId) return committedDesign(useDesignStore.getState());
   return loadDesign(id);

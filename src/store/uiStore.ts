@@ -58,7 +58,7 @@ interface UiState {
   fitRequest: FitRequest | null;
   fitNotice: { design: Design; changes: number } | null;
   welcomeSeen: boolean;
-  projectsOpen: boolean;
+  projectPage: 'projects' | 'guide' | 'compare' | null;
   roomOpen: boolean;
   roomSelection: RoomObjectSelection | null;
   roomElevationOpen: boolean;
@@ -84,7 +84,7 @@ interface UiState {
   reviewFit: (request: FitRequest | null) => void;
   finishRoom: () => void;
   rememberWelcome: () => void;
-  setProjectsOpen: (open: boolean) => void;
+  setProjectPage: (page: UiState['projectPage']) => void;
   setRoomOpen: (open: boolean) => void;
   openRoomPlan: () => void;
   setRoomView: (view: 'plan' | '3d') => void;
@@ -129,7 +129,7 @@ export const useUiStore = create<UiState>()(
       fitRequest: null,
       fitNotice: null,
       welcomeSeen: false,
-      projectsOpen: false,
+      projectPage: null,
       roomOpen: false,
       roomSelection: null,
       roomElevationOpen: false,
@@ -161,7 +161,7 @@ export const useUiStore = create<UiState>()(
       finishRoom: () => set({ roomOpen: false, view: 'plan', welcomeSeen: true, selectedId: null, cabinetTool: null,
         selectedWallId: null, roomElevationOpen: false, roomSelection: null }),
       rememberWelcome: () => set({ welcomeSeen: true }),
-      setProjectsOpen: (projectsOpen) => set({ projectsOpen }),
+      setProjectPage: (projectPage) => set({ projectPage }),
       setRoomOpen: (roomOpen) => set(roomOpen
         ? { roomOpen, view: 'plan', selectedId: null, cabinetTool: null }
         : { roomOpen }),

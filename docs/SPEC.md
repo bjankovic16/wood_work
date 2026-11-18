@@ -27,6 +27,12 @@ file for a customer. The customer does not need the editor or the cutting list.
   **Start fresh** in the desktop toolbar, the phone's **⋯** menu or **Projects**
   saves the current kitchen and opens a separate empty project at the first
   measurement step. It does not erase projects or reset preferences.
+- From any workspace, a compact planning guide identifies the current step and
+  links to room measurements, the kitchen plan, furnished 3D and the cutting list.
+  The guide and Projects offer read-only A/B comparison of the active design
+  with another saved kitchen at the same scale. Use actual floor area and
+  cutting-list quantities. Explicitly choosing **Edit a copy** opens a separate
+  numbered variant; preserve the original, including just-committed edits.
 - In Room design, **2D / 3D review** switches between geometry editing and a
   read-only architectural scene. On desktop, also offer a preview beside the
   plan. Omit kitchen meshes and automatic backsplashes, but retain manual
