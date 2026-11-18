@@ -163,7 +163,15 @@ export function SelectedRoomCard() {
   const selection = useUiStore((s) => s.roomSelection);
   const { room, openings } = useDesignStore((s) => s.design);
   const card = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => { card.current?.scrollIntoView({ block: 'nearest' }); }, [selection?.id]);
+  useLayoutEffect(() => {
+    const el = card.current;
+    if (!el) return;
+    const panel = el.closest<HTMLElement>('.room-tool-panel');
+    if (!panel) { el.scrollIntoView({ block: 'nearest' }); return; }
+    // Reveal the fields within the inspector, never scroll the drawing out from under a finger.
+    const box = el.getBoundingClientRect(), viewport = panel.getBoundingClientRect();
+    if (box.top < viewport.top || box.bottom > viewport.bottom) panel.scrollTop += box.top - viewport.top;
+  }, [selection?.id]);
   const o = selection?.type === 'opening' ? openings.find((o) => o.id === selection.id) : undefined;
   const f = selection?.type === 'feature' ? room.features?.find((f) => f.id === selection.id) : undefined;
   if (!o && !f) return null;

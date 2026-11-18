@@ -8,24 +8,6 @@ import type { WallSegment } from '../../domain/walls';
 import { buildContext, resolveConfig } from '../../engine/config';
 import { frontLayout } from '../../engine/fronts';
 import { useDesignStore } from '../../store/designStore';
-import { drawingButton } from './RoomPlan';
-
-/** Dimension lines are in millimetres; labels and hit areas stay in screen pixels. */
-export function ElevationRuler({ x, y, vertical = false, length, px, label, edit }: {
-  x: number; y: number; vertical?: boolean; length: number; px: number; label: string; edit?: () => void;
-}) {
-  const half = length / (2 * px);
-  const value = `${Math.round(length)} mm`;
-  const width = value.length * 7.3 + 12;
-  return <g transform={`translate(${x} ${y}) rotate(${vertical ? -90 : 0}) scale(${px})`}>
-    <path d={`M${-half} -4v8m0 -4H${half}m0 -4v8`} stroke="#74877b" fill="none" pointerEvents="none" />
-    <g {...(edit ? drawingButton(`${label}: ${value}`, edit) : {})} className={edit ? 'room-ruler-button' : undefined}>
-      {edit && <rect x={-width / 2} y="-22" width={width} height="44" fill="transparent" />}
-      <rect x={-width / 2} y="-10" width={width} height="20" rx="6" fill="#fffefa" stroke="#bccbc1" />
-      <text y="4" textAnchor="middle" fontSize="12" fontWeight="650" fill="#304e40">{value}</text>
-    </g>
-  </g>;
-}
 
 export function ElevationBackdrop({ wall, height, px, reference }: { wall: WallSegment; height: number; px: number; reference: boolean }) {
   const design = useDesignStore((s) => s.design);

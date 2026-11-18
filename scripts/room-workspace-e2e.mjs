@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
-import { furnishedWallChecks, planCornerChecks, workspaceObjectChecks } from './room-object-checks.mjs';
+import { draftedWindowCheck, furnishedWallChecks, planCornerChecks, workspaceObjectChecks } from './room-object-checks.mjs';
 import { startFreshChecks } from './start-fresh-checks.mjs';
 import { waitForIdleRendering } from './three-test-helpers.mjs';
 
@@ -282,6 +282,14 @@ try {
     if (compact && !planOnly) await phoneRoomPreview(page, workspace);
     if (!planOnly) await separatedRoomChecks(page);
     await planCornerChecks(page, compact);
+    if (compact) {
+      await page.evaluate(async () => {
+        (await import('/src/store/projects.ts')).createProject('Kote');
+        window.__kitchen.ui.getState().setLanguage('sr');
+      });
+      await page.setViewportSize({ width: 320, height: 568 });
+      await draftedWindowCheck(page);
+    }
     assert.deepEqual(errors, []);
     await page.close();
     console.log(`PASS room-first workspace, ${compact ? 'phone' : 'desktop'}`);

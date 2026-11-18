@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { featureDragPlacement, openingDragPlacement } from '../../domain/roomObjectPlacement';
-import { openingOnWall, openingsOnSegment, wallCoordinates, wallPoint, type WallSegment } from '../../domain/walls';
+import { openingOnWall, openingsOnSegment, wallPoint, type WallSegment } from '../../domain/walls';
 import { useT } from '../../i18n';
 import { updateOpening, updateRoomFeature } from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
 import { useUiStore } from '../../store/uiStore';
-import { ElevationBackdrop, ElevationRuler, OpeningFace } from './ElevationDrawing';
+import { ElevationBackdrop, OpeningFace } from './ElevationDrawing';
+import { ElevationDimensions } from './ElevationDimensions';
 import { WallMeasureDialog } from './WallMeasures';
 import { drawingButton } from './RoomPlan';
-import { DrawingReadout, useRoomReadout } from './RoomReadout';
 import { useDrawingDrag } from './useDrawingDrag';
 import { useDrawingSize } from './useDrawingSize';
 
@@ -21,20 +21,16 @@ export function WallElevation({ wall, number, reference }: { wall: WallSegment; 
   const selection = useUiStore((s) => s.roomSelection);
   const ui = useUiStore.getState();
   const drag = useDrawingDrag();
-  const readout = useRoomReadout();
   const size = useDrawingSize();
   const [measure, setMeasure] = useState<'length' | 'height' | null>(null);
   const height = room.height;
-  const scale = Math.min(Math.max(1, size.width - 72) / wall.length, Math.max(1, size.height - 74) / height);
-  const px = 1 / scale, left = (size.width - wall.length * scale) / 2 + 12, top = (size.height - height * scale) / 2 + 2;
+  const scale = Math.min(Math.max(1, size.width - 88) / wall.length, Math.max(1, size.height - 76) / height);
+  const px = 1 / scale, left = (size.width - wall.length * scale) / 2, top = (size.height - height * scale) / 2;
   return <section data-testid="wall-elevation" aria-label={`${t.room.elevation}: ${t.advancedRoom.wall(number)}`} className="room-elevation-paper flex min-h-0 min-w-0 flex-1 flex-col">
     <div ref={size.ref} className="relative min-h-0 flex-1">
-      <svg className="absolute inset-0 h-full w-full touch-none" aria-label={t.room.elevation} viewBox={`${-left * px} ${-top * px} ${size.width * px} ${size.height * px}`}>
+      <svg className="absolute inset-0 h-full w-full touch-pan-y" aria-label={t.room.elevation} viewBox={`${-left * px} ${-top * px} ${size.width * px} ${size.height * px}`}>
         <ElevationBackdrop wall={wall} height={height} px={px} reference={reference} />
-        <ElevationRuler x={wall.length / 2} y={height - wall.height - 19 * px} length={wall.length} px={px}
-          label={t.advancedRoom.length} edit={wall.partitionId ? undefined : () => setMeasure('length')} />
-        <ElevationRuler x={-23 * px} y={height - wall.height / 2} vertical length={wall.height} px={px}
-          label={wall.partitionId ? t.room.height : t.room.ceilingHeight} edit={wall.partitionId ? undefined : () => setMeasure('height')} />
+        <ElevationDimensions room={room} openings={openings} wall={wall} selection={selection} px={px} edit={setMeasure} />
         {room.features?.map((f, i) => f.wallId === wall.id && <g key={f.id} data-elevation-feature={f.id}
           {...drawingButton(`${t.engine.roomFeatures[f.kind]} ${i + 1}`, () => ui.selectRoomObject({ type: 'feature', id: f.id }, wall.id))}
           style={{ touchAction: 'none', cursor: 'grab' }} onPointerDown={(e) => {
@@ -87,12 +83,11 @@ export function WallElevation({ wall, number, reference }: { wall: WallSegment; 
           </g>;
         })}
         <g transform={`translate(0 ${height}) scale(${px})`} pointerEvents="none">
+          <title>{t.room.originHint}</title>
           <circle r="4" fill="#287250" stroke="white" strokeWidth="1.5" />
-          <text y="22" fontSize="11" fill="#3c634f">{t.advancedRoom.start} · 0 mm</text>
+          <text x="-7" y="3" textAnchor="end" fontSize="10" fill="#3c634f">0</text>
         </g>
       </svg>
-      {readout && readout.wallId === wall.id && <DrawingReadout data={readout}
-        x={left + wallCoordinates(wall, readout.centre).x * scale} y={top + (height - readout.elevation) * scale} />}
       {measure && <WallMeasureDialog wall={wall} number={number} focus={measure} close={() => setMeasure(null)} />}
     </div>
   </section>;

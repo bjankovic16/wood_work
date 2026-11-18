@@ -60,14 +60,20 @@ file for a customer. The customer does not need the editor or the cutting list.
   corner drag targets. Offer the same shortcut at the wall labels and in
   the measurement list in room 3D, including both partition faces. Provide a drawing
   dropdown for the plan and all wall faces, a mini-plan marking the current face,
-  and a one-tap return. Show the green origin, length and height rulers, real
+  and a one-tap return. Show which wall adjoins each end of the inside elevation
+  and allow direct navigation to it. Use the actual face direction, including
+  on partitions; label a free end without offering a link. Show the green origin, length and height rulers, real
   openings and optional read-only cabinet outlines (off by default). Use one **Add** dropdown shared by
   the plan and elevation, grouping openings separately from fixed structures.
   The object picker revisits existing objects without creating another one.
   Drag an opening along the wall or enter its width, height and
   distance from the marked start. A window also has a sill height above the
-  floor; a door always starts at floor level. Support angled segments and
-  either face of an interior partition.
+  floor; a door always starts at floor level. In this elevation, use architectural
+  dimension lines with witness lines and ticks, not floating object cards.
+  Dimension the selected opening's offset and width below the wall, and height
+  and nonzero sill to the right. Keep the digits outside the openings, live
+  during a drag, and keep the numeric fields in the inspector. Support angled
+  segments and either face of an interior partition.
 - A chimney can sit **against a wall**: enter its length along the wall, its
   projection into the room and offset from the wall start. Free placement on
   the plan is also possible. For an angled wall calculate contact on the real

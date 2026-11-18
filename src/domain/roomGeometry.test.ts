@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { adjoiningWalls } from './adjoiningWalls';
 import { createItem } from './catalog';
 import { createDesign, parseDesign, setRoom } from './designOps';
 import { attachedRoomSurface, footprintRects, insideRoom, itemRect, attachedSegment, localToRoom, itemInsideRoom } from './geometry';
@@ -18,6 +19,39 @@ import { SR_LABELS } from '../i18n/srEngine';
 
 const base: Room = { width: 4000, depth: 3000, height: 2600 };
 const chimney = { id: 'chimney-1', kind: 'chimney' as const, x: 1000, y: 0, width: 450, depth: 450 };
+
+describe('adjoining walls as seen from inside', () => {
+  const ends = (room: Room, id: string) => {
+    const walls = roomSegments(room);
+    const { left, right } = adjoiningWalls(room, walls, walls.find((s) => s.id === id)!);
+    return [left?.id, right?.id];
+  };
+  it('follows the real perimeter, including wraparound and the return around a notch', () => {
+    expect(ends(base, 'top')).toEqual(['left', 'right']);
+    expect(ends(base, 'left')).toEqual(['bottom', 'top']);
+    const room: Room = { ...base, cutout: { kind: 'notch', corner: 'bottomRight', width: 900, depth: 700 } };
+    expect(ends(room, 'edge-3')).toEqual(['edge-2', 'bottom']);
+    expect(ends(room, 'bottom')).toEqual(['edge-3', 'left']);
+  });
+  it('uses the near face at a T-junction and exchanges ends on the reverse elevation', () => {
+    const room = { ...base, partitions: [
+      { id: 'trunk', start: { x: 2200, y: 400 }, end: { x: 2200, y: 2500 }, thickness: 100, height: 2000 },
+      { id: 'branch', start: { x: 0, y: 1200 }, end: { x: 2150, y: 1200 }, thickness: 100, height: 2000 },
+    ] };
+    expect(ends(room, 'branch:1')).toEqual(['left', 'trunk:1']);
+    expect(ends(room, 'branch:-1')).toEqual(['trunk:1', 'left']);
+    expect(ends(room, 'trunk:1')).toEqual([undefined, undefined]);
+  });
+  it('distinguishes a corner contact from a wall that only runs alongside', () => {
+    const room = { ...base, partitions: [
+      { id: 'diagonal', start: { x: 0, y: 0 }, end: { x: 1000, y: 1000 }, thickness: 100, height: 1800 },
+      { id: 'parallel', start: { x: 2500, y: 50 }, end: { x: 3500, y: 50 }, thickness: 100, height: 1800 },
+    ] };
+    expect(ends(room, 'diagonal:1')).toEqual(['left', undefined]);
+    expect(ends(room, 'diagonal:-1')).toEqual([undefined, 'top']);
+    expect(ends(room, 'parallel:1')).toEqual([undefined, undefined]);
+  });
+});
 
 describe('room footprints and fixed structures', () => {
   const angled: Room = { ...base, vertices: [

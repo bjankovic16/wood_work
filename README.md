@@ -110,14 +110,17 @@ browsers, English otherwise. A language chosen manually is remembered.
   cabinet, or leaves too little wall for a door or window. One **Undo** restores
   the room. You can also Tab to a corner and use the arrow keys (10 mm, or
   100 mm with Shift), or tap a wall's number to enter an exact measurement.
-- **Wall elevation:** tap the line or choose a numbered wall in **Drawing view**.
-  The mini-plan marks which wall you're facing. The drawing shows its length,
-  height and openings. In **Dimensions**, turn on **Show kitchen outlines for
+- **Wall elevation:** tap the wall's **eye / 2D** shortcut or choose it in **Drawing view**.
+  The mini-plan marks which wall you're facing. **Left** and **Right** below the
+  drawing tell you which wall meets each end; tap either to open it. An
+  unattached partition end reads **Free end**. In **Dimensions**, turn on **Show kitchen outlines for
   reference** to see cabinets on the plan or against the current wall. Tap a perimeter
   wall's length or height to edit it. Use **Add → Window** or **Door**, then drag the opening with mouse or touch,
   or type its width, height and distance **from the marked start** to its
   near edge. A window also has a sill height (floor to bottom of frame);
-  doors stay at floor level.
+  doors stay at floor level. Select an opening to see dimension lines outside
+  the wall face: offset and width below, height and window sill to the right.
+  The values are in millimetres and follow the opening as you drag.
 - **Chimney:** choose **Against wall**, then enter **Length along wall**,
   **Projection into room** and the offset from the marked start. Choose
   **Free on plan** to position it away from a wall. Placement uses the actual

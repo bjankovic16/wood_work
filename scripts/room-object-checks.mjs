@@ -5,6 +5,7 @@ import { waitForIdleRendering } from './three-test-helpers.mjs';
 const design = (page) => page.evaluate(() => window.__kitchen.design.getState().design);
 const history = (page) => page.evaluate(() => window.__kitchen.design.getState().past.length);
 const tapOrClick = (locator, touch) => touch ? locator.tap() : locator.click();
+const dimension = (elevation, kind) => elevation.locator(`[data-elevation-dimension="${kind}"] text`);
 
 // Hit the actual wall at a known point, not the bounding-box centre of a rotated SVG group.
 async function faceWall(page, plan, id, touch, normal = 0) {
@@ -148,6 +149,39 @@ async function setField(root, name, value) {
   await field.press('Enter');
 }
 
+/** Uses only public controls, so the same 320px regression can run against the production build. */
+export async function draftedWindowCheck(page) {
+  const room = page.getByTestId('room-workspace'), paper = room.getByTestId('wall-elevation');
+  await room.getByRole('button', { name: 'Otvori zid 1 u 2D' }).tap();
+  const add = async (name) => {
+    await room.getByRole('button', { name: 'Dodaj objekat' }).tap();
+    await room.getByRole('button', { name, exact: true }).tap();
+  };
+  const fields = room.getByTestId('selected-room-card');
+  await add('Vrata');
+  await setField(fields, 'Od početka zida', 2000);
+  await add('Prozor');
+  for (const [label, value] of [['Širina', 1200], ['Visina', 1200], ['Visina parapeta', 800], ['Od početka zida', 450]]) await setField(fields, label, value);
+  await paper.getByRole('button', { name: 'Vrata 1' }).tap();
+  await paper.getByRole('button', { name: 'Prozor 1' }).tap();
+  assert.deepEqual(await paper.locator('[data-elevation-dimension] text').allTextContents(), ['3600 mm', '2600 mm', '450', '1200', '800', '1200']);
+  const readable = await paper.evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    const labels = [...el.querySelectorAll('[data-elevation-dimension] text')].map((n) => n.getBoundingClientRect());
+    const openings = [...el.querySelectorAll('[data-elevation-opening]')];
+    const overlaps = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+    return labels.every((r, i) => r.left >= box.left && r.right <= box.right && r.top >= box.top && r.bottom <= box.bottom
+      && ![...labels.slice(i + 1), ...openings.map((n) => n.getBoundingClientRect())].some((other) => overlaps(r, other)))
+      && openings.every((n) => {
+        const r = n.getBoundingClientRect();
+        return r.width >= 44 && n.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2));
+      });
+  });
+  assert.ok(readable, 'All six dimensions must be separate, and both openings must remain visible and tappable after selection.');
+  await room.getByRole('button', { name: 'Levo: Zid 4' }).tap();
+  assert.equal(await room.getByRole('combobox', { name: 'Izaberi pogled' }).inputValue(), 'left');
+}
+
 async function assert3DIsReadOnly(page, id, type, touch) {
   const before = await design(page), count = await history(page);
   const viewport = page.getByTestId('three-viewport');
@@ -222,6 +256,11 @@ export async function workspaceObjectChecks(page, touch = false, three = true) {
   await faceWall(page, plan, 'east', touch);
   assert.equal(await picker.inputValue(), 'east');
   const beforeNavigation = await design(page), beforeHistory = await history(page);
+  const ends = workspace.getByRole('navigation', { name: 'Adjoining walls' });
+  await tapOrClick(ends.getByRole('button', { name: 'Left: Wall 1' }), touch);
+  assert.equal(await picker.inputValue(), 'sloping');
+  await tapOrClick(ends.getByRole('button', { name: 'Right: Wall 2' }), touch);
+  assert.equal(await picker.inputValue(), 'east');
   await tapOrClick(elevation.getByRole('button', { name: 'Height to ceiling: 2700 mm' }), touch);
   const measures = workspace.getByRole('dialog', { name: 'Wall 2' });
   assert.ok(await measures.getByLabel('Height to ceiling').evaluate((input) => input === document.activeElement));
@@ -245,6 +284,9 @@ export async function workspaceObjectChecks(page, touch = false, three = true) {
   await setField(card, 'Width', 900);
   await setField(card, 'From wall start', 250);
   await setField(card, 'Sill height', 650);
+  assert.equal(await dimension(elevation, 'width').textContent(), '900');
+  assert.equal(await dimension(elevation, 'sill').textContent(), '650');
+  assert.equal(await elevation.getByTestId('room-readout-2d').count(), 0);
   const opening = elevation.locator(`[data-elevation-opening="${windowId}"]`);
   await opening.focus();
   await page.keyboard.press('ArrowRight');
@@ -254,7 +296,13 @@ export async function workspaceObjectChecks(page, touch = false, three = true) {
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   const before = await design(page), baseHistory = await history(page);
-  await dragDrawing(page, opening, 200, -100, touch);
+  await dragDrawing(page, opening, 200, -100, touch, false, async () => {
+    await page.waitForFunction(() => window.__kitchen.design.getState().design.openings.at(-1).offset > 250);
+    const live = (await design(page)).openings.at(-1);
+    assert.equal(await dimension(elevation, 'offset').textContent(), String(live.offset));
+    assert.equal(await dimension(elevation, 'sill').textContent(), String(live.sill));
+    assert.equal(await history(page), baseHistory);
+  });
   const moved = await design(page);
   assert.ok(Math.abs(moved.openings.at(-1).offset - 450) <= 10);
   assert.ok(Math.abs(moved.openings.at(-1).sill - 750) <= 10);
@@ -270,6 +318,7 @@ export async function workspaceObjectChecks(page, touch = false, three = true) {
   assert.equal(door.kind, 'door');
   await dragDrawing(page, elevation.locator(`[data-elevation-opening="${door.id}"]`), -80, -200, touch);
   assert.equal((await design(page)).openings.at(-1).sill, 0);
+  assert.equal(await dimension(elevation, 'sill').count(), 0);
 
   await workspace.getByRole('button', { name: 'Back to plan' }).click();
   await faceWall(page, plan, 'sloping', touch, -12);
@@ -282,6 +331,7 @@ export async function workspaceObjectChecks(page, touch = false, three = true) {
   await setField(card, 'Projection into room', 350);
   await setField(card, 'From wall start', 1100);
   await elevation.locator(`[data-elevation-feature="${f.id}"]`).waitFor();
+  assert.equal(await dimension(elevation, 'width').textContent(), '550');
   await workspace.getByRole('button', { name: 'Back to plan' }).click();
   const featureShape = plan.locator(`[data-plan-feature="${f.id}"]`);
   await featureShape.focus();
@@ -320,6 +370,7 @@ export async function workspaceObjectChecks(page, touch = false, three = true) {
     await inspector.getByRole('combobox', { name: 'Objects in this room' }).selectOption(`opening:${id}`);
     assert.equal(await picker.inputValue(), wall);
     assert.equal(await card.getByLabel('From wall start').inputValue(), String(offset));
+    assert.equal(await dimension(elevation, 'offset').textContent(), String(offset));
   }
   assert.equal((await design(page)).openings[0].wallId, undefined, 'inspecting the legacy opening does not rewrite it');
   if (three) {
@@ -386,12 +437,16 @@ export async function furnishedWallChecks(page, compact, output) {
   await picker.selectOption('');
   await tapOrClick(plan.getByRole('button', { name: 'Otvori zid 6 u 2D', exact: true }), compact);
   assert.equal(await picker.inputValue(), 'divider:-1');
+  const ends = workspace.getByRole('navigation', { name: 'Susedni zidovi' });
+  assert.equal(await ends.getByText('Slobodan kraj', { exact: true }).count(), 2);
+  assert.equal(await ends.getByRole('button').count(), 0);
   assert.equal(await elevation.getByRole('button', { name: 'Visina do plafona: 2700 mm' }).count(), 0);
   await elevation.getByText('1700 mm', { exact: true }).waitFor();
   const beforeFace = await design(page);
   await tapOrClick(elevation.getByRole('button', { name: 'Prozor 1' }), compact);
   assert.equal(await picker.inputValue(), 'divider:1');
   assert.equal(await workspace.getByTestId('selected-room-card').getByLabel('Od početka zida').inputValue(), '200');
+  assert.equal(await dimension(elevation, 'offset').textContent(), '200');
   assert.deepEqual(await design(page), beforeFace, 'Inspecting the opposite face does not rewrite the opening');
   await page.evaluate(() => window.__kitchen.ui.getState().setLanguage('en'));
 }
