@@ -15,14 +15,14 @@ import { useDrawingSize } from './useDrawingSize';
 import { updateRoomFeature } from '../../store/actions';
 
 export const points = (polygon: Point[]) => polygon.map((p) => `${p.x},${p.y}`).join(' ');
-export function drawingButton(label: string, activate: () => void) {
+export function drawingButton(label: string, activate: (keyboard?: boolean) => void) {
   return { role: 'button', tabIndex: 0, 'aria-label': label, className: 'cursor-pointer focus-visible:outline-blue-600',
-    onClick: activate, onKeyDown: (event: KeyboardEvent<SVGGElement>) => {
-      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(); }
+    onClick: () => activate(), onKeyDown: (event: KeyboardEvent<SVGGElement>) => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(true); }
     } };
 }
 
-export function RoomPlan() {
+export function RoomPlan({ onFaceWall }: { onFaceWall: (id: string, keyboard?: boolean) => void }) {
   const t = useT();
   const { room, openings, items, style } = useDesignStore((s) => s.design);
   const selection = useUiStore((s) => s.roomSelection);
@@ -47,7 +47,7 @@ export function RoomPlan() {
   // Mobile browsers can discard the synthesized click on a thin, sloping SVG wall.
   // Treat a stationary single-finger release as a tap, without turning a swipe into one.
   const tap = useRef<{ x: number; y: number; id: number } | null>(null);
-  const planButton = (label: string, activate: () => void) => ({
+  const planButton = (label: string, activate: (keyboard?: boolean) => void) => ({
     ...drawingButton(label, activate),
     onTouchStart: (e: TouchEvent<SVGGElement>) => {
       const p = e.touches[0];
@@ -75,14 +75,18 @@ export function RoomPlan() {
       <polygon points={outline} fill="none" stroke="#43564f" strokeWidth={6 * px} strokeLinejoin="round" />
       <polygon data-wall-paint="" points={outline} fill="none" stroke={style.wallColor ?? DEFAULT_WALL_COLOR} strokeWidth={3 * px} strokeLinejoin="round" />
       {room.partitions?.map((p) => <polygon key={p.id} points={points(partitionPolygon(p))} fill="#b9af9c" />)}
-      {allWalls.filter((s) => s.partitionId).map((s) => <g key={s.id} data-wall-id={s.id}
-        {...planButton(t.advancedRoom.wall(allWalls.indexOf(s) + 1), () => { ui.setSelectedWallId(s.id); ui.setRoomElevationOpen(true); })}>
-        <polygon fill="transparent" points={points([s.start, s.end, wallPoint(s, s.length, 14 * px), wallPoint(s, 0, 14 * px)])} />
-      </g>)}
-      {segments.map((s, i) => <g key={s.id} data-wall-id={s.id} {...planButton(t.advancedRoom.wall(i + 1), () => { setMeasure(null); ui.setSelectedWallId(s.id); ui.setRoomElevationOpen(true); })} aria-pressed={wallId === s.id}>
-        <line x1={s.start.x} y1={s.start.y} x2={s.end.x} y2={s.end.y} stroke={wallId === s.id ? '#376b4a' : 'transparent'} strokeWidth={5 * px} />
-        <polygon fill="transparent" points={points([wallPoint(s, 0, -4 * px), wallPoint(s, s.length, -4 * px), wallPoint(s, s.length, 22 * px), wallPoint(s, 0, 22 * px)])} />
-      </g>)}
+      {allWalls.map((s, i) => {
+        // Keep partition face targets on their own side; a perimeter line can be hit from either side.
+        const thickness = s.partitionId && room.partitions?.find((p) => p.id === s.partitionId)?.thickness;
+        const outside = thickness ? -thickness / 2 : -20 * px, inside = (s.partitionId ? 20 : 24) * px;
+        return <g key={s.id} data-wall-id={s.id} {...planButton(t.advancedRoom.wall(i + 1), (keyboard) => onFaceWall(s.id, keyboard))} aria-pressed={wallId === s.id}>
+          <title>{t.room.facingWall} · {t.advancedRoom.wall(i + 1)}</title>
+          <line className="room-wall-edge" x1={s.start.x} y1={s.start.y} x2={s.end.x} y2={s.end.y}
+            stroke={wallId === s.id ? '#376b4a' : 'transparent'} strokeWidth={5 * px} pointerEvents="none" />
+          <polygon fill="transparent" points={points([wallPoint(s, 0, outside), wallPoint(s, s.length, outside),
+            wallPoint(s, s.length, inside), wallPoint(s, 0, inside)])} />
+        </g>;
+      })}
       {segments.map((s, i) => {
         const label = `${t.advancedRoom.wall(i + 1)} · ${Math.round(s.length)} mm`;
         const selected = s.id === wallId;

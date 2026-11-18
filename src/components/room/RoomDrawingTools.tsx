@@ -1,0 +1,62 @@
+import { ArrowLeft, ChevronDown, Plus } from 'lucide-react';
+import type { Ref } from 'react';
+import { roomOutline } from '../../domain/roomGeometry';
+import type { Room } from '../../domain/types';
+import type { WallSegment } from '../../domain/walls';
+import { useT } from '../../i18n';
+import { RoomObjectButtons } from '../properties/RoomPanel';
+import { Menu } from '../ui';
+
+interface Props {
+  room: Room;
+  walls: WallSegment[];
+  facing?: WallSegment;
+  selectedWall?: WallSegment;
+  pickerRef: Ref<HTMLSelectElement>;
+  show: (wallId: string) => void;
+  back: () => void;
+}
+
+export function RoomDrawingTools({ room, walls, facing, selectedWall, pickerRef, show, back }: Props) {
+  const t = useT();
+  const number = facing ? walls.indexOf(facing) + 1 : 0;
+  const margin = Math.max(room.width, room.depth) * 0.1;
+  return <div className="room-drawing-tools">
+    {facing && <button type="button" className="room-plan-back" onClick={back} aria-label={t.room.backToPlan} title={t.room.backToPlan}>
+      <ArrowLeft size={16} aria-hidden="true" /><span>{t.room.plan}</span>
+    </button>}
+    <label className="room-view-picker">
+      <svg className="room-mini-plan" aria-hidden="true" viewBox={`${-margin} ${-margin} ${room.width + 2 * margin} ${room.depth + 2 * margin}`}>
+        <polygon points={roomOutline(room).map((p) => `${p.x},${p.y}`).join(' ')} fill="#e1e9dd" stroke="#718878" vectorEffect="non-scaling-stroke" />
+        {room.partitions?.map((p) => <line key={p.id} x1={p.start.x} y1={p.start.y} x2={p.end.x} y2={p.end.y} stroke="#899889" vectorEffect="non-scaling-stroke" />)}
+        {facing && <line x1={facing.start.x} y1={facing.start.y} x2={facing.end.x} y2={facing.end.y}
+          stroke="#246748" strokeWidth="3" strokeLinecap="round" vectorEffect="non-scaling-stroke" />}
+      </svg>
+      <span aria-hidden="true"><small>{facing ? t.room.facingWall : t.room.fromAbove}</small><strong>{facing ? t.advancedRoom.wall(number) : t.room.plan}</strong></span>
+      <ChevronDown size={15} aria-hidden="true" />
+      <select aria-label={t.room.drawingView} ref={pickerRef} value={facing?.id ?? ''} onChange={(e) => show(e.target.value)}>
+        <option value="">{t.room.plan} · {t.room.fromAbove}</option>
+        <optgroup label={t.room.elevation}>{walls.map((s, i) => <option key={s.id} value={s.id}>
+          {t.advancedRoom.wall(i + 1)} · {Math.round(s.length)} mm
+        </option>)}</optgroup>
+      </select>
+    </label>
+    <div className="room-add-menu" onKeyDown={(e) => {
+      if (!['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+      // Arrows must never nudge the selected chimney through an open picker.
+      e.preventDefault(); e.stopPropagation();
+      const buttons = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[data-close-menu]:not(:disabled)'));
+      if (!buttons.length) return;
+      const i = buttons.indexOf(document.activeElement as HTMLButtonElement);
+      if (e.key === 'Home') buttons[0].focus();
+      else if (e.key === 'End') buttons.at(-1)?.focus();
+      else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') buttons[i === -1 && e.key === 'ArrowUp' ? buttons.length - 1
+        : (i + (e.key === 'ArrowUp' ? -1 : 1) + buttons.length) % buttons.length].focus();
+    }}>
+      <Menu label={t.room.addObject} variant="outline" icon={<Plus size={16} aria-hidden="true" />}
+        text={<>{t.room.addShort}<ChevronDown size={14} aria-hidden="true" /></>}>
+        <RoomObjectButtons menu wallId={selectedWall?.id} facing={!!facing} />
+      </Menu>
+    </div>
+  </div>;
+}

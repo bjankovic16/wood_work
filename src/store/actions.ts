@@ -348,7 +348,7 @@ export function addRoomFeature(kind: RoomFeatureKind, wallId?: string): string {
     return { ...design, room: { ...room, features: [...(room.features ?? []), placed] } };
   });
   useUiStore.getState().selectRoomObject({ type: 'feature', id }, wallId);
-  useUiStore.getState().setRoomElevationOpen(false);
+  if (!wall) useUiStore.getState().setRoomElevationOpen(false);
   return id;
 }
 
@@ -367,6 +367,7 @@ export function setRoomFeatureWall(id: string, wallId: string | null): void {
   const next = wall ? attachFeature(room, f, wall, wallCoordinates(wall, roomFeaturePose(room, f).centre).x - f.width / 2) : freeFeature(room, f);
   updateRoomFeature(id, { ...next, wallId: next.wallId, offset: next.offset });
   useUiStore.getState().selectRoomObject({ type: 'feature', id }, wallId ?? undefined);
+  if (!wall) useUiStore.getState().setRoomElevationOpen(false);
 }
 
 export function nudgeRoomFeature(id: string, dx: number, dy: number): void {

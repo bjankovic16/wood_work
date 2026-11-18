@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
-import { workspaceObjectChecks } from './room-object-checks.mjs';
+import { furnishedWallChecks, workspaceObjectChecks } from './room-object-checks.mjs';
 import { waitForIdleRendering } from './three-test-helpers.mjs';
 
 const server = await createServer({ logLevel: 'error', cacheDir: path.resolve('test-results/room-workspace/.vite'), server: { host: '127.0.0.1', port: 0 } });
@@ -166,7 +166,7 @@ try {
     if (!planOnly) {
       await page.getByRole('radio', { name: '3D', exact: true }).click();
       await workspace.getByTestId('three-viewport').locator('canvas').waitFor();
-      await page.getByRole('radio', { name: 'Plan', exact: true }).click();
+      await page.getByRole('radio', { name: '2D', exact: true }).click();
     }
     await workspace.getByTestId('room-plan').waitFor();
     assert.equal(await workspace.locator('[data-wall-id="right"]').getAttribute('aria-pressed'), 'true');
@@ -186,6 +186,7 @@ try {
     await drawing.getByRole('alert').waitFor();
     await page.keyboard.press('Escape');
     await workspaceObjectChecks(page, compact, !planOnly);
+    await furnishedWallChecks(page, compact, path.resolve('test-results/room-workspace'));
     if (compact && !planOnly) await phoneRoomPreview(page, workspace);
     assert.deepEqual(errors, []);
     await page.close();

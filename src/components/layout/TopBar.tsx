@@ -58,7 +58,7 @@ function Logo() {
 function ViewTabs({ compact }: { compact: boolean }) {
   const t = useT();
   const view = useUiStore((s) => s.view);
-  const planLabel = useUiStore((s) => s.roomOpen) ? t.room.plan : t.topBar.plan;
+  const planLabel = useUiStore((s) => s.roomOpen) ? '2D' : t.topBar.plan;
   return (
     <Segmented<MainView>
       ariaLabel={t.topBar.view}

@@ -3,28 +3,15 @@ import { Edges } from '@react-three/drei';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { hasWorktop, WORKTOP_THICKNESS } from '../../domain/catalog';
-import { localDepthExtent, localToRoom } from '../../domain/geometry';
+import { mountedSpan } from '../../domain/geometry';
 import { isUpperCabinet } from '../../domain/upperCabinets';
 import { roomFeaturePose, roomOutline } from '../../domain/roomGeometry';
 import { FRONT_FINISHES, WORKTOP_FINISHES } from '../../domain/style';
 import type { KitchenItem, Opening, Room, WallTreatment } from '../../domain/types';
 import type { RoomObjectSelection } from '../../domain/roomObjectPlacement';
-import { openingFrame, openingsOnSegment, roomSegments, solidWallPieces, wallCoordinates, wallPoint, type WallPiece, type WallSegment } from '../../domain/walls';
+import { openingFrame, openingsOnSegment, roomSegments, solidWallPieces, wallPoint, type WallPiece, type WallSegment } from '../../domain/walls';
 import { WALL_THICKNESS } from '../../store/viewport';
 import { createMaterials, disposeMaterials, m, type KitchenMaterials } from './materials';
-
-function mountedSpan(item: KitchenItem, segment: WallSegment): [number, number] | null {
-  const edges = [
-    [localToRoom(item, 0, 0), localToRoom(item, item.width, 0)],
-    ...(item.kind === 'corner' ? [[localToRoom(item, 0, 0), localToRoom(item, 0, localDepthExtent(item))]] : []),
-  ];
-  for (const [a, b] of edges) {
-    const p = wallCoordinates(segment, a);
-    const q = wallCoordinates(segment, b);
-    if (Math.abs(p.y) < 1.1 && Math.abs(q.y) < 1.1) return [Math.max(0, Math.min(p.x, q.x)), Math.min(segment.length, Math.max(p.x, q.x))];
-  }
-  return null;
-}
 
 function WallBox({ piece, thickness, inset = -thickness / 2, material, color = '#f0ede7', name }: {
   piece: WallPiece; thickness: number; inset?: number; material?: THREE.Material; color?: string; name?: string;

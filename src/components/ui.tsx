@@ -241,13 +241,18 @@ interface MenuProps {
   children: ReactNode;
   align?: 'left' | 'right';
   /** Shown next to the icon; without it the button is icon-only. */
-  text?: string;
+  text?: ReactNode;
   variant?: ButtonProps['variant'];
 }
 
 export function Menu({ label, icon, children, align = 'right', text, variant = 'ghost' }: MenuProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const id = useId();
+  const closeToTrigger = () => {
+    setOpen(false);
+    rootRef.current?.querySelector('button')?.focus({ preventScroll: true });
+  };
   useEffect(() => {
     if (!open) return;
     const onDown = (e: PointerEvent) => {
@@ -257,19 +262,23 @@ export function Menu({ label, icon, children, align = 'right', text, variant = '
     return () => window.removeEventListener('pointerdown', onDown);
   }, [open]);
   return (
-    <div ref={rootRef} className="relative">
-      <TooltipButton tooltip={label} variant={variant} aria-label={label} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+    <div ref={rootRef} className="relative" onBlur={(e) => {
+      if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget)) setOpen(false);
+    }} onKeyDown={(e) => {
+      if (open && e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeToTrigger(); }
+    }}>
+      <TooltipButton tooltip={label} variant={variant} aria-label={label} aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen((o) => !o)}>
         {icon}
         {text}
       </TooltipButton>
       {open && (
-        <div
+        <div id={id}
           className={cn(
             'absolute top-full z-40 mt-2 w-64 rounded-xl border border-studio-line bg-studio-paper p-2 shadow-xl',
             align === 'right' ? 'right-0' : 'left-0',
           )}
           onClick={(e) => {
-            if ((e.target as HTMLElement).closest('[data-close-menu]')) setOpen(false);
+            if (e.target instanceof Element && e.target.closest('[data-close-menu]')) closeToTrigger();
           }}
         >
           {children}

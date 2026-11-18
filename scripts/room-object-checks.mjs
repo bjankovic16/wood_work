@@ -6,6 +6,20 @@ const design = (page) => page.evaluate(() => window.__kitchen.design.getState().
 const history = (page) => page.evaluate(() => window.__kitchen.design.getState().past.length);
 const tapOrClick = (locator, touch) => touch ? locator.tap() : locator.click();
 
+// Hit the actual wall at a known point, not the bounding-box centre of a rotated SVG group.
+async function faceWall(page, plan, id, touch, normal = 0) {
+  const point = await plan.locator(`[data-wall-id="${id}"] line`).evaluate((line, normal) => {
+    const x = line.x1.baseVal.value, y = line.y1.baseVal.value;
+    const dx = line.x2.baseVal.value - x, dy = line.y2.baseVal.value - y;
+    const at = new DOMPoint(x + dx * .32, y + dy * .32).matrixTransform(line.getScreenCTM());
+    const length = Math.hypot(dx, dy);
+    return { x: at.x - normal * dy / length, y: at.y + normal * dx / length };
+  }, normal);
+  assert.equal(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('[data-wall-id]')?.getAttribute('data-wall-id'), point), id);
+  if (touch) await page.touchscreen.tap(point.x, point.y);
+  else await page.mouse.click(point.x, point.y);
+}
+
 async function drag(page, from, to, touch, cancel = false) {
   if (touch) {
     const cdp = await page.context().newCDPSession(page);
@@ -103,8 +117,33 @@ export async function workspaceObjectChecks(page, touch = false, three = true) {
   const workspace = page.getByTestId('room-workspace'), plan = workspace.getByTestId('room-plan');
   const inspector = workspace.getByTestId('room-inspector'), card = inspector.getByTestId('selected-room-card');
   const elevation = workspace.getByTestId('wall-elevation');
-  await tapOrClick(plan.getByRole('button', { name: 'Wall 2', exact: true }), touch);
-  await tapOrClick(elevation.getByRole('button', { name: 'Window', exact: true }), touch);
+  const picker = workspace.getByRole('combobox', { name: 'Drawing view' });
+  const addButton = workspace.getByRole('button', { name: 'Add an object', exact: true });
+  const add = async (label) => {
+    await tapOrClick(addButton, touch);
+    await tapOrClick(workspace.getByRole('button', { name: label, exact: true }), touch);
+    assert.equal(await addButton.getAttribute('aria-expanded'), 'false');
+  };
+  await faceWall(page, plan, 'east', touch);
+  assert.equal(await picker.inputValue(), 'east');
+  const beforeNavigation = await design(page), beforeHistory = await history(page);
+  await tapOrClick(elevation.getByRole('button', { name: 'Height to ceiling: 2700 mm' }), touch);
+  const measures = workspace.getByRole('dialog', { name: 'Wall 2' });
+  assert.ok(await measures.getByLabel('Height to ceiling').evaluate((input) => input === document.activeElement));
+  await setField(measures, 'Height to ceiling', 2800);
+  await measures.getByRole('button', { name: 'Done' }).click();
+  await elevation.getByRole('button', { name: 'Height to ceiling: 2800 mm' }).waitFor();
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await picker.selectOption('south');
+  await elevation.getByRole('button', { name: 'Window 1', exact: true }).waitFor();
+  await picker.selectOption('east');
+  await addButton.press('Enter');
+  await workspace.getByRole('button', { name: 'Door', exact: true }).press('Escape');
+  assert.equal(await workspace.getByRole('button', { name: 'Door', exact: true }).count(), 0);
+  assert.ok(await addButton.evaluate((b) => b === document.activeElement));
+  assert.deepEqual(await design(page), beforeNavigation);
+  assert.equal(await history(page), beforeHistory, 'Browsing walls or dismissing Add is not a design edit');
+  await add('Window');
   assert.ok(await card.evaluate((el) => el.previousElementSibling.textContent.includes('Room size')));
   const windowId = (await design(page)).openings.at(-1).id;
   assert.equal((await design(page)).openings.at(-1).wallId, 'east');
@@ -131,22 +170,24 @@ export async function workspaceObjectChecks(page, touch = false, three = true) {
   assert.deepEqual(await design(page), moved);
   await dragDrawing(page, opening, -100, 120, touch, true);
   assert.deepEqual(await design(page), moved, 'cancel restores the last completed elevation gesture');
-  await tapOrClick(elevation.getByRole('button', { name: 'Door', exact: true }), touch);
+  await add('Door');
   const door = (await design(page)).openings.at(-1);
   assert.equal(door.kind, 'door');
   await dragDrawing(page, elevation.locator(`[data-elevation-opening="${door.id}"]`), -80, -200, touch);
   assert.equal((await design(page)).openings.at(-1).sill, 0);
 
-  await elevation.getByRole('button', { name: 'Back to plan' }).click();
-  await tapOrClick(plan.getByRole('button', { name: 'Wall 1', exact: true }), touch);
+  await workspace.getByRole('button', { name: 'Back to plan' }).click();
+  await faceWall(page, plan, 'sloping', touch, -12);
   await workspace.getByRole('region', { name: 'Inside wall view: Wall 1', exact: true }).waitFor();
-  await inspector.getByRole('button', { name: 'Chimney', exact: true }).click();
+  await add('Chimney');
   const feature = () => design(page).then((d) => d.room.features[0]);
   const f = await feature();
   assert.equal(f.wallId, 'sloping');
   await setField(card, 'Length along wall', 550);
   await setField(card, 'Projection into room', 350);
   await setField(card, 'From wall start', 1100);
+  await elevation.locator(`[data-elevation-feature="${f.id}"]`).waitFor();
+  await workspace.getByRole('button', { name: 'Back to plan' }).click();
   const featureShape = plan.locator(`[data-plan-feature="${f.id}"]`);
   await featureShape.focus();
   await page.keyboard.press('ArrowRight');
@@ -180,8 +221,9 @@ export async function workspaceObjectChecks(page, touch = false, three = true) {
   assert.ok(Math.abs((await feature()).x - 1650) <= 10);
   assert.ok(Math.abs((await feature()).y - 1100) <= 10);
   await card.getByLabel('Against wall').selectOption('sloping');
-  for (const [label, offset] of [['Window 1', 2800], ['Door 1', 1500]]) {
-    await inspector.getByRole('button', { name: label, exact: true }).click();
+  for (const [id, offset, wall] of [['legacy-window', 2800, 'south'], ['legacy-door', 1500, 'west']]) {
+    await inspector.getByRole('combobox', { name: 'Objects in this room' }).selectOption(`opening:${id}`);
+    assert.equal(await picker.inputValue(), wall);
     assert.equal(await card.getByLabel('From wall start').inputValue(), String(offset));
   }
   assert.equal((await design(page)).openings[0].wallId, undefined, 'inspecting the legacy opening does not rewrite it');
@@ -198,6 +240,59 @@ export async function workspaceObjectChecks(page, touch = false, three = true) {
   await workspace.waitFor();
   assert.deepEqual(await design(page), saved);
   console.log(`  PASS ${touch ? 'touch' : 'mouse'} wall elevation, floor-level door, 10/100 mm nudges, sloped/free chimney, legacy offsets, reload${three ? ', read-only 3D and 2D hand-off' : ''}`);
+}
+
+export async function furnishedWallChecks(page, compact, output) {
+  await page.evaluate(async () => {
+    const { createPhotoDesign } = await import('/src/domain/photoDesigns.ts');
+    const { sr } = await import('/src/i18n/sr.ts');
+    const d = createPhotoDesign('ivory-island', 'Bela kuhinja sa ostrvom', sr.labelPrefix);
+    window.__kitchen.design.getState().load(d);
+    const ui = window.__kitchen.ui.getState();
+    ui.setLanguage('sr'); ui.setRoomOpen(true); ui.setSelectedWallId(null);
+  });
+  const workspace = page.getByTestId('room-workspace'), plan = workspace.getByTestId('room-plan');
+  const picker = workspace.getByRole('combobox', { name: 'Izaberi pogled' }), elevation = workspace.getByTestId('wall-elevation');
+  await workspace.getByRole('tab', { name: 'Boje i pločice' }).click();
+  await workspace.getByRole('button', { name: 'Boja zidova: Maslina' }).click();
+  await workspace.getByRole('tab', { name: 'Mere' }).click();
+  if (compact) await page.screenshot({ path: path.join(output, 'phone-floor-plan-sr.png') });
+  await faceWall(page, plan, 'right', compact);
+  assert.equal(await picker.inputValue(), 'right');
+  assert.equal(await elevation.locator('[data-elevation-paint]').getAttribute('fill'), '#777c64');
+  const d = await design(page);
+  const attached = d.items.find((i) => i.kind === 'sink'), island = d.items.find((i) => i.kind === 'bar');
+  assert.ok(await elevation.locator(`[data-elevation-cabinet="${attached.id}"]`).isVisible());
+  assert.equal(await elevation.locator(`[data-elevation-cabinet="${island.id}"]`).count(), 0);
+  await elevation.getByRole('button', { name: 'Prozor 1' }).waitFor();
+  if (compact) await page.screenshot({ path: path.join(output, 'phone-inside-wall-sr.png') });
+  await workspace.getByRole('button', { name: 'Nazad na osnovu' }).click();
+  await plan.getByRole('button', { name: 'Zid 3', exact: true }).press('Enter');
+  assert.ok(await picker.evaluate((s) => s === document.activeElement));
+  await picker.selectOption('');
+  const trigger = workspace.getByRole('button', { name: 'Dodaj objekat', exact: true });
+  await tapOrClick(trigger, compact);
+  await tapOrClick(workspace.getByRole('button', { name: 'Vrata', exact: true }), compact);
+  assert.equal(await picker.inputValue(), 'bottom', 'Add from the floor plan opens the new door on the selected wall');
+  await elevation.getByRole('button', { name: 'Vrata 1' }).waitFor();
+  const undo = page.getByRole('button', { name: 'Korak unazad', exact: true });
+  await undo.click();
+  assert.deepEqual(await design(page), d);
+  await page.evaluate(() => {
+    const store = window.__kitchen.design.getState();
+    const partition = { id: 'divider', start: { x: 1600, y: 3100 }, end: { x: 3500, y: 3100 }, thickness: 120, height: 1700 };
+    const opening = { id: 'through', kind: 'window', wall: 'top', wallId: 'divider:1', offset: 200, width: 600, height: 800, sill: 600 };
+    store.load({ ...store.design, room: { ...store.design.room, partitions: [partition] }, openings: [opening] });
+  });
+  await picker.selectOption('divider:-1');
+  assert.equal(await elevation.getByRole('button', { name: 'Visina do plafona: 2700 mm' }).count(), 0);
+  await elevation.getByText('1700 mm', { exact: true }).waitFor();
+  const beforeFace = await design(page);
+  await tapOrClick(elevation.getByRole('button', { name: 'Prozor 1' }), compact);
+  assert.equal(await picker.inputValue(), 'divider:1');
+  assert.equal(await workspace.getByTestId('selected-room-card').getByLabel('Od početka zida').inputValue(), '200');
+  assert.deepEqual(await design(page), beforeFace, 'Inspecting the opposite face does not rewrite the opening');
+  await page.evaluate(() => window.__kitchen.ui.getState().setLanguage('en'));
 }
 
 export async function roomObjectChecks(page, output) {

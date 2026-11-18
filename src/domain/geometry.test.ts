@@ -7,6 +7,7 @@ import {
   footprintRects,
   frontEdges,
   localToRoom,
+  mountedSpan,
   mountingWalls,
   resizeFromAnchor,
   rotateItem,
@@ -15,6 +16,7 @@ import {
   itemInsideRoom,
 } from './geometry';
 import type { KitchenItem, Rotation } from './types';
+import { roomSegments, segmentFrame } from './walls';
 
 const room = { width: 3600, depth: 3000, height: 2600 };
 const base = (over: Partial<KitchenItem> = {}) => createItem('base', [], { width: 600, depth: 560, ...over });
@@ -123,5 +125,24 @@ describe('attachedWall', () => {
     expect(attachedWall(base({ x: 500, y: 0 }), room)).toBe('top');
     expect(attachedWall(base({ x: 500, y: 10 }), room)).toBeNull();
     expect(attachedWall(base({ rotation: 270, x: 0, y: 900 }), room)).toBe('left');
+  });
+
+  describe('wall elevation spans', () => {
+    it('shows both arms of a corner on their own faces, but not an island or a collinear unit outside the segment', () => {
+      const [top, right, , left] = roomSegments(room);
+      const corner = createItem('corner', [], { width: 900, width2: 1000 });
+      expect(mountedSpan(corner, top)).toEqual([0, 900]);
+      expect(mountedSpan(corner, left)).toEqual([2000, 3000]);
+      expect(mountedSpan(corner, right)).toBeNull();
+      expect(mountedSpan(base({ x: 1200, y: 1200 }), top)).toBeNull();
+      expect(mountedSpan(base({ x: room.width }), top)).toBeNull();
+    });
+    it('projects an angled back into the real, start-relative span of a shorter wall', () => {
+      const cabinet = base({ rotation: 35, x: 800, y: 600 });
+      const segment = segmentFrame('angled', localToRoom(cabinet, 150, 0), localToRoom(cabinet, 850, 0), room.height);
+      const span = mountedSpan(cabinet, segment);
+      expect(span?.[0]).toBe(0);
+      expect(span?.[1]).toBeCloseTo(450);
+    });
   });
 });

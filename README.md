@@ -57,12 +57,13 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
    opens in 2D. Enter inside measurements in millimetres (3 metres = 3000 mm).
    Returning to a saved project resumes it; **My room** reopens its measurements
    without starting over.
-2. Select **Wall 2** (**Zid 2**), for example. Click or tap its dimension to
-   enter the wall length. In the inside elevation of that wall, add a window
-   or door and measure from the marked start. Add a chimney if needed. The
+2. Tap a wall **line** to face that wall, or tap its **number** to edit its
+   measurement. The dropdown with the little floor plan lets you switch directly
+   to any wall. In the wall view, choose **Add → Window** or **Door** and
+   measure from the green start point. Add a chimney if needed. The
    selected object's measurements appear just below the room measurements.
    See [Measuring the room](#measuring-the-room) for diagonals and keyboard input.
-3. Use **3D preview** beside the plan on desktop, or switch between **Plan**
+3. Use **3D preview** beside the plan on desktop, or switch between **2D**
    and **3D** on a phone. The selected wall or object stays selected. Choose
    **Continue to kitchen** to open the plan directly, or open **Ideas**
    to [try an idea in your room](#trying-an-idea-in-your-room). A measured
@@ -83,8 +84,8 @@ browsers, English otherwise. A language chosen manually is remembered.
 
 ## Measuring the room
 
-- In **My room**, use **Dimensions** for room size and wall geometry, **Add objects**
-  for openings and fixed structures, or **Paint & tiles** to change walls and floors
+- In **My room**, use **Dimensions** for room size and wall geometry, **Objects**
+  to find an existing opening or structure, or **Paint & tiles** to change walls and floors
   right on the plan. On phones the drawing stays above the tools, and **Ideas**
   and **Continue to kitchen** stay at the bottom.
 - **Walls:** perimeter segments are numbered in order: Wall 1–4 in a rectangle,
@@ -95,8 +96,10 @@ browsers, English otherwise. A language chosen manually is remembered.
   a rectangle keeps it rectangular. For a diagonal, move its shared corner
   on the plan or enter the segment length and angle. An invalid or
   self-crossing outline leaves the last valid room in place.
-- **Wall elevation:** select a wall to open its **Inside wall view**. Use
-  **+ Window** or **+ Door** here, then drag the opening with mouse or touch,
+- **Wall elevation:** tap the line or choose a numbered wall in **Drawing view**.
+  The mini-plan marks which wall you're facing. The drawing shows its length,
+  height, openings and the outlines of cabinets set against it. Tap a perimeter
+  wall's length or height to edit it. Use **Add → Window** or **Door**, then drag the opening with mouse or touch,
   or type its width, height and distance **from the marked start** to its
   near edge. A window also has a sill height (floor to bottom of frame);
   doors stay at floor level.

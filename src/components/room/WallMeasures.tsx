@@ -9,7 +9,7 @@ import { useUiStore } from '../../store/uiStore';
 import { NumberField, SelectField } from '../properties/NumberField';
 import { Button, PanelSection } from '../ui';
 
-export function WallMeasureDialog({ wall, number, close }: { wall: WallSegment; number: number; close: () => void }) {
+export function WallMeasureDialog({ wall, number, close, focus = 'length' }: { wall: WallSegment; number: number; close: () => void; focus?: 'length' | 'height' }) {
   const t = useT();
   const id = useId();
   const ref = useRef<HTMLDialogElement>(null);
@@ -22,13 +22,13 @@ export function WallMeasureDialog({ wall, number, close }: { wall: WallSegment; 
     onCancel={(event) => { event.preventDefault(); close(); }} onClick={(event) => { if (event.target === event.currentTarget) close(); }}>
     <div className="space-y-3 p-5">
       <h2 id={id} className="text-lg font-semibold">{t.advancedRoom.wall(number)}</h2>
-      <WallMeasureFields wall={wall} focus="length" />
+      <WallMeasureFields wall={wall} focus={focus} />
       <Button variant="primary" className="mt-1 h-11 w-full" onClick={close}>{t.common.done}</Button>
     </div>
   </dialog>;
 }
 
-export function WallMeasureFields({ wall, focus }: { wall: WallSegment; focus?: 'length' | 'height' }) {
+export function WallMeasureFields({ wall, focus, ceiling = !!focus }: { wall: WallSegment; focus?: 'length' | 'height'; ceiling?: boolean }) {
   const t = useT();
   const [failed, setFailed] = useState(false);
   const room = useDesignStore((s) => s.design.room);
@@ -41,7 +41,7 @@ export function WallMeasureFields({ wall, focus }: { wall: WallSegment; focus?: 
       onCommit={(length) => commit(() => editRoomWall(wall.id, length, wall.angle))} />
     <NumberField label={t.advancedRoom.angle} value={Math.round(wall.angle * 10) / 10} min={0} max={360} suffix="°" precision={1}
       onCommit={(angle) => commit(() => editRoomWall(wall.id, wall.length, angle))} />
-    {focus && <NumberField label={t.room.ceilingHeight} value={room.height} {...ROOM_LIMITS.height} autoFocus={focus === 'height'}
+    {ceiling && <NumberField label={t.room.ceilingHeight} value={room.height} {...ROOM_LIMITS.height} autoFocus={focus === 'height'}
       onCommit={(height) => commit(() => setRoomSize({ height }))} />}
     {failed && <p role="alert" className="text-xs text-red-700">{t.advancedRoom.invalid}</p>}
   </>;

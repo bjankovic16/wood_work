@@ -21,7 +21,7 @@ file for a customer. The customer does not need the editor or the cutting list.
 - On a first visit and for a new project, open **My room** (**Moja prostorija**)
   on the 2D plan. Show room measurements before suggesting kitchen ideas. On
   return, resume the saved project and keep **My room** within reach.
-- On desktop, offer a 3D preview beside the plan. On a phone, **Plan / 3D**
+- On desktop, offer a 3D preview beside the plan. On a phone, **2D / 3D**
   switches views in the same workspace. Plan, elevation, 3D and inspector
   share the selected wall, opening or structure; switching views neither
   duplicates project data nor clears that selection. **Edit position in 2D**
@@ -39,8 +39,13 @@ file for a customer. The customer does not need the editor or the cutting list.
   degenerate or self-crossing outlines without replacing the last valid
   geometry. Keep stable wall IDs and preserve the physical positions of
   openings on import, including older offsets on the bottom and left walls.
-- Selecting a wall opens its **2D inside elevation** with **+ Window** and
-  **+ Door**. Drag an opening along the wall or enter its width, height and
+- Tapping a wall line opens its **2D inside elevation**. Provide a drawing
+  dropdown for the plan and all wall faces, a mini-plan marking the current face,
+  and a one-tap return. Show the green origin, length and height rulers, real
+  openings and read-only cabinet outlines. Use one **Add** dropdown shared by
+  the plan and elevation, grouping openings separately from fixed structures.
+  The object picker revisits existing objects without creating another one.
+  Drag an opening along the wall or enter its width, height and
   distance from the marked start. A window also has a sill height above the
   floor; a door always starts at floor level. Support angled segments and
   either face of an interior partition.

@@ -119,6 +119,21 @@ export function attachedSegment(item: Placed, room: Room): WallSegment | null {
   }) ?? null;
 }
 
+/** Span of the cabinet against this face, including the second arm of a corner. */
+export function mountedSpan(item: Placed, segment: WallSegment): [number, number] | null {
+  const origin = localToRoom(item, 0, 0);
+  const ends = [localToRoom(item, item.width, 0)];
+  if (item.kind === 'corner') ends.push(localToRoom(item, 0, localDepthExtent(item)));
+  const p = wallCoordinates(segment, origin);
+  if (Math.abs(p.y) >= 1.1) return null;
+  for (const end of ends) {
+    const q = wallCoordinates(segment, end);
+    const from = Math.max(0, Math.min(p.x, q.x)), to = Math.min(segment.length, Math.max(p.x, q.x));
+    if (Math.abs(q.y) < 1.1 && to > from) return [from, to];
+  }
+  return null;
+}
+
 /** The edges where doors and drawer fronts are. */
 export function frontEdges(item: Placed): Array<[Point, Point]> {
   const d = item.depth;

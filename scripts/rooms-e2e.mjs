@@ -216,7 +216,7 @@ try {
   await setup.getByLabel('Floor shape').selectOption('notch');
   await setup.getByLabel('Cut-out width').fill('1000');
   await setup.getByLabel('Cut-out width').press('Enter');
-  await setup.getByRole('tab', { name: 'Add objects' }).click();
+  await setup.getByRole('button', { name: 'Add an object' }).click();
   await setup.getByRole('button', { name: 'Chimney', exact: true }).click();
   const feature = setup.locator('[data-room-feature]').first();
   await feature.getByLabel('Against wall').selectOption('');
