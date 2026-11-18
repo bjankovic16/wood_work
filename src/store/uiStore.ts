@@ -3,13 +3,17 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import type { Guide } from '../domain/snapping';
 import type { KitchenItem, Point, Wall } from '../domain/types';
 import type { CameraView } from '../domain/camera';
+import type { KitchenDesignId } from '../domain/kitchens';
+import type { LayoutId } from '../domain/templates';
+import type { RoomObjectSelection } from '../domain/roomObjectPlacement';
 import { browserLanguage, isLanguage, type Language } from '../i18n/language';
 import { safeStorage } from '../lib/platform';
 
 export type ViewFilter = 'all' | 'floor' | 'wall';
 export type MainView = 'plan' | '3d' | 'list';
 export type SettingsTab = 'materials' | 'construction';
-export type CabinetTool = 'move' | 'resize' | null;
+export type CabinetTool = 'resize' | null;
+export type FitRequest = { type: 'idea'; id: KitchenDesignId } | { type: 'starter'; id: LayoutId };
 
 export const GRID_SIZES = [10, 50, 100] as const;
 
@@ -48,8 +52,11 @@ interface UiState {
   /** Which tab of the kitchen settings dialog is open, if any. */
   settingsTab: SettingsTab | null;
   layoutsOpen: boolean;
+  fitRequest: FitRequest | null;
   projectsOpen: boolean;
   roomOpen: boolean;
+  roomSelection: RoomObjectSelection | null;
+  roomElevationOpen: boolean;
   wallEditing: boolean;
   selectedWallId: string | null;
   referenceOpen: boolean;
@@ -58,7 +65,7 @@ interface UiState {
   /** The camera goes back to where it was before it went to look at a cabinet. */
   cameraReturn: boolean;
   cameraToken: number;
-  /** The first-visit tip about dragging and opening cabinets in 3D has done its job. */
+  /** The first-visit tip about navigating the 3D view has been seen. */
   moveHintSeen: boolean;
   /** Language of the interface and of everything exported. */
   language: Language;
@@ -70,8 +77,12 @@ interface UiState {
   setView: (view: MainView) => void;
   setSettingsTab: (tab: SettingsTab | null) => void;
   setLayoutsOpen: (open: boolean) => void;
+  reviewFit: (request: FitRequest | null) => void;
   setProjectsOpen: (open: boolean) => void;
   setRoomOpen: (open: boolean) => void;
+  setRoomView: (view: 'plan' | '3d') => void;
+  setRoomElevationOpen: (open: boolean) => void;
+  selectRoomObject: (selection: RoomObjectSelection | null, wallId?: string) => void;
   setWallEditing: (editing: boolean) => void;
   setSelectedWallId: (id: string | null) => void;
   setReferenceOpen: (open: boolean) => void;
@@ -108,8 +119,11 @@ export const useUiStore = create<UiState>()(
       view: 'plan',
       settingsTab: null,
       layoutsOpen: false,
+      fitRequest: null,
       projectsOpen: false,
       roomOpen: false,
+      roomSelection: null,
+      roomElevationOpen: false,
       wallEditing: false,
       selectedWallId: null,
       referenceOpen: false,
@@ -120,7 +134,7 @@ export const useUiStore = create<UiState>()(
       moveHintSeen: false,
       language: browserLanguage(),
 
-      select: (selectedId) => set((state) => ({ selectedId, cabinetTool: selectedId === state.selectedId ? state.cabinetTool : null })),
+      select: (selectedId) => set((state) => ({ selectedId, roomSelection: null, cabinetTool: selectedId === state.selectedId ? state.cabinetTool : null })),
       setCabinetTool: (cabinetTool) => set((state) => ({
         cabinetTool: state.view === '3d' && state.selectedId && !state.previewLockedIds.includes(state.selectedId) ? cabinetTool : null,
       })),
@@ -129,13 +143,19 @@ export const useUiStore = create<UiState>()(
         return { previewLockedIds, cabinetTool: state.selectedId && previewLockedIds.includes(state.selectedId) ? null : state.cabinetTool };
       }),
       setLanguage: (language) => set({ language }),
-      setView: (view) => set((state) => state.view === view ? state : { view, cabinetTool: null, previewLockedIds: [] }),
+      setView: (view) => set((state) => state.view === view && !state.roomOpen ? state : { view, roomOpen: false, cabinetTool: null, previewLockedIds: [] }),
       setSettingsTab: (settingsTab) => set({ settingsTab }),
-      setLayoutsOpen: (layoutsOpen) => set({ layoutsOpen }),
+      setLayoutsOpen: (layoutsOpen) => set({ layoutsOpen, fitRequest: null }),
+      reviewFit: (fitRequest) => set({ layoutsOpen: true, fitRequest }),
       setProjectsOpen: (projectsOpen) => set({ projectsOpen }),
-      setRoomOpen: (roomOpen) => set({ roomOpen }),
+      setRoomOpen: (roomOpen) => set(roomOpen
+        ? { roomOpen, view: 'plan', selectedId: null, cabinetTool: null, wallEditing: false }
+        : { roomOpen }),
+      setRoomView: (view) => set((state) => state.view === view ? state : { view, cabinetTool: null, previewLockedIds: [] }),
+      setRoomElevationOpen: (roomElevationOpen) => set({ roomElevationOpen }),
+      selectRoomObject: (roomSelection, wallId) => set({ roomSelection, ...(roomSelection ? { selectedId: null, cabinetTool: null } : {}), ...(wallId ? { selectedWallId: wallId } : {}) }),
       setWallEditing: (wallEditing) => set({ wallEditing, selectedId: null }),
-      setSelectedWallId: (selectedWallId) => set({ selectedWallId }),
+      setSelectedWallId: (selectedWallId) => set({ selectedWallId, roomSelection: null, selectedId: null, cabinetTool: null, ...(!selectedWallId ? { roomElevationOpen: false } : {}) }),
       setReferenceOpen: (referenceOpen) => set({ referenceOpen }),
       requestCamera: (cameraView, focusId) => set((state) => ({ cameraView, cameraFocusId: focusId ?? null, cameraReturn: false, cameraToken: state.cameraToken + 1 })),
       focusCamera: (cameraFocusId) => set((state) => ({ cameraFocusId, cameraReturn: false, cameraToken: state.cameraToken + 1 })),

@@ -33,12 +33,21 @@ jobs:
           - name: Stacked cabinets and premium kitchens
             id: stacked
             script: e2e:stacked
-          - name: Rooms, structures and direct 3D
+          - name: Rooms, structures and 3D preview
             id: rooms
             script: e2e:rooms
-          - name: Resize, move and open in 3D
+          - name: Room workspace on desktop and phone
+            id: room-workspace
+            script: e2e:room-workspace
+          - name: Resize, orbit and open in 3D
             id: resize
             script: e2e:resize
+          - name: Offline customer preview
+            id: customer
+            script: e2e:customer
+          - name: Ideas in the measured kitchen
+            id: ideas
+            script: e2e:ideas
     env:
       # Chrome in the POSIX locale renames downloads with Serbian characters.
       LANG: C.UTF-8

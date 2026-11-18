@@ -1,10 +1,10 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createItem } from '../domain/catalog';
 import * as ops from '../domain/designOps';
 import { KITCHEN_DESIGNS } from '../domain/kitchens';
 import { useDesignStore } from './designStore';
 import { useUiStore } from './uiStore';
-import { applyKitchenDesign } from './actions';
+import { applyKitchenDesign, openKitchenOriginal } from './actions';
 import {
   createProject,
   deleteProject,
@@ -28,6 +28,30 @@ beforeEach(() => {
 });
 
 describe('projects', () => {
+  it('does not save a paused or interrupted drag, including a forced save on page hide', () => {
+    vi.useFakeTimers();
+    try {
+      initProjects();
+      const store = useDesignStore.getState();
+      const item = createItem('base', [], { x: 100 });
+      store.apply((d) => ops.addItem(d, item)); // A pending save that started before the drag.
+      const storedX = () => JSON.parse(localStorage.getItem(`kitchen-designer:project:${projects().activeId}`)!).items[0].x;
+      store.beginGesture();
+      store.apply((d) => ops.updateItem(d, item.id, { x: 300 }));
+      vi.advanceTimersByTime(600);
+      expect(storedX()).toBe(100);
+      flushSave();
+      expect(storedX()).toBe(100);
+      store.cancelGesture();
+      expect(design().items[0].x).toBe(100);
+      store.beginGesture();
+      store.apply((d) => ops.updateItem(d, item.id, { x: 400 }));
+      store.endGesture();
+      vi.advanceTimersByTime(600);
+      expect(storedX()).toBe(400);
+    } finally { vi.useRealTimers(); }
+  });
+
   it('brings over the design saved by earlier versions', () => {
     const old = { ...ops.createDesign('Petrović'), items: [createItem('base', [])] };
     localStorage.setItem('kitchen-designer:design', JSON.stringify({ state: { design: old }, version: 1 }));
@@ -35,20 +59,23 @@ describe('projects', () => {
     expect(projects().projects).toHaveLength(1);
     expect(design().name).toBe('Petrović');
     expect(design().items).toHaveLength(1);
+    expect(useUiStore.getState().roomOpen).toBe(false);
   });
 
   it('creates, switches between and saves projects', () => {
     initProjects();
+    expect(useUiStore.getState()).toMatchObject({ roomOpen: true, view: 'plan' });
     const first = projects().activeId;
     useDesignStore.getState().apply((d) => ops.addItem(d, createItem('base', [])));
-    useUiStore.getState().setRoomOpen(true);
+    useUiStore.getState().setView('3d');
     const second = createProject('Second kitchen');
     expect(projects().activeId).toBe(second);
     expect(design().name).toBe('Second kitchen');
     expect(design().items).toHaveLength(0);
-    expect(useUiStore.getState().roomOpen).toBe(false);
+    expect(useUiStore.getState()).toMatchObject({ roomOpen: true, view: 'plan' });
 
     openProject(first);
+    expect(useUiStore.getState().roomOpen).toBe(false);
     expect(design().items).toHaveLength(1);
     expect(useDesignStore.getState().past).toHaveLength(0);
     expect(projects().projects.find((p) => p.id === first)?.units).toBe(1);
@@ -64,10 +91,13 @@ describe('projects', () => {
     expect(design().name).toBe('Saved');
   });
 
-  it('saves and restores an entire gallery kitchen without changing the open project', () => {
+  it('saves and restores a gallery look in place, while an explicit original uses a separate project', () => {
     initProjects();
     const activeId = projects().activeId;
-    applyKitchenDesign(KITCHEN_DESIGNS.find((kitchen) => kitchen.id === 'oak-frame-island')!);
+    const cabinet = createItem('base', [], { x: 1200, y: 450 });
+    useDesignStore.getState().apply((d) => ops.addItem(d, cabinet));
+    const preset = KITCHEN_DESIGNS.find((kitchen) => kitchen.id === 'oak-frame-island')!;
+    expect(applyKitchenDesign(preset)).toBe(true);
     const saved = design();
     flushSave();
     resetProjectsForTests();
@@ -75,6 +105,12 @@ describe('projects', () => {
     initProjects();
     expect(projects().activeId).toBe(activeId);
     expect(projects().projects).toHaveLength(1);
+    expect(design()).toEqual(saved);
+    openKitchenOriginal(preset);
+    expect(projects().activeId).not.toBe(activeId);
+    expect(design().room).toEqual(preset.room);
+    expect(design().items.length).toBeGreaterThan(1);
+    openProject(activeId);
     expect(design()).toEqual(saved);
   });
 

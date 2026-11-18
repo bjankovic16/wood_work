@@ -1,14 +1,14 @@
 import { Shuffle } from 'lucide-react';
 import { useRef } from 'react';
-import { hasLook, KITCHEN_LOOKS } from '../../domain/kitchens';
+import { applyKitchenLook, KITCHEN_LOOK_PRESETS, type KitchenPreset } from '../../domain/kitchens';
 import { randomSeed, shuffled } from '../../domain/shuffle';
-import { APPLIANCE_FINISHES, BACKSPLASH_FINISHES, DEFAULT_FLOOR_COLOR, DEFAULT_FLOOR_GROUT_COLOR, DEFAULT_FLOOR_TILE_SIZE, DEFAULT_WALL_COLOR, FLOOR_TILE_SIZE_LIMITS, FRONT_FINISHES, HANDLE_STYLES, ROOM_COLORS, WORKTOP_FINISHES, type Finish, type RoomColor } from '../../domain/style';
+import { APPLIANCE_FINISHES, BACKSPLASH_FINISHES, DEFAULT_FLOOR_COLOR, DEFAULT_FLOOR_GROUT_COLOR, DEFAULT_FLOOR_TILE_SIZE, DEFAULT_WALL_COLOR, FLOOR_TILE_SIZE_LIMITS, FRONT_FINISHES, HANDLE_STYLES, JOINERY_FINISHES, ROOM_COLORS, WORKTOP_FINISHES, type Finish, type FrontFinish, type RoomColor } from '../../domain/style';
 import { useT } from '../../i18n';
 import { cn } from '../../lib/cn';
 import { setStyle } from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
 import { Button } from '../ui';
-import { CheckboxField, NumberField } from '../properties/NumberField';
+import { CheckboxField, NumberField, SelectField } from '../properties/NumberField';
 
 function swatchBackground(finish: Finish): string {
   // Wood finishes get a streaky gradient to hint at the grain.
@@ -83,19 +83,18 @@ function RoomColorPicker({ label, value, onChange }: { label: string; value: str
 export function StylePicker() {
   const t = useT();
   const style = useDesignStore((s) => s.design.style);
+  const joineryOptions = [{ value: '' as const, label: t.style.defaultFinish },
+    ...(Object.keys(FRONT_FINISHES) as FrontFinish[]).map((value) => ({ value, label: t.style.frontFinishes[value] }))];
   // Looks are dealt from a shuffled pack, so none repeats until all have been seen.
-  const pack = useRef<{ seed: number; next: number } | null>(null);
-  const shuffleLook = () => {
-    pack.current ??= { seed: randomSeed(), next: 0 };
-    const current = useDesignStore.getState().design.style;
-    for (let tries = 0; tries < KITCHEN_LOOKS.length; tries++) {
-      if (pack.current.next >= KITCHEN_LOOKS.length) pack.current = { seed: randomSeed(), next: 0 };
-      const look = shuffled(KITCHEN_LOOKS, pack.current.seed)[pack.current.next++];
-      if (hasLook(current, look)) continue;
-      setStyle(look);
-      return;
+  const pack = useRef<KitchenPreset[]>([]);
+  const shuffleLook = () => useDesignStore.getState().apply((design) => {
+    for (let tries = 0; tries < KITCHEN_LOOK_PRESETS.length; tries++) {
+      if (!pack.current.length) pack.current = shuffled(KITCHEN_LOOK_PRESETS, randomSeed());
+      const next = applyKitchenLook(design, pack.current.pop()!);
+      if (next !== design) return next;
     }
-  };
+    return design;
+  });
   return (
     <div className="space-y-4">
       <div>
@@ -150,6 +149,11 @@ export function StylePicker() {
         value={style.backsplash ?? 'none'}
         onChange={(backsplash) => setStyle({ backsplash })}
       />
+      <div className="space-y-2 border-t border-zinc-100 pt-3">
+        <h3 className="text-sm font-semibold text-zinc-800">{t.style.joinery}</h3>
+        {JOINERY_FINISHES.map((key) => <SelectField<FrontFinish | ''> key={key} label={t.style[key]}
+          value={style[key] ?? ''} options={joineryOptions} onChange={(value) => setStyle({ [key]: value || undefined })} />)}
+      </div>
       <div className="space-y-4 border-t border-zinc-100 pt-3">
         <h3 className="text-sm font-semibold text-zinc-800">{t.style.roomSurfaces}</h3>
         <RoomColorPicker label={t.style.wallColor} value={style.wallColor ?? DEFAULT_WALL_COLOR} onChange={(wallColor) => setStyle({ wallColor })} />
@@ -164,14 +168,6 @@ export function StylePicker() {
         <p className="text-[11px] leading-relaxed text-zinc-600">{t.style.roomColorNote}</p>
       </div>
       <div className="space-y-3 border-t border-zinc-100 pt-3">
-        <label className="flex cursor-pointer items-start gap-2 text-xs leading-relaxed text-zinc-700">
-          <input type="checkbox" className="mt-0.5 size-4 accent-blue-600" checked={style.lighting ?? false} onChange={(event) => setStyle({ lighting: event.target.checked })} />
-          {t.style.lighting}
-        </label>
-        <label className="flex cursor-pointer items-start gap-2 text-xs leading-relaxed text-zinc-700">
-          <input type="checkbox" className="mt-0.5 size-4 accent-blue-600" checked={style.plinthLighting ?? false} onChange={(event) => setStyle({ plinthLighting: event.target.checked })} />
-          {t.style.plinthLighting}
-        </label>
         <label className="flex cursor-pointer items-start gap-2 text-xs leading-relaxed text-zinc-700">
           <input type="checkbox" className="mt-0.5 size-4 accent-blue-600" checked={style.decor ?? false} onChange={(event) => setStyle({ decor: event.target.checked })} />
           {t.style.decor}

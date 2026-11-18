@@ -3,16 +3,16 @@ import { createDesign } from './designOps';
 import { newId } from './ids';
 import type { Design, ItemKind, KitchenItem } from './types';
 import { withModuleMaterials } from '../engine/settings';
-import type { PhotoReferenceId } from './photoReferences';
+import type { PairedPhotoId } from './photoReferences';
 
 /** Estimated, editable interpretations. The source photograph is never claimed to supply measurements. */
-export function createPhotoDesign(id: PhotoReferenceId, name: string, prefixes?: LabelPrefixes): Design {
+export function createPhotoDesign(id: PairedPhotoId, name: string, prefixes?: LabelPrefixes): Design {
   const design = createDesign(name);
   const items: KitchenItem[] = [];
   const add = (kind: ItemKind, values: Partial<KitchenItem>) => items.push(createItem(kind, items, values, prefixes));
   if (id === 'ivory-island') {
     design.room = { width: 5600, depth: 4200, height: 2700 };
-    design.style = { front: 'white', worktop: 'stone', handles: 'steel', appliances: 'steel', frontProfile: 'shaker', backsplash: 'stone', lighting: true, decor: true };
+    design.style = { front: 'white', worktop: 'stone', handles: 'steel', appliances: 'steel', frontProfile: 'shaker', backsplash: 'stone', decor: true };
     add('corner', { x: 0, y: 0 });
     add('corner', { x: 4700, y: 0, rotation: 90 });
     let x = 900;
@@ -29,9 +29,9 @@ export function createPhotoDesign(id: PhotoReferenceId, name: string, prefixes?:
     add('wall', { x: 5280, y: 2900, width: 800, rotation: 90 });
     add('bar', { x: 1900, y: 2100, width: 1800, depth: 850 });
     design.openings = [{ id: newId(), kind: 'window', wall: 'right', offset: 1500, width: 1400, height: 1300, sill: 1000 }];
-  } else {
+  } else if (id === 'warm-island') {
     design.room = { width: 4200, depth: 5200, height: 2800 };
-    design.style = { front: 'cream', worktop: 'marble', handles: 'brass', appliances: 'black', backsplash: 'marble', lighting: true, decor: true };
+    design.style = { front: 'cream', worktop: 'marble', handles: 'brass', appliances: 'black', backsplash: 'marble', decor: true };
     add('corner', { x: 0, y: 0, carcassFinish: 'walnut' });
     add('base', { x: 900, y: 0, width: 800, carcassFinish: 'walnut' });
     add('drawer', { x: 1700, y: 0, width: 600, carcassFinish: 'walnut' });
@@ -47,6 +47,8 @@ export function createPhotoDesign(id: PhotoReferenceId, name: string, prefixes?:
     add('wall', { x: 1700, y: 0, width: 600, carcassFinish: 'walnut' });
     add('bar', { x: 600, y: 3500, width: 2000, depth: 700 });
     design.openings = [{ id: newId(), kind: 'door', wall: 'top', offset: 3200, width: 900, height: 2100, sill: 0 }];
+  } else {
+    throw new Error(`No paired photo design for ${id satisfies never}`);
   }
   return { ...design, items, materials: withModuleMaterials(design.materials, items), referencePhoto: { kind: 'builtin', id } };
 }

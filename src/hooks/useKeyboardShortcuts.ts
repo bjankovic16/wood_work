@@ -3,6 +3,7 @@ import {
   deleteSelected,
   duplicateSelected,
   nudgeSelected,
+  nudgeRoomFeature,
   redo,
   rotateSelected,
   undo,
@@ -34,7 +35,7 @@ export function useKeyboardShortcuts(): void {
     const onKeyDown = (e: KeyboardEvent) => {
       if (isTyping(e.target)) return;
       const key = e.key.toLowerCase();
-      const { view, selectedId } = useUiStore.getState();
+      const { view, selectedId, roomSelection, roomOpen } = useUiStore.getState();
       // Undo and redo work everywhere; commands for the selected unit only where it can be seen.
       const unitKeys = view !== 'list' && !dialogOpen();
 
@@ -55,18 +56,24 @@ export function useKeyboardShortcuts(): void {
       if (e.altKey || !unitKeys) return;
 
       const hasSelection = selectedId !== null;
+      if (view === 'plan' && roomSelection?.type === 'feature' && e.key in ARROWS
+        && !(e.target instanceof Element && e.target.closest('[data-room-3d]'))) {
+        e.preventDefault();
+        const [right, up] = ARROWS[e.key];
+        const step = e.shiftKey ? 100 : 10;
+        nudgeRoomFeature(roomSelection.id, right * step, -up * step);
+        return;
+      }
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (!hasSelection) return;
         e.preventDefault();
         deleteSelected();
-      } else if (key === 'r') {
+      } else if (key === 'r' && view === 'plan' && !roomOpen) {
         rotateSelected(e.shiftKey ? -1 : 1);
       } else if (e.key === 'Escape') {
         const ui = useUiStore.getState();
-        if (ui.cabinetTool === 'resize') return;
-        if (ui.cabinetTool) ui.setCabinetTool(null);
-        else ui.select(null);
-      } else if (e.key in ARROWS && hasSelection && view === 'plan') {
+        if (!ui.cabinetTool) ui.select(null);
+      } else if (e.key in ARROWS && hasSelection && view === 'plan' && !roomOpen) {
         e.preventDefault();
         const step = e.shiftKey ? 100 : 10;
         const [right, up] = ARROWS[e.key];

@@ -15,7 +15,7 @@ import {
   type Placed,
 } from './geometry';
 import { clamp, roundTo } from './math';
-import { roomFeatureRect, roomOutline, roomWallRuns, type RoomWallRun } from './roomGeometry';
+import { roomFeaturePolygon, roomOutline, roomWallRuns, type RoomWallRun } from './roomGeometry';
 import type { KitchenItem, Point, Room, Rotation, Wall } from './types';
 import { normalizeAngle } from './polygons';
 import { mountingSegments, wallCoordinates, wallPoint } from './walls';
@@ -76,9 +76,7 @@ export function snapTargets(room: Room, others: readonly Placed[]): { xs: number
   const ys = [0, room.depth];
   for (const point of roomOutline(room)) { xs.push(point.x); ys.push(point.y); }
   for (const feature of room.features ?? []) {
-    const rect = roomFeatureRect(feature);
-    xs.push(rect.x, rect.x + rect.w);
-    ys.push(rect.y, rect.y + rect.h);
+    for (const point of roomFeaturePolygon(room, feature)) { xs.push(point.x); ys.push(point.y); }
   }
   for (const other of others) {
     for (const r of footprintRects(other)) {

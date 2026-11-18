@@ -4,7 +4,7 @@ import { newId } from '../domain/ids';
 import type { Design } from '../domain/types';
 import { currentMessages } from '../i18n';
 import { safeStorage } from '../lib/platform';
-import { useDesignStore } from './designStore';
+import { committedDesign, useDesignStore } from './designStore';
 import { useUiStore } from './uiStore';
 
 /**
@@ -77,7 +77,7 @@ export function flushSave(): void {
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = null;
   const { activeId } = useProjectsStore.getState();
-  const design = useDesignStore.getState().design;
+  const design = committedDesign(useDesignStore.getState());
   if (!activeId || design === savedDesign) return;
   storeDesign(activeId, design);
   savedDesign = design;
@@ -111,7 +111,9 @@ function show(id: string, design: Design): void {
   ui.select(null);
   ui.setWallElevation(null);
   ui.setLibraryDrag(null);
-  ui.setRoomOpen(false);
+  ui.setSelectedWallId(null);
+  ui.setWallEditing(false);
+  ui.setRoomOpen(design.items.length === 0);
   ui.setReferenceOpen(Boolean(design.referencePhoto));
   ui.requestCamera('perspective');
   saveIndex();
@@ -141,9 +143,13 @@ export function initProjects(): void {
     useDesignStore.getState().load(design);
     saveIndex();
   }
-  useUiStore.getState().setReferenceOpen(Boolean(useDesignStore.getState().design.referencePhoto));
+  const active = useDesignStore.getState().design;
+  const ui = useUiStore.getState();
+  ui.setSelectedWallId(null);
+  ui.setRoomOpen(active.items.length === 0);
+  ui.setReferenceOpen(Boolean(active.referencePhoto));
   useDesignStore.subscribe((state, previous) => {
-    if (state.design !== previous.design) scheduleSave();
+    if (committedDesign(state) !== committedDesign(previous)) scheduleSave();
   });
   if (typeof window !== 'undefined') {
     window.addEventListener('pagehide', flushSave);
@@ -221,7 +227,7 @@ export function importProject(raw: unknown): boolean {
 
 /** The design of a project, for exporting it. */
 export function projectDesign(id: string): Design | null {
-  if (id === useProjectsStore.getState().activeId) return useDesignStore.getState().design;
+  if (id === useProjectsStore.getState().activeId) return committedDesign(useDesignStore.getState());
   return loadDesign(id);
 }
 

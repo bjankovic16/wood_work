@@ -5,7 +5,7 @@ import { useT } from '../../i18n';
 interface NumberFieldProps {
   label: string;
   value: number;
-  onCommit: (value: number) => void;
+  onCommit: (value: number) => void | false;
   min?: number;
   max?: number;
   suffix?: string;
@@ -48,7 +48,7 @@ export function NumberField({
     if (parsed === null) return null;
     const factor = 10 ** precision;
     const next = Math.round(clamp(parsed, min, max) * factor) / factor;
-    if (next !== value) onCommit(next);
+    if (next !== value && onCommit(next) === false) return null;
     return next;
   };
 

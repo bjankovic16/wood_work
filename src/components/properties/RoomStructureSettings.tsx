@@ -1,7 +1,7 @@
-import { Plus, Trash2 } from 'lucide-react';
-import { MAX_ROOM_FEATURES, ROOM_CORNERS } from '../../domain/roomGeometry';
+import { ROOM_CORNERS } from '../../domain/roomGeometry';
+import { roomSegments } from '../../domain/walls';
 import { ROOM_EXAMPLES } from '../../domain/roomExamples';
-import type { RoomCorner, RoomCutout, RoomFeature, RoomFeatureKind } from '../../domain/types';
+import type { RoomCorner, RoomCutout, RoomFeature } from '../../domain/types';
 import { useT } from '../../i18n';
 import * as actions from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
@@ -9,16 +9,28 @@ import { Button, PanelSection } from '../ui';
 import { NumberField, SelectField } from './NumberField';
 import { useState } from 'react';
 
-const FEATURE_KINDS: readonly RoomFeatureKind[] = ['chimney', 'column', 'projection'];
-
 export function RoomFeatureFields({ feature }: { feature: RoomFeature }) {
   const t = useT();
   const room = useDesignStore((state) => state.design.room);
+  const [failed, setFailed] = useState(false);
+  const walls = roomSegments(room);
+  const wall = walls.find((s) => s.id === feature.wallId);
+  const edit = (operation: () => void) => {
+    try { operation(); setFailed(false); }
+    catch (error) { if (!(error instanceof RangeError)) throw error; setFailed(true); return false; }
+  };
+  const update = (patch: Partial<RoomFeature>) => edit(() => actions.updateRoomFeature(feature.id, patch));
   return <>
-    <NumberField label={t.roomStructure.width} value={feature.width} min={100} max={room.width} onCommit={(width) => actions.updateRoomFeature(feature.id, { width })} />
-    <NumberField label={t.roomStructure.depth} value={feature.depth} min={100} max={room.depth} onCommit={(depth) => actions.updateRoomFeature(feature.id, { depth })} />
-    <NumberField label={t.item.fromLeftWall} value={feature.x} min={0} max={room.width - feature.width} onCommit={(x) => actions.updateRoomFeature(feature.id, { x })} />
-    <NumberField label={t.item.fromTopWall} value={feature.y} min={0} max={room.depth - feature.depth} onCommit={(y) => actions.updateRoomFeature(feature.id, { y })} />
+    <SelectField label={t.roomStructure.alongWall} value={wall?.id ?? ''} options={[{ value: '', label: t.roomStructure.free }, ...walls.map((s, i) => ({ value: s.id, label: t.advancedRoom.wall(i + 1) }))]}
+      onChange={(wallId) => edit(() => actions.setRoomFeatureWall(feature.id, wallId || null))} />
+    <NumberField label={wall ? t.roomStructure.alongLength : t.roomStructure.width} value={feature.width} min={100} max={wall ? Math.floor(wall.length - (feature.offset ?? 0)) : room.width} onCommit={(width) => update({ width })} />
+    <NumberField label={wall ? t.roomStructure.projection : t.roomStructure.depth} value={feature.depth} min={100} max={wall ? Math.max(room.width, room.depth) : room.depth} onCommit={(depth) => update({ depth })} />
+    {wall ? <NumberField label={t.advancedRoom.offset} value={feature.offset ?? 0} min={0} max={Math.floor(wall.length - feature.width)} onCommit={(offset) => update({ offset })} />
+      : <>
+        <NumberField label={t.item.fromLeftWall} value={feature.x} min={0} max={room.width - feature.width} onCommit={(x) => update({ x })} />
+        <NumberField label={t.item.fromTopWall} value={feature.y} min={0} max={room.depth - feature.depth} onCommit={(y) => update({ y })} />
+      </>}
+    {failed && <p role="alert" className="text-xs text-red-700">{t.room.noSpace}</p>}
   </>;
 }
 
@@ -59,28 +71,6 @@ export function RoomStructureSettings() {
           {cut.kind === 'diagonal' && <p className="text-xs leading-relaxed text-zinc-600">{t.roomStructure.diagonalNote}</p>}
         </>
       )}
-      <details className="pt-2" open={room.features?.length ? true : undefined}>
-        <summary className="cursor-pointer rounded py-1 text-xs font-medium text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">{t.roomStructure.structures}</summary>
-        <div className="space-y-3 pt-2">
-          <p className="text-xs leading-relaxed text-zinc-600">{t.roomStructure.fullHeight}</p>
-          {(room.features ?? []).map((feature, index) => {
-            const name = `${t.engine.roomFeatures[feature.kind]} ${index + 1}`;
-            return (
-              <div key={feature.id} className="space-y-2 rounded-lg border border-zinc-200 p-3" data-room-feature={feature.id}>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-zinc-800">{name}</span>
-                  <Button aria-label={t.roomStructure.remove(name)} onClick={() => actions.removeRoomFeature(feature.id)}><Trash2 className="size-3.5" /></Button>
-                </div>
-                <RoomFeatureFields feature={feature} />
-              </div>
-            );
-          })}
-          <div className="flex flex-wrap gap-2">
-            {FEATURE_KINDS.map((kind) => <Button key={kind} variant="outline" disabled={(room.features?.length ?? 0) >= MAX_ROOM_FEATURES} onClick={() => actions.addRoomFeature(kind)}><Plus className="size-3.5" />{t.engine.roomFeatures[kind]}</Button>)}
-          </div>
-          {(room.features?.length ?? 0) >= MAX_ROOM_FEATURES && <p role="status" className="text-xs text-zinc-600">{t.roomStructure.limit}</p>}
-        </div>
-      </details>
       <details className="pt-2">
         <summary className="cursor-pointer rounded py-1 text-xs font-medium text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">{t.roomStructure.examplesTitle}</summary>
         <p className="py-2 text-xs leading-relaxed text-zinc-600">{t.roomStructure.examplesNote}</p>

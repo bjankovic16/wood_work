@@ -86,6 +86,9 @@ export interface RoomFeature {
   y: number;
   width: number;
   depth: number;
+  /** When attached, width runs along the segment and depth projects into the room. */
+  wallId?: string;
+  offset?: number;
 }
 
 export interface Room {

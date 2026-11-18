@@ -59,6 +59,10 @@ function woodTexture(color: string, across: boolean): THREE.CanvasTexture {
 export interface KitchenMaterials {
   wall: THREE.MeshStandardMaterial;
   floor: THREE.MeshStandardMaterial;
+  windowFrame: THREE.MeshStandardMaterial;
+  windowGlass: THREE.MeshStandardMaterial;
+  doorFrame: THREE.MeshStandardMaterial;
+  doorLeaf: THREE.MeshStandardMaterial;
   carcass: THREE.MeshStandardMaterial;
   front: THREE.MeshStandardMaterial;
   worktop: THREE.MeshStandardMaterial;
@@ -68,8 +72,6 @@ export interface KitchenMaterials {
   appliance: THREE.MeshStandardMaterial;
   dark: THREE.MeshStandardMaterial;
   displayGlass: THREE.MeshPhysicalMaterial;
-  light: THREE.MeshStandardMaterial;
-  floorGlow: THREE.MeshBasicMaterial;
   ceramic: THREE.MeshStandardMaterial;
   foliage: THREE.MeshStandardMaterial;
   pot: THREE.MeshStandardMaterial;
@@ -119,6 +121,13 @@ function finishMap(finish: Finish, across = false): THREE.CanvasTexture | null {
   return finish.wood ? woodTexture(finish.color, across) : finish.texture ? stoneTexture(finish) : null;
 }
 
+export function cabinetMaterial(key: FrontFinish, roughness?: number): THREE.MeshStandardMaterial {
+  const finish = FRONT_FINISHES[key];
+  return new THREE.MeshStandardMaterial({
+    color: finish.wood ? '#ffffff' : finish.color, map: finishMap(finish), roughness: roughness ?? (finish.wood ? 0.7 : 0.55),
+  });
+}
+
 function floorTileTexture(style: KitchenStyle): THREE.CanvasTexture {
   const color = style.floorColor ?? DEFAULT_FLOOR_COLOR;
   const grout = style.floorGroutColor ?? DEFAULT_FLOOR_GROUT_COLOR;
@@ -155,33 +164,13 @@ function floorTileTexture(style: KitchenStyle): THREE.CanvasTexture {
   return texture;
 }
 
-function floorGlowTexture(): THREE.CanvasTexture {
-  const cached = textures.get('plinth-light');
-  if (cached) return cached;
-  const canvas = document.createElement('canvas');
-  canvas.width = 4;
-  canvas.height = 64;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('The plinth lighting texture could not be created.');
-  const gradient = ctx.createLinearGradient(0, 0, 0, 64);
-  gradient.addColorStop(0, 'rgba(255,255,255,0.65)');
-  gradient.addColorStop(0.35, 'rgba(255,255,255,0.22)');
-  gradient.addColorStop(1, 'rgba(255,255,255,0)');
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, 4, 64);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  textures.set('plinth-light', texture);
-  return texture;
-}
-
 /** The shared materials for one style. Callers should dispose them when the style changes. */
 export function createMaterials(style: KitchenStyle, carcassFinish?: FrontFinish): KitchenMaterials {
-  const front = FRONT_FINISHES[style.front];
   const worktop = WORKTOP_FINISHES[style.worktop];
   const handle = HANDLE_STYLES[style.handles];
   const backsplash = BACKSPLASH_FINISHES[style.backsplash ?? 'none'];
-  const carcass: Finish = carcassFinish ? FRONT_FINISHES[carcassFinish] : { color: '#f3f2ee' };
+  const frame = (finish?: FrontFinish) => finish ? cabinetMaterial(finish) : new THREE.MeshStandardMaterial({ color: '#fafafa', roughness: 0.9 });
+  const pane = (color: string, opacity: number) => new THREE.MeshStandardMaterial({ color, transparent: true, opacity, roughness: 0.2, depthWrite: false });
   return {
     wall: new THREE.MeshStandardMaterial({ color: style.wallColor ?? DEFAULT_WALL_COLOR, roughness: 0.9 }),
     floor: new THREE.MeshStandardMaterial({
@@ -189,12 +178,12 @@ export function createMaterials(style: KitchenStyle, carcassFinish?: FrontFinish
       map: style.floorPattern === 'tiles' ? floorTileTexture(style) : null,
       roughness: style.floorPattern === 'tiles' ? 0.65 : 0.92,
     }),
-    carcass: new THREE.MeshStandardMaterial({ color: carcass.wood ? '#ffffff' : carcass.color, map: finishMap(carcass), roughness: 0.78 }),
-    front: new THREE.MeshStandardMaterial({
-      color: front.wood ? '#ffffff' : front.color,
-      map: finishMap(front),
-      roughness: front.wood ? 0.7 : 0.55,
-    }),
+    windowFrame: frame(style.windowFrame),
+    windowGlass: pane('#cfe6f5', 0.35),
+    doorFrame: frame(style.doorFrame),
+    doorLeaf: style.doorLeaf ? cabinetMaterial(style.doorLeaf) : pane('#cbb89c', 0.16),
+    carcass: carcassFinish ? cabinetMaterial(carcassFinish, 0.78) : new THREE.MeshStandardMaterial({ color: '#f3f2ee', roughness: 0.78 }),
+    front: cabinetMaterial(style.front),
     worktop: new THREE.MeshStandardMaterial({
       color: worktop.wood || worktop.texture ? '#ffffff' : worktop.color,
       map: finishMap(worktop, true),
@@ -208,8 +197,6 @@ export function createMaterials(style: KitchenStyle, carcassFinish?: FrontFinish
     appliance: new THREE.MeshStandardMaterial({ color: APPLIANCE_FINISHES[style.appliances ?? 'white'].color, metalness: style.appliances === 'steel' ? 0.55 : 0.15, roughness: 0.4 }),
     dark: new THREE.MeshStandardMaterial({ color: '#4a4c50', roughness: 0.6 }),
     displayGlass: new THREE.MeshPhysicalMaterial({ color: '#e3ece5', transparent: true, opacity: 0.23, roughness: 0.08, metalness: 0.08, depthWrite: false, side: THREE.DoubleSide }),
-    light: new THREE.MeshStandardMaterial({ color: '#ffe2ad', emissive: '#ffcb83', emissiveIntensity: 2, toneMapped: false }),
-    floorGlow: new THREE.MeshBasicMaterial({ color: '#ffd394', map: floorGlowTexture(), transparent: true, opacity: 0.65, depthWrite: false, toneMapped: false }),
     ceramic: new THREE.MeshStandardMaterial({ color: '#e4d7c3', roughness: 0.48 }),
     foliage: new THREE.MeshStandardMaterial({ color: '#63734b', roughness: 0.9 }),
     pot: new THREE.MeshStandardMaterial({ color: '#a66f51', roughness: 0.82 }),

@@ -17,7 +17,7 @@ export async function close3DTools(page) {
 
 /**
  * Waits until the 3D view has drawn nothing for `quietMs`, so a check of idle rendering does not count frames
- * from textures or lighting that are still arriving. A view that never stops drawing returns after `timeoutMs`
+ * from textures or camera updates that are still arriving. A view that never stops drawing returns after `timeoutMs`
  * and fails the idle check that follows.
  */
 export async function waitForIdleRendering(page, { quietMs = 300, timeoutMs = 5000 } = {}) {
@@ -35,6 +35,33 @@ export async function waitForIdleRendering(page, { quietMs = 300, timeoutMs = 50
     };
     poll();
   }), { quietMs, timeoutMs });
+}
+
+/** Check the rendered scene, not just its settings. The count also catches legacy LED/glow meshes. */
+export async function assertNeutralScene(page) {
+  const { meshes, ambient, effects } = await page.evaluate(() => {
+    const { renderer, scene } = window.__kitchen3D;
+    const effects = new Set();
+    let meshes = 0, ambient = false;
+    if (renderer.shadowMap.enabled) effects.add('shadow map');
+    if (scene.environment) effects.add('environment lighting rig');
+    scene.traverse((node) => {
+      if (node.isLight) {
+        if (node.isAmbientLight && node.color.getHex() === 0xffffff && node.intensity > 0) ambient = true;
+        else effects.add(node.type);
+      }
+      if (node.castShadow || node.receiveShadow) effects.add('shadow caster/receiver');
+      if (!node.isMesh) return;
+      meshes++;
+      for (const material of [node.material].flat()) {
+        if (material.emissive?.getHex() && material.emissiveIntensity > 0) effects.add('emissive surface');
+      }
+    });
+    return { meshes, ambient, effects: [...effects] };
+  });
+  assert.ok(meshes > 0 && ambient, 'Expected a model with neutral ambient illumination.');
+  assert.deepEqual(effects, [], 'The model must not include decorative lights, emissions or shadows.');
+  return meshes;
 }
 
 export async function cabinetBodyDrag(page, axis = 'X', distance = 0, id) {
@@ -139,4 +166,42 @@ export async function assertScenePlacement(page, id) {
   }, id);
   assert.ok(placement.actual.every((value, index) => Math.abs(value - placement.expected[index]) < 0.000001),
     `The rendered cabinet must match its saved placement: ${JSON.stringify(placement)}`);
+}
+
+/** A drag starting on the selected cabinet navigates the camera, never previews or commits a translation. */
+export async function assertBodyOrbits(page, id, touch = false) {
+  const design = () => page.evaluate(() => window.__kitchen.design.getState().design);
+  assert.equal(await page.getByRole('button', { name: 'Move cabinet', exact: true }).count(), 0);
+  assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().selectedId), id, 'orbit starts on the selected cabinet');
+  const { from, to } = await cabinetBodyDrag(page, 'X', 0.65, id);
+  // From a straight-down view pure azimuth spins around the pole with almost no position change.
+  const box = await page.locator('main canvas').boundingBox();
+  to.y = Math.max(box.y + 2, from.y - 36);
+  const before = await design();
+  const history = await page.evaluate(() => window.__kitchen.design.getState().past.length);
+  const camera = await page.evaluate(() => window.__kitchen3D.camera.matrixWorld.toArray());
+  const session = touch ? await page.context().newCDPSession(page) : null;
+  try {
+    if (session) {
+      await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [from] });
+      for (let step = 1; step <= 8; ++step) {
+        await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{
+          x: from.x + (to.x - from.x) * step / 8, y: from.y + (to.y - from.y) * step / 8,
+        }] });
+      }
+    } else {
+      await page.mouse.move(from.x, from.y);
+      await page.mouse.down();
+      await page.mouse.move(to.x, to.y, { steps: 8 });
+    }
+    await page.waitForFunction((initial) => window.__kitchen3D.camera.matrixWorld.toArray().some((v, i) => Math.abs(v - initial[i]) > 0.001), camera);
+    assert.deepEqual(await design(), before);
+    assert.equal(await page.evaluate(() => window.__kitchen.design.getState().gestureBase), null);
+    await assertScenePlacement(page, id);
+    if (session) await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    else await page.mouse.up();
+    assert.deepEqual(await design(), before);
+    assert.equal(await page.evaluate(() => window.__kitchen.design.getState().past.length), history);
+    await assertScenePlacement(page, id);
+  } finally { await session?.detach(); }
 }

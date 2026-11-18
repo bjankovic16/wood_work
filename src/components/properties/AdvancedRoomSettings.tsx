@@ -34,12 +34,7 @@ export function AdvancedRoomSettings() {
   const finishes: Array<WallTreatment['finish']> = [...Object.keys(FRONT_FINISHES) as Array<keyof typeof FRONT_FINISHES>, 'stone', 'marble', 'travertine', 'black'];
   return <PanelSection title={t.advancedRoom.title}>
     {failed && <p role="alert" className="rounded-lg bg-red-50 p-2 text-xs leading-relaxed text-red-800">{t.advancedRoom.invalid}</p>}
-    <SelectField label={t.room.wall} value={wall.id} options={outer.map((s, i) => ({ value: s.id, label: t.advancedRoom.wall(i + 1) }))}
-      onChange={(id) => useUiStore.getState().setSelectedWallId(id)} />
-    <NumberField label={t.advancedRoom.length} value={Math.round(wall.length)} min={100} max={20000}
-      onCommit={(length) => commit(() => actions.editRoomWall(wall.id, length, wall.angle))} />
-    <NumberField label={t.advancedRoom.angle} value={Math.round(wall.angle * 10) / 10} min={0} max={360} suffix="deg" precision={1}
-      onCommit={(angle) => commit(() => actions.editRoomWall(wall.id, wall.length, angle))} />
+    <p className="text-xs font-semibold">{t.advancedRoom.wall(outer.indexOf(wall) + 1)}</p>
     <p className="text-xs leading-relaxed text-stone-500">{t.advancedRoom.closure}</p>
     <div className="flex flex-wrap gap-2">
       <Button variant="outline" onClick={() => commit(() => actions.splitRoomWall(wall.id))}>{t.advancedRoom.split}</Button>

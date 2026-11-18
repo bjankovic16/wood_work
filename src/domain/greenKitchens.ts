@@ -2,6 +2,7 @@ import { CEILING_GAP, PLINTH_HEIGHT, createItem, type LabelPrefixes } from './ca
 import { createDesign } from './designOps';
 import { resizeFromAnchor } from './geometry';
 import type { KitchenPreset } from './kitchens';
+import type { CabinetPalette } from './kitchenLook';
 import type { FrontFinish, KitchenStyle } from './style';
 import type { Design, ItemKind, KitchenItem, Room } from './types';
 import { withModuleMaterials } from '../engine/settings';
@@ -9,9 +10,9 @@ import { withModuleMaterials } from '../engine/settings';
 export type GreenKitchen = 'vitrine' | 'compact' | 'walnut' | 'window';
 
 const palette = (front: FrontFinish, worktop: KitchenStyle['worktop'], wallColor: string, floorColor: string, tiled = false): KitchenStyle =>
-  ({ front, worktop, handles: 'none', backsplash: worktop === 'marble' ? 'marble' : 'travertine', appliances: 'black', lighting: true, decor: true, wallColor, floorColor, ...(tiled ? { floorPattern: 'tiles' } : {}) });
+  ({ front, worktop, handles: 'none', backsplash: worktop === 'marble' ? 'marble' : 'travertine', appliances: 'black', decor: true, wallColor, floorColor, ...(tiled ? { floorPattern: 'tiles' } : {}) });
 
-/** Original editable interpretations of olive cabinetry, timber uppers and illuminated displays. */
+/** Original editable interpretations of olive cabinetry, timber uppers and glass displays. */
 export const GREEN_KITCHENS = [
   { id: 'olive-oak-vitrine', green: 'vitrine', layout: 'l-shape', collection: 'dark', stacked: true, middleFinish: 'oak', room: { width: 4200, depth: 3600, height: 2700 }, style: palette('forest', 'oak', '#77746c', '#c8b99f', true) },
   { id: 'olive-oak-compact', green: 'compact', layout: 'l-shape', collection: 'warm', stacked: true, middleFinish: 'oak', room: { width: 3900, depth: 3600, height: 2700 }, style: palette('olive', 'walnut', '#ece7dd', '#b9946e') },
@@ -23,14 +24,14 @@ export const GREEN_KITCHENS = [
   { id: 'clay-oak-window', green: 'window', layout: 'straight', collection: 'japandi', stacked: true, middleFinish: 'oak', room: { width: 4200, depth: 3400, height: 2700 }, style: palette('clay', 'travertine', '#f0ede7', '#d8d0c4', true) },
 ] as const satisfies readonly KitchenPreset[];
 
-export function createGreenKitchen(variant: GreenKitchen, room: Room, style: KitchenStyle, timber: FrontFinish, name: string, prefixes?: LabelPrefixes): Design {
+export function createGreenKitchen(variant: GreenKitchen, room: Room, style: KitchenStyle, palette: CabinetPalette, name: string, prefixes?: LabelPrefixes): Design {
   const design = createDesign(name);
   const items: KitchenItem[] = [];
   const ceiling = room.height - CEILING_GAP;
   const middle = 1500;
   const seam = ceiling - 450;
   const add = (kind: ItemKind, patch: Partial<KitchenItem>) => {
-    const item = createItem(kind, items, { frontFinish: style.front, carcassFinish: style.front, ...patch }, prefixes);
+    const item = createItem(kind, items, { ...palette.base, ...patch }, prefixes);
     items.push(item);
     return item;
   };
@@ -42,7 +43,7 @@ export function createGreenKitchen(variant: GreenKitchen, room: Room, style: Kit
     const height = (ceiling - PLINTH_HEIGHT) / 3;
     for (let row = 0; row < 3; row++) add('glassWall', {
       x, y, rotation, width: 450, depth: 500, height, elevation: PLINTH_HEIGHT + row * height,
-      doors: 1, shelves: 1, carcassFinish: timber,
+      doors: 1, shelves: 1, ...palette.display,
     });
   };
   const run = (kinds: readonly ItemKind[], start: number, end: number, rotation = 0) => {
@@ -62,13 +63,14 @@ export function createGreenKitchen(variant: GreenKitchen, room: Room, style: Kit
   const uppers = (start: number, end: number, rotation = 0, openCorner = false) => {
     for (const [elevation, height] of [[middle, seam - middle], [seam, ceiling - seam]]) {
       const depth = elevation === middle ? 320 : 560;
+      const finish = elevation === middle ? palette.middle : palette.upper;
       const shelfWidth = openCorner ? 200 : 0;
-      if (shelfWidth) add('shelf', { x: start, y: 0, width: shelfWidth, depth, elevation, height, shelves: 2, frontFinish: timber, carcassFinish: timber });
+      if (shelfWidth) add('shelf', { x: start, y: 0, width: shelfWidth, depth, elevation, height, shelves: 2, ...finish });
       const count = Math.ceil((end - start - shelfWidth) / 600);
       const width = (end - start - shelfWidth) / count;
       for (let index = 0; index < count; index++) add('wall', {
         x: rotation ? 0 : start + shelfWidth + index * width, y: rotation ? start + index * width : 0,
-        rotation, width, depth, elevation, height, doors: 1, shelves: 1, frontFinish: timber, carcassFinish: timber,
+        rotation, width, depth, elevation, height, doors: 1, shelves: 1, ...finish,
       });
     }
   };
@@ -82,7 +84,7 @@ export function createGreenKitchen(variant: GreenKitchen, room: Room, style: Kit
     add('corner', { x: 0, y: 0 });
     for (const [elevation, height] of [[middle, seam - middle], [seam, ceiling - seam]]) add('corner', {
       x: 0, y: 0, width: 900, width2: 900, depth: elevation === middle ? 320 : 560,
-      elevation, height, frontFinish: timber, carcassFinish: timber,
+      elevation, height, ...(elevation === middle ? palette.middle : palette.upper),
     });
     if (variant === 'walnut') {
       tower('ovenTower', 0, 900, 270);

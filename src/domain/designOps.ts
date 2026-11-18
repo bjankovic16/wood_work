@@ -3,7 +3,7 @@ import { BAR_MATERIAL_ID, ELEVATION_LIMITS, GLASS_MATERIAL_ID, KIND_SPECS, MODUL
 import { clampToRoom, resizeFromAnchor } from './geometry';
 import { clamp } from './math';
 import { clampOpening } from './openings';
-import { normalizeRoom, parseRoom, ROOM_LIMITS } from './roomGeometry';
+import { featureFitsRoom, normalizeRoom, parseRoom, ROOM_LIMITS } from './roomGeometry';
 export { ROOM_LIMITS } from './roomGeometry';
 import { DEFAULT_STYLE, FRONT_FINISHES, parseStyle, type FrontFinish, type KitchenStyle } from './style';
 import { parsePhotoReference } from './photoReferences';
@@ -480,9 +480,11 @@ export function addOpening(design: Design, opening: Opening): Design {
 }
 
 /** A structure edit must not reposition cabinets or openings, even when they already have errors. */
-export function updateRoomFeature(design: Design, id: string, patch: Partial<Pick<RoomFeature, 'x' | 'y' | 'width' | 'depth'>>): Design {
+export function updateRoomFeature(design: Design, id: string, patch: Partial<Omit<RoomFeature, 'id' | 'kind'>>): Design {
   if (!design.room.features?.some((feature) => feature.id === id)) return design;
   const room = normalizeRoom({ ...design.room, features: design.room.features.map((feature) => feature.id === id ? { ...feature, ...patch } : feature) });
+  const feature = room.features!.find((f) => f.id === id)!;
+  if (!featureFitsRoom(room, feature)) throw new RangeError('Structure is outside the room.');
   return JSON.stringify(room) === JSON.stringify(design.room) ? design : { ...design, room };
 }
 

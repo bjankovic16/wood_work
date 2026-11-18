@@ -11,9 +11,9 @@ import {
   localToRoom,
 } from './geometry';
 import { openingObstacles } from './openings';
-import { roomFeatureRect, roomWallRuns } from './roomGeometry';
+import { roomFeaturePolygon, roomWallRuns } from './roomGeometry';
 import type { KitchenItem, Opening, Point, Room } from './types';
-import { angleBasis, polygonsOverlap, rectPolygon } from './polygons';
+import { angleBasis, polygonsOverlap } from './polygons';
 import { partitionPolygon, mountingSegments, wallPoint } from './walls';
 
 export type Placement = Pick<KitchenItem, 'x' | 'y' | 'rotation'>;
@@ -30,7 +30,7 @@ function obstaclesFor(item: KitchenItem, items: readonly KitchenItem[], room: Ro
   const bottom = item.elevation;
   const top = item.elevation + item.height;
   return [
-    ...(room.features ?? []).map((feature) => [rectPolygon(roomFeatureRect(feature))]),
+    ...(room.features ?? []).map((feature) => [roomFeaturePolygon(room, feature)]),
     ...(room.partitions ?? []).filter((p) => item.elevation < p.height && item.elevation + item.height > 0).map((p) => [partitionPolygon(p)]),
     ...items.filter((o) => o.id !== item.id && verticalOverlap(o, item)).map((o) => footprintPieces(o)),
     ...openingObstacles(room, openings)

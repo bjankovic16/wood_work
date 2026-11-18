@@ -1,35 +1,72 @@
-# Build a Kitchen Designer App – Drag & Drop + Automatic Cutting List
-
-Act as a senior full-stack engineer, product designer, and software architect.
-
-I want you to build a simple, modern, extremely easy-to-use web application that allows anyone to design a custom kitchen using drag-and-drop elements and automatically generates all measurements and wood pieces needed to manufacture that kitchen.
-
-The application should feel like a combination of IKEA Kitchen Planner and a very simple CAD tool, but much easier to use.
+# Kitchen Designer – Product Specification
 
 ## 1. Core concept
 
-The user should be able to:
-1. Create a new kitchen project.
-2. Define the dimensions of the room.
-3. Drag and drop kitchen cabinets and elements onto a 2D canvas.
-4. Resize and position every element.
-5. Customize cabinet dimensions.
-6. Automatically calculate all required measurements.
-7. Generate a complete wood cutting list.
-8. Export the result as a PDF or Excel file.
+Start with the user's measured room, not an example kitchen. The floor plan,
+inside wall elevations and interactive 3D view are three views of **one
+project in millimetres**. Move objects only on the 2D plan or inside wall
+elevation. In 3D the user can inspect, orbit, change appearance, preview
+fronts and resize a cabinet using dimension handles, but cannot reposition
+objects. Users can also fit an idea to an empty room or try a different look
+on existing furniture. Reopening a project must never replace it with a preset.
 
-The main goal is simplicity. A person without technical or engineering knowledge should be able to design a kitchen.
+There are three distinct outputs: an editable project file, a workshop cutting
+list (calculated from the construction settings), and a view-only 3D HTML
+file for a customer. The customer does not need the editor or the cutting list.
 
 ## 2. Main interface
 
-Create a clean, modern interface with three main areas:
+### My room: first screen, walls and openings
+
+- On a first visit and for a new project, open **My room** (**Moja prostorija**)
+  on the 2D plan. Show room measurements before suggesting kitchen ideas. On
+  return, resume the saved project and keep **My room** within reach.
+- On desktop, offer a 3D preview beside the plan. On a phone, **Plan / 3D**
+  switches views in the same workspace. Plan, elevation, 3D and inspector
+  share the selected wall, opening or structure; switching views neither
+  duplicates project data nor clears that selection. **Edit position in 2D**
+  returns from 3D to the plan or wall elevation with the selected object.
+- Number the clockwise perimeter segments **Wall 1**, **Wall 2**, etc.,
+  continuing past four for a notched or polygonal room. Numbers are labels
+  for the user, not attachment IDs. Mark the start of the selected wall.
+  Clicking or tapping its dimension opens numeric input. The dimension must
+  also be keyboard-focusable and activatable, with equivalent panel fields.
+  Label quantities **Wall length**, **Height to ceiling** and **From wall
+  start** rather than showing direction arrows without an origin.
+- A wall-length edit in a rectangle keeps the outline rectangular. For a
+  diagonal, drag a shared corner or enter length and angle. The end corner
+  and adjoining segment move; this is not a general constraint solver. Reject
+  degenerate or self-crossing outlines without replacing the last valid
+  geometry. Keep stable wall IDs and preserve the physical positions of
+  openings on import, including older offsets on the bottom and left walls.
+- Selecting a wall opens its **2D inside elevation** with **+ Window** and
+  **+ Door**. Drag an opening along the wall or enter its width, height and
+  distance from the marked start. A window also has a sill height above the
+  floor; a door always starts at floor level. Support angled segments and
+  either face of an interior partition.
+- A chimney can sit **against a wall**: enter its length along the wall, its
+  projection into the room and offset from the wall start. Free placement on
+  the plan is also possible. For an angled wall calculate contact on the real
+  segment and check the footprint against the actual polygon, not its bounding
+  box. In the 2D plan, arrow keys move a selected structure 10 mm;
+  Shift + arrow moves it 100 mm. Give the controls a short hint and provide
+  touch and numeric alternatives.
+- Select each new object immediately. Put its card **directly below the room
+  measurements** in the right inspector or the same section on a phone. Show
+  dimensions and clearances at the selected object in both 2D and 3D, not
+  labels on every object. Position fields are edited in 2D. Fixed structures
+  reserve space but are not cabinet parts; chimney geometry is not a fire/heat
+  clearance calculation.
+
+### Cabinet editor
+
+After room setup the editor has three main areas:
 
 **LEFT SIDEBAR – ELEMENT LIBRARY**
 
-A collection of draggable kitchen elements:
-
-The initial library shows eight most-used parts, with search and **Browse all
-parts** exposing the full catalogue. In 3D it collapses to **Add element**.
+Drag elements from the library onto the **2D plan**. The initial library
+shows eight most-used parts, with search and **Browse all parts** exposing
+the full catalogue.
 
 Base cabinets:
 - 300mm cabinet
@@ -66,10 +103,10 @@ Other elements:
 This is the main working area.
 
 Requirements:
-- 2D top-down or front-elevation kitchen design.
+- 2D top-down cabinet placement in the measured room.
 - Drag and drop elements from the sidebar.
 - Snap-to-grid functionality.
-- Move elements freely.
+- Move elements on the 2D plan, by mouse, touch or keyboard.
 - Resize elements.
 - Rotate elements when applicable.
 - Select and edit individual elements.
@@ -82,100 +119,9 @@ The plan initially labels floor units only. Other rows are faint, noninteractive
 outlines without labels, symbols or dimensions. Wall-unit mode defaults to one
 upper height band and allows selecting another band. **View** groups snapping,
 grid size and dimensions. One **Settings** dialog contains materials and
-construction. Phones keep selected-cabinet actions only in the bottom sheet,
-with touch controls at least 44 pixels high/wide.
+construction. On phones keep the selected cabinet's plan controls in a bottom
+sheet, with touch targets at least 44 pixels high/wide.
 
-Without a selection, room settings initially expose width, depth, ceiling height,
-windows and doors. Structures, wall geometry and expert help are behind one
-**Advanced room** disclosure. Gallery photographs precede explanatory content,
-with collection, layout and room-size filters grouped in one desktop row.
-
-The interface defaults to Serbian for a Serbian primary browser language,
-English otherwise; an explicitly saved language overrides detection.
-
-All dimensions should be displayed in millimeters.
-
-### Premium studio and advanced room editing
-
-- The desktop and phone editor use a consistent warm-neutral studio interface.
-  The image-led gallery contains 52 editable kitchens, including 18 original
-  warm contemporary, dark luxury and Japandi compositions inspired by public
-  Pinterest collections. Preview images are rendered from the actual preset
-  model; Pinterest photographs are not copied or rehosted.
-- Ten reference-inspired framed kitchens use hand-composed
-  cabinetry rather than generic starter runs. A continuous 600 mm deep
-  ceiling row and editable timber return panels surround recessed 320 mm
-  uppers. The examples include contrasting wood/stone backsplashes, black
-  appliances and an optional timber island. Their gallery images and initial
-  editor camera both use the front view. Dimensions are approximate design
-  choices; reference photographs are not embedded or claimed as measured plans.
-  Sage, terracotta and noir palettes complement walnut and ash island variants.
-  One composition reserves a full-height chimney bay beside all cabinet tiers;
-  structures are labelled and searchable in both languages. Chimney geometry
-  does not specify safe fire/heat clearances.
-- Gallery search combines translated names, finishes, styles and feature
-  labels, ignoring case and diacritics. Collection, layout and optional room
-  dimension filters combine; size checks include ceiling height and compare
-  width/depth without rotation. They do not promise polygon containment or
-  adapt a preset to the current room. Empty results explain recovery, and a
-  single reset clears all filters without changing the saved design.
-- Rooms support a closed, clockwise polygon with stable wall identities.
-  Individual wall lengths/angles and shared corners are editable. A wall edit
-  moves its end corner and the adjoining edge; it is not a constraint solver.
-  Self-crossing/degenerate geometry must not be committed. Existing rectangle,
-  notched and single-diagonal room projects remain readable.
-- Cabinets may rotate to arbitrary angles and align/snap to real wall segments.
-  Plan, 3D, collision checks, openings and exported plans use the same local
-  transforms and polygon geometry. Cabinet construction remains rectangular
-  or a right-angled L; custom mitred fabrication is outside this model.
-- Doors, windows, chimneys, columns and wall projections can be selected in 3D
-  by clicking their geometry or using the room-object selector. Translation
-  handles keep openings on their existing wall (including angled/partition
-  faces); windows can move vertically, while doors remain at floor level.
-  Structure handles move only the selected structure in X/Z and reject positions
-  outside the actual room polygon. Measurements and wall attachments remain
-  editable in a focused dialog. Drags support grid snapping, single-step Undo,
-  cancellation and touch, without repositioning cabinetry or resetting the
-  camera. Opening frames remain selectable when a nearby wall is hidden.
-- Selected cabinets have separate Move and Resize modes. Resize offers labelled
-  dimension selectors with live millimetre values and one local-axis handle,
-  including the second arm of corner cabinets. Drags preserve the back-left
-  anchor and elevation, respect catalog/grid limits, reject room-outline
-  excursions and cap height at the ceiling. Each mouse/touch drag is one Undo
-  step; interruption or Escape rolls back. Exact numeric editing remains available.
-- The everyday 3D controls (Style, the 3D/Front/Top views, Open all, Interior
-  view and Photo) live in a toolbar docked above the viewport, never over the
-  kitchen. **Tools** expands a docked panel with the rarely needed tools: the
-  selected-cabinet toolbar with handle-based Move and Resize, the list of room
-  objects and the instructions. Selecting a cabinet does not open that panel;
-  collapsing it cancels active manipulation. On phones the toolbar shows icons
-  only, and Interior view, Photo and Reset view move into the panel. A selected
-  door, window or structure shows its actions without opening the panel.
-- Cabinet bodies are moved by dragging them, with a small movement threshold to
-  distinguish selection from dragging. A mouse moves any cabinet at once and
-  outlines the cabinet under the pointer. A finger moves the selected cabinet
-  at once; on an unselected cabinet a swipe turns the view, and resting the
-  finger for about a third of a second picks the cabinet up instead, so
-  looking around can never rearrange the kitchen. A second finger (pinch or
-  pan) puts a cabinet that was being dragged back where it was.
-- The grabbed point stays under the pointer (no scaling of pointer travel).
-  The pointer is mapped onto the horizontal plane through the grabbed point
-  when the view is steep enough for that to be stable, and onto the upright
-  plane facing the camera otherwise: units grabbed near eye level and the Front
-  view slide sideways only. Which wall a unit belongs to is decided from the
-  middle of its footprint, as on the plan; a unit stays on its wall until it is
-  pulled clear of it and never turns onto the adjacent wall by being slid into
-  a corner. The snap distance follows the 3D zoom, not the plan's.
-- While a cabinet is dragged or nudged, the free distance on each side to the
-  next unit or wall at the same height is shown along the floor (or along the
-  underside of a wall unit). Free space in front of a unit is shown up to
-  1600 mm.
-- Selection exposes local width, height and depth resize arrows while the Tools
-  panel is closed (the depth arrow adjusts the second arm on corner units).
-  Arrows share the selection colour; each points the way it resizes. Direct
-  movement preserves elevation, reuses plan placement/snapping and records one
-  Undo step. Pointer interruption, Escape or project changes cannot commit a
-  partial move.
 - Interior partitions have independent endpoints, thickness and height.
   Both faces are usable; collisions take the cabinet's vertical range into
   account. Wall panels and backsplash runs have a wall attachment, finish,
@@ -189,8 +135,10 @@ All dimensions should be displayed in millimeters.
 - Elevation-based row selection remains independent of that shortcut: manually
   arranged designs may have more upper rows, and full-height displays stay
   visible across every row they span.
-- Project format version 5 retains old project import support and persists
-  polygon walls, arbitrary cabinet angles, partitions and visual treatments.
+- Cabinets may rotate to arbitrary angles and snap to real wall segments.
+  Plan, elevations, 3D, collision checks, openings, saved projects and exported
+  plans use the same geometry. Cabinet construction remains rectangular or a
+  right-angled L; custom mitres require separate fabrication drawings.
 
 **RIGHT SIDEBAR – PROPERTIES**
 
@@ -206,7 +154,8 @@ When selecting a cabinet, show:
 - Door type
 - Edge banding configuration
 
-All properties should update the design immediately.
+Show the effect of valid property edits when the user commits a value. Keep
+placement fields in 2D, including when the selection came from the 3D view.
 
 The cutting-list screen leads with material totals and export; the plan and
 cabinet drawings sit in a collapsed overview below the list. Supplier/appliance,
@@ -214,41 +163,143 @@ glass, front-profile, handleless-system and chimney-clearance confirmations are
 neutral pre-cutting reminders, not problem badges or canvas warning outlines.
 Collisions and actionable design/manufacturing warnings remain visible problems.
 
-The 3D toolbar includes a view-only **Interior view** toggle, off by default.
-It hides cabinet fronts and replaces solid bodies with panel carcasses, configured
-shelves, hollow corner compartments and schematic drawer boxes. Appliances remain
-closed; their internal mechanisms and supplier fittings are not modelled.
-Changing this view never changes project data, Undo history or cutting quantities.
-Selecting a cabinet also shows a labelled 44px **Move** hand button and, for
-units with fronts, an **Open**/**Close** button. Hold and drag the hand to move
-the unit with existing snapping and Undo, independently of resize arrows.
-Double-clicking a cabinet or pressing **Open** animates its fronts open or
-closed with an eased, time-based motion: doors swing 108 degrees, drawers slide
-out in a cascade (lower drawers further than upper ones, each starting a moment
-after the one above) so every drawer box is visible. **Open all** in the
-toolbar opens or closes every such unit at once. Animation invalidates only
-until settled, is skipped under `prefers-reduced-motion`, and never changes
-project data or cutting quantities.
-Clicking the hand opens arrow buttons in a card over the desktop viewport or in
-the phone's selected-element bottom menu, with 10/50/100 mm steps. The arrows
-and the keyboard's arrow keys move the unit the way they point on screen: the
-camera's heading is snapped to the nearest room axis.
-Opening one cabinet moves the camera to a three-quarter view sized to the
-cabinet with its fronts open: from above for floor units, from eye level for
-wall and tall units, on the side nearer the middle of the room. Closing the
-last open cabinet returns the camera to where it was before. Camera changes
-the user asks for (view buttons, focus, opening) glide for about half a second
-around the point looked at; the first view and room-size changes are immediate.
-A view the user has turned by hand is kept when the window changes size.
+### Ideas: fitting a room versus changing a look
 
-An empty project opens with a start panel showing three kitchens from the
-collection as pictures. **Shuffle ideas** deals three others, going through the
-whole collection before repeating any; the panel also offers the full gallery
-and an empty room. On screens under 640 px high the pictures are left out so
-the panel never covers the plan's own controls. The gallery has a **Shuffle**
-button that shows the designs in a new random order (Reset filters restores the
-collection order), and the Style picker has **Shuffle look**, which applies
-another of the collection's finish combinations in one Undo step.
+The gallery, ideas shown after taking room measurements, and **Next kitchen**
+must use the same apply command. The decision depends on the number of
+**kitchen elements**, not the presence of room objects:
+
+1. **Empty of kitchen elements:** derive a proposal from the idea's runs,
+   characteristic cabinets and upper rows. Use the user's real wall segments
+   and the space available at each cabinet's elevation; account for door and
+   window openings, sill heights, chimneys, partitions, diagonals and island
+   passage. Reserve at least 900 mm on all four sides of a proposed island.
+   Use allowed cabinet widths and fillers, not scaled-down appliances or
+   coordinates copied from the original kitchen.
+   - For an L, preview the main wall and **left or right return** before applying
+     it. Facing the main wall from inside, the left return joins its marked
+     start and the right return its end. Use the chosen main segment and its
+     adjacent return; do not silently switch walls or mirror the room, its
+     openings or its obstacles.
+   - If the fit needs adjustments, identify resized or omitted elements and
+     show the changes before acceptance. If no valid arrangement fits, explain
+     the blocking constraint. Do not insert overlapping units, partially apply
+     a rejected proposal or substitute the example room.
+2. **At least one kitchen element:** transfer only the visual finishes. Preserve
+   every item's identity, kind, position, dimensions, rotation and elevation.
+   Do not add a missing upper row or island, reorient an existing L, remove
+   furniture or recalculate its layout.
+
+Both paths retain the project name, room geometry, openings, structures and
+fabrication rules. A fitted layout generates parts for the **new** cabinets.
+Changing only the appearance must leave the **existing** cutting list unchanged.
+
+Apply the look by role: base cabinets, towers, upper rows, island and visible
+side panels. Both **Apply to my kitchen** and **Shuffle look** set fronts, profile,
+carcasses, handles, worktop and visible room joinery (window frames, door frames
+and door leaves). Update existing per-unit finishes as well as common defaults;
+do not flatten a two-tone design into one finish or leave the old per-unit
+colour on top. Plinths follow cabinet fronts; preserve wall paint, floor finishes
+and existing cladding. Finishes remain manually editable. They are distinct from
+the purchased boards, thicknesses, edge bands, manual part edits and extra pieces.
+
+**Open original in a separate project** opens the exact example, including
+its prepared room, as a new project. Keep the user's current project saved.
+Generate gallery thumbnails from these originals, not from a fit to whichever
+room happens to be open. The 60 designs include
+the Warm contemporary, Dark luxury and Japandi collections, framed kitchens
+and stacked uppers. Search translated names, finishes, styles and features
+without requiring accents. The optional gallery size filter compares original
+width, depth and ceiling height. Passing a filter is not a fit check.
+Searching, shuffling the gallery order and resetting filters must not edit a
+project.
+
+### Editing and previewing in 3D
+
+- Dock **3D / Front / Top**, **Style**, cabinet previews and **Next kitchen**
+  above the viewport. **Tools** includes room objects, help and customer export.
+  Click or tap a cabinet, wall, opening or structure to select it. Mouse
+  drags and touch swipes on the background **or an object's body** orbit the
+  camera; scroll or pinch to zoom. This holds even when the object is already
+  selected or **Resize** is active. There is no 3D translation mode, move
+  handle, nudge shortcut or numeric position control that moves an object.
+- **Resize** is the exception for **dimensions**, not position: only a drag
+  starting on a selected cabinet's dedicated width, height, depth or corner-arm
+  handle changes its size. Show live measurements, keep its back anchor and
+  elevation, and respect cabinet limits, ceiling and room outline. A body
+  drag must neither resize nor translate the cabinet.
+- Display room-object measurements at the 3D selection; keep opening frames
+  selectable when a nearby wall is cut away. For a change of position, hand
+  off to **2D**: place cabinets and structures on the plan or adjust an
+  opening along its wall and a window's sill in the wall elevation. A
+  camera gesture over a chimney, window or door cannot move it.
+- **Open/Close** previews an individual cabinet (double-click also works);
+  doors swing and drawers extend in a cascade. The camera frames the open
+  cabinet and returns after the last closes. **Open all** previews the whole
+  kitchen. **Interior view** hides fronts to reveal carcasses, shelves and
+  drawer boxes, not the internals of appliances. Lock resizing of open
+  cabinets and during Interior view. These preview controls do not
+  change the project, Undo history or cutting list. Respect reduced motion.
+- **Undo** (**Korak unazad**) is visible in the room and kitchen editors and
+  uses one shared design history. A 2D move, 3D handle resize, committed
+  measurement or applied idea that changes the design is **one** step.
+  Release uses the final pointer position; Escape or interrupted touch
+  cancels the gesture. Cancellation, orbiting
+  and a gesture with no change do not add history.
+- During a **2D plan** drag, update the position, snapping and relevant obstacle
+  feedback as the pointer moves. Coalesce frequent input to at most one update
+  per animation frame; do full design checks and persistence at commit, not
+  on every pointer event. Keep 3D rendering on demand when idle.
+- Use **neutral, even lighting** throughout the editor, finished-kitchen view,
+  rendered model thumbnails and customer viewer. Preserve material and glass
+  legibility without cast shadows, directional effects, LED strips or floor
+  reflections. Do not offer controls for these effects or restore them from
+  an older project. Do not retouch original reference photographs.
+
+### Photo studio
+
+Keep the **Photo studio** (**Foto studio**) tab in Kitchen designs, but no
+**Photo/Foto shortcut in 3D**, including under Tools. Distinguish:
+
+- **Reference photograph:** a bundled image with its own author credit,
+  original source and terms allowing that use. A reference-only photo can
+  be compared with the current kitchen without changing the model. Terms
+  for one photograph are not a licence for other images.
+- **Curated source link:** include the warm contemporary, dark oak and
+  walnut, and Japandi Pinterest collections as inspiration. If permission to
+  bundle a photograph is not established, link to the original page; do not
+  download or hotlink the image. A source link does not imply a corresponding model.
+- **3D interpretation:** offer an original photo with its own editable model
+  only where a model exists. Open that interpretation in a separate project;
+  its layout and dimensions are estimates, not an automatic conversion from a
+  photograph.
+
+Users can still attach their own permitted images locally and compare them
+with their kitchen. Preserve saved references on reopen and in editable
+project files; omit them from the customer presentation.
+
+### Customer presentation
+
+In the full editor's **3D → Tools**, **Export 3D for customer (.html)** saves
+one self-contained HTML file. The customer opens the file locally, drags to
+orbit, scrolls or pinches to zoom, and can reset the initial view. No install,
+account or hosted project is required. The file must make no external network
+requests, including to a CDN. This is a presentation of the finished kitchen,
+not a CAD or manufacturing export.
+
+- Embed the finished room and closed cabinets, materials and textures as
+  binary glTF (GLB, **1000 mm = 1 m**), together with a locally bundled
+  Three.js viewer. Include every physical wall and element, even those hidden by
+  the editor camera or a layer filter. Cut away near walls as the viewer
+  orbits so it can look inside; use a starting view of the whole kitchen.
+- Generate from project geometry, not editing overlays or development hooks;
+  load the exporter on demand. Escape the project name in the page title and
+  use a safe filename. Exclude selection, manipulation handles, measurements,
+  uploaded reference photos, prices, cutting lists and the internal project
+  JSON. No separate `.glb` file should be needed.
+- Embed a static image of the kitchen and an explanation for browsers without
+  working interactive 3D. Neither the model nor the fallback needs the editor
+  or a server to display.
 
 ## 3. Automatic cabinet calculations
 
@@ -297,7 +348,9 @@ groups pair these diagrams with cut tables and overall width/height/depth.
 Manual panel edits do not change the cabinet diagram. Extra pieces appear in
 both groupings, and warnings remain available for review before cutting.
 
-Whenever a cabinet is added or modified, automatically regenerate its components.
+Derive cabinet components from their geometry and construction rules. A
+change of visual finish alone must not alter cut quantities or sizes, or
+invalidate manual part edits.
 
 The cutting list should contain:
 
@@ -333,7 +386,10 @@ Implement:
 
 ## 6. Design and UX
 
-The interface should be extremely simple.
+Use Serbian (Latin script) for a Serbian primary browser language and English
+otherwise; remember the user's explicit choice. Keep room measurements,
+object editing, idea previews and customer export usable on desktop and
+phone in both languages.
 
 Design inspiration:
 - Linear
@@ -371,40 +427,43 @@ Create reusable components and a well-structured codebase.
 
 Most importantly, all measurements and cutting calculations must be handled by deterministic TypeScript functions, NOT by AI or LLM-generated calculations.
 
-## 8. Development approach
+## 8. Acceptance checks
 
-Do not attempt to build everything in one giant component.
+Run `npm test` for geometry, placement and cutting-list rules. Use the
+following scenarios for the complete flow; check desktop and phone layouts
+and both interface languages. See the [README](../README.md#running-it) for
+the browser suites and prerequisites.
 
-Build the application in logical phases:
-
-Phase 1:
-- Main interface.
-- Kitchen canvas.
-- Drag-and-drop cabinet library.
-- Add, move, resize, and delete cabinets.
-- Room dimensions.
-
-Phase 2:
-- Cabinet construction logic.
-- Automatic panel calculations.
-- Editable cabinet properties.
-- Cutting list generation.
-
-Phase 3:
-- Door and drawer configurations.
-- Material management.
-- Edge banding.
-- Validation.
-
-Phase 4:
-- PDF and Excel exports.
-- Project saving and loading.
-- Polish and usability improvements.
-
-Start by implementing Phase 1 and make it fully functional.
-
-After completing each phase, test the functionality before moving forward.
-
-Do not create fake buttons or placeholder functionality. Every visible control should work.
-
-Do not overcomplicate the application. Prioritize simplicity, correctness, and usability.
+1. **Measure and reopen:** start a project, edit Wall 2 on the drawing, add
+   a window in its elevation and place a chimney. Move the selection in 2D
+   by mouse, touch and keyboard; compare the card, plan and 3D measurements.
+   Try a diagonal and an invalid outline, then save and reopen. Check a legacy
+   project with bottom/left wall openings. Room browser suites:
+   `npm run e2e:room-workspace` and `npm run e2e:rooms`.
+2. **Fit versus style:** in a room with obstacles but no cabinets, preview and
+   try both returns of an L on the same main wall. Check fit adjustments and
+   a refusal where no valid proposal exists. In a furnished room, compare
+   IDs, geometry, manual part edits and cutting-list output before and after
+   applying an idea. Check the visible cabinet and joinery finishes; restore
+   them with one Undo. `npm run e2e:ideas` exercises both returns and the
+   furnished-room path. Verify original gallery models separately from fits.
+3. **2D move, 3D camera and Undo:** repeat the same mouse and touch placement
+   on the `chimney-frame` **plan**, including release, cancellation and
+   re-selection. Use `npm run profile:move` to compare frame times and update
+   counts on the same device. Full checks and saves should be deferred during
+   placement; a completed change should add one history entry. In full 3D,
+   drag across selected and unselected cabinets and room objects, including
+   in cabinet Resize mode. Verify the camera changes, but positions, sizes and
+   history do not. Then drag a dimension handle: only that dimension changes;
+   one Undo restores it. Check that 3D stops rendering at rest. Use
+   `npm run e2e:resize` for cabinet handle and camera-gesture regressions.
+4. **Studio and lighting:** compare a credited reference and an uploaded one
+   from Photo studio, revisit a saved reference and follow a link-only source.
+   Check for neutral lighting in the editor, original-model thumbnails and
+   finished preview, including on loading old lighting settings. Do not expect
+   a Photo shortcut in 3D or a model for every source.
+5. **Customer file:** `npm run e2e:customer` opens the actual downloaded HTML
+   as a local file in a clean browser context with the network disabled.
+   Check orbit, zoom, reset, material textures, physical scale, walls behind
+   the editor camera, and absence of editor/project data and reference photos.
+   Disable WebGL to check the static image and explanation.

@@ -7,6 +7,7 @@ import { replaceItem } from '../../domain/designOps';
 import { localToRoom } from '../../domain/geometry';
 import type { Design, KitchenItem } from '../../domain/types';
 import { useDesignStore } from '../../store/designStore';
+import { pointerFrame } from '../../lib/pointerFrame';
 import { useUiStore } from '../../store/uiStore';
 import { HANDLE_COLOR } from './gizmoStyle';
 
@@ -142,6 +143,7 @@ export function CabinetResize({ item, overlay, onStart, onReady, onCancel, onBlo
       const start = gesture.current;
       if (!start) return;
       gesture.current = null;
+      frame.cancel();
       const store = useDesignStore.getState();
       if (store.gestureBase === start.design) {
         if (cancel) store.cancelGesture();
@@ -186,7 +188,7 @@ export function CabinetResize({ item, overlay, onStart, onReady, onCancel, onBlo
         onBlocked(false);
         invalidate();
     };
-    const move = (event: PointerEvent) => {
+    const frame = pointerFrame((event) => {
       const start = gesture.current;
       if (!start) {
         const field = event.target === element ? arrowAt(event) : null;
@@ -200,6 +202,12 @@ export function CabinetResize({ item, overlay, onStart, onReady, onCancel, onBlo
       if (event.pointerId !== start.pointerId) return;
       const store = useDesignStore.getState();
       if (store.gestureBase !== start.design) { cancel(); return; }
+      if (event.clientX === start.x && event.clientY === start.y) {
+        // A tap (or a return to the start) mustn't snap an off-grid dimension.
+        onBlocked(false);
+        store.apply((design) => replaceItem(design, start.item));
+        return;
+      }
       const point = start.plane ? rayAt(event.clientX, event.clientY).ray.intersectPlane(start.plane, new THREE.Vector3()) : null;
       if (start.plane && !point) return;
       const delta = point ? point.sub(start.point).dot(start.axis) * 1000
@@ -209,9 +217,16 @@ export function CabinetResize({ item, overlay, onStart, onReady, onCancel, onBlo
       const next = cabinetResize(start.item, start.field, value, store.design.room, ui.snapEnabled ? ui.gridSize : 0);
       onBlocked(next === null);
       if (next) store.apply((design) => replaceItem(design, next));
-      invalidate();
+    });
+    const move = (event: PointerEvent) => {
+      const start = gesture.current;
+      if (start) {
+        if (event.pointerId !== start.pointerId) return;
+        event.stopPropagation();
+      } else if (event.cancelBubble || event.target !== element && !hovered.current) return;
+      frame.move(event);
     };
-    const up = (event: PointerEvent) => { if (event.pointerId === gesture.current?.pointerId) finish(false); };
+    const up = (event: PointerEvent) => { if (event.pointerId === gesture.current?.pointerId) { frame.release(event); finish(false); } };
     const lostCapture = (event: PointerEvent) => { if (event.pointerId === gesture.current?.pointerId) cancel(); };
     const secondPointer = (event: PointerEvent) => { if (gesture.current && event.pointerId !== gesture.current.pointerId) cancel(); };
     const key = (event: KeyboardEvent) => { if (event.key === 'Escape') { cancel(); onCancel(); } };
@@ -223,7 +238,7 @@ export function CabinetResize({ item, overlay, onStart, onReady, onCancel, onBlo
     const click = (event: MouseEvent) => { if (ownedPress) event.stopImmediatePropagation(); };
     element.addEventListener('pointerdown', down, true);
     element.addEventListener('click', click, true);
-    window.addEventListener('pointermove', move);
+    window.addEventListener('pointermove', move, true);
     window.addEventListener('pointerup', up);
     window.addEventListener('pointerdown', secondPointer);
     window.addEventListener('pointercancel', cancel);
@@ -237,7 +252,7 @@ export function CabinetResize({ item, overlay, onStart, onReady, onCancel, onBlo
       unsubscribe();
       element.removeEventListener('pointerdown', down, true);
       element.removeEventListener('click', click, true);
-      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointermove', move, true);
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointerdown', secondPointer);
       window.removeEventListener('pointercancel', cancel);
@@ -246,6 +261,7 @@ export function CabinetResize({ item, overlay, onStart, onReady, onCancel, onBlo
       window.removeEventListener('keydown', key);
       document.removeEventListener('visibilitychange', visibility);
       cancel();
+      frame.cancel();
       element.style.cursor = '';
     };
   }, [camera, controls, gl, size.height, invalidate, onStart, onReady, onCancel, onBlocked]);

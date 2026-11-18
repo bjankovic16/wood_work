@@ -39,7 +39,14 @@ export function pointInPolygon(p: Point, polygon: readonly Point[]): boolean {
 }
 
 export function segmentsCross(a: Point, b: Point, c: Point, d: Point): boolean {
-  return cross(a, b, c) * cross(a, b, d) < -0.0001 && cross(c, d, a) * cross(c, d, b) < -0.0001;
+  // Test signed distances, not the product of two cross products: a long
+  // cabinet edge can meet a sloped wall within machine precision at one end.
+  const straddles = (p: Point, q: Point, r: Point, s: Point) => {
+    const eps = 1e-7 * Math.hypot(q.x - p.x, q.y - p.y);
+    const x = cross(p, q, r), y = cross(p, q, s);
+    return (x < -eps && y > eps) || (x > eps && y < -eps);
+  };
+  return straddles(a, b, c, d) && straddles(c, d, a, b);
 }
 
 /** Split candidate edges at boundary contacts so concave notches cannot be bridged. */

@@ -13,7 +13,7 @@ import { createDesign, parseDesign } from './designOps';
 import { localToRoom, verticalOverlap } from './geometry';
 import { createKitchenDesign, KITCHEN_DESIGNS } from './kitchens';
 import type { Opening } from './types';
-import { backsplashTop, canStackCabinet, exposedCabinetUnderside, inUpperRow, planCabinetAbove, upperCabinetRows, planThreeTier, DEFAULT_THREE_TIER } from './upperCabinets';
+import { backsplashTop, canStackCabinet, inUpperRow, planCabinetAbove, upperCabinetRows, planThreeTier, DEFAULT_THREE_TIER } from './upperCabinets';
 
 const room = { width: 4000, depth: 3200, height: 2600 };
 
@@ -189,7 +189,7 @@ describe('stacked upper cabinetry', () => {
   });
 });
 
-describe('upper row visibility and lighting', () => {
+describe('upper row visibility and backsplashes', () => {
   const lower = createItem('wall', [], { elevation: 1600, height: 600 });
   const upper = createItem('wall', [lower], { elevation: 2200, height: 400 });
   const display = createItem('glassWall', [], { x: 600, elevation: 1600, height: 1000 });
@@ -207,18 +207,6 @@ describe('upper row visibility and lighting', () => {
     expect(inUpperRow(lower, rows[1])).toBe(false);
     expect(inUpperRow(upper, rows[0])).toBe(false);
     expect(rows.every((row) => inUpperRow(display, row))).toBe(true);
-  });
-
-  it('does not draw an under-cabinet strip through the touching lower row', () => {
-    expect(exposedCabinetUnderside(upper, [lower, upper])).toBe(false);
-    expect(exposedCabinetUnderside(lower, [lower, upper])).toBe(true);
-    expect(exposedCabinetUnderside({ ...upper, depth: 560 }, [lower, upper])).toBe(true);
-  });
-
-  it('recognizes two narrower cupboards that together cover an upper unit', () => {
-    const left = { ...lower, width: 300 };
-    const right = { ...lower, id: 'right', x: 300, width: 300 };
-    expect(exposedCabinetUnderside(upper, [left, right, upper])).toBe(false);
   });
 
   it('extends the backsplash to the real lowest cupboard rather than the hood or top tier', () => {

@@ -3,9 +3,11 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { checkDesign } from '../engine/checks';
 import { buildCuttingList } from '../engine/cuttingList';
-import { parseDesign } from './designOps';
-import { createKitchenDesign, FRAMED_KITCHENS, hasLook, KITCHEN_DESIGNS, KITCHEN_LOOKS, kitchenCategory, type KitchenPreset } from './kitchens';
-import { CEILING_GAP, hasWorktop, WORKTOP_THICKNESS } from './catalog';
+import { createDesign, parseDesign, setPartEdit, setStyle } from './designOps';
+import { applyKitchenLook, createKitchenDesign, FRAMED_KITCHENS, KITCHEN_DESIGNS, KITCHEN_LOOK_PRESETS, kitchenCategory, type KitchenPreset } from './kitchens';
+import { kitchenLook } from './kitchenLook';
+import type { Design, KitchenItem } from './types';
+import { CEILING_GAP, createItem, hasWorktop, WORKTOP_THICKNESS } from './catalog';
 import { PREMIUM_KITCHENS } from './premiumKitchens';
 import { en } from '../i18n/en';
 import { sr } from '../i18n/sr';
@@ -155,11 +157,12 @@ describe('kitchen inspiration designs', () => {
     }
   });
 
-  it('includes every premium module in the collection and uses warm lighting and stone backsplashes', () => {
+  it('includes every premium module and stone backsplashes without obsolete lighting options', () => {
     const kinds = new Set(KITCHEN_DESIGNS.flatMap((preset) => createKitchenDesign(preset, '').items.map((item) => item.kind)));
     for (const kind of ['pullOut', 'glassWall', 'ovenTower', 'integratedFridge', 'hood', 'hob', 'bar', 'tall'] as const) expect(kinds.has(kind)).toBe(true);
     for (const preset of KITCHEN_DESIGNS) {
-      expect(preset.style.lighting).toBe(true);
+      expect(preset.style).not.toHaveProperty('lighting');
+      expect(preset.style).not.toHaveProperty('plinthLighting');
       expect(preset.style.backsplash).not.toBe('none');
     }
   });
@@ -234,17 +237,99 @@ describe('kitchen inspiration designs', () => {
 });
 
 describe('looks for "Shuffle look"', () => {
-  it('offers every finish combination of the collection once', () => {
-    expect(KITCHEN_LOOKS.length).toBeGreaterThan(20);
-    expect(new Set(KITCHEN_LOOKS.map((look) => JSON.stringify(look))).size).toBe(KITCHEN_LOOKS.length);
-    for (const kitchen of KITCHEN_DESIGNS as readonly KitchenPreset[]) {
-      expect(KITCHEN_LOOKS.filter((look) => hasLook(kitchen.style, look))).toHaveLength(1);
+  const preset = (id: string) => KITCHEN_DESIGNS.find((idea) => idea.id === id)!;
+  const effective = (design: Design) => design.items.map((item) => [item.frontFinish ?? design.style.front, item.carcassFinish]);
+  const nonVisual = ({ frontFinish: _front, carcassFinish: _carcass, ...item }: KitchenItem) => item;
+
+  it('deals every distinct role palette once, not just distinct global fronts and worktops', () => {
+    const key = (idea: KitchenPreset) => JSON.stringify(kitchenLook(idea));
+    const allLooks = new Set(KITCHEN_DESIGNS.map(key));
+    expect(KITCHEN_LOOK_PRESETS).toHaveLength(allLooks.size);
+    expect(new Set(KITCHEN_LOOK_PRESETS.map(key))).toEqual(allLooks);
+    const walnut = preset('noir-salon'), ash = preset('graphite-penthouse');
+    expect(walnut.style.front).toBe(ash.style.front);
+    expect(walnut.style.worktop).toBe(ash.style.worktop);
+    expect(key(walnut)).not.toEqual(key(ash));
+  });
+
+  it('reproduces the actual finishes of every pictured model, even over pre-existing individual overrides', () => {
+    for (const idea of KITCHEN_DESIGNS) {
+      const original = createKitchenDesign(idea, 'Reference');
+      expect(applyKitchenLook(original, idea), idea.id).toBe(original);
+      const restyled = applyKitchenLook({
+        ...original, items: original.items.map((item) => ({ ...item, frontFinish: 'navy', carcassFinish: 'clay' })),
+      }, idea);
+      expect(effective(restyled), idea.id).toEqual(effective(original));
+      expect(applyKitchenLook(restyled, idea)).toBe(restyled);
     }
   });
 
-  it('recognises a look whatever the lighting and decoration', () => {
-    const look = KITCHEN_LOOKS[0];
-    expect(hasLook({ ...look, lighting: false, decor: true, plinthLighting: true, frontProfile: 'shaker' }, look)).toBe(true);
-    expect(hasLook({ ...look, front: look.front === 'oak' ? 'white' : 'oak' }, look)).toBe(false);
+  it('matches made-to-measure rows, tall units, islands and side panels without adding a missing row', () => {
+    const design = createDesign('Different room');
+    design.items = [
+      createItem('base', [], { x: 700 }), createItem('ovenTower', [], { x: 1600 }),
+      createItem('shelf', [], { x: 700, elevation: 1330, height: 515 }),
+      createItem('wall', [], { x: 700, elevation: 1845, height: 600 }),
+      createItem('endPanel', [], { x: 1300, elevation: 853, height: 992 }),
+      createItem('drawer', [], { x: 1250, y: 1700, rotation: 30 }),
+    ];
+    const stone = applyKitchenLook(design, preset('stone-frame'));
+    expect(effective(stone)).toEqual(['oak', 'cashmere', 'cream', 'cashmere', 'oak', 'oak'].map((f) => [f, f]));
+    const ash = applyKitchenLook(stone, preset('ash-frame-island'));
+    expect(effective(ash)).toEqual(['sand', 'sand', 'ash', 'sand', 'ash', 'ash'].map((f) => [f, f]));
+    expect(ash.items.map(nonVisual)).toEqual(design.items.map(nonVisual));
+    const singleRow = applyKitchenLook({ ...ash, items: ash.items.filter((item) => item.kind !== 'wall') }, preset('olive-window-wall'));
+    expect(singleRow.items).toHaveLength(5);
+    expect(effective(singleRow)[2]).toEqual(['oak', 'oak']);
+    const glassStack = applyKitchenLook({ ...design, items: [
+      createItem('glassWall', [], { elevation: 1300, height: 515 }), createItem('wall', [], { elevation: 1815 }),
+    ] }, preset('stone-frame'));
+    expect(effective(glassStack)).toEqual([['cream', 'cream'], ['cashmere', 'cashmere']]);
+    const plain = applyKitchenLook(ash, preset('nordic-light'));
+    expect(plain.items.every((item) => !item.frontFinish && !item.carcassFinish)).toBe(true);
+    expect(effective(setStyle(plain, { front: 'navy' }))[0][0]).toBe('navy');
+  });
+
+  it('preserves room, openings, production rules, manual cut parts and project metadata', () => {
+    const design = createKitchenDesign(preset('chimney-frame'), 'Measured kitchen');
+    design.openings = [
+      { id: 'my-door', kind: 'door', wall: 'left', offset: 1400, width: 900, height: 2100, sill: 0 },
+      { id: 'my-window', kind: 'window', wall: 'bottom', offset: 123, width: 800, height: 900, sill: 871 },
+    ];
+    design.room.treatments = [{ id: 'my-cladding', wallId: 'bottom', offset: 0, width: 800, elevation: 900, height: 500, finish: 'ash' }];
+    design.style = { ...design.style, wallColor: '#abd012', floorColor: '#bee123', floorPattern: 'tiles', floorTileSize: 400, floorGroutColor: '#666666', decor: false };
+    const unit = design.items.find((item) => item.kind === 'drawer')!;
+    unit.carcassMaterial = 'particleboard-white-16';
+    unit.frontMaterial = 'mdf-oak-19';
+    const part = buildCuttingList(design).units.find(({ item }) => item.id === unit.id)!.parts[0];
+    design.customParts = [{ id: 'extra', name: 'Keep', length: 309, width: 122, quantity: 3, materialId: 'mdf-18', note: '', edgeBandId: null, edgesLength: 0, edgesWidth: 0 }];
+    const before = setPartEdit(design, unit.id, part.key, { length: 629, quantity: 1 });
+    const original = structuredClone(before);
+    const idea = preset('olive-oak-vitrine');
+    const after = applyKitchenLook(before, { ...idea, style: { ...idea.style, frontProfile: 'shaker', handles: 'brass', lighting: true, plinthLighting: true } });
+    expect(before).toEqual(original);
+    for (const key of ['name', 'room', 'openings', 'galleryPresetId', 'materials', 'edgeBands', 'construction', 'customParts', 'partEdits'] as const) {
+      expect(after[key]).toBe(before[key]);
+    }
+    expect(after.items.map(nonVisual)).toEqual(before.items.map(nonVisual));
+    expect(after.style).toMatchObject({ frontProfile: 'shaker', handles: 'brass', worktop: 'oak', windowFrame: 'oak', doorFrame: 'oak', doorLeaf: 'forest',
+      wallColor: '#abd012', floorColor: '#bee123', floorPattern: 'tiles', floorTileSize: 400, floorGroutColor: '#666666', decor: false });
+    expect(after.style.lighting || after.style.plinthLighting).toBeFalsy();
+    const cuts = (d: Design) => {
+      const { rows, units, extra, edges, materials, cost } = buildCuttingList(d);
+      return { rows, units: units.map(({ parts }) => parts), extra, edges, materials, cost };
+    };
+    expect(cuts(after)).toEqual(cuts(before));
+    expect(parseDesign(JSON.parse(JSON.stringify(after)))).toEqual(after);
+    expect(applyKitchenLook(after, preset('ash-frame-island')).style.frontProfile).toBe('flat');
+  });
+
+  it('round-trips independently chosen joinery without imposing new finishes on old files', () => {
+    const old = createDesign();
+    expect(parseDesign(old)?.style).toEqual(old.style);
+    const manual = setStyle(old, { windowFrame: 'navy', doorFrame: 'walnut', doorLeaf: 'eucalyptus' });
+    expect(parseDesign(JSON.parse(JSON.stringify(manual)))).toEqual(manual);
+    expect(parseDesign({ ...manual, style: { ...manual.style, windowFrame: 'not-a-finish', doorLeaf: 'constructor' } })?.style)
+      .toEqual({ ...old.style, doorFrame: 'walnut' });
   });
 });

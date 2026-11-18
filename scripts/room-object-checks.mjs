@@ -1,318 +1,205 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { movementHandle, open3DTools } from './three-test-helpers.mjs';
+import { waitForIdleRendering } from './three-test-helpers.mjs';
 
-const toolName = 'kitchen-room-move-tool';
 const design = (page) => page.evaluate(() => window.__kitchen.design.getState().design);
 const history = (page) => page.evaluate(() => window.__kitchen.design.getState().past.length);
+const tapOrClick = (locator, touch) => touch ? locator.tap() : locator.click();
 
-async function clickObject(page, name, touch = false) {
-  const point = await page.evaluate((name) => {
-    const { scene, camera } = window.__kitchen3D;
-    scene.updateMatrixWorld(true);
+async function drag(page, from, to, touch, cancel = false) {
+  if (touch) {
+    const cdp = await page.context().newCDPSession(page);
+    try {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...from, id: 1 }] });
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ ...to, id: 1 }] });
+      await cdp.send('Input.dispatchTouchEvent', { type: cancel ? 'touchCancel' : 'touchEnd', touchPoints: [] });
+    } finally { await cdp.detach(); }
+  } else {
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(to.x, to.y, { steps: 6 });
+    if (cancel) await page.keyboard.press('Escape');
+    await page.mouse.up();
+  }
+}
+
+async function dragDrawing(page, target, dx, dy, touch, cancel = false) {
+  const { from, to } = await target.evaluate((node, delta) => {
+    const rect = node.getBoundingClientRect();
+    const matrix = node.ownerSVGElement.getScreenCTM();
+    const from = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+    return { from, to: { x: from.x + delta.dx * matrix.a, y: from.y + delta.dy * matrix.d } };
+  }, { dx, dy });
+  await drag(page, from, to, touch, cancel);
+}
+
+async function setField(root, name, value) {
+  const field = root.getByLabel(name, { exact: true });
+  await field.fill(String(value));
+  await field.press('Enter');
+}
+
+async function assert3DIsReadOnly(page, id, type, touch) {
+  const before = await design(page), count = await history(page);
+  const viewport = page.getByTestId('three-viewport');
+  await page.waitForFunction(({ type, id }) => Boolean(window.__kitchen3D?.scene.getObjectByName(`room-${type}-${id}`)), { id, type });
+  await page.getByTestId('room-readout-3d').waitFor();
+  assert.equal(await page.getByTestId('room-3d').locator('input').count(), 0);
+  assert.equal(await page.getByRole('button', { name: 'Move room object', exact: true }).count(), 0);
+  assert.equal(await page.evaluate(() => Boolean(window.__kitchen3D.scene.getObjectByName('kitchen-room-move-tool'))), false);
+  const projectSurface = () => viewport.evaluate((view, { type, id }) => {
+    const { camera, scene } = window.__kitchen3D;
     camera.updateMatrixWorld(true);
-    const object = scene.getObjectByName(name);
-    if (!object) throw new Error(`Missing room object ${name}`);
-    const point = object.getWorldPosition(camera.position.clone()).project(camera);
-    const rect = document.querySelector('main canvas').getBoundingClientRect();
-    return { x: rect.x + (point.x + 1) * rect.width / 2, y: rect.y + (1 - point.y) * rect.height / 2 };
-  }, name);
+    const at = scene.getObjectByName(`room-${type}-${id}`).getWorldPosition(camera.position.clone());
+    // The lower half of the rear door is seen through the foreground window in this fixture.
+    const door = type === 'opening' && window.__kitchen.design.getState().design.openings.find((o) => o.id === id && o.kind === 'door');
+    if (door) at.y += 0.35 * door.height / 1000;
+    at.project(camera);
+    const rect = view.querySelector('canvas').getBoundingClientRect();
+    return { x: rect.left + rect.width * (1 + at.x) / 2, y: rect.top + rect.height * (1 - at.y) / 2 };
+  }, { id, type });
+  await page.getByRole('button', { name: 'Deselect room object' }).click();
+  await page.getByTestId('room-readout-3d').waitFor({ state: 'detached' });
+  await waitForIdleRendering(page);
+  const point = await projectSurface();
   if (touch) await page.touchscreen.tap(point.x, point.y);
   else await page.mouse.click(point.x, point.y);
-  await page.getByRole('group', { name: 'Selected room object actions' }).waitFor();
+  await page.waitForFunction(({ id, type }) => {
+    const selection = window.__kitchen.ui.getState().roomSelection;
+    return selection?.id === id && selection?.type === type;
+  }, { id, type }, { timeout: 5000 }).catch(async (error) => {
+    console.error('3D pick missed', { id, type, point }, await page.evaluate(({ x, y }) => {
+      const { roomSelection, selectedWallId } = window.__kitchen.ui.getState();
+      return { roomSelection, selectedWallId, hit: document.elementFromPoint(x, y)?.tagName, camera: window.__kitchen3D.camera.position.toArray() };
+    }, point));
+    throw error;
+  });
+  await page.getByTestId('room-readout-3d').waitFor();
+  await waitForIdleRendering(page);
+  const from = await projectSurface();
+  const camera = await page.evaluate(() => window.__kitchen3D.camera.position.toArray());
+  await drag(page, from, { x: from.x + 36, y: from.y - 12 }, touch);
+  await page.waitForFunction((initial) => window.__kitchen3D.camera.position.toArray().some((n, i) => Math.abs(n - initial[i]) > 0.001), camera);
+  await page.keyboard.press('Shift+ArrowRight');
+  assert.deepEqual(await design(page), before);
+  assert.equal(await history(page), count, '3D gestures and keys must not change room geometry or history');
 }
 
-async function assertRoomObject(page, type, id) {
-  const actual = await page.evaluate(async ({ type, id }) => {
-    const { scene } = window.__kitchen3D;
-    const value = window.__kitchen.design.getState().design;
-    const object = scene.getObjectByName(`room-${type}-${id}`);
-    let expected;
-    if (type === 'feature') {
-      const feature = value.room.features.find((entry) => entry.id === id);
-      expected = [(feature.x + feature.width / 2) / 1000, value.room.height / 2000, (feature.y + feature.depth / 2) / 1000];
-    } else {
-      const { openingFrame, wallPoint } = await import('/src/domain/walls.ts');
-      const opening = value.openings.find((entry) => entry.id === id);
-      const centre = wallPoint(openingFrame(value.room, opening), opening.offset + opening.width / 2);
-      expected = [centre.x / 1000, (opening.sill + opening.height / 2) / 1000, centre.y / 1000];
-    }
-    return { position: object.position.toArray(), expected };
-  }, { type, id });
-  assert.ok(actual.position.every((number, index) => Math.abs(number - actual.expected[index]) < 0.000001), JSON.stringify(actual));
-}
-
-/**
- * Puts the mouse on a room-object arrow and returns where the arrow is once the pointer rests there. Hovering
- * highlights the arrow and draws a frame, and that frame lets the camera finish its last fraction of a pan. Seen
- * exactly from above, that can flip an arrow to the other side of the object, so aim again where it now is.
- */
-async function aimHandle(page, axis, distance) {
-  let target = await movementHandle(page, axis, distance, toolName);
-  for (let attempt = 0; attempt < 3; attempt++) {
-    await page.mouse.move(target.from.x, target.from.y);
-    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-    const next = await movementHandle(page, axis, distance, toolName);
-    const settled = Math.hypot(next.from.x - target.from.x, next.from.y - target.from.y) < 0.5;
-    target = next;
-    if (settled) break;
-  }
-  await page.mouse.move(target.from.x, target.from.y);
-  return target;
-}
-
-async function dragHandle(page, axis, distance, touch = false) {
-  if (touch) {
-    const handle = await movementHandle(page, axis, distance, toolName);
-    const session = await page.context().newCDPSession(page);
-    await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: handle.from.x, y: handle.from.y }] });
-    for (let step = 1; step <= 12; step++) {
-      await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: handle.from.x + (handle.to.x - handle.from.x) * step / 12, y: handle.from.y + (handle.to.y - handle.from.y) * step / 12 }] });
-    }
-    await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    await session.detach();
-  } else {
-    const handle = await aimHandle(page, axis, distance);
-    await page.mouse.down();
-    await page.mouse.move(handle.to.x, handle.to.y, { steps: 12 });
-    await page.mouse.up();
-  }
-}
-
-export async function roomObjectChecks(page, output, observe) {
-  console.log('Direct 3D doors, windows and structures');
+export async function workspaceObjectChecks(page, touch = false, three = true) {
   await page.evaluate(async () => {
     const { createDesign } = await import('/src/domain/designOps.ts');
-    const { createItem } = await import('/src/domain/catalog.ts');
-    const fixture = createDesign('Room object movement');
-    fixture.room = { width: 5000, depth: 4000, height: 2700, features: [
-      { id: 'moving-chimney', kind: 'chimney', x: 2000, y: 1200, width: 450, depth: 450 },
-      { id: 'moving-column', kind: 'column', x: 3800, y: 2600, width: 350, depth: 350 },
-      { id: 'moving-projection', kind: 'projection', x: 0, y: 2700, width: 400, depth: 700 },
+    const d = createDesign('Measured room');
+    d.room = { width: 4000, depth: 3200, height: 2700, vertices: [
+      { id: 'sloping', x: 0, y: 0 }, { id: 'east', x: 4000, y: 1000 }, { id: 'south', x: 4000, y: 3200 }, { id: 'west', x: 0, y: 3200 },
     ] };
-    fixture.openings = [
-      { id: 'moving-window', kind: 'window', wall: 'top', offset: 700, width: 1000, height: 900, sill: 1000 },
-      { id: 'moving-door', kind: 'door', wall: 'top', offset: 3200, width: 900, height: 2050, sill: 0 },
+    d.openings = [
+      { id: 'legacy-window', kind: 'window', wall: 'bottom', offset: 300, width: 900, height: 800, sill: 900 },
+      { id: 'legacy-door', kind: 'door', wall: 'left', offset: 900, width: 800, height: 2050, sill: 0 },
     ];
-    fixture.items = [createItem('base', [], { x: 0, y: 0 })];
-    window.__kitchen.design.getState().load(fixture);
+    window.__kitchen.design.getState().load(d);
     const ui = window.__kitchen.ui.getState();
-    ui.select(null); ui.setView('3d'); ui.setReferenceOpen(false); ui.setRoomOpen(false); ui.setSnapEnabled(true); ui.setGridSize(50); ui.requestCamera('front');
+    ui.setLanguage('en'); ui.setSelectedWallId(null); ui.setRoomOpen(true); ui.setSnapEnabled(true); ui.setGridSize(10);
   });
-  await page.waitForFunction(() => Boolean(window.__kitchen3D?.scene.getObjectByName('room-opening-moving-window')));
-  await open3DTools(page);
-  await page.waitForTimeout(500);
-  const tools = page.getByRole('group', { name: 'Selected room object actions' });
-  await clickObject(page, 'room-opening-moving-window');
-  await tools.getByText('Window 1', { exact: true }).waitFor();
-  assert.equal(await page.getByRole('dialog').count(), 0);
-  await tools.getByRole('button', { name: 'Move room object', exact: true }).click();
-  for (const [axis, distance] of [['X', 0.45], ['Y', 0.3]]) {
-    assert.equal(await tools.getByRole('button', { name: 'Move room object', exact: true }).getAttribute('aria-pressed'), 'true', `Room movement must remain active before the ${axis} drag.`);
-    const before = await design(page);
-    const count = await history(page);
-    await dragHandle(page, axis, distance);
-    assert.equal(await tools.getByRole('button', { name: 'Move room object', exact: true }).getAttribute('aria-pressed'), 'true', 'Room movement must remain active after releasing a handle.');
-    const after = await design(page);
-    assert.ok(after.openings[0][axis === 'X' ? 'offset' : 'sill'] > before.openings[0][axis === 'X' ? 'offset' : 'sill']);
-    assert.deepEqual(after.items, before.items);
-    assert.deepEqual(after.room, before.room);
-    assert.equal(await history(page), count + 1);
-    await assertRoomObject(page, 'opening', 'moving-window');
-    await page.getByRole('button', { name: 'Undo', exact: true }).click();
-    assert.deepEqual(await design(page), before);
-    await assertRoomObject(page, 'opening', 'moving-window');
-    await page.getByRole('button', { name: 'Redo', exact: true }).click();
-    assert.deepEqual(await design(page), after);
-  }
-  await tools.getByRole('button', { name: 'Move room object', exact: true }).click();
-  await clickObject(page, 'room-opening-moving-door');
-  await tools.getByText('Door 1', { exact: true }).waitFor();
-  await tools.getByRole('button', { name: 'Move room object', exact: true }).click();
-  const doorBefore = await design(page);
-  await dragHandle(page, 'X', -0.5);
-  assert.ok((await design(page)).openings[1].offset < doorBefore.openings[1].offset);
-  assert.equal((await design(page)).openings[1].sill, 0);
-  await assertRoomObject(page, 'opening', 'moving-door');
-  console.log('  PASS physical window/door picking and real handle drags update wall offsets and window height with one-step Undo/Redo');
-
-  await tools.getByRole('button', { name: 'Move room object', exact: true }).click();
-  await page.getByRole('group', { name: '3D camera' }).getByRole('button', { name: 'Top', exact: true }).click();
-  await page.waitForTimeout(400);
-  await clickObject(page, 'room-feature-moving-chimney');
-  await tools.getByRole('button', { name: 'Move room object', exact: true }).click();
-  const canvas = await page.locator('main canvas').boundingBox();
-  await page.mouse.move(canvas.x + canvas.width * 0.8, canvas.y + canvas.height * 0.8);
-  await page.mouse.down({ button: 'right' });
-  await page.mouse.move(canvas.x + canvas.width * 0.8 + 30, canvas.y + canvas.height * 0.8 - 20, { steps: 8 });
-  await page.mouse.up({ button: 'right' });
-  let previousCamera = await page.evaluate(() => window.__kitchen3D.camera.position.toArray());
-  let settled = 0;
-  for (let attempt = 0; attempt < 150 && settled < 3; attempt++) {
-    await page.waitForTimeout(100);
-    const position = await page.evaluate(() => window.__kitchen3D.camera.position.toArray());
-    settled = position.every((value, index) => Math.abs(value - previousCamera[index]) < 0.000001) ? settled + 1 : 0;
-    previousCamera = position;
-  }
-  assert.equal(settled, 3, 'Camera pan damping must settle before checking that object movement preserves the view.');
-  for (const axis of ['X', 'Z']) {
-    const before = await design(page);
-    const count = await history(page);
-    const cameraBefore = await page.evaluate(() => window.__kitchen3D.camera.position.toArray());
-    await dragHandle(page, axis, 0.4);
-    const after = await design(page);
-    assert.ok(after.room.features[0][axis === 'X' ? 'x' : 'y'] > before.room.features[0][axis === 'X' ? 'x' : 'y']);
-    assert.deepEqual(after.items, before.items);
-    assert.deepEqual(after.openings, before.openings);
-    assert.equal(await history(page), count + 1);
-    const cameraAfter = await page.evaluate(() => window.__kitchen3D.camera.position.toArray());
-    assert.ok(cameraAfter.every((value, index) => Math.abs(value - cameraBefore[index]) < 0.01), `Moving a structure must preserve the viewer’s camera position: ${JSON.stringify({ cameraBefore, cameraAfter })}`);
-    await assertRoomObject(page, 'feature', 'moving-chimney');
-    await page.getByRole('button', { name: 'Undo', exact: true }).click();
-    assert.deepEqual(await design(page), before);
-    await assertRoomObject(page, 'feature', 'moving-chimney');
-  }
-  for (const interruption of ['pointercancel', 'blur', 'Escape']) {
-    const before = await design(page);
-    const count = await history(page);
-    const handle = await aimHandle(page, 'X', 0.4);
-    await page.mouse.down();
-    await page.mouse.move(handle.to.x, handle.to.y, { steps: 12 });
-    assert.notDeepEqual(await design(page), before);
-    if (interruption === 'Escape') await page.keyboard.press('Escape');
-    else await page.evaluate((type) => window.dispatchEvent(new Event(type)), interruption);
-    await page.mouse.up();
-    assert.deepEqual(await design(page), before);
-    assert.equal(await history(page), count);
-    assert.equal(await page.evaluate(() => window.__kitchen3D.scene.getObjectByName('room-feature-moving-chimney').position.x), (before.room.features[0].x + 225) / 1000);
-    await page.getByLabel('Doors, windows & structures', { exact: true }).selectOption('feature:moving-chimney');
-    await tools.getByRole('button', { name: 'Move room object', exact: true }).click();
-  }
-  console.log('  PASS structures move independently in X/Z, and interrupted gestures restore data, geometry and history');
-
-  await tools.getByRole('button', { name: 'Move room object', exact: true }).click();
-  for (const [id, name] of [['moving-column', 'Column 2'], ['moving-projection', 'Wall projection 3']]) {
-    await clickObject(page, `room-feature-${id}`);
-    await tools.getByText(name, { exact: true }).waitFor();
-    await tools.getByRole('button', { name: 'Move room object', exact: true }).click();
-    const before = await design(page);
-    await dragHandle(page, 'X', 0.25);
-    assert.notDeepEqual((await design(page)).room.features, before.room.features);
-    await assertRoomObject(page, 'feature', id);
-    await tools.getByRole('button', { name: 'Move room object', exact: true }).click();
-  }
-  await tools.getByRole('button', { name: 'Edit room object measurements', exact: true }).click();
-  const editor = page.getByRole('dialog');
-  await editor.getByLabel('From left wall', { exact: true }).fill('650');
-  await editor.getByLabel('From left wall', { exact: true }).press('Enter');
-  await editor.getByRole('button', { name: 'Done', exact: true }).click();
-  assert.equal((await design(page)).room.features[2].x, 650);
-  await page.screenshot({ path: path.join(output, 'room-object-3d-tools.png') });
-  const saved = await design(page);
-  await page.waitForTimeout(500);
-  await page.reload();
-  await page.waitForSelector('canvas');
-  assert.deepEqual(await design(page), saved);
-  console.log('  PASS columns/projections use the same controls, exact measurements apply, and all placements survive reload');
-
-  const phoneContext = await page.context().browser().newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
-  try {
-    const phone = await phoneContext.newPage();
-    observe(phone);
-    await phone.goto(page.url(), { waitUntil: 'domcontentloaded' });
-    await phone.waitForSelector('canvas');
-    await phone.evaluate((fixture) => {
-      window.__kitchen.design.getState().load(fixture);
-      window.__kitchen.ui.getState().setLanguage('en');
-      window.__kitchen.ui.getState().setView('3d');
-      window.__kitchen.ui.getState().requestCamera('top');
-    }, saved);
-    await phone.waitForFunction(() => Boolean(window.__kitchen3D?.scene.getObjectByName('room-feature-moving-chimney')));
-    await touchRoomObjectChecks(phone, output);
-  } finally {
-    await phoneContext.close();
-  }
-
-  await page.evaluate(async () => {
-    const { createDesign } = await import('/src/domain/designOps.ts');
-    const value = createDesign('Angled opening');
-    value.room = { width: 4000, depth: 3200, height: 2700, vertices: [
-      { id: 'diagonal', x: 0, y: 0 }, { id: 'east', x: 4000, y: 1000 }, { id: 'south', x: 4000, y: 3200 }, { id: 'west', x: 0, y: 3200 },
-    ] };
-    value.openings = [{ id: 'angled-window', kind: 'window', wall: 'top', wallId: 'diagonal', offset: 1000, width: 1000, height: 900, sill: 1000 }];
-    window.__kitchen.design.getState().load(value);
-    window.__kitchen.ui.getState().setView('3d');
-    window.__kitchen.ui.getState().requestCamera('front');
-  });
-  await page.waitForFunction(() => Boolean(window.__kitchen3D?.scene.getObjectByName('room-opening-angled-window')));
-  await open3DTools(page);
-  await page.waitForTimeout(300);
-  await page.getByLabel('Doors, windows & structures', { exact: true }).selectOption('opening:angled-window');
-  await tools.getByRole('button', { name: 'Move room object', exact: true }).click();
-  const angledBefore = await design(page);
-  await dragHandle(page, 'X', 0.4);
-  assert.ok((await design(page)).openings[0].offset > angledBefore.openings[0].offset);
-  assert.equal((await design(page)).openings[0].wallId, 'diagonal');
-  await assertRoomObject(page, 'opening', 'angled-window');
-  await tools.getByRole('button', { name: 'Edit room object measurements', exact: true }).click();
-  await page.getByRole('dialog').getByLabel('Along wall', { exact: true }).fill('0');
-  await page.getByRole('dialog').getByLabel('Along wall', { exact: true }).press('Enter');
-  await page.getByRole('dialog').getByRole('button', { name: 'Done', exact: true }).click();
-  const noOpBefore = await design(page);
-  const noOpHistory = await history(page);
-  await dragHandle(page, 'X', -0.4);
-  assert.deepEqual(await design(page), noOpBefore);
-  assert.equal(await history(page), noOpHistory);
-  await assertRoomObject(page, 'opening', 'angled-window');
-  console.log('  PASS local-axis drags preserve diagonal wall attachments and clamped no-op moves leave geometry/history unchanged');
-
-  await page.evaluate(async () => {
-    const { createDesign } = await import('/src/domain/designOps.ts');
-    const value = createDesign('Blocked structure movement');
-    value.room = { width: 5000, depth: 4000, height: 2700, cutout: { kind: 'notch', corner: 'bottomRight', width: 1000, depth: 1000 },
-      features: [{ id: 'blocked-chimney', kind: 'chimney', x: 3000, y: 2800, width: 450, depth: 450 }] };
-    window.__kitchen.design.getState().load(value);
-    window.__kitchen.ui.getState().requestCamera('top');
-  });
-  await page.waitForTimeout(400);
-  await page.getByLabel('Doors, windows & structures', { exact: true }).selectOption('feature:blocked-chimney');
-  await tools.getByRole('button', { name: 'Move room object', exact: true }).click();
-  const blockedBefore = await design(page);
-  await dragHandle(page, 'X', 1.1);
-  await page.getByText('The structure must fit inside the room outline. This position was not applied.', { exact: true }).waitFor();
-  assert.ok((await design(page)).room.features[0].x + 450 <= 4000);
-  await assertRoomObject(page, 'feature', 'blocked-chimney');
-  await tools.getByRole('button', { name: 'Deselect room object', exact: true }).click();
+  const workspace = page.getByTestId('room-workspace'), plan = workspace.getByTestId('room-plan');
+  const inspector = workspace.getByTestId('room-inspector'), card = inspector.getByTestId('selected-room-card');
+  const elevation = workspace.getByTestId('wall-elevation');
+  await tapOrClick(plan.getByRole('button', { name: 'Wall 2', exact: true }), touch);
+  await tapOrClick(elevation.getByRole('button', { name: 'Window', exact: true }), touch);
+  assert.ok(await card.evaluate((el) => el.previousElementSibling.textContent.includes('Room size')));
+  const windowId = (await design(page)).openings.at(-1).id;
+  assert.equal((await design(page)).openings.at(-1).wallId, 'east');
+  await setField(card, 'Width', 900);
+  await setField(card, 'From wall start', 250);
+  await setField(card, 'Sill height', 650);
+  const opening = elevation.locator(`[data-elevation-opening="${windowId}"]`);
+  await opening.focus();
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('Shift+ArrowUp');
+  assert.equal((await design(page)).openings.at(-1).offset, 260);
+  assert.equal((await design(page)).openings.at(-1).sill, 750);
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
-  assert.deepEqual(await design(page), blockedBefore);
-  await page.waitForTimeout(600);
-  const idle = await page.evaluate(() => window.__kitchen3D.renderer.info.render.frame);
-  await page.waitForTimeout(300);
-  assert.ok(await page.evaluate(() => window.__kitchen3D.renderer.info.render.frame) - idle <= 1);
-  console.log('  PASS rejected cut-out positions are explained, partial valid movement undoes atomically, and idle rendering stops');
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  const before = await design(page), baseHistory = await history(page);
+  await dragDrawing(page, opening, 200, -100, touch);
+  const moved = await design(page);
+  assert.ok(Math.abs(moved.openings.at(-1).offset - 450) <= 10);
+  assert.ok(Math.abs(moved.openings.at(-1).sill - 750) <= 10);
+  assert.equal(await history(page), baseHistory + 1);
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  assert.deepEqual(await design(page), before);
+  await page.getByRole('button', { name: 'Redo', exact: true }).click();
+  assert.deepEqual(await design(page), moved);
+  await dragDrawing(page, opening, -100, 120, touch, true);
+  assert.deepEqual(await design(page), moved, 'cancel restores the last completed elevation gesture');
+  await tapOrClick(elevation.getByRole('button', { name: 'Door', exact: true }), touch);
+  const door = (await design(page)).openings.at(-1);
+  assert.equal(door.kind, 'door');
+  await dragDrawing(page, elevation.locator(`[data-elevation-opening="${door.id}"]`), -80, -200, touch);
+  assert.equal((await design(page)).openings.at(-1).sill, 0);
+
+  await elevation.getByRole('button', { name: 'Back to plan' }).click();
+  await tapOrClick(plan.getByRole('button', { name: 'Wall 1', exact: true }), touch);
+  await inspector.getByRole('button', { name: 'Chimney', exact: true }).click();
+  const feature = () => design(page).then((d) => d.room.features[0]);
+  const f = await feature();
+  assert.equal(f.wallId, 'sloping');
+  await setField(card, 'Length along wall', 550);
+  await setField(card, 'Projection into room', 350);
+  await setField(card, 'From wall start', 1100);
+  const featureShape = plan.locator(`[data-plan-feature="${f.id}"]`);
+  await featureShape.focus();
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('Shift+ArrowRight');
+  assert.equal((await feature()).offset, 1210);
+  const readout = await plan.getByTestId('room-readout-2d').innerText();
+  assert.ok(readout.includes('550 × 350 × 2700 mm') && readout.includes('1210 mm'));
+
+  if (three) {
+    if (!touch) {
+      await workspace.getByRole('button', { name: '3D preview' }).click();
+      await assert3DIsReadOnly(page, f.id, 'feature', false);
+      assert.equal(await workspace.getByTestId('room-readout-3d').innerText(), readout);
+      await workspace.getByTestId('room-edit-position-2d').click();
+      await page.waitForFunction((id) => document.activeElement?.getAttribute('data-plan-feature') === id, f.id);
+      await workspace.getByRole('button', { name: '3D preview' }).click();
+    }
+    await page.getByRole('radio', { name: '3D', exact: true }).click();
+    await assert3DIsReadOnly(page, f.id, 'feature', touch);
+    assert.equal(await inspector.locator('input,select').count(), 0);
+    assert.equal(await inspector.getByRole('button', { name: 'Chimney', exact: true }).count(), 0);
+    await workspace.getByTestId('room-edit-position-2d').click();
+  }
+  await card.getByLabel('Against wall').selectOption('');
+  assert.equal((await feature()).wallId, undefined);
+  await setField(card, 'From top wall', 1000);
+  await setField(card, 'From left wall', 1500);
+  assert.equal((await feature()).x, 1500);
+  assert.equal((await feature()).y, 1000);
+  await dragDrawing(page, featureShape, 150, 100, touch);
+  assert.ok(Math.abs((await feature()).x - 1650) <= 10);
+  assert.ok(Math.abs((await feature()).y - 1100) <= 10);
+  await card.getByLabel('Against wall').selectOption('sloping');
+  for (const [label, offset] of [['Window 1', 2800], ['Door 1', 1500]]) {
+    await inspector.getByRole('button', { name: label, exact: true }).click();
+    assert.equal(await card.getByLabel('From wall start').inputValue(), String(offset));
+  }
+  assert.equal((await design(page)).openings[0].wallId, undefined, 'inspecting the legacy opening does not rewrite it');
+  if (three) {
+    await page.getByRole('radio', { name: '3D', exact: true }).click();
+    await assert3DIsReadOnly(page, 'legacy-door', 'opening', touch);
+    await page.getByTestId('room-edit-position-2d').click();
+    await elevation.waitFor();
+    assert.equal(await card.getByLabel('Wall', { exact: true }).inputValue(), 'west');
+  }
+  const saved = await design(page);
+  await page.evaluate(async () => (await import('/src/store/projects.ts')).flushSave());
+  await page.reload();
+  await workspace.waitFor();
+  assert.deepEqual(await design(page), saved);
+  console.log(`  PASS ${touch ? 'touch' : 'mouse'} wall elevation, floor-level door, 10/100 mm nudges, sloped/free chimney, legacy offsets, reload${three ? ', read-only 3D and 2D hand-off' : ''}`);
 }
 
-export async function touchRoomObjectChecks(page, output) {
-  await open3DTools(page);
-  await page.getByLabel('Doors, windows & structures', { exact: true }).selectOption('feature:moving-chimney');
-  const tools = page.getByRole('group', { name: 'Selected room object actions' });
-  await page.getByRole('group', { name: '3D camera' }).getByRole('button', { name: 'Top', exact: true }).tap();
-  await tools.getByRole('button', { name: 'Move room object', exact: true }).tap();
-  const before = await design(page);
-  await dragHandle(page, 'X', 0.35, true);
-  assert.notDeepEqual((await design(page)).room.features[0], before.room.features[0]);
-  await assertRoomObject(page, 'feature', 'moving-chimney');
-  await page.getByRole('button', { name: 'Undo', exact: true }).tap();
-  assert.deepEqual(await design(page), before);
-  const cancelHandle = await movementHandle(page, 'X', 0.35, toolName);
-  const touch = await page.context().newCDPSession(page);
-  await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: cancelHandle.from.x, y: cancelHandle.from.y }] });
-  await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: cancelHandle.to.x, y: cancelHandle.to.y }] });
-  assert.notDeepEqual(await design(page), before);
-  await touch.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
-  await touch.detach();
-  assert.deepEqual(await design(page), before);
-  await assertRoomObject(page, 'feature', 'moving-chimney');
-  await page.screenshot({ path: path.join(output, 'room-object-touch.png') });
-  console.log('  PASS touch handles move a structure; Undo and touch cancellation restore its full placement on a phone');
+export async function roomObjectChecks(page, output) {
+  await workspaceObjectChecks(page);
+  await page.screenshot({ path: path.join(output, 'room-object-workspace.png') });
 }

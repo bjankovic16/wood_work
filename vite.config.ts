@@ -1,9 +1,10 @@
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { offlineViewerPlugin } from './scripts/offline-viewer-plugin.ts';
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), offlineViewerPlugin()],
   // Relative asset paths, so a build works from any folder or host path.
   base: './',
   // Listen on the local network too, so the app can be opened from a phone on the same Wi-Fi.
@@ -18,6 +19,7 @@ export default defineConfig({
         // cache across app updates, and they download in parallel with the app code.
         codeSplitting: {
           groups: [
+            { name: 'model-exporter', test: /[\\/]three[\\/]examples[\\/]jsm[\\/]exporters[\\/]GLTFExporter\.js$/, priority: 40 },
             // React and the small helpers both the app and the 3D libraries use, so the first screen never pulls in 3D code.
             { name: 'react', test: /[\\/]node_modules[\\/](react|react-dom|scheduler|zustand|use-sync-external-store|@babel[\\/]runtime)[\\/]/, priority: 30 },
             { name: 'plan-canvas', test: /[\\/]node_modules[\\/](konva|react-konva|react-reconciler)[\\/]/, priority: 20 },

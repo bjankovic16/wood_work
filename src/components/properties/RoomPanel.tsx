@@ -1,19 +1,22 @@
-import { AppWindow, DoorOpen, Hammer, LayoutTemplate, Plus, Trash2 } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { AppWindow, DoorOpen, Hammer, Info, LayoutTemplate, Plus, Trash2 } from 'lucide-react';
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { ROOM_LIMITS } from '../../domain/designOps';
 import { isWallMounted } from '../../domain/geometry';
 import { wallLength } from '../../domain/openings';
-import type { Opening, Wall } from '../../domain/types';
+import type { Opening } from '../../domain/types';
+import { MAX_ROOM_FEATURES } from '../../domain/roomGeometry';
 import { useIsCompact } from '../../hooks/useMediaQuery';
 import { useT } from '../../i18n';
 import * as actions from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
 import { useUiStore } from '../../store/uiStore';
-import { Button, Dialog, Kbd, PanelSection } from '../ui';
+import { Button, Dialog, Kbd, PanelSection, TooltipButton } from '../ui';
 import { NumberField, SelectField } from './NumberField';
-import { RoomStructureSettings } from './RoomStructureSettings';
+import { RoomFeatureFields, RoomStructureSettings } from './RoomStructureSettings';
 import { AdvancedRoomSettings } from './AdvancedRoomSettings';
-import { openingFrame, roomSegments } from '../../domain/walls';
+import { openingOnWall, roomSegments } from '../../domain/walls';
+import { WallMeasurements } from '../room/WallMeasures';
+import { editRoomPositionIn2D, RoomReadout, useRoomReadout } from '../room/RoomReadout';
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
@@ -37,14 +40,16 @@ function Shortcut({ keys, children }: { keys: string[]; children: ReactNode }) {
   );
 }
 
-const WALLS: Wall[] = ['top', 'right', 'bottom', 'left'];
-
 export function OpeningCard({ opening, number }: { opening: Opening; number: number }) {
   const t = useT();
   const room = useDesignStore((s) => s.design.room);
   const window = opening.kind === 'window';
-  const length = openingFrame(room, opening)?.length ?? wallLength(room, opening.wall);
-  const fromLabel = opening.wallId ? t.advancedRoom.offset : opening.wall === 'top' || opening.wall === 'bottom' ? t.room.fromLeft : t.room.fromTop;
+  const binding = openingOnWall(room, opening);
+  const length = Math.floor(binding?.segment.length ?? wallLength(room, opening.wall));
+  const ceiling = binding?.segment.height ?? room.height;
+  const update = (patch: Partial<Opening>) => actions.updateOpening(opening.id, {
+    ...(binding ? { wallId: binding.segment.id, offset: binding.offset } : {}), ...patch,
+  });
   return (
     <div className="space-y-1.5 rounded-lg border border-zinc-200 p-3" data-testid="opening-card">
       <div className="flex items-center gap-2">
@@ -63,59 +68,111 @@ export function OpeningCard({ opening, number }: { opening: Opening; number: num
       </div>
       <SelectField
         label={t.room.wall}
-        value={opening.wallId ?? opening.wall}
-        options={room.vertices || room.partitions?.length ? roomSegments(room).map((s, i) => ({ value: s.id, label: t.advancedRoom.wall(i + 1) })) : WALLS.map((wall) => ({ value: wall, label: t.walls[wall] }))}
-        onChange={(wall) => actions.updateOpening(opening.id, room.vertices || room.partitions?.length ? { wallId: wall } : { wall: wall as Wall, wallId: undefined })}
+        value={binding?.segment.id ?? opening.wall}
+        options={roomSegments(room).map((s, i) => ({ value: s.id, label: t.advancedRoom.wall(i + 1) }))}
+        onChange={(wallId) => { update({ wallId }); useUiStore.getState().selectRoomObject({ type: 'opening', id: opening.id }, wallId); }}
       />
-      <NumberField label={fromLabel} value={opening.offset} min={0} max={length - opening.width} onCommit={(offset) => actions.updateOpening(opening.id, { offset })} />
-      <NumberField label={t.room.width} value={opening.width} min={300} max={length} onCommit={(width) => actions.updateOpening(opening.id, { width })} />
-      <NumberField label={t.room.height} value={opening.height} min={300} max={room.height} onCommit={(height) => actions.updateOpening(opening.id, { height })} />
+      <NumberField label={t.advancedRoom.offset} value={Math.round(binding?.offset ?? opening.offset)} min={0} max={length - opening.width} onCommit={(offset) => update({ offset })} />
+      <NumberField label={t.room.width} value={opening.width} min={100} max={length} onCommit={(width) => update({ width })} />
+      <NumberField label={t.room.height} value={opening.height} min={100} max={ceiling - opening.sill} onCommit={(height) => update({ height })} />
       {window && (
         <NumberField
           label={t.room.sill}
           title={t.room.sillTitle}
           value={opening.sill}
           min={0}
-          max={room.height - opening.height}
-          onCommit={(sill) => actions.updateOpening(opening.id, { sill })}
+          max={ceiling - opening.height}
+          onCommit={(sill) => update({ sill })}
         />
       )}
     </div>
   );
 }
 
-function OpeningsSection() {
+export function RoomObjectButtons({ wallId, openingsOnly = false }: { wallId?: string; openingsOnly?: boolean }) {
+  const t = useT();
+  const count = useDesignStore((s) => s.design.room.features?.length ?? 0);
+  const [failed, setFailed] = useState(false);
+  const add = (operation: () => void) => {
+    try { operation(); setFailed(false); }
+    catch (error) { if (!(error instanceof RangeError)) throw error; setFailed(true); }
+  };
+  return <div className="flex flex-wrap gap-2">
+    {(['window', 'door'] as const).map((kind) => <Button key={kind} variant="outline" onClick={() => add(() => actions.addOpening(kind, wallId))}>
+      <Plus className="size-4" />{t.room.opening(kind)}
+    </Button>)}
+    {!openingsOnly && (['chimney', 'column', 'projection'] as const).map((kind) => <Button key={kind} variant="outline" disabled={count >= MAX_ROOM_FEATURES}
+      onClick={() => add(() => actions.addRoomFeature(kind, kind === 'chimney' ? wallId : undefined))}><Plus className="size-4" />{t.engine.roomFeatures[kind]}</Button>)}
+    {failed && <p role="alert" className="w-full text-xs text-red-700">{t.room.noSpace}</p>}
+  </div>;
+}
+
+function RoomObjectsSection() {
   const t = useT();
   const openings = useDesignStore((s) => s.design.openings);
+  const room = useDesignStore((s) => s.design.room);
+  const wallId = useUiStore((s) => s.selectedWallId);
+  const wall = roomSegments(room).find((s) => s.id === wallId);
+  const ui = useUiStore.getState();
   const count = { window: 0, door: 0 };
   return (
     <PanelSection title={t.room.windowsAndDoors}>
       {openings.length === 0 && <p className="text-xs leading-relaxed text-zinc-500">{t.room.openingsHint}</p>}
-      {openings.map((opening) => (
-        <OpeningCard key={opening.id} opening={opening} number={++count[opening.kind]} />
-      ))}
-      <div className="grid grid-cols-2 gap-2">
-        <Button variant="outline" onClick={() => actions.addOpening('window')}>
-          <Plus className="size-4" />
-          {t.room.opening('window')}
-        </Button>
-        <Button variant="outline" onClick={() => actions.addOpening('door')}>
-          <Plus className="size-4" />
-          {t.room.opening('door')}
-        </Button>
-      </div>
+      <RoomObjectButtons wallId={wall?.id} />
+      <p className="text-xs leading-relaxed text-studio-muted">{t.roomStructure.fullHeight}</p>
+      {openings.map((o) => <Button key={o.id} onClick={() => ui.selectRoomObject({ type: 'opening', id: o.id }, openingOnWall(room, o)?.segment.id)}>{t.room.opening(o.kind)} {++count[o.kind]}</Button>)}
+      {room.features?.map((f, i) => <Button key={f.id} onClick={() => ui.selectRoomObject({ type: 'feature', id: f.id }, f.wallId)}>{t.engine.roomFeatures[f.kind]} {i + 1}</Button>)}
     </PanelSection>
   );
+}
+
+export function SelectedRoomCard() {
+  const t = useT();
+  const selection = useUiStore((s) => s.roomSelection);
+  const { room, openings } = useDesignStore((s) => s.design);
+  const card = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => { card.current?.scrollIntoView({ block: 'nearest' }); }, [selection?.id]);
+  const o = selection?.type === 'opening' ? openings.find((o) => o.id === selection.id) : undefined;
+  const f = selection?.type === 'feature' ? room.features?.find((f) => f.id === selection.id) : undefined;
+  if (!o && !f) return null;
+  const number = o ? openings.filter((entry) => entry.kind === o.kind).indexOf(o) + 1 : room.features!.indexOf(f!) + 1;
+  const name = `${o ? t.room.opening(o.kind) : t.engine.roomFeatures[f!.kind]} ${number}`;
+  return <div ref={card} data-testid="selected-room-card" className="border-b border-studio-line bg-[#eff4ec] p-3">
+    {o && <OpeningCard key={o.id} opening={o} number={number} />}
+    {f && <div key={f.id} data-room-feature={f.id} className="space-y-1.5 rounded-lg border border-studio-line bg-studio-paper p-3">
+      <div className="flex items-center gap-1">
+        <h3 className="mr-auto text-xs font-semibold">{name}</h3>
+        <TooltipButton tooltip={t.roomStructure.moveHint} aria-label={t.roomStructure.moveHint}><Info className="size-4" /></TooltipButton>
+        <Button aria-label={t.roomStructure.remove(name)} onClick={() => actions.removeRoomFeature(f.id)}><Trash2 className="size-4" /></Button>
+      </div>
+      <RoomFeatureFields feature={f} />
+    </div>}
+  </div>;
 }
 
 export function RoomSettings({ children }: { children?: ReactNode }) {
   const t = useT();
   const room = useDesignStore((s) => s.design.room);
+  const view = useUiStore((s) => s.view);
+  const selectedWallId = useUiStore((s) => s.selectedWallId);
+  const data = useRoomReadout();
   const [failed, setFailed] = useState(false);
   const resize = (patch: Partial<typeof room>) => {
     try { actions.setRoomSize(patch); setFailed(false); }
-    catch (error) { if (!(error instanceof RangeError)) throw error; setFailed(true); }
+    catch (error) { if (!(error instanceof RangeError)) throw error; setFailed(true); return false; }
   };
+  if (view === '3d') {
+    const segments = roomSegments(room);
+    const wall = segments.find((s) => s.id === selectedWallId);
+    return <>
+      <PanelSection title={t.room.roomSize}><p className="text-sm">{room.width} × {room.depth} × {room.height} mm</p></PanelSection>
+      {data ? <PanelSection title={data.name}><RoomReadout data={data} testId="selected-room-card" /></PanelSection>
+        : <PanelSection title={wall ? t.advancedRoom.wall(segments.indexOf(wall) + 1) : t.room.setupTitle}>
+          {wall && <p className="text-xs">{t.advancedRoom.length}: {Math.round(wall.length)} mm · {t.advancedRoom.angle}: {t.number(Math.round(wall.angle * 10) / 10)}°</p>}
+          <Button variant="outline" onClick={editRoomPositionIn2D}>{t.room.editIn2D}</Button>
+        </PanelSection>}
+    </>;
+  }
   return (
     <>
       <PanelSection title={t.room.roomSize}>
@@ -124,7 +181,9 @@ export function RoomSettings({ children }: { children?: ReactNode }) {
         <NumberField label={t.room.ceilingHeight} value={room.height} {...ROOM_LIMITS.height} onCommit={(v) => resize({ height: v })} />
         {failed && <p role="alert" className="text-xs text-red-700">{t.advancedRoom.invalid}</p>}
       </PanelSection>
-      <OpeningsSection />
+      <SelectedRoomCard />
+      <WallMeasurements />
+      <RoomObjectsSection />
       <details className="border-b border-zinc-100">
         <summary className="cursor-pointer px-4 py-4 text-xs font-medium text-studio-accent">{t.room.advanced}</summary>
         <RoomStructureSettings />

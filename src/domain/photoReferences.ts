@@ -1,10 +1,21 @@
-export const PHOTO_REFERENCES = [
-  { id: 'ivory-island', image: 'ivory-island.jpg', photographer: 'Mark McCammon', source: 'https://www.pexels.com/photo/white-wooden-cupboards-2724749/' },
-  { id: 'warm-island', image: 'warm-island.jpg', photographer: 'DOAN THANH BINH', source: 'https://www.pexels.com/photo/modern-kitchen-interior-with-warm-lighting-36887742/' },
+const pexels = { provider: 'Pexels', license: 'Pexels License', licenseUrl: 'https://www.pexels.com/license/' } as const;
+
+export const PAIRED_PHOTOS = [
+  { id: 'ivory-island', image: 'ivory-island.jpg', modelPreview: 'ivory-island-model.jpg', photographer: 'Mark McCammon', source: 'https://www.pexels.com/photo/white-wooden-cupboards-2724749/', ...pexels },
+  { id: 'warm-island', image: 'warm-island.jpg', modelPreview: 'warm-island-model.jpg', photographer: 'DOAN THANH BINH', source: 'https://www.pexels.com/photo/modern-kitchen-interior-with-warm-lighting-36887742/', ...pexels },
 ] as const;
 
-export const PHOTO_LICENSE_URL = 'https://www.pexels.com/license/';
-export type PhotoReferenceId = (typeof PHOTO_REFERENCES)[number]['id'];
+export const REFERENCE_ONLY_PHOTOS = [
+  { id: 'daylit-dining', image: 'daylit-dining.webp', photographer: 'Mark McCammon', source: 'https://www.pexels.com/photo/kitchen-and-dining-area-1080721/', ...pexels },
+  { id: 'herb-island', image: 'herb-island.webp', photographer: 'Rene Terp', source: 'https://www.pexels.com/photo/green-leafed-plants-on-kitchen-island-1358900/', ...pexels },
+  { id: 'dark-breakfast-bar', image: 'dark-breakfast-bar.webp', photographer: 'Level 23 Media', source: 'https://www.pexels.com/photo/kitchen-3016430/', ...pexels },
+  { id: 'wood-worktops', image: 'wood-worktops.webp', photographer: 'Pixabay', source: 'https://www.pexels.com/photo/brown-and-white-wooden-kitchen-island-280232/', ...pexels },
+] as const;
+
+export const PHOTO_REFERENCES = [...PAIRED_PHOTOS, ...REFERENCE_ONLY_PHOTOS] as const;
+export type CatalogPhoto = (typeof PHOTO_REFERENCES)[number];
+export type PhotoReferenceId = CatalogPhoto['id'];
+export type PairedPhotoId = (typeof PAIRED_PHOTOS)[number]['id'];
 export type PhotoReference =
   | { kind: 'builtin'; id: PhotoReferenceId }
   | { kind: 'upload'; name: string; dataUrl: string; sourceUrl?: string };

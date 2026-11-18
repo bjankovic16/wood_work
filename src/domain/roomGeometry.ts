@@ -1,6 +1,7 @@
 import { clamp } from './math';
 import type { Point, Rect, Room, RoomCorner, RoomFeature, Wall } from './types';
-import { pointInPolygon, polygonContains, rectPolygon, validRoomPolygon } from './polygons';
+import { pointInPolygon, polygonBounds, polygonContains, rectPolygon, validRoomPolygon } from './polygons';
+import { roomSegments, wallPoint } from './walls';
 
 export const ROOM_CORNERS: readonly RoomCorner[] = ['topLeft', 'topRight', 'bottomRight', 'bottomLeft'];
 export const MAX_ROOM_FEATURES = 40;
@@ -58,6 +59,28 @@ export function roomFeatureRect(feature: RoomFeature): Rect {
   return { x: feature.x, y: feature.y, w: feature.width, h: feature.depth };
 }
 
+export function roomFeaturePolygon(room: Room, feature: RoomFeature): Point[] {
+  if (!feature.wallId) return rectPolygon(roomFeatureRect(feature));
+  const wall = roomSegments(room).find((s) => s.id === feature.wallId);
+  if (!wall || feature.offset === undefined) return [];
+  const a = feature.offset, b = a + feature.width;
+  return [wallPoint(wall, a), wallPoint(wall, b), wallPoint(wall, b, feature.depth), wallPoint(wall, a, feature.depth)];
+}
+
+export function roomFeaturePose(room: Room, feature: RoomFeature): { centre: Point; angle: number } {
+  const [a, b, c] = roomFeaturePolygon(room, feature);
+  if (!a) return { centre: { x: feature.x + feature.width / 2, y: feature.y + feature.depth / 2 }, angle: 0 };
+  return { centre: { x: (a.x + c.x) / 2, y: (a.y + c.y) / 2 }, angle: Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI };
+}
+
+export function featureFitsRoom(room: Room, feature: RoomFeature): boolean {
+  const polygon = roomFeaturePolygon(room, feature);
+  if (!polygon.length || !polygonContains(roomOutline(room), polygon)) return false;
+  if (!feature.wallId) return true;
+  const wall = roomSegments(room).find((s) => s.id === feature.wallId);
+  return !!wall && feature.offset !== undefined && feature.offset >= 0 && feature.offset + feature.width <= wall.length + 0.01;
+}
+
 /** Cardinal faces retained for simple-room placement and legacy dimensions. */
 export function roomWallRuns(room: Room, includeFeatures = true): RoomWallRun[] {
   const points = roomOutline(room);
@@ -69,12 +92,12 @@ export function roomWallRuns(room: Room, includeFeatures = true): RoomWallRun[] 
   });
   if (includeFeatures) {
     for (const feature of room.features ?? []) {
-      runs.push(
-        { wall: 'bottom', from: feature.x, to: feature.x + feature.width, offset: feature.y },
-        { wall: 'top', from: feature.x, to: feature.x + feature.width, offset: feature.y + feature.depth },
-        { wall: 'right', from: feature.y, to: feature.y + feature.depth, offset: feature.x },
-        { wall: 'left', from: feature.y, to: feature.y + feature.depth, offset: feature.x + feature.width },
-      );
+      const polygon = roomFeaturePolygon(room, feature);
+      polygon.forEach((a, i) => {
+        const b = polygon[(i + 1) % polygon.length];
+        if (Math.abs(a.y - b.y) < 0.01) runs.push({ wall: b.x > a.x ? 'bottom' : 'top', from: Math.min(a.x, b.x), to: Math.max(a.x, b.x), offset: a.y });
+        if (Math.abs(a.x - b.x) < 0.01) runs.push({ wall: b.y > a.y ? 'left' : 'right', from: Math.min(a.y, b.y), to: Math.max(a.y, b.y), offset: a.x });
+      });
     }
   }
   return runs;
@@ -99,8 +122,14 @@ export function normalizeRoom(room: Room): Room {
   }
   let features = room.features;
   if (features) {
+    const outlineRoom = cutout !== room.cutout ? { ...room, cutout } : room;
     const previous = features;
     const next = previous.map((feature) => {
+      if (feature.wallId) {
+        if (!featureFitsRoom(outlineRoom, feature)) throw new RangeError('Attached structure does not fit its wall.');
+        const { x, y } = polygonBounds(roomFeaturePolygon(outlineRoom, feature));
+        return x === feature.x && y === feature.y ? feature : { ...feature, x, y };
+      }
       const width = Math.round(clamp(feature.width, 100, room.width));
       const depth = Math.round(clamp(feature.depth, 100, room.depth));
       const x = Math.round(clamp(feature.x, 0, room.width - width));
@@ -140,7 +169,9 @@ export function parseRoom(raw: unknown): Room | null {
         typeof feature.kind !== 'string' || !['chimney', 'column', 'projection'].includes(feature.kind) ||
         typeof feature.x !== 'number' || !Number.isFinite(feature.x) || typeof feature.y !== 'number' || !Number.isFinite(feature.y) ||
         !positive(feature.width) || !positive(feature.depth)) return null;
-      features.push({ id: feature.id, kind: feature.kind as RoomFeature['kind'], x: feature.x, y: feature.y, width: feature.width, depth: feature.depth });
+      if (feature.wallId !== undefined && (typeof feature.wallId !== 'string' || !feature.wallId || typeof feature.offset !== 'number' || !Number.isFinite(feature.offset))) return null;
+      features.push({ id: feature.id, kind: feature.kind as RoomFeature['kind'], x: feature.x, y: feature.y, width: feature.width, depth: feature.depth,
+        ...(typeof feature.wallId === 'string' ? { wallId: feature.wallId, offset: feature.offset as number } : {}) });
     }
     room.features = features;
   }
@@ -176,5 +207,6 @@ export function parseRoom(raw: unknown): Room | null {
     }
     room.treatments = treatments;
   }
+  if (room.features?.some((f) => f.wallId && !featureFitsRoom(room, f))) return null;
   return room;
 }

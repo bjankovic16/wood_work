@@ -12,11 +12,15 @@ export interface KitchenStyle {
   worktop: WorktopFinish;
   handles: HandleStyle;
   backsplash?: BacksplashFinish;
+  /** Legacy file fields: preserved on round-trip, never used to illuminate a model. */
   lighting?: boolean;
   plinthLighting?: boolean;
   decor?: boolean;
   appliances?: ApplianceFinish;
   frontProfile?: FrontProfile;
+  windowFrame?: FrontFinish;
+  doorFrame?: FrontFinish;
+  doorLeaf?: FrontFinish;
   wallColor?: string;
   floorColor?: string;
   floorPattern?: 'plain' | 'tiles';
@@ -106,10 +110,17 @@ export const APPLIANCE_FINISHES: Record<ApplianceFinish, Finish> = {
 
 export const DEFAULT_STYLE: KitchenStyle = { front: 'white', worktop: 'stone', handles: 'steel' };
 
+export const JOINERY_FINISHES = ['windowFrame', 'doorFrame', 'doorLeaf'] as const;
+
 export function parseStyle(raw: unknown): KitchenStyle {
   const v = (raw ?? {}) as Record<string, unknown>;
   const pick = <T extends string>(value: unknown, options: Record<T, unknown>, fallback: T): T =>
     typeof value === 'string' && Object.hasOwn(options, value) ? (value as T) : fallback;
+  const joinery: Pick<KitchenStyle, typeof JOINERY_FINISHES[number]> = {};
+  for (const key of JOINERY_FINISHES) {
+    const finish = v[key];
+    if (typeof finish === 'string' && Object.hasOwn(FRONT_FINISHES, finish)) joinery[key] = finish as FrontFinish;
+  }
   return {
     front: pick(v.front, FRONT_FINISHES, DEFAULT_STYLE.front),
     worktop: pick(v.worktop, WORKTOP_FINISHES, DEFAULT_STYLE.worktop),
@@ -120,6 +131,7 @@ export function parseStyle(raw: unknown): KitchenStyle {
     ...(typeof v.decor === 'boolean' ? { decor: v.decor } : {}),
     ...(typeof v.appliances === 'string' && Object.hasOwn(APPLIANCE_FINISHES, v.appliances) ? { appliances: v.appliances as ApplianceFinish } : {}),
     ...(v.frontProfile === 'flat' || v.frontProfile === 'shaker' ? { frontProfile: v.frontProfile } : {}),
+    ...joinery,
     ...(isRoomColor(v.wallColor) ? { wallColor: v.wallColor } : {}),
     ...(isRoomColor(v.floorColor) ? { floorColor: v.floorColor } : {}),
     ...(v.floorPattern === 'plain' || v.floorPattern === 'tiles' ? { floorPattern: v.floorPattern } : {}),

@@ -21,6 +21,6 @@ export function createRoomExample(id: RoomExampleId, name: string, prefixes?: La
       };
   return {
     ...createDesign(name), room, items: buildLayout(id === 'l-chimney' ? 'l-shape' : 'straight', room, prefixes),
-    style: { front: id === 'l-chimney' ? 'cashmere' : 'oak', worktop: 'marble', handles: 'brass', backsplash: 'marble', lighting: true, decor: true },
+    style: { front: id === 'l-chimney' ? 'cashmere' : 'oak', worktop: 'marble', handles: 'brass', backsplash: 'marble', decor: true },
   };
 }

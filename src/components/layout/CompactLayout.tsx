@@ -9,7 +9,7 @@ import { ConstructionDialog } from '../construction/ConstructionDialog';
 import { CuttingListView } from '../cutting/CuttingListView';
 import { LibrarySections } from '../library/LibraryPanel';
 import { DeleteButton, DuplicateButton, ItemFields, ItemHeader, RotateButtons } from '../properties/ItemPanel';
-import { RoomDialog } from '../properties/RoomDialog';
+import { RoomWorkspace } from '../room/RoomWorkspace';
 import { Button, Dialog } from '../ui';
 import { View3D } from '../three/View3D';
 import { LayoutDialog } from '../layouts/LayoutDialog';
@@ -69,7 +69,7 @@ export function CompactLayout() {
   return (
     <div className="flex h-dvh select-none flex-col bg-studio-canvas text-studio-ink">
       <TopBar compact />
-      <main className="relative min-h-0 flex-1">
+      {roomOpen ? <RoomWorkspace compact /> : <main className="relative min-h-0 flex-1">
         {view === 'plan' && <DesignCanvas compact />}
         {view === '3d' && <View3D compact />}
         {view === 'list' && <CuttingListView />}
@@ -86,7 +86,7 @@ export function CompactLayout() {
           </div>
         )}
         {designing && item && <ItemSheet key={item.id} item={item} />}
-      </main>
+      </main>}
 
       <Dialog open={sheet === 'add'} title={t.phone.addElement} sheet onClose={() => setSheet(null)}>
         <p className="px-4 pt-3 text-xs text-zinc-500">{t.phone.addHint}</p>
@@ -94,12 +94,6 @@ export function CompactLayout() {
           <LibrarySections wide onAdded={() => setSheet(null)} />
         </div>
       </Dialog>
-      <RoomDialog onDone={() => {
-        if (useDesignStore.getState().design.items.length === 0) {
-          useUiStore.getState().setView('plan');
-          setSheet('add');
-        }
-      }} />
       <ConstructionDialog />
       <LayoutDialog />
       <ProjectsDialog />

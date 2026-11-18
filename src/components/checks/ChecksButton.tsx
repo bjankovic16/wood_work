@@ -9,7 +9,7 @@ import { useUiStore } from '../../store/uiStore';
 /** Shows the unit an issue is about on the plan. */
 function openIssue(issue: Issue) {
   const ui = useUiStore.getState();
-  if (issue.roomFeatureId) { ui.select(null); ui.setRoomOpen(true); return; }
+  if (issue.roomFeatureId) { ui.setRoomOpen(true); ui.selectRoomObject({ type: 'feature', id: issue.roomFeatureId }); ui.setRoomElevationOpen(false); return; }
   if (issue.itemIds.length > 0) ui.select(issue.itemIds[0]);
   if (ui.view === 'list') ui.setView('plan');
 }

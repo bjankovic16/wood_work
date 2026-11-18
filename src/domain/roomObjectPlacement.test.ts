@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { featureDragPlacement, openingDragPlacement } from './roomObjectPlacement';
-import { openingFrame, wallPoint } from './walls';
+import { attachFeature, featureDragPlacement, freeFeature, openingDragPlacement } from './roomObjectPlacement';
+import { openingFrame, roomSegments, wallCoordinates, wallPoint } from './walls';
+import { featureFitsRoom, roomFeaturePolygon, roomFeaturePose } from './roomGeometry';
+import { createDesign, parseDesign, updateRoomFeature } from './designOps';
 import type { Opening, Room, RoomFeature, Wall } from './types';
 
 const room: Room = { width: 4000, depth: 3200, height: 2700 };
 const window: Opening = { id: 'window', kind: 'window', wall: 'top', offset: 1000, width: 1000, height: 1000, sill: 900 };
 const feature: RoomFeature = { id: 'chimney', kind: 'chimney', x: 1000, y: 0, width: 450, depth: 450 };
 
-describe('3D room-object placement', () => {
+describe('room-object placement', () => {
   it('projects openings onto every legacy wall, retaining its offset direction and snapping the sill', () => {
     for (const wall of ['top', 'right', 'bottom', 'left'] satisfies Wall[]) {
       const opening = { ...window, wall };
@@ -44,5 +46,27 @@ describe('3D room-object placement', () => {
     expect(featureDragPlacement(cutout, feature, { x: 3550, y: 2750 }, 0)).toBeNull();
     const polygon: Room = { ...room, vertices: [{ id: 'a', x: 0, y: 0 }, { id: 'b', x: 4000, y: 3200 }, { id: 'c', x: 0, y: 3200 }] };
     expect(featureDragPlacement(polygon, feature, { x: 3500, y: 1000 }, 0)).toBeNull();
+  });
+
+  it('keeps the whole chimney back on a sloped face, not just one corner or its bounding box', () => {
+    const angled: Room = { ...room, vertices: [{ id: 'slope', x: 0, y: 0 }, { id: 'right', x: 4000, y: 1000 }, { id: 'bottom', x: 4000, y: 3200 }, { id: 'left', x: 0, y: 3200 }] };
+    const wall = roomSegments(angled)[0];
+    const attached = attachFeature(angled, feature, wall, 1200);
+    const corners = roomFeaturePolygon(angled, attached).map((p) => wallCoordinates(wall, p));
+    for (const [i, expected] of [[0, [1200, 0]], [1, [1650, 0]], [2, [1650, 450]], [3, [1200, 450]]] as const) {
+      expect(corners[i].x).toBeCloseTo(expected[0], 5);
+      expect(corners[i].y).toBeCloseTo(expected[1], 5);
+    }
+    expect(roomFeaturePose(angled, attached).angle).toBeCloseTo(wall.angle, 5);
+    expect(featureDragPlacement(angled, attached, wallPoint(wall, 2020, 500), 50)).toEqual({ offset: 1800 });
+    expect(featureFitsRoom(angled, { ...attached, offset: 0 })).toBe(false); // projector crosses the left edge
+    const design = { ...createDesign(), room: { ...angled, features: [attached] } };
+    expect(() => updateRoomFeature(design, attached.id, { offset: 0 })).toThrow(RangeError);
+    expect(design.room.features[0]).toBe(attached);
+    expect(parseDesign(JSON.parse(JSON.stringify(design)))).toEqual(design);
+    expect(parseDesign({ ...design, room: { ...angled, features: [{ ...attached, wallId: 'missing' }] } })).toBeNull();
+    const detached = freeFeature(angled, attached);
+    expect(detached.wallId).toBeUndefined();
+    expect(featureFitsRoom(angled, detached)).toBe(true);
   });
 });

@@ -1,5 +1,5 @@
 import { CEILING_CABINET_HEIGHT, CEILING_GAP, ELEVATION_LIMITS, KIND_SPECS, WORKTOP_THICKNESS, hasWorktop } from './catalog';
-import { footprintRects, footprintsOverlap, isWallMounted, itemRect, localToRoom, mountingWalls, resizeFromAnchor, verticalOverlap } from './geometry';
+import { footprintsOverlap, isWallMounted, itemRect, localToRoom, mountingWalls, resizeFromAnchor, verticalOverlap } from './geometry';
 import { canPlaceItem } from './placement';
 import type { KitchenItem, Opening, Room, Wall } from './types';
 import { angleBasis } from './polygons';
@@ -128,14 +128,4 @@ export function backsplashTop(item: KitchenItem, items: readonly KitchenItem[], 
   const above = items.filter((entry) => isUpperCabinet(entry) && mountingWalls(entry).includes(wall)
     && Math.abs(face(entry) - face(item)) <= 1 && entry.elevation > bottom && footprintsOverlap(item, entry));
   return above.length ? Math.min(...above.map((entry) => entry.elevation)) : bottom + 600;
-}
-
-/** A touching lower row must not have LED strips drawn through its closed top. */
-export function exposedCabinetUnderside(item: KitchenItem, items: readonly KitchenItem[]): boolean {
-  const below = items.filter((other) => other.id !== item.id && Math.abs(other.elevation + other.height - item.elevation) < 1);
-  return [0.1, 0.5, 0.9].some((fraction) => {
-    const point = localToRoom(item, item.width * fraction, Math.max(0, item.depth - 25));
-    return !below.some((other) => footprintRects(other).some((rect) =>
-      point.x >= rect.x && point.x <= rect.x + rect.w && point.y >= rect.y && point.y <= rect.y + rect.h));
-  });
 }

@@ -1,5 +1,5 @@
 import { ChevronRight, Copy, RotateCcw, RotateCw, Trash2, TriangleAlert, X } from 'lucide-react';
-import { useEffect, useMemo, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { BAR_MATERIAL_ID, ELEVATION_LIMITS, GLASS_MATERIAL_ID, sizeLimits, type SizeField } from '../../domain/catalog';
 import { aabbSize, attachedRoomSurface, attachedWall, backWall, isFlushWith, itemRect, mountingWalls, attachedSegment } from '../../domain/geometry';
 import type { KitchenItem, Material, Room } from '../../domain/types';
@@ -113,7 +113,9 @@ function MaterialField({
 /** Everything editable about one unit. Shared by the desktop panel and the phone sheet. */
 export function ItemFields({ item }: { item: KitchenItem }) {
   const t = useT();
+  const inPlan = useUiStore((s) => s.view === 'plan');
   const locked = useUiStore((s) => s.view === '3d' && s.previewLockedIds.includes(item.id));
+  const [sizeBlocked, setSizeBlocked] = useState(false);
   const room = useDesignStore((s) => s.design.room);
   const construction = useDesignStore((s) => s.design.construction);
   const ctx = useBuildContext();
@@ -138,7 +140,11 @@ export function ItemFields({ item }: { item: KitchenItem }) {
         min={limits.min}
         max={limits.max}
         autoFocus={field === 'width' && focusRequest === 'width'}
-        onCommit={(value) => actions.setItemSize(item.id, field, value)}
+        onCommit={(value) => {
+          const result = actions.setItemSize(item.id, field, value);
+          setSizeBlocked(result === false);
+          return result;
+        }}
       />
     );
   };
@@ -157,7 +163,8 @@ export function ItemFields({ item }: { item: KitchenItem }) {
           {corner && sizeField('width2', t.item.widthWallB)}
           {sizeField('depth', t.item.depth)}
           {sizeField('height', t.item.height)}
-          <NumberField label={t.advancedRoom.angle} value={item.rotation} min={0} max={360} suffix="deg" precision={1} onCommit={(angle) => actions.setItemAngle(item.id, angle)} />
+          {inPlan && <NumberField label={t.advancedRoom.angle} value={item.rotation} min={0} max={360} suffix="deg" precision={1} onCommit={(angle) => actions.setItemAngle(item.id, angle)} />}
+          {!inPlan && sizeBlocked && <p role="status" className="text-xs text-amber-800">{t.view3d.resizeBlocked}</p>}
         </PanelSection>
       </fieldset>
       <ThreeTierSetup key={item.id} item={item} />
@@ -272,7 +279,7 @@ export function ItemFields({ item }: { item: KitchenItem }) {
         </PanelSection>
       )}
 
-      <fieldset disabled={locked} className="min-w-0">
+      {inPlan && <fieldset className="min-w-0">
         <PanelSection title={t.item.position}>
           <NumberField
             label={t.item.fromLeftWall}
@@ -298,7 +305,7 @@ export function ItemFields({ item }: { item: KitchenItem }) {
           />
           <p className="pl-[112px] text-[11px] text-zinc-400">{t.item.topEdgeAt(item.elevation + item.height)}</p>
         </PanelSection>
-      </fieldset>
+      </fieldset>}
 
       <PanelSection title={t.item.element}>
         <TextField label={t.item.code} value={item.label} maxLength={12} onCommit={(v) => actions.setItemLabel(item.id, v)} />
@@ -372,13 +379,14 @@ function PartsSection({ item, ctx }: { item: KitchenItem; ctx: BuildContext }) {
 
 export function RotateButtons() {
   const t = useT();
-  const locked = useUiStore((s) => s.view === '3d' && !!s.selectedId && s.previewLockedIds.includes(s.selectedId));
+  const inPlan = useUiStore((s) => s.view === 'plan');
+  if (!inPlan) return null;
   return (
     <>
-      <Button disabled={locked} variant="outline" title={t.item.rotateLeftTitle} aria-label={t.item.rotateLeft} onClick={() => actions.rotateSelected(-1)}>
+      <Button variant="outline" title={t.item.rotateLeftTitle} aria-label={t.item.rotateLeft} onClick={() => actions.rotateSelected(-1)}>
         <RotateCcw className="size-4" />
       </Button>
-      <Button disabled={locked} variant="outline" title={t.item.rotateRightTitle} aria-label={t.item.rotateRight} onClick={() => actions.rotateSelected(1)}>
+      <Button variant="outline" title={t.item.rotateRightTitle} aria-label={t.item.rotateRight} onClick={() => actions.rotateSelected(1)}>
         <RotateCw className="size-4" />
       </Button>
     </>

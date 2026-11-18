@@ -3,11 +3,11 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
-import { assertScenePlacement, cabinetBodyDrag, open3DTools, waitForIdleRendering } from './three-test-helpers.mjs';
+import { assertBodyOrbits, open3DTools, waitForIdleRendering } from './three-test-helpers.mjs';
 
 const output = process.argv[2] ?? path.join('test-results', 'stacked');
 await mkdir(output, { recursive: true });
-const server = await createServer({ logLevel: 'error', cacheDir: path.resolve(output, '.vite'), server: { host: '127.0.0.1', port: 0 } });
+const server = await createServer({ logLevel: 'error', cacheDir: path.resolve(output, '.vite'), optimizeDeps: { entries: ['index.html'] }, server: { host: '127.0.0.1', port: 0, watch: null, hmr: false } });
 let browser;
 const problems = [];
 const observe = (page) => {
@@ -69,7 +69,7 @@ try {
   const page = await context.newPage();
   observe(page);
   await page.goto(url, { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector('canvas');
+  await page.getByTestId('room-done').click();
   await page.getByLabel('Jezik / Language').selectOption('en');
 
   console.log('Guided three-tier base run');
@@ -138,83 +138,11 @@ try {
   await shot(page, '03-three-rows-in-3d.png');
   pass('the 3D toolbar can add a third tier, and physical cabinet faces remain independently selectable');
 
-  console.log('Moving a single stacked tier in 3D');
-  const top = state.items[2];
-  const originalStack = await design(page);
-  const originalHistory = await page.evaluate(() => window.__kitchen.design.getState().past.length);
+  console.log('Orbiting a selected stacked tier in 3D');
   const camera = page.getByRole('group', { name: '3D camera' });
   await camera.getByRole('button', { name: 'Top', exact: true }).click();
-  await page.getByRole('button', { name: 'Move cabinet', exact: true }).click();
-  let handle = await cabinetBodyDrag(page, 'Z', 0.01);
-  await page.mouse.move(handle.from.x, handle.from.y);
-  await page.mouse.down();
-  await page.mouse.move(handle.to.x, handle.to.y, { steps: 12 });
-  await page.mouse.up();
-  assert.deepEqual(await design(page), originalStack);
-  assert.equal(await page.evaluate(() => window.__kitchen.design.getState().past.length), originalHistory);
-  await assertScenePlacement(page, top.id);
-  pass('a wall-snapped no-op drag leaves the visible cabinet and undo history unchanged');
-
-  for (const [axis, distance] of [['X', 0.8], ['Z', 1.1]]) {
-    const before = await design(page);
-    const history = await page.evaluate(() => window.__kitchen.design.getState().past.length);
-    handle = await cabinetBodyDrag(page, axis, distance);
-    await page.mouse.move(handle.from.x, handle.from.y);
-    await page.mouse.down();
-    await page.mouse.move(handle.to.x, handle.to.y, { steps: 16 });
-    await page.mouse.up();
-    const after = await design(page);
-    const moved = after.items.find((item) => item.id === top.id);
-    assert.ok(Math.abs(moved[axis === 'X' ? 'x' : 'y'] - before.items[2][axis === 'X' ? 'x' : 'y']) >= 100);
-    assert.deepEqual(after.items.filter((item) => item.id !== top.id), originalStack.items.filter((item) => item.id !== top.id));
-    assert.equal(moved.elevation, top.elevation);
-    assert.equal(await page.evaluate(() => window.__kitchen.design.getState().past.length), history + 1);
-    await assertScenePlacement(page, top.id);
-    await page.getByRole('button', { name: 'Undo', exact: true }).click();
-    assert.deepEqual(await design(page), before);
-    await assertScenePlacement(page, top.id);
-    await page.getByRole('button', { name: 'Redo', exact: true }).click();
-    assert.deepEqual(await design(page), after);
-    await assertScenePlacement(page, top.id);
-  }
-  await page.getByRole('button', { name: 'Undo', exact: true }).click();
-  await page.getByRole('button', { name: 'Undo', exact: true }).click();
-  assert.deepEqual(await design(page), originalStack);
-  await page.getByRole('button', { name: 'Move cabinet', exact: true }).click();
-  pass('X/Z drags move only the selected tier, preserve its height and remain one Undo/Redo step each');
-
-  for (const interruption of ['pointercancel', 'blur', 'Escape']) {
-    await page.getByRole('button', { name: 'Move cabinet', exact: true }).click();
-    handle = await cabinetBodyDrag(page, 'X', 0.8);
-    const history = await page.evaluate(() => window.__kitchen.design.getState().past.length);
-    await page.mouse.move(handle.from.x, handle.from.y);
-    await page.mouse.down();
-    await page.mouse.move(handle.to.x, handle.to.y, { steps: 12 });
-    assert.ok(await page.evaluate(() => window.__kitchen.design.getState().gestureBase !== null));
-    assert.notDeepEqual(await design(page), originalStack);
-    if (interruption === 'Escape') await page.keyboard.press('Escape');
-    else await page.evaluate((type) => {
-      if (type === 'blur') window.dispatchEvent(new Event('blur'));
-      else document.querySelector('main canvas').dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId: 1, pointerType: 'mouse' }));
-    }, interruption);
-    await page.mouse.up();
-    assert.deepEqual(await design(page), originalStack, `${interruption} must restore the whole stack rather than leave a half-finished drag.`);
-    assert.equal(await page.evaluate(() => window.__kitchen.design.getState().gestureBase), null);
-    assert.equal(await page.evaluate(() => window.__kitchen.design.getState().past.length), history);
-    await assertScenePlacement(page, top.id);
-    const previousCamera = await page.evaluate(() => window.__kitchen3D.camera.position.toArray());
-    const box = await page.locator('main canvas').boundingBox();
-    await page.mouse.move(box.x + box.width * 0.75, box.y + box.height * 0.7);
-    await page.mouse.down();
-    await page.mouse.move(box.x + box.width * 0.75 + 45, box.y + box.height * 0.7 - 45, { steps: 8 });
-    await page.mouse.up();
-    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-    const nextCamera = await page.evaluate(() => window.__kitchen3D.camera.position.toArray());
-    assert.ok(nextCamera.some((value, index) => Math.abs(value - previousCamera[index]) > 0.001), 'Orbit controls must remain usable after cancelling cabinet movement.');
-    await camera.getByRole('button', { name: 'Top', exact: true }).click();
-    await page.evaluate(() => window.__kitchen.ui.getState().setCabinetTool(null));
-    pass(`${interruption} cancels movement without an undo entry or leaving the camera locked`);
-  }
+  await assertBodyOrbits(page, state.items[2].id);
+  pass('dragging the selected tier with the mouse orbits without moving an object or adding history');
 
   await page.waitForTimeout(500);
   const saved = await design(page);
@@ -245,7 +173,7 @@ try {
       return Promise.all(images.map((image) => image.decode()));
     });
     if (index === 0) await shot(page, '04-premium-gallery.png');
-    await gallery.locator(`[data-kitchen-design="${preset.id}"]`).click();
+    await gallery.locator(`[data-kitchen-original="${preset.id}"]`).click();
     await ready3D(page);
     assert.deepEqual(snapshot(await design(page)), snapshot(preset.design));
     const issues = await page.evaluate(async () => {
@@ -289,8 +217,8 @@ try {
     await waitForIdleRendering(page);
     const idle = await page.evaluate(() => window.__kitchen3D.renderer.info.render.frame);
     await page.waitForTimeout(400);
-    assert.ok(await page.evaluate(() => window.__kitchen3D.renderer.info.render.frame) - idle <= 1, 'Premium lighting must not force continuous idle rendering.');
-    pass(`${preset.id}: the image opens the same editable two-row kitchen, with no geometry errors or idle rendering`);
+    assert.ok(await page.evaluate(() => window.__kitchen3D.renderer.info.render.frame) - idle <= 1, 'The finished kitchen must not render continuously while idle.');
+    pass(`${preset.id}: opening the original shows the same editable two-row kitchen, with no geometry errors or idle rendering`);
   }
   await page.waitForTimeout(500);
   const storageState = await context.storageState();
@@ -339,10 +267,14 @@ try {
   await phone.evaluate(() => window.__kitchen.ui.getState().setLanguage('sr'));
   await phone.getByLabel('Red gornjih elemenata', { exact: true }).waitFor();
   assert.equal(await phone.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
+  const narrowUndo = phone.getByRole('button', { name: 'Korak unazad', exact: true });
+  assert.equal(await narrowUndo.innerText(), 'Korak unazad');
+  const undoBox = await narrowUndo.boundingBox();
+  assert.ok(undoBox?.width > 0 && undoBox.x >= 0 && undoBox.x + undoBox.width <= 320);
   await shot(phone, '09-phone-320-sr.png');
   pass('phone users can choose rows, see blocked stacking, add a cabinet, and use the controls at 320px in both languages');
 
-  console.log('Touch movement of a stacked cabinet');
+  console.log('Touch orbit over a selected stacked cabinet');
   await phone.evaluate(() => window.__kitchen.ui.getState().setLanguage('en'));
   await phone.setViewportSize({ width: 390, height: 844 });
   await phone.getByRole('radio', { name: '3D', exact: true }).tap();
@@ -353,63 +285,8 @@ try {
   const less = phone.getByRole('button', { name: 'Less', exact: true });
   if (await less.isVisible()) await less.tap();
   await phone.waitForTimeout(300);
-  const beforeTouch = await design(phone);
-  const phoneUpper = beforeTouch.items[1];
-  await phone.getByRole('button', { name: 'Move cabinet', exact: true }).tap();
-  const touch = await phoneContext.newCDPSession(phone);
-  const bodyMovement = async () => {
-    await phone.waitForFunction(() => {
-      const box = document.querySelector('main canvas').getBoundingClientRect();
-      return Math.abs(window.__kitchen3D.camera.aspect - box.width / box.height) < 0.001;
-    });
-    return phone.evaluate(async (id) => {
-      const { localToRoom } = await import('/src/domain/geometry.ts');
-      const item = window.__kitchen.design.getState().design.items.find((item) => item.id === id);
-      const { camera } = window.__kitchen3D;
-      camera.updateMatrixWorld(true);
-      const point = localToRoom(item, item.width / 2, item.depth * 0.6);
-      const box = document.querySelector('main canvas').getBoundingClientRect();
-      const project = (x) => {
-        const p = camera.position.clone().set(x / 1000, (item.elevation + item.height + 35) / 1000, point.y / 1000).project(camera);
-        return { x: box.x + (p.x + 1) * box.width / 2, y: box.y + (1 - p.y) * box.height / 2 };
-      };
-      const points = { from: project(point.x), to: project(point.x + 800) };
-      if (document.elementFromPoint(points.from.x, points.from.y)?.tagName !== 'CANVAS') throw new Error('The cabinet body is hidden by a phone control.');
-      return points;
-    }, phoneUpper.id);
-  };
-  let touchHandle = await bodyMovement();
-  await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: touchHandle.from.x, y: touchHandle.from.y }] });
-  for (let step = 1; step <= 12; step++) {
-    await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{
-      x: touchHandle.from.x + (touchHandle.to.x - touchHandle.from.x) * step / 12,
-      y: touchHandle.from.y + (touchHandle.to.y - touchHandle.from.y) * step / 12,
-    }] });
-  }
-  assert.ok(await phone.evaluate(() => window.__kitchen.design.getState().gestureBase !== null));
-  await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  await phone.waitForFunction(() => window.__kitchen.design.getState().gestureBase === null);
-  const afterTouch = await design(phone);
-  assert.ok(Math.abs(afterTouch.items[1].x - phoneUpper.x) >= 100);
-  assert.deepEqual(afterTouch.items[0], beforeTouch.items[0]);
-  assert.equal(afterTouch.items[1].elevation, phoneUpper.elevation);
-  await assertScenePlacement(phone, phoneUpper.id);
-  await phone.getByRole('button', { name: 'Undo', exact: true }).tap();
-  await phone.waitForFunction(({ id, x }) => window.__kitchen.design.getState().design.items.find((item) => item.id === id)?.x === x, phoneUpper);
-  assert.deepEqual(await design(phone), beforeTouch);
-  await assertScenePlacement(phone, phoneUpper.id);
-
-  touchHandle = await bodyMovement();
-  await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: touchHandle.from.x, y: touchHandle.from.y }] });
-  await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: touchHandle.to.x, y: touchHandle.to.y }] });
-  assert.ok(await phone.evaluate(() => window.__kitchen.design.getState().gestureBase !== null));
-  await touch.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
-  await phone.waitForFunction(() => window.__kitchen.design.getState().gestureBase === null);
-  assert.deepEqual(await design(phone), beforeTouch);
-  assert.equal(await phone.evaluate(() => window.__kitchen.design.getState().gestureBase), null);
-  await assertScenePlacement(phone, phoneUpper.id);
-  await touch.detach();
-  pass('real touch drags move only the selected upper, Undo restores it, and touch cancellation rolls back cleanly');
+  await assertBodyOrbits(phone, (await design(phone)).items[1].id, true);
+  pass('dragging the selected upper on touch orbits the camera while the model and history remain unchanged');
   await phoneContext.close();
   assert.deepEqual(problems, []);
   console.log('All stacked-cabinet and premium-kitchen browser checks passed.');

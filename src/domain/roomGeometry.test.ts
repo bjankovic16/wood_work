@@ -8,7 +8,7 @@ import { createRoomExample, ROOM_EXAMPLES } from './roomExamples';
 import { openingFitsRoomWall, parseRoom, ROOM_CORNERS, roomContainsPoint, roomFeatureRect, roomOutline, roomWallRuns } from './roomGeometry';
 import { computeDragPlacement } from './snapping';
 import type { Room, Opening } from './types';
-import { roomSegments, wallPoint, openingPolygon, solidWallPieces } from './walls';
+import { roomSegments, wallPoint, openingOnWall, openingPolygon, solidWallPieces } from './walls';
 import { editableRoomVertices, editRoomWall, setRoomVertices, removeRoomCorner } from '../store/actions';
 import { useDesignStore } from '../store/designStore';
 import { checkDesign } from '../engine/checks';
@@ -97,6 +97,40 @@ describe('room footprints and fixed structures', () => {
     expect(() => setRoomVertices([{ id: 'a', x: 0, y: 0 }])).toThrow(RangeError);
     expect(useDesignStore.getState().design).toBe(design);
     expect(localToRoom(design.items[0], 0, 0).x).toBeGreaterThan(0);
+  });
+  it('resizes both parallel walls of a rectangle without replacing segment identities', () => {
+    useDesignStore.getState().load({ ...createDesign(), room: base });
+    editRoomWall('left', 3750, 270);
+    expect(useDesignStore.getState().design.room).toEqual({ ...base, depth: 3750 });
+    const vertices = editableRoomVertices(base).map((v, i) => ({ ...v, id: `wall:${i}` }));
+    setRoomVertices(vertices);
+    editRoomWall('wall:2', 3350, 180);
+    const walls = roomSegments(useDesignStore.getState().design.room);
+    expect(walls.map((s) => s.id)).toEqual(vertices.map((v) => v.id));
+    expect(walls.map((s) => s.length)).toEqual([3350, 3000, 3350, 3000]);
+  });
+  it('projects legacy offsets onto truncated perimeter edges instead of assuming they start at the box corner', () => {
+    const room: Room = { ...base, cutout: { kind: 'diagonal', corner: 'bottomLeft', width: 800, depth: 600 } };
+    for (const [wall, offset] of [['bottom', 1000], ['left', 500]] as const) {
+      const opening: Opening = { id: wall, wall, offset, kind: 'window', width: 400, sill: 900, height: 900 };
+      const at = openingOnWall(room, opening)!;
+      const converted = { ...opening, wallId: at.segment.id, offset: at.offset };
+      const ordered = (p: { x: number; y: number }[]) => p.map((p) => `${p.x},${p.y}`).sort();
+      expect(ordered(openingPolygon(room, converted, 200))).toEqual(ordered(openingPolygon(room, opening, 200)));
+    }
+  });
+  it('moves the end of the actual diagonal segment and keeps the last valid outline on error', () => {
+    const room: Room = { ...base, cutout: { kind: 'diagonal', corner: 'bottomRight', width: 900, depth: 900 } };
+    const edge = roomSegments(room)[2];
+    useDesignStore.getState().load({ ...createDesign(), room });
+    editRoomWall(edge.id, 1000, 145.5);
+    const good = useDesignStore.getState().design;
+    const next = roomSegments(good.room)[2];
+    expect(next.id).toBe(edge.id);
+    expect(next.length).toBeCloseTo(1000, 0);
+    expect(next.angle).toBeCloseTo(145.5, 1);
+    expect(() => editRoomWall(edge.id, 1000, 270)).toThrow(RangeError);
+    expect(useDesignStore.getState().design).toBe(good);
   });
   it('preserves rectangular rooms and their original wall order', () => {
     expect(parseRoom(base)).toEqual(base);

@@ -3,16 +3,17 @@ import { useMemo, useRef, useState } from 'react';
 import { KITCHEN_DESIGNS, kitchenCategory, type KitchenCategory, type KitchenPreset } from '../../domain/kitchens';
 import { normalizeSearchText } from '../../domain/librarySearch';
 import { randomSeed, shuffled } from '../../domain/shuffle';
-import type { KitchenCollection } from '../../domain/premiumKitchens';
+import { COLLECTION_INSPIRATION, KITCHEN_COLLECTIONS, type KitchenCollection } from '../../domain/premiumKitchens';
 import { FRONT_FINISHES, WORKTOP_FINISHES } from '../../domain/style';
 import { LAYOUTS, type LayoutId } from '../../domain/templates';
 import { useIsCompact } from '../../hooks/useMediaQuery';
 import { useT } from '../../i18n';
-import { applyKitchenDesign, applyLayout } from '../../store/actions';
+import { applyKitchenDesign, openKitchenOriginal } from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
 import { useUiStore } from '../../store/uiStore';
 import { Button, Dialog, Segmented } from '../ui';
 import { PhotoReferenceGallery } from '../references/PhotoReferences';
+import { IdeaFitReview } from './IdeaFitReview';
 
 /** Small top views of each layout: grey runs of floor units against the walls. */
 function LayoutSketch({ id }: { id: LayoutId }) {
@@ -27,7 +28,7 @@ function LayoutSketch({ id }: { id: LayoutId }) {
   );
 }
 
-function KitchenCard({ kitchen, onClose }: { kitchen: (typeof KITCHEN_DESIGNS)[number]; onClose: () => void }) {
+function KitchenCard({ kitchen }: { kitchen: (typeof KITCHEN_DESIGNS)[number] }) {
   const t = useT();
   const [previewFailed, setPreviewFailed] = useState(false);
   const name = t.kitchens.names[kitchen.id];
@@ -43,10 +44,7 @@ function KitchenCard({ kitchen, onClose }: { kitchen: (typeof KITCHEN_DESIGNS)[n
       type="button"
       data-kitchen-design={kitchen.id}
       aria-label={t.kitchens.open(name)}
-      onClick={() => {
-        applyKitchenDesign(kitchen);
-        onClose();
-      }}
+      onClick={() => applyKitchenDesign(kitchen)}
       className="block w-full min-w-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#637362]"
     >
       {previewFailed ? (
@@ -92,6 +90,10 @@ function KitchenCard({ kitchen, onClose }: { kitchen: (typeof KITCHEN_DESIGNS)[n
           {t.kitchens.customize}<ArrowRight className="size-4 shrink-0 transition-transform group-hover:translate-x-1" />
         </span>
       </span>
+    </button>
+    <button type="button" data-kitchen-original={kitchen.id} onClick={() => openKitchenOriginal(kitchen)}
+      className="mx-4 mb-2 block min-h-11 text-left text-xs text-studio-muted underline underline-offset-4 focus-visible:ring-2">
+      {t.kitchens.original}
     </button>
     {preset.inspiration && (
       <a href={preset.inspiration} target="_blank" rel="noopener noreferrer" aria-label={`${t.kitchens.inspiration}: ${name}`} className="mx-4 mb-2 inline-flex min-h-11 items-center gap-1.5 text-xs text-[#59664f] underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#637362]">
@@ -195,7 +197,7 @@ function LayoutChoices({ onClose }: { onClose: () => void }) {
                 if (value === 'all' || value === 'warm' || value === 'dark' || value === 'japandi') setCollection(value);
               }} className="h-11 rounded-lg border border-studio-line bg-studio-paper px-3 text-sm text-studio-ink">
                 <option value="all">{t.kitchens.collection}: {t.library.allCategories}</option>
-                {(['warm', 'dark', 'japandi'] as const).map((value) => <option key={value} value={value}>{t.kitchens.collections[value]}</option>)}
+                {KITCHEN_COLLECTIONS.map((value) => <option key={value} value={value}>{t.kitchens.collections[value]}</option>)}
               </select>
               <select aria-label={t.kitchens.filter} value={filter} onChange={(event) => {
                 const option = filters.find((entry) => entry.value === event.target.value);
@@ -224,7 +226,7 @@ function LayoutChoices({ onClose }: { onClose: () => void }) {
             <h4 className="text-sm font-semibold text-[#332f28]">{t.kitchens.noResults}</h4>
             <p className="mt-2 text-[13px] leading-relaxed text-zinc-600">{t.kitchens.noResultsHint}</p>
           </div> : <div className="grid grid-cols-1 gap-5 min-[540px]:grid-cols-2 min-[1100px]:grid-cols-3">
-            {kitchens.map((kitchen) => <KitchenCard key={kitchen.id} kitchen={kitchen} onClose={onClose} />)}
+            {kitchens.map((kitchen) => <KitchenCard key={kitchen.id} kitchen={kitchen} />)}
           </div>}
           <details className="rounded-lg p-2 text-xs leading-relaxed text-zinc-600">
             <summary className="cursor-pointer font-medium">{t.kitchens.replaceSummary}</summary>
@@ -232,7 +234,7 @@ function LayoutChoices({ onClose }: { onClose: () => void }) {
           </details>
           <p className="text-xs leading-relaxed text-zinc-600">{t.kitchens.materialsNote}</p>
           <a
-            href="https://www.pinterest.com/ideas/warm-contemporary-kitchen/955209864754/"
+            href={COLLECTION_INSPIRATION.warm}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex min-h-11 items-center gap-1.5 rounded text-[13px] font-medium text-blue-700 underline underline-offset-4 hover:text-blue-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
@@ -250,10 +252,7 @@ function LayoutChoices({ onClose }: { onClose: () => void }) {
             <button
               key={layout.id}
               type="button"
-              onClick={() => {
-                applyLayout(layout.id);
-                onClose();
-              }}
+              onClick={() => useUiStore.getState().reviewFit({ type: 'starter', id: layout.id })}
               className="flex w-full touch-manipulation items-center gap-4 rounded-xl border border-zinc-200 bg-white p-3 text-left transition-colors hover:border-blue-300 hover:bg-blue-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               <LayoutSketch id={layout.id} />
@@ -272,12 +271,13 @@ function LayoutChoices({ onClose }: { onClose: () => void }) {
 export function LayoutDialog() {
   const t = useT();
   const open = useUiStore((s) => s.layoutsOpen);
+  const fitRequest = useUiStore((s) => s.fitRequest);
   const compact = useIsCompact();
   const close = () => useUiStore.getState().setLayoutsOpen(false);
 
   return (
     <Dialog open={open} title={t.layouts.title} sheet={compact} wide onClose={close}>
-      <LayoutChoices onClose={close} />
+      {fitRequest ? <IdeaFitReview key={`${fitRequest.type}:${fitRequest.id}`} request={fitRequest} /> : <LayoutChoices onClose={close} />}
     </Dialog>
   );
 }

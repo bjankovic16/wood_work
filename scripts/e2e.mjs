@@ -5,13 +5,14 @@ import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import ExcelJS from 'exceljs';
 import { chromium } from 'playwright-core';
+import { assertShuffledLook } from './look-checks.mjs';
 import { createServer } from 'vite';
-import { open3DTools } from './three-test-helpers.mjs';
+import { assertNeutralScene, cabinetBodyDrag, open3DTools, waitForIdleRendering } from './three-test-helpers.mjs';
 
 const shotsDir = process.argv[2] ?? 'test-results';
 await mkdir(shotsDir, { recursive: true });
 
-const server = await createServer({ logLevel: 'error', cacheDir: path.resolve(shotsDir, '.vite'), server: { port: 5199 } });
+const server = await createServer({ logLevel: 'error', cacheDir: path.resolve(shotsDir, '.vite'), optimizeDeps: { entries: ['index.html'] }, server: { port: 5199, watch: null, hmr: false } });
 await server.listen();
 const url = server.resolvedUrls.local[0];
 
@@ -76,25 +77,25 @@ async function dragPreset(presetId, to, options) {
 }
 
 try {
-  await page.goto(url);
-  await page.evaluate(() => localStorage.clear());
-  await page.reload();
-  await page.waitForSelector('canvas');
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
+  const workspace = page.getByTestId('room-workspace');
+  await workspace.getByTestId('room-plan').waitFor();
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(200);
   await shot('00-empty-sr.png');
 
   console.log('Serbian browser-language detection');
-  const startFromLayoutSr = page.getByRole('button', { name: 'Izaberite kuhinju' });
   check(
-    'a Serbian browser starts the app in Serbian',
-    (await page.evaluate(() => document.documentElement.lang)) === 'sr-Latn' && (await startFromLayoutSr.isVisible()),
+    'a Serbian browser starts in the Serbian room editor',
+    (await page.evaluate(() => document.documentElement.lang)) === 'sr-Latn' && await workspace.getByRole('heading', { name: 'Moja prostorija' }).isVisible(),
     await page.evaluate(() => document.documentElement.lang),
   );
   check('the first project has a Serbian name', (await design()).name === 'Moja kuhinja', (await design()).name);
-  await startFromLayoutSr.click();
+  await workspace.getByTestId('room-ideas').click();
   await page.getByRole('radio', { name: 'Moj raspored' }).click();
   await page.getByRole('button', { name: /^L-oblik/ }).click();
+  check('reviewing the Serbian layout has not added any units', (await design()).items.length === 0);
+  await page.getByTestId('confirm-idea-fit').click();
   const serbianCodes = (await design()).items.map((i) => i.label);
   check('new units get Serbian codes', serbianCodes.includes('U1') && serbianCodes.includes('D1') && !serbianCodes.some((code) => /^(B|W|C)\d/.test(code)), serbianCodes);
   await page.getByRole('radio', { name: /Krojna lista/ }).click();
@@ -117,15 +118,17 @@ try {
   await page.getByLabel('Jezik / Language').selectOption('en');
   check(
     'the language can be switched to English',
-    (await page.evaluate(() => document.documentElement.lang)) === 'en' && (await page.getByRole('button', { name: 'Choose a kitchen' }).isVisible()),
+    (await page.evaluate(() => document.documentElement.lang)) === 'en' && await page.locator('header').getByRole('button', { name: 'Kitchen designs', exact: true }).isVisible(),
   );
   await shot('01-empty.png');
 
   console.log('Kitchen inspiration gallery');
-  await page.getByRole('button', { name: 'Choose a kitchen' }).click();
+  const openIdeas = () => page.locator('header').getByRole('button', { name: 'Kitchen designs', exact: true }).click();
+  await openIdeas();
   const gallery = page.getByRole('dialog', { name: 'Kitchen designs' });
   const kitchenCards = gallery.locator('[data-kitchen-design]');
-  const beforeGallerySearch = sortedJson(await design());
+  const sourceProject = await design();
+  const beforeGallerySearch = sortedJson(sourceProject);
   check('the gallery offers exactly 60 kitchen images', (await kitchenCards.count()) === 60 && (await kitchenCards.locator('img').count()) === 60);
   const collections = gallery.getByRole('combobox', { name: 'Design collection', exact: true });
   for (const [name, count] of [['Warm contemporary', 15], ['Dark luxury', 11], ['Japandi', 10]]) {
@@ -159,7 +162,7 @@ try {
   await gallery.getByRole('button', { name: 'Reset filters', exact: true }).click();
   check('browsing and resetting filters never changes the saved kitchen', sortedJson(await design()) === beforeGallerySearch);
   await gallery.locator('summary').click();
-  check('the replacement notice explains all changes before opening a kitchen', await gallery.locator('details p').isVisible());
+  check('the gallery explains how ideas affect the room before you choose', await gallery.locator('details p').isVisible() && /room/i.test(await gallery.locator('details p').innerText()));
   await gallery.locator('summary').click();
   await gallery.getByLabel('Kitchen layout', { exact: true }).selectOption('island');
   check('the island filter shows eleven kitchens', (await kitchenCards.count()) === 11);
@@ -181,19 +184,20 @@ try {
   });
   const galleryPresets = process.env.KITCHEN_E2E_SMOKE === '1' ? kitchenPresets.slice(0, 1) : kitchenPresets;
   for (const [index, preset] of galleryPresets.entries()) {
-    if (index > 0) await page.getByRole('button', { name: 'Kitchen designs', exact: true }).first().click();
+    if (index > 0) await openIdeas();
     const card = gallery.locator(`[data-kitchen-design="${preset.id}"]`);
     await card.scrollIntoViewIfNeeded();
     await page.waitForFunction((id) => document.querySelector(`[data-kitchen-design="${id}"] img`)?.naturalWidth === 900, preset.id);
+    const original = gallery.locator(`[data-kitchen-original="${preset.id}"]`);
     if (index === 0) {
-      await card.focus();
+      await original.focus();
       await page.keyboard.press('Enter');
     } else {
-      await card.click();
+      await original.click();
     }
     const loaded = await design();
     check(
-      `${preset.id}: clicking the image loads exactly its room, units, finishes and construction`,
+      `${preset.id}: opening the original loads exactly its room, units, finishes and construction`,
       sortedJson(kitchenSnapshot(loaded)) === sortedJson(kitchenSnapshot(preset.design)),
       { room: loaded.room, style: loaded.style, units: loaded.items.length },
     );
@@ -207,9 +211,15 @@ try {
   await page.locator('main canvas').waitFor();
   await page.waitForTimeout(500);
   await shot('01d-gallery-kitchen-loaded.png');
-  for (let index = 0; index < galleryPresets.length; index++) await page.getByRole('button', { name: 'Undo', exact: true }).click();
-  check('every gallery selection is one undo step', (await design()).items.length === 0 && (await design()).room.width === 3600);
-  await page.getByRole('radio', { name: /^Plan/ }).click();
+  const projectsButton = page.getByRole('button', { name: 'Projects', exact: true });
+  const projectsDialog = page.getByRole('dialog', { name: 'Projects' });
+  const projectRows = projectsDialog.getByTestId('project-row');
+  await projectsButton.click();
+  const projectsWithOriginals = 1 + galleryPresets.length;
+  check('each original is a separate saved project', (await projectRows.count()) === projectsWithOriginals);
+  await projectRows.filter({ has: page.getByText(sourceProject.name, { exact: true }) }).getByRole('button', { name: 'Open', exact: true }).click();
+  check('opening originals left the source project untouched', sortedJson(await design()) === beforeGallerySearch);
+  await workspace.getByTestId('room-done').click();
 
   console.log('Premium library and finishes');
   const premiumContext = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
@@ -218,25 +228,26 @@ try {
   premiumPage.on('console', (message) => {
     if ((message.type() === 'error' || message.type() === 'warning') && !isNoise(message.text())) problems.push(`premium ${message.type()}: ${message.text()}`);
   });
-  await premiumPage.goto(url);
-  await premiumPage.waitForSelector('canvas');
+  await premiumPage.goto(url, { waitUntil: 'domcontentloaded' });
+  const roomSetup = premiumPage.getByTestId('room-workspace');
+  await roomSetup.getByTestId('room-plan').waitFor();
   await premiumPage.getByLabel('Jezik / Language').selectOption('en');
   const premiumDesign = () => premiumPage.evaluate(() => window.__kitchen.design.getState().design);
-  check('blank kitchens offer a clear optional starting point', await premiumPage.getByRole('heading', { name: 'Start your kitchen' }).isVisible());
-  check('the parts library starts with eight most-used parts', await premiumPage.locator('[data-preset]').count() === 8);
-  await premiumPage.getByRole('button', { name: 'Browse all parts', exact: true }).click();
-  check('specialist modules start collapsed without being removed', (await premiumPage.getByRole('button', { name: 'Storage & display', exact: true }).getAttribute('aria-expanded')) === 'false');
-  await premiumPage.getByRole('button', { name: 'Start with my room' }).click();
-  const roomSetup = premiumPage.getByRole('dialog', { name: 'Set up your room' });
+  check('blank kitchens start with the room, not an inspiration gallery', await roomSetup.getByRole('heading', { name: 'My room' }).isVisible() && !(await premiumPage.getByRole('dialog', { name: 'Kitchen designs' }).isVisible()));
   await roomSetup.getByLabel('Width', { exact: true }).fill('4200');
   await roomSetup.getByLabel('Width', { exact: true }).press('Enter');
   await roomSetup.getByLabel('Depth', { exact: true }).fill('3200');
   await roomSetup.getByLabel('Depth', { exact: true }).press('Enter');
   await premiumPage.screenshot({ path: path.join(shotsDir, 'usability-room-setup-desktop.png') });
-  await roomSetup.getByRole('button', { name: 'Add kitchen parts', exact: true }).click();
+  await roomSetup.getByTestId('room-done').click();
   const partSearch = premiumPage.getByRole('searchbox', { name: 'Search kitchen parts' });
-  await premiumPage.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Search kitchen parts');
-  check('room setup edits the real room and focuses the next useful action', (await premiumDesign()).room.width === 4200 && (await premiumDesign()).room.depth === 3200 && !(await roomSetup.isVisible()));
+  const optionalStart = premiumPage.getByRole('region', { name: 'Start your kitchen', exact: true });
+  await partSearch.waitFor();
+  check('finishing room setup opens the parts library for the measured room', (await premiumDesign()).room.width === 4200 && (await premiumDesign()).room.depth === 3200 && !(await roomSetup.isVisible()));
+  await optionalStart.getByRole('button', { name: 'Use the blank plan', exact: true }).click();
+  check('the parts library starts with eight most-used parts', await premiumPage.locator('[data-preset]').count() === 8);
+  await premiumPage.getByRole('button', { name: 'Browse all parts', exact: true }).click();
+  check('specialist modules start collapsed without being removed', (await premiumPage.getByRole('button', { name: 'Storage & display', exact: true }).getAttribute('aria-expanded')) === 'false');
   await partSearch.fill('drawers 900');
   check('parts can be found by a common name and width', (await premiumPage.locator('[data-preset]').count()) === 1 && (await premiumPage.locator('[data-preset="drawer-900"]').isVisible()));
   await premiumPage.screenshot({ path: path.join(shotsDir, 'usability-part-search-desktop.png') });
@@ -250,7 +261,7 @@ try {
   await partSearch.press('Backspace');
   check('typing in part search does not delete the selected cabinet', (await premiumDesign()).items.length === 1 && (await premiumDesign()).items[0].kind === 'glassWall');
   await premiumPage.getByRole('button', { name: 'Undo', exact: true }).click();
-  check('the optional start guide stays dismissed while editing this project', !(await premiumPage.getByRole('heading', { name: 'Start your kitchen' }).isVisible()));
+  check('undoing the last cabinet keeps the measured room open without bringing back dismissed ideas', !(await roomSetup.isVisible()) && !(await optionalStart.isVisible()) && await partSearch.isVisible() && (await premiumDesign()).room.width === 4200);
   const modules = await premiumPage.evaluate(async () => {
     const { LIBRARY, itemFromPreset } = await import('/src/domain/catalog.ts');
     return LIBRARY.filter((section) => ['storage', 'appliances', 'islands'].includes(section.id))
@@ -272,25 +283,37 @@ try {
   }
   await partSearch.fill('');
   await premiumPage.getByRole('button', { name: 'Kitchen designs', exact: true }).first().click();
-  await premiumPage.locator('[data-kitchen-design="oak-island"]').click();
+  await premiumPage.locator('[data-kitchen-original="oak-island"]').click();
   await open3DTools(premiumPage);
   await premiumPage.getByRole('button', { name: 'Style', exact: true }).click();
+  const initialStyle = (await premiumDesign()).style;
   await premiumPage.getByRole('button', { name: 'Fronts: Terracotta', exact: true }).click();
   await premiumPage.getByRole('button', { name: 'Worktop: Warm marble', exact: true }).click();
   await premiumPage.getByRole('button', { name: 'Copper bar', exact: true }).click();
   await premiumPage.getByRole('button', { name: 'Backsplash: Warm marble', exact: true }).click();
-  await premiumPage.getByRole('checkbox', { name: 'Warm under-cabinet lighting' }).uncheck();
-  check('under-cabinet lighting is an editable setting', (await premiumDesign()).style.lighting === false);
-  await premiumPage.getByRole('checkbox', { name: 'Warm under-cabinet lighting' }).check();
+  check('the style picker does not offer decorative lighting controls', await premiumPage.getByRole('checkbox', { name: /lighting/i }).count() === 0);
   await premiumPage.getByRole('checkbox', { name: 'Style shelves with accessories' }).uncheck();
   check('shelf accessories can be switched off', (await premiumDesign()).style.decor === false);
   await premiumPage.getByRole('checkbox', { name: 'Style shelves with accessories' }).check();
-  const savedPremium = await premiumDesign();
+  const styled = await premiumDesign();
   check(
     'all premium finish controls update the real kitchen',
-    sortedJson(savedPremium.style) === sortedJson({ front: 'clay', worktop: 'marble', handles: 'copper', backsplash: 'marble', lighting: true, decor: true }),
-    savedPremium.style,
+    sortedJson(styled.style) === sortedJson({ ...initialStyle, front: 'clay', worktop: 'marble', handles: 'copper', backsplash: 'marble', decor: true }),
+    styled.style,
   );
+  await assertShuffledLook(premiumPage);
+  await waitForIdleRendering(premiumPage);
+  const meshes = await assertNeutralScene(premiumPage);
+  const savedPremium = await premiumPage.evaluate(async () => {
+    const { parseDesign } = await import('/src/domain/designOps.ts');
+    const { design, load } = window.__kitchen.design.getState();
+    const legacy = parseDesign({ ...design, style: { ...design.style, lighting: true, plinthLighting: true } });
+    if (!legacy) throw new Error('Legacy projects with lighting options must still open.');
+    load(legacy);
+    return legacy;
+  });
+  await waitForIdleRendering(premiumPage);
+  check('legacy lighting options add no lamps, LED strips, glow or shadows to the model', await assertNeutralScene(premiumPage) === meshes);
   await premiumPage.screenshot({ path: path.join(shotsDir, 'premium-finishes-and-parts.png') });
   await premiumPage.waitForTimeout(500);
   await premiumPage.reload();
@@ -298,23 +321,29 @@ try {
   check('all new modules, materials and premium finishes survive a reload', sortedJson(await premiumDesign()) === sortedJson(savedPremium));
   await premiumPage.getByRole('button', { name: 'Projects', exact: true }).click();
   await premiumPage.getByRole('dialog', { name: 'Projects' }).getByRole('button', { name: 'New project', exact: true }).click();
-  await premiumPage.keyboard.press('Escape');
-  check('new projects get their own starting guide', await premiumPage.getByRole('heading', { name: 'Start your kitchen' }).isVisible());
-  await premiumPage.getByRole('button', { name: 'Use the blank plan', exact: true }).click();
-  check('experienced users can dismiss the guide and work directly', !(await premiumPage.getByRole('heading', { name: 'Start your kitchen' }).isVisible()));
+  await roomSetup.getByTestId('room-plan').waitFor();
+  check('new projects open their own empty room', (await premiumDesign()).items.length === 0 && await roomSetup.getByRole('heading', { name: 'My room' }).isVisible());
+  await roomSetup.getByTestId('room-done').click();
+  await optionalStart.getByRole('button', { name: 'Use the blank plan', exact: true }).click();
+  check('each project can dismiss its own suggestions and continue to a blank plan', !(await optionalStart.isVisible()) && await premiumPage.locator('.konvajs-content').isVisible() && (await premiumDesign()).items.length === 0);
   await premiumContext.close();
 
   console.log('Ready-made layouts');
-  await page.getByRole('button', { name: 'Choose a kitchen' }).click();
+  await openIdeas();
   await page.getByRole('radio', { name: 'My room layout' }).click();
   await page.getByRole('button', { name: /^L-shaped/ }).click();
+  await gallery.getByRole('combobox', { name: 'Main wall' }).selectOption('top');
+  await gallery.getByRole('radio', { name: 'Left return' }).click();
+  check('the layout preview leaves the kitchen unchanged until confirmed', sortedJson(await design()) === beforeGallerySearch);
+  await page.getByTestId('confirm-idea-fit').click();
   const laid = await design();
   check(
     'a ready-made L-shaped kitchen fills the plan',
-    laid.items.length > 8 && laid.items.some((i) => i.kind === 'corner' && i.x === 0 && i.y === 0),
+    laid.items.length > 8 && laid.items.some((i) => i.kind === 'corner' && i.x === 0 && i.y === 0) && sortedJson(laid.room) === sortedJson(sourceProject.room),
     laid.items.map((i) => i.label),
   );
-  await page.waitForTimeout(150);
+  await page.getByRole('radio', { name: 'Plan', exact: true }).click();
+  await page.locator('.konvajs-content').waitFor();
   await shot('01b-l-layout.png');
   await page.keyboard.press('Control+z');
   check('Undo takes the layout away again', (await design()).items.length === 0);
@@ -569,6 +598,15 @@ try {
   await shot('15-3d-styled.png');
   await page.keyboard.press('Control+z');
   check('a style change can be undone', (await design()).style.handles === 'steel', (await design()).style);
+  await page.getByRole('button', { name: 'Hide style options', exact: true }).click();
+  await page.getByRole('group', { name: '3D camera' }).getByRole('button', { name: 'Top', exact: true }).click();
+  const beforeOrbit = sortedJson(await design());
+  const cabinetDrag = await cabinetBodyDrag(page, 'X', 0.35, (await byLabel('W1')).id);
+  const camera = await page.evaluate(() => window.__kitchen3D.camera.position.toArray());
+  const historyBeforeOrbit = await page.evaluate(() => window.__kitchen.design.getState().past.length);
+  await drag(cabinetDrag.from, { x: cabinetDrag.to.x, y: cabinetDrag.to.y - 30 });
+  await page.waitForFunction((initial) => window.__kitchen3D.camera.position.toArray().some((v, i) => Math.abs(v - initial[i]) > 0.001), camera);
+  check('a 3D cabinet drag orbits the furnished kitchen without editing it', sortedJson(await design()) === beforeOrbit && await page.evaluate(() => window.__kitchen.design.getState().past.length) === historyBeforeOrbit);
   await page.getByRole('button', { name: 'Reset view' }).click();
   await page.getByRole('radio', { name: /^Plan/ }).click();
   await page.waitForSelector('canvas');
@@ -785,13 +823,10 @@ try {
   await page.waitForSelector('canvas');
 
   console.log('Projects');
-  const projectsButton = page.getByRole('button', { name: 'Projects', exact: true });
-  const projectsDialog = page.getByRole('dialog', { name: 'Projects' });
-  const projectRows = projectsDialog.getByTestId('project-row');
   await projectsButton.click();
-  check('the projects dialog lists the open kitchen', (await projectRows.count()) === 1 && (await projectRows.first().innerText()).includes('Kuhinja Petrović'));
+  check('the projects dialog lists the open kitchen and the separate originals', (await projectRows.count()) === projectsWithOriginals && (await projectRows.first().innerText()).includes('Kuhinja Petrović'));
   await projectsDialog.getByRole('button', { name: 'Copy Kuhinja Petrović' }).click();
-  check('a project can be copied', (await projectRows.count()) === 2 && (await projectsDialog.getByText('Kuhinja Petrović (copy)').isVisible()));
+  check('a project can be copied', (await projectRows.count()) === projectsWithOriginals + 1 && (await projectsDialog.getByText('Kuhinja Petrović (copy)').isVisible()));
 
   const [projectDownload] = await Promise.all([
     page.waitForEvent('download'),
@@ -809,16 +844,14 @@ try {
 
   await projectsDialog.getByRole('button', { name: 'New project' }).click();
   check(
-    'a new project starts empty and offers the ready-made layouts',
-    (await design()).items.length === 0 && (await design()).name === 'Kitchen 1' && (await page.getByRole('dialog', { name: 'Kitchen designs' }).isVisible()),
+    'a new project starts empty in its room workspace, without a kitchen already chosen',
+    (await design()).items.length === 0 && (await design()).name === 'Kitchen 1' && await workspace.getByTestId('room-plan').isVisible() && !(await gallery.isVisible()),
     (await design()).name,
   );
-  await page.keyboard.press('Escape');
-
   await projectsButton.click();
   await projectsDialog.getByLabel('Project file').setInputFiles(projectPath);
   // The file is read in the background; the dialog closes once it is open.
-  await projectsDialog.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+  await projectsDialog.waitFor({ state: 'hidden' });
   check(
     'a project file can be opened again',
     (await design()).name === 'Kuhinja Petrović' && sortedJson((await design()).items) === sortedJson(projectFile.items) && !(await projectsDialog.isVisible()),
@@ -826,9 +859,9 @@ try {
 
   await projectsButton.click();
   await projectsDialog.getByRole('button', { name: 'Delete Kitchen 1' }).click();
-  check('deleting asks for a second click', (await projectRows.count()) === 4);
+  check('deleting asks for a second click', (await projectRows.count()) === projectsWithOriginals + 3);
   await projectsDialog.getByRole('button', { name: 'Delete?' }).click();
-  check('…and then deletes the project', (await projectRows.count()) === 3 && !(await projectsDialog.getByText('Kitchen 1').isVisible()));
+  check('…and then deletes the project', (await projectRows.count()) === projectsWithOriginals + 2 && !(await projectsDialog.getByText('Kitchen 1').isVisible()));
   await projectRows.filter({ hasText: 'Kuhinja Petrović (copy)' }).getByRole('button', { name: 'Open' }).click();
   check('another project can be opened', (await design()).name === 'Kuhinja Petrović (copy)' && (await design()).customParts.length === 1, (await design()).name);
 
@@ -837,7 +870,7 @@ try {
   const storedIndex = await page.evaluate(() => JSON.parse(localStorage.getItem('kitchen-designer:projects')));
   check(
     'the projects and the open one survive a reload',
-    (await design()).name === 'Kuhinja Petrović (copy)' && storedIndex.projects.length === 3,
+    (await design()).name === 'Kuhinja Petrović (copy)' && storedIndex.projects.length === projectsWithOriginals + 2,
     { name: (await design()).name, projects: storedIndex.projects.map((p) => p.name) },
   );
 
@@ -862,30 +895,29 @@ try {
   console.log('Windows and doors');
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Window', exact: true }).click();
-  const windowCard = page.getByTestId('opening-card').first();
+  const selectedOpening = page.getByTestId('selected-room-card').getByTestId('opening-card');
   for (const [label, value] of [
-    ['From the left', '1500'],
+    ['From wall start', '1500'],
     ['Width', '800'],
   ]) {
-    const field = windowCard.getByLabel(label, { exact: true });
+    const field = selectedOpening.getByLabel(label, { exact: true });
     await field.fill(value);
     await field.press('Enter');
   }
   const windowOpening = (await design()).openings[0];
   check(
     'a window can be added and placed on a wall',
-    windowOpening?.kind === 'window' && windowOpening.offset === 1500 && windowOpening.width === 800,
+    windowOpening?.kind === 'window' && windowOpening.wallId === 'top' && windowOpening.offset === 1500 && windowOpening.width === 800,
     windowOpening,
   );
   check('the checks notice wall units in front of the window', /warning/.test(await checksButton.getAttribute('aria-label')), await checksButton.getAttribute('aria-label'));
   await page.getByRole('button', { name: 'Door', exact: true }).click();
-  const doorCard = page.getByTestId('opening-card').nth(1);
-  await doorCard.getByLabel('Wall', { exact: true }).selectOption('bottom');
-  const doorFrom = doorCard.getByLabel('From the left', { exact: true });
+  await selectedOpening.getByLabel('Wall', { exact: true }).selectOption('bottom');
+  const doorFrom = selectedOpening.getByLabel('From wall start', { exact: true });
   await doorFrom.fill('1200');
   await doorFrom.press('Enter');
   const doorOpening = (await design()).openings[1];
-  check('a door can go on another wall', doorOpening?.kind === 'door' && doorOpening.wall === 'bottom' && doorOpening.offset === 1200, doorOpening);
+  check('a door can go on another wall', doorOpening?.kind === 'door' && doorOpening.wallId === 'bottom' && doorOpening.offset === 1200, doorOpening);
   await doorFrom.press('Escape');
   await page.waitForTimeout(150);
   await shot('15b-window-and-door.png');
@@ -925,24 +957,21 @@ try {
     await touch('touchEnd', []);
   }
 
-  await mobile.goto(url);
-  await mobile.evaluate(() => localStorage.clear());
-  await mobile.reload();
-  await mobile.waitForSelector('canvas');
+  await mobile.goto(url, { waitUntil: 'domcontentloaded' });
+  const phoneRoom = mobile.getByTestId('room-workspace');
+  await phoneRoom.getByTestId('room-plan').waitFor();
   await mobile.evaluate(() => document.fonts.ready);
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-01-empty-sr.png') });
-  check('the phone starts in Serbian too', await mobile.getByRole('button', { name: 'Dodaj element' }).isVisible());
+  check('the phone starts in the Serbian room editor too', await phoneRoom.getByRole('heading', { name: 'Moja prostorija' }).isVisible());
   await mobile.setViewportSize({ width: 320, height: 568 });
-  const narrowStartFits = await mobile.getByRole('region', { name: 'Započnite svoju kuhinju' }).evaluate((guide) => {
-    const rect = guide.getBoundingClientRect();
-    const main = document.querySelector('main').getBoundingClientRect();
-    return rect.left >= 0 && rect.right <= innerWidth && rect.top >= main.top + 44 && rect.bottom <= innerHeight - 70;
-  });
-  check('the optional starting choices fit on a 320 px phone without hiding editing controls', narrowStartFits);
+  const startActions = await Promise.all(['room-ideas', 'room-done'].map((id) => phoneRoom.getByTestId(id).boundingBox()));
+  check('the room starting actions fit on a 320 px phone', startActions.every((box) => box && box.x >= 0 && box.x + box.width <= 320 && box.y + box.height <= 568), startActions);
+  await mobile.screenshot({ path: path.join(shotsDir, 'usability-start-phone-narrow.png') });
+  await phoneRoom.getByTestId('room-done').tap();
+  await mobile.locator('.konvajs-content').waitFor();
   const filterBounds = await mobile.getByRole('group', { name: 'Prikaz elemenata' }).boundingBox();
   const zoomBounds = await mobile.getByRole('group', { name: 'Uvećanje osnove' }).boundingBox();
   check('plan filters and zoom controls do not overlap at 320 px', filterBounds.x >= 0 && zoomBounds.x + zoomBounds.width <= 320 && (filterBounds.x + filterBounds.width + 4 <= zoomBounds.x || filterBounds.y + filterBounds.height + 4 <= zoomBounds.y), { filterBounds, zoomBounds });
-  await mobile.screenshot({ path: path.join(shotsDir, 'usability-start-phone-narrow.png') });
   await mobile.setViewportSize({ width: 390, height: 844 });
   await mobile.getByRole('button', { name: 'Više' }).tap();
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-00-menu-sr.png') });
@@ -950,11 +979,12 @@ try {
   await mobile.getByRole('button', { name: 'More' }).tap();
   check('the phone layout shows the plan with an "Add element" button', await mobile.getByRole('button', { name: 'Add element' }).isVisible());
   check('the phone keeps the project name and navigation labels visible', (await mobile.getByLabel('Project name').isVisible()) && (await mobile.getByRole('radio', { name: 'Plan', exact: true }).getByText('Plan', { exact: true }).isVisible()) && (await mobile.getByRole('radio', { name: 'Cutting list', exact: true }).getByText('Cut list', { exact: true }).isVisible()));
-  await mobile.getByRole('button', { name: 'Start with my room', exact: true }).tap();
-  const phoneRoomSetup = mobile.getByRole('dialog', { name: 'Set up your room' });
+  await mobile.getByRole('button', { name: 'Room', exact: true }).tap();
+  await phoneRoom.getByTestId('room-plan').waitFor();
   await mobile.screenshot({ path: path.join(shotsDir, 'usability-room-setup-phone.png') });
-  await phoneRoomSetup.getByRole('button', { name: 'Add kitchen parts', exact: true }).tap();
-  check('room setup leads straight to the part picker on phones', await mobile.getByRole('dialog', { name: 'Add element', exact: true }).isVisible());
+  await phoneRoom.getByTestId('room-done').tap();
+  await mobile.getByRole('button', { name: 'Add element', exact: true }).tap();
+  check('users can open the part picker after room setup on phones', await mobile.getByRole('dialog', { name: 'Add element', exact: true }).isVisible());
   await mobile.getByRole('searchbox', { name: 'Search kitchen parts' }).fill('600');
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-02-add.png') });
   await mobile.locator('[data-preset="base-600"]').tap();
@@ -1008,12 +1038,16 @@ try {
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-05-3d.png') });
 
   await mobile.getByRole('button', { name: 'Deselect' }).tap();
-  await mobile.getByRole('button', { name: 'Room' }).tap();
-  await mobile.getByText('Advanced room', { exact: true }).tap();
-  await mobile.getByRole('button', { name: 'Kitchen designs', exact: true }).tap();
+  await mobile.getByRole('button', { name: 'Room', exact: true }).tap();
+  await phoneRoom.getByTestId('room-ideas').tap();
+  const beforeStarter = await mobileDesign();
   await mobile.getByRole('radio', { name: 'My room layout' }).tap();
   await mobile.getByRole('button', { name: /^U-shaped/ }).tap();
-  check('a ready-made U-shaped kitchen can be chosen on the phone', (await mobileDesign()).items.filter((i) => i.kind === 'corner').length === 2);
+  check('a phone starter preview has not replaced the existing kitchen', sortedJson(await mobileDesign()) === sortedJson(beforeStarter));
+  await mobile.getByTestId('confirm-idea-fit').tap();
+  const phoneLayout = await mobileDesign();
+  check('confirming the U-shaped starter builds two corners in the existing room', phoneLayout.items.filter((i) => i.kind === 'corner').length === 2 && sortedJson(phoneLayout.room) === sortedJson(beforeStarter.room));
+  await mobile.getByRole('radio', { name: '3D', exact: true }).tap();
   await mobile.waitForTimeout(2000);
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-06-u-3d.png') });
 
@@ -1052,9 +1086,9 @@ try {
   await phoneGallery.getByRole('button', { name: 'Filter designs', exact: true }).tap();
   check('phone users can reveal the style, layout and room-size filters', await phoneGallery.locator('#kitchen-design-filters').isVisible());
   await phoneGallery.getByLabel('Kitchen layout', { exact: true }).selectOption('island');
-  await phoneGallery.locator('[data-kitchen-design="monochrome-island"]').tap();
+  await phoneGallery.locator('[data-kitchen-original="monochrome-island"]').tap();
   check(
-    'tapping a kitchen image on the phone opens the same editable kitchen without an underlying room sheet',
+    'opening an original on the phone opens its exact editable kitchen without an underlying room sheet',
     sortedJson(kitchenSnapshot(await mobileDesign())) === sortedJson(kitchenSnapshot(kitchenPresets.find((preset) => preset.id === 'monochrome-island').design)) && (await mobile.getByRole('dialog').count()) === 0,
   );
   check('warning counts do not overlap or hide the phone menu', await headerFits());

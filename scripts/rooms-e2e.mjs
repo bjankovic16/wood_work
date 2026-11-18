@@ -3,7 +3,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
-import { assertScenePlacement, cabinetBodyDrag, open3DTools } from './three-test-helpers.mjs';
+import { assertBodyOrbits, assertScenePlacement, open3DTools } from './three-test-helpers.mjs';
 import { roomObjectChecks } from './room-object-checks.mjs';
 
 const output = process.argv[2] ?? path.join('test-results', 'rooms');
@@ -125,7 +125,7 @@ async function advancedRoomChecks(page) {
   assert.equal(finished.room.treatments[0].finish, 'walnut');
   await page.waitForTimeout(500);
   await page.reload();
-  await page.waitForSelector('.konvajs-content');
+  await page.getByTestId('room-plan').waitFor();
   assert.deepEqual(await design(page), finished);
   await page.getByRole('radio', { name: '3D', exact: true }).click();
   await ready3D(page);
@@ -198,7 +198,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
   observe(page);
   await page.goto(url, { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector('canvas');
+  await page.getByTestId('room-workspace').waitFor();
   await page.getByLabel('Jezik / Language').selectOption('en');
   await roomObjectChecks(page, output, observe);
   await advancedRoomChecks(page);
@@ -210,20 +210,20 @@ try {
   });
 
   console.log('Room geometry and structures');
-  await page.getByRole('button', { name: 'Start with my room', exact: true }).click();
-  const setup = page.getByRole('dialog', { name: 'Set up your room' });
+  await page.getByRole('button', { name: 'My room', exact: true }).click();
+  const setup = page.getByTestId('room-workspace');
   await openAdvancedRoom(setup);
   await setup.getByLabel('Floor shape').selectOption('notch');
   await setup.getByLabel('Cut-out width').fill('1000');
   await setup.getByLabel('Cut-out width').press('Enter');
-  await setup.getByText('Chimneys, columns & wall projections', { exact: true }).click();
   await setup.getByRole('button', { name: 'Chimney', exact: true }).click();
   const feature = setup.locator('[data-room-feature]').first();
+  await feature.getByLabel('Against wall').selectOption('');
   await feature.getByLabel('Structure width').fill('450');
   await feature.getByLabel('Structure width').press('Enter');
   await feature.getByLabel('From left wall', { exact: true }).fill('0');
   await feature.getByLabel('From left wall', { exact: true }).press('Enter');
-  await setup.getByRole('button', { name: 'Add kitchen parts', exact: true }).click();
+  await setup.getByTestId('room-done').click();
   await page.getByRole('searchbox', { name: 'Search kitchen parts' }).fill('base-600');
   await page.locator('[data-preset="base-600"]').click();
   let state = await design(page);
@@ -272,28 +272,20 @@ try {
   assert.ok(cabinet);
   await selectCabinetInScene(page, cabinet.id);
   const actions = page.getByRole('group', { name: 'Selected cabinet actions' });
-  await page.getByRole('button', { name: 'Move cabinet', exact: true }).click();
-  const { from: handle } = await cabinetBodyDrag(page);
-  const beforeMove = await design(page);
-  const history = await page.evaluate(() => window.__kitchen.design.getState().past.length);
-  await page.mouse.move(handle.x, handle.y);
-  await page.mouse.down();
-  await page.mouse.move(handle.x + 80, handle.y, { steps: 16 });
-  await page.mouse.up();
-  state = await design(page);
-  const moved = state.items.find((item) => item.id === cabinet.id);
-  assert.ok(Math.abs(moved.x - cabinet.x) >= 10, `Expected direct 3D movement; x remained ${moved.x}.`);
-  await assertScenePlacement(page, cabinet.id);
-  assert.equal(await page.evaluate(() => window.__kitchen.design.getState().past.length), history + 1);
-  await page.getByRole('button', { name: 'Undo', exact: true }).click();
-  assert.deepEqual(await design(page), beforeMove);
-  pass('explicit Move enables cabinet-body dragging and records one complete Undo step');
+  await assertBodyOrbits(page, cabinet.id);
+  pass('dragging a cabinet face orbits the shaped room without moving the cabinet or adding history');
 
   await actions.getByRole('button', { name: 'Focus selected cabinet', exact: true }).click();
+  assert.equal(await page.getByLabel('From left wall', { exact: true }).count(), 0);
+  const positionInPlan = page.getByTestId('cabinet-tools').getByRole('button', { name: 'Edit position in 2D', exact: true });
+  await positionInPlan.click();
+  await page.locator('.konvajs-content').waitFor();
   await page.getByLabel('From left wall', { exact: true }).fill(String(state.room.features[0].x));
   await page.getByLabel('From left wall', { exact: true }).press('Enter');
   await page.getByLabel('From top wall', { exact: true }).fill('0');
   await page.getByLabel('From top wall', { exact: true }).press('Enter');
+  await page.getByRole('radio', { name: '3D', exact: true }).click();
+  await ready3D(page);
   await page.getByText('This cabinet has errors. Check its position and the design checks before cutting.', { exact: true }).waitFor();
   const redOutline = await page.evaluate((id) => {
     let red = false;
@@ -305,7 +297,9 @@ try {
   assert.equal(redOutline, true);
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   pass('structural collisions are visible in 3D, not hidden behind a successful-looking placement');
-  await actions.getByRole('button', { name: 'Rotate selected cabinet', exact: true }).click();
+  assert.equal(await actions.getByRole('button', { name: 'Rotate selected cabinet', exact: true }).count(), 0);
+  await positionInPlan.click();
+  await page.getByRole('button', { name: 'Rotate right', exact: true }).click();
   assert.equal((await design(page)).items.find((item) => item.id === cabinet.id).rotation, (cabinet.rotation + 90) % 360);
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
 
@@ -324,15 +318,47 @@ try {
   pass('diagonal room boundaries and fixed columns are rendered in both views');
 
   console.log('Original-photo studio');
-  await page.getByRole('button', { name: 'Kitchen designs', exact: true }).first().click();
+  assert.equal(await page.getByRole('button', { name: /^(Photo|Foto)$/ }).count(), 0, 'No standalone photo shortcut in the desktop 3D toolbar or tools.');
   const gallery = page.getByRole('dialog', { name: 'Kitchen designs' });
-  await gallery.getByRole('radio', { name: 'Photo studio', exact: true }).click();
+  const openStudio = async () => {
+    await page.getByRole('button', { name: 'Kitchen designs', exact: true }).first().click();
+    await gallery.getByRole('radio', { name: 'Photo studio', exact: true }).click();
+  };
+  await openStudio();
   assert.equal(await gallery.locator('[data-photo-design]').count(), 2);
-  await gallery.locator('img').evaluateAll((images) => Promise.all(images.map((image) => image.decode())));
+  assert.equal(await gallery.locator('[data-photo-reference]').count(), 4);
+  assert.equal(await gallery.getByRole('link', { name: 'Pexels License', exact: true }).count(), 6);
+  const collections = gallery.getByRole('region', { name: 'Pinterest inspiration collections' });
+  assert.deepEqual(await collections.getByRole('link').evaluateAll((links) => links.map((link) => link.href)), [
+    'https://www.pinterest.com/ideas/warm-contemporary-kitchen/955209864754/',
+    'https://www.pinterest.com/ideas/oak-and-walnut-kitchen/919020592506/',
+    'https://www.pinterest.com/ideas/japandi-kitchen-ideas/943645865735/',
+  ]);
+  for (const image of await gallery.getByRole('img').all()) {
+    await image.scrollIntoViewIfNeeded();
+    assert.ok(await image.evaluate(async (img) => {
+      await img.decode();
+      return img.naturalWidth > 0 && new URL(img.currentSrc).origin === location.origin;
+    }), 'Only locally bundled images should load in the studio.');
+  }
+  await gallery.getByRole('heading', { name: 'Photos with editable designs' }).scrollIntoViewIfNeeded();
   await shot(page, '06-photo-gallery.png');
+  const beforeReference = await design(page);
+  const activeProject = () => page.evaluate(async () => (await import('/src/store/projects.ts')).useProjectsStore.getState().activeId);
+  const beforeId = await activeProject();
+  await gallery.locator('[data-photo-reference="herb-island"]').click();
+  const original = page.getByRole('complementary', { name: 'Original photo' });
+  await original.getByText('Reference only — no paired 3D model', { exact: true }).waitFor();
+  await original.getByText('Photo: Rene Terp / Pexels', { exact: true }).waitFor();
+  assert.equal(await original.getByRole('link', { name: 'Original source' }).getAttribute('href'), 'https://www.pexels.com/photo/green-leafed-plants-on-kitchen-island-1358900/');
+  assert.equal(await original.getByRole('link', { name: 'Pexels License' }).getAttribute('href'), 'https://www.pexels.com/license/');
+  assert.deepEqual(await design(page), { ...beforeReference, referencePhoto: { kind: 'builtin', id: 'herb-island' } });
+  assert.equal(await activeProject(), beforeId);
+  pass('link-only collections and reference-only photos are distinct from the two paired models; comparison preserves the project');
+
+  await openStudio();
   await gallery.locator('[data-photo-design="ivory-island"]').click();
   await ready3D(page);
-  const original = page.getByRole('complementary', { name: 'Original photo' });
   await original.waitFor();
   await original.getByText('Photo: Mark McCammon / Pexels', { exact: true }).waitFor();
   assert.equal((await design(page)).referencePhoto.id, 'ivory-island');
@@ -389,7 +415,8 @@ try {
   await original.getByRole('button', { name: 'Close original photo', exact: true }).click();
   await finishReferenceDecode(page);
   assert.deepEqual((await design(page)).referencePhoto, withPhoto.referencePhoto);
-  await page.getByRole('button', { name: 'Photo', exact: true }).click();
+  await openStudio();
+  await gallery.getByRole('button', { name: 'Open current photo comparison', exact: true }).click();
   await original.waitFor();
   assert.equal(await original.getByRole('status').count(), 0);
   pass('closing the photo panel cancels a pending photo change');
@@ -411,14 +438,15 @@ try {
   const mobile = await phone.newPage();
   observe(mobile);
   await mobile.goto(url, { waitUntil: 'domcontentloaded' });
-  await mobile.waitForSelector('canvas');
+  await mobile.getByTestId('room-workspace').waitFor();
   await mobile.getByRole('button', { name: 'Više', exact: true }).tap();
   await mobile.getByRole('radio', { name: 'English', exact: true }).tap();
   await mobile.getByRole('button', { name: 'More', exact: true }).tap();
-  await mobile.getByRole('button', { name: 'Choose a kitchen', exact: true }).tap();
+  await mobile.getByTestId('room-ideas').tap();
   await mobile.getByRole('dialog', { name: 'Kitchen designs' }).getByRole('radio', { name: 'Photo studio', exact: true }).tap();
   await mobile.locator('[data-photo-design="warm-island"]').tap();
   await ready3D(mobile);
+  assert.equal(await mobile.getByRole('button', { name: /^(Photo|Foto)$/ }).count(), 0, 'No standalone photo shortcut in the compact 3D tools.');
   await mobile.getByRole('complementary', { name: 'Original photo' }).waitFor();
   await shot(mobile, '08-photo-studio-phone.png');
   await mobile.getByRole('group', { name: '3D camera' }).getByRole('button', { name: 'Top', exact: true }).tap();
@@ -445,7 +473,7 @@ try {
     const ui = window.__kitchen.ui.getState();
     ui.select(null); ui.setView('plan'); ui.setReferenceOpen(false); ui.setRoomOpen(true);
   });
-  const wallSetup = mobile.getByRole('dialog', { name: 'Set up your room', exact: true });
+  const wallSetup = mobile.getByTestId('room-workspace');
   await openAdvancedRoom(wallSetup);
   await wallSetup.getByRole('button', { name: 'Edit wall corners on plan', exact: true }).tap();
   await mobile.waitForSelector('.konvajs-content');

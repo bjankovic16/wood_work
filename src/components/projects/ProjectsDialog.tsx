@@ -72,8 +72,6 @@ export function ProjectsDialog() {
           onClick={() => {
             createProject();
             close();
-            // Offer a ready-made starting point, as a planner would.
-            useUiStore.getState().setLayoutsOpen(true);
           }}
         >
           <Plus className="size-4" />

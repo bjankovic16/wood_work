@@ -1,24 +1,25 @@
 import { CEILING_GAP, createItem, type LabelPrefixes } from './catalog';
 import { backWall, resizeFromAnchor } from './geometry';
 import type { KitchenPreset } from './kitchens';
+import type { CabinetPalette } from './kitchenLook';
 import type { FrontFinish } from './style';
 import type { KitchenItem, Room } from './types';
 
-export type KitchenCollection = 'warm' | 'dark' | 'japandi';
-
-const inspiration = {
+export const COLLECTION_INSPIRATION = {
   warm: 'https://www.pinterest.com/ideas/warm-contemporary-kitchen/955209864754/',
   dark: 'https://www.pinterest.com/ideas/oak-and-walnut-kitchen/919020592506/',
   japandi: 'https://www.pinterest.com/ideas/japandi-kitchen-ideas/943645865735/',
-};
+} as const;
+export type KitchenCollection = keyof typeof COLLECTION_INSPIRATION;
+export const KITCHEN_COLLECTIONS = Object.keys(COLLECTION_INSPIRATION) as KitchenCollection[];
 
 function premium(collection: KitchenCollection, front: FrontFinish, worktop: KitchenPreset['style']['worktop']): Pick<KitchenPreset, 'collection' | 'inspiration' | 'style'> {
   return {
-    collection, inspiration: inspiration[collection],
+    collection, inspiration: COLLECTION_INSPIRATION[collection],
     style: {
       front, worktop, handles: collection === 'warm' ? 'brass' : 'none',
       backsplash: worktop === 'black' ? 'black' : worktop === 'marble' ? 'marble' : 'travertine',
-      lighting: true, decor: true, appliances: 'black', plinthLighting: collection === 'dark',
+      decor: true, appliances: 'black',
     },
   };
 }
@@ -85,7 +86,7 @@ export const PREMIUM_KITCHENS = [
   { id: 'serene-courtyard', layout: 'l-shape', room: { width: 5000, depth: 4200, height: 2800 }, ...premium('japandi', 'cashmere', 'travertine'), middleFinish: 'olive', stacked: true, openShelves: true, islandWidth: 1800, breakfastBar: true, pantry: true },
 ] as const satisfies readonly KitchenPreset[];
 
-export function premiumUpperRows(items: KitchenItem[], room: Room, front: FrontFinish, middle: FrontFinish, prefixes?: LabelPrefixes): KitchenItem[] {
+export function premiumUpperRows(items: KitchenItem[], room: Room, palette: CabinetPalette, prefixes?: LabelPrefixes): KitchenItem[] {
   const result: KitchenItem[] = [];
   for (const item of items) {
     if (['tall', 'ovenTower', 'integratedFridge', 'hood'].includes(item.kind)) {
@@ -96,7 +97,7 @@ export function premiumUpperRows(items: KitchenItem[], room: Room, front: FrontF
       const anchor = resizeFromAnchor(item, { depth });
       if (height >= 200) result.push(createItem('wall', result, {
         x: anchor.x, y: anchor.y, rotation: item.rotation, width: item.width, depth,
-        elevation, height, frontFinish: front, carcassFinish: front, shelves: 1,
+        elevation, height, ...palette.towerCap, shelves: 1,
       }, prefixes));
       continue;
     }
@@ -105,7 +106,7 @@ export function premiumUpperRows(items: KitchenItem[], room: Room, front: FrontF
       continue;
     }
     const height = 450;
-    result.push({ ...item, height, frontFinish: middle, carcassFinish: middle, shelves: item.kind === 'shelf' ? 2 : 1 });
+    result.push({ ...item, height, ...palette.middle, shelves: item.kind === 'shelf' ? 2 : 1 });
     const depth = 560;
     const wall = backWall(item.rotation);
     result.push(createItem(item.kind === 'corner' ? 'corner' : item.kind === 'filler' ? 'filler' : 'wall', result, {
@@ -113,7 +114,7 @@ export function premiumUpperRows(items: KitchenItem[], room: Room, front: FrontF
       y: wall === 'bottom' && item.kind !== 'corner' ? room.depth - depth : item.y,
       rotation: item.rotation, width: item.width, ...(item.kind === 'corner' ? { width2: item.width2 } : {}), depth,
       elevation: item.elevation + height, height: room.height - CEILING_GAP - item.elevation - height,
-      frontFinish: front, carcassFinish: front, shelves: 1,
+      ...palette.upper, shelves: 1,
     }, prefixes));
   }
   return result;

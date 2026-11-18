@@ -13,8 +13,8 @@ import {
   itemInsideRoom,
 } from '../domain/geometry';
 import { alongWall, wallLength } from '../domain/openings';
-import { roomContainsRect, roomFeatureRect, roomOutline, openingFitsRoomWall } from '../domain/roomGeometry';
-import { polygonContains, polygonsOverlap, rectPolygon } from '../domain/polygons';
+import { featureFitsRoom, openingFitsRoomWall, roomFeaturePolygon, roomOutline } from '../domain/roomGeometry';
+import { polygonContains, polygonsOverlap } from '../domain/polygons';
 import { openingIsValid, openingPolygon, partitionPolygon, roomSegments } from '../domain/walls';
 import { inUpperRow, upperCabinetRows } from '../domain/upperCabinets';
 import type { Design, KitchenItem, Material } from '../domain/types';
@@ -35,6 +35,8 @@ export interface Issue {
   itemIds: string[];
   roomFeatureId?: string;
   category?: 'precut';
+  /** Re-evaluate this obstacle against the moving cabinet, without running workshop checks. */
+  placement?: true;
 }
 
 /** Gaps narrower than this between units, or to a wall, cannot be used and should be closed or filled. */
@@ -60,57 +62,94 @@ function fitsOnSheet(part: Part, material: Material): boolean {
   return (part.length <= usableLength && part.width <= usableWidth) || (!part.grain && part.length <= usableWidth && part.width <= usableLength);
 }
 
-/**
- * Checks a design for things a workshop would catch: units that collide or
- * do not fit, gaps that need a filler, doors that will sag, drawers that
- * cannot be built, wall units too low, and units in the way of doors and
- * windows. Errors make the kitchen unbuildable; warnings are worth a look.
- */
-export function checkDesign(design: Design, labels: EngineLabels = EN_LABELS): Issue[] {
+/** Physical obstacles, including exact footprints and height. During a cabinet drag only test affected pairs. */
+export function checkPlacement(design: Design, labels: EngineLabels, moving?: ReadonlySet<string>): Issue[] {
   const { room, items } = design;
-  const ctx = buildContext(design, labels);
   const say = labels.checks;
   const issues: Issue[] = [];
-  const add = (severity: Severity, key: string, message: string, itemIds: string[] = [], category?: Issue['category']) =>
-  issues.push({ key, severity, message, itemIds, ...(category ? { category } : {}) });
+  const add = (severity: Severity, key: string, message: string, itemIds: string[] = [], roomFeatureId?: string) =>
+    issues.push({ severity, key, message, itemIds, placement: true, ...(roomFeatureId ? { roomFeatureId } : {}) });
 
-  // Units colliding with each other or with the room.
-  items.forEach((a, i) => {
-    for (const b of items.slice(i + 1)) {
+  const affected = moving ? items.filter((item) => moving.has(item.id)) : items;
+  for (const a of affected) {
+    const i = items.indexOf(a);
+    for (const [j, b] of items.entries()) {
+      if (j === i || j < i && (!moving || moving.has(b.id))) continue;
       if (verticalOverlap(a, b) && footprintsOverlap(a, b)) {
-        add('error', `overlap-${a.id}-${b.id}`, say.overlap(a.label, b.label), [a.id, b.id]);
+        const [first, second] = i < j ? [a, b] : [b, a];
+        add('error', `overlap-${first.id}-${second.id}`, say.overlap(first.label, second.label), [first.id, second.id]);
       }
     }
     if (!itemInsideRoom(a, room)) add('error', `outside-${a.id}`, say.outside(a.label), [a.id]);
     if (a.elevation + a.height > room.height) {
       add('error', `ceiling-${a.id}`, say.ceiling(a.label, a.elevation + a.height, room.height), [a.id]);
     }
-  });
+  }
 
   for (const [index, feature] of (room.features ?? []).entries()) {
     const name = `${labels.roomFeatures[feature.kind]} ${index + 1}`;
-    const rect = roomFeatureRect(feature);
-    if (feature.kind === 'chimney') issues.push({ key: `chimney-clearance-${feature.id}`, severity: 'warning', category: 'precut', message: say.chimneyClearance(name), itemIds: [], roomFeatureId: feature.id });
-    if (!roomContainsRect(rect, room)) issues.push({ key: `room-feature-${feature.id}`, severity: 'error', message: say.roomFeatureOutside(name), itemIds: [], roomFeatureId: feature.id });
-    for (const item of items) {
-      if (item.elevation < room.height && item.elevation + item.height > 0 && footprintPieces(item).some((footprint) => polygonsOverlap(footprint, rectPolygon(rect)))) {
-        add('error', `structure-${feature.id}-${item.id}`, say.roomFeatureCollision(item.label, name), [item.id]);
-      }
-      for (const [index, partition] of (room.partitions ?? []).entries()) {
-        const name = `${labels.roomPartition} ${index + 1}`;
-        const polygon = partitionPolygon(partition);
-        if (!polygonContains(roomOutline(room), polygon)) add('error', `partition-outside-${partition.id}`, say.roomFeatureOutside(name));
-        for (const item of items) {
-          if (item.elevation < partition.height && item.elevation + item.height > 0
-            && footprintPieces(item).some((p) => polygonsOverlap(p, polygon))) add('error', `partition-${partition.id}-${item.id}`, say.roomFeatureCollision(item.label, name), [item.id]);
-        }
-      }
-      for (const treatment of room.treatments ?? []) {
-        const segment = roomSegments(room).find((s) => s.id === treatment.wallId);
-        if (!segment || treatment.offset + treatment.width > segment.length + 0.01 || treatment.elevation + treatment.height > segment.height)
-          add('error', `treatment-${treatment.id}`, say.roomFeatureOutside(labels.roomTreatment));
+    const polygon = roomFeaturePolygon(room, feature);
+    if (!moving && !featureFitsRoom(room, feature)) add('error', `room-feature-${feature.id}`, say.roomFeatureOutside(name), [], feature.id);
+    if (!polygon.length) continue;
+    for (const item of affected) {
+      if (item.elevation < room.height && item.elevation + item.height > 0 && footprintPieces(item).some((footprint) => polygonsOverlap(footprint, polygon))) {
+        add('error', `structure-${feature.id}-${item.id}`, say.roomFeatureCollision(item.label, name), [item.id], feature.id);
       }
     }
+  }
+  for (const [index, partition] of (room.partitions ?? []).entries()) {
+    const name = `${labels.roomPartition} ${index + 1}`;
+    const polygon = partitionPolygon(partition);
+    if (!moving && !polygonContains(roomOutline(room), polygon)) add('error', `partition-outside-${partition.id}`, say.roomFeatureOutside(name));
+    for (const item of affected) {
+      if (item.elevation < partition.height && item.elevation + item.height > 0
+        && footprintPieces(item).some((p) => polygonsOverlap(p, polygon))) add('error', `partition-${partition.id}-${item.id}`, say.roomFeatureCollision(item.label, name), [item.id]);
+    }
+  }
+  if (!moving) for (const treatment of room.treatments ?? []) {
+    const segment = roomSegments(room).find((s) => s.id === treatment.wallId);
+    if (!segment || treatment.offset + treatment.width > segment.length + 0.01 || treatment.elevation + treatment.height > segment.height)
+      add('error', `treatment-${treatment.id}`, say.roomFeatureOutside(labels.roomTreatment));
+  }
+  for (const opening of design.openings) {
+    if (!moving && (!openingIsValid(room, opening) || (!opening.wallId && !openingFitsRoomWall(room, opening.wall, opening.offset, opening.width)))) {
+      add('error', `opening-${opening.id}`, say.openingDoesNotFit(opening.kind, opening.wall));
+    }
+    const door = opening.kind === 'door';
+    const clear = openingPolygon(room, opening, door ? Math.max(800, opening.width) : 650);
+    for (const item of affected) {
+      if (door) {
+        if (clear.length && item.elevation < opening.height && footprintPieces(item).some((p) => polygonsOverlap(p, clear))) {
+          add('error', `door-${opening.id}-${item.id}`, say.blocksDoor(item.label, opening.wall), [item.id]);
+        }
+        continue;
+      }
+      const top = workingTop(item);
+      if (item.elevation >= opening.sill + opening.height || top <= opening.sill) continue;
+      if (opening.wallId) {
+        if (!clear.length || !footprintPieces(item).some((p) => polygonsOverlap(p, clear))) continue;
+      } else {
+        if (!mountingWalls(item).includes(opening.wall) || !isFlushWith(itemRect(item), opening.wall, room)) continue;
+        const [start, end] = alongWall(itemRect(item), opening.wall);
+        if (end <= opening.offset || start >= opening.offset + opening.width) continue;
+      }
+      const lowUnit = !isWallMounted(item) && top <= 1100;
+      add('warning', `window-${opening.id}-${item.id}`, lowUnit ? say.windowBelowWorktop(opening.wall, opening.sill, item.label, top) : say.coversWindow(item.label, opening.wall), [item.id]);
+    }
+  }
+  return issues;
+}
+
+/** Full workshop report: geometry plus construction, parts, suppliers and clearances. */
+export function checkDesign(design: Design, labels: EngineLabels = EN_LABELS): Issue[] {
+  const { room, items } = design;
+  const ctx = buildContext(design, labels);
+  const say = labels.checks;
+  const issues = checkPlacement(design, labels);
+  const add = (severity: Severity, key: string, message: string, itemIds: string[] = [], category?: Issue['category']) =>
+    issues.push({ key, severity, message, itemIds, ...(category ? { category } : {}) });
+  for (const [index, feature] of (room.features ?? []).entries()) {
+    if (feature.kind === 'chimney') issues.push({ key: `chimney-clearance-${feature.id}`, severity: 'warning', category: 'precut', message: say.chimneyClearance(`${labels.roomFeatures[feature.kind]} ${index + 1}`), itemIds: [], roomFeatureId: feature.id });
   }
   if (items.length > 0 && design.style.frontProfile === 'shaker') add('warning', 'front-profile', say.frontProfile, [], 'precut');
   if (design.style.handles === 'none' && items.some((item) => KIND_OPTIONS[item.kind].fronts)) add('warning', 'handleless', say.handleless, [], 'precut');
@@ -220,45 +259,6 @@ export function checkDesign(design: Design, labels: EngineLabels = EN_LABELS): I
       if (footprintRects(oven).some((r) => rectsOverlap(grown, r, 0))) {
         add('warning', `fridge-${fridge.id}-${oven.id}`, say.fridgeByOven(fridge.label, oven.label), [fridge.id, oven.id]);
       }
-    }
-  }
-
-  // Windows and doors.
-  for (const opening of design.openings) {
-    if (!openingIsValid(room, opening) || (!opening.wallId && !openingFitsRoomWall(room, opening.wall, opening.offset, opening.width))) {
-      add('error', `opening-${opening.id}`, say.openingDoesNotFit(opening.kind, opening.wall));
-    }
-    for (const item of items) {
-      if (opening.kind === 'door') {
-        const clear = openingPolygon(room, opening, Math.max(800, opening.width));
-        if (clear.length && item.elevation < opening.height && footprintPieces(item).some((p) => polygonsOverlap(p, clear))) {
-          add('error', `door-${opening.id}-${item.id}`, say.blocksDoor(item.label, opening.wall), [item.id]);
-        }
-        if (opening.wallId) {
-          const clear = openingPolygon(room, opening, 650);
-          const top = workingTop(item);
-          if (clear.length && item.elevation < opening.sill + opening.height && top > opening.sill
-            && footprintPieces(item).some((p) => polygonsOverlap(p, clear))) {
-            add('warning', `window-${opening.id}-${item.id}`, say.coversWindow(item.label, opening.wall), [item.id]);
-          }
-          continue;
-        }
-        continue;
-      }
-      // Windows: only units standing against that wall, within the window's width.
-      if (!mountingWalls(item).includes(opening.wall) || !isFlushWith(itemRect(item), opening.wall, room)) continue;
-      const [start, end] = alongWall(itemRect(item), opening.wall);
-      if (end <= opening.offset || start >= opening.offset + opening.width) continue;
-      const top = isWallMounted(item) ? item.elevation + item.height : workingTop(item);
-      if (item.elevation >= opening.sill + opening.height || top <= opening.sill) continue;
-      // A base unit only reaches into a window that starts below its worktop.
-      const lowUnit = !isWallMounted(item) && top <= 1100;
-      add(
-        'warning',
-        `window-${opening.id}-${item.id}`,
-        lowUnit ? say.windowBelowWorktop(opening.wall, opening.sill, item.label, top) : say.coversWindow(item.label, opening.wall),
-        [item.id],
-      );
     }
   }
 

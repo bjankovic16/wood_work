@@ -1,6 +1,6 @@
 import { footprintPolygon, frontEdges, isWallMounted, itemRect } from '../domain/geometry';
 import type { Design, KitchenItem, Opening, Room } from '../domain/types';
-import { openingFitsRoomWall, roomOutline } from '../domain/roomGeometry';
+import { openingFitsRoomWall, roomFeaturePolygon, roomFeaturePose, roomOutline } from '../domain/roomGeometry';
 import { EN_LABELS, type EngineLabels } from '../engine/labels';
 import { openingFrame, openingIsValid, partitionPolygon, roomSegments, wallPoint } from '../domain/walls';
 
@@ -59,8 +59,10 @@ export function planSvg(design: Design, labels: EngineLabels = EN_LABELS, items:
   for (const [index, feature] of (room.features ?? []).entries()) {
     const name = `${labels.roomFeatures[feature.kind]} ${index + 1}`;
     const size = Math.min(font * 0.8, feature.width / Math.max(4, name.length * 0.62));
-    parts.push(`<rect x="${feature.x}" y="${feature.y}" width="${feature.width}" height="${feature.depth}" fill="#d8cdbb" stroke="#847766" stroke-width="10"/>`);
-    parts.push(`<text x="${feature.x + feature.width / 2}" y="${feature.y + feature.depth / 2 + size * 0.35}" font-size="${size}" text-anchor="middle" fill="#574b3e">${escape(name)}</text>`);
+    const shape = roomFeaturePolygon(room, feature).map((p) => `${p.x},${p.y}`).join(' ');
+    const { centre } = roomFeaturePose(room, feature);
+    parts.push(`<polygon points="${shape}" fill="#d8cdbb" stroke="#847766" stroke-width="10"/>`);
+    parts.push(`<text x="${centre.x}" y="${centre.y + size * 0.35}" font-size="${size}" text-anchor="middle" fill="#574b3e">${escape(name)}</text>`);
   }
   for (const partition of room.partitions ?? []) {
     parts.push(`<polygon points="${partitionPolygon(partition).map((p) => `${p.x},${p.y}`).join(' ')}" fill="#d8cdbb" stroke="#847766" stroke-width="10"/>`);

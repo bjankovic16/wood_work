@@ -5,7 +5,7 @@ import { CompactLayout } from './components/layout/CompactLayout';
 import { TopBar } from './components/layout/TopBar';
 import { LibraryDragChip, LibraryPanel, LibrarySections } from './components/library/LibraryPanel';
 import { PropertiesPanel } from './components/properties/PropertiesPanel';
-import { RoomDialog } from './components/properties/RoomDialog';
+import { RoomWorkspace } from './components/room/RoomWorkspace';
 import { View3D } from './components/three/View3D';
 import { LayoutDialog } from './components/layouts/LayoutDialog';
 import { ProjectsDialog } from './components/projects/ProjectsDialog';
@@ -23,12 +23,13 @@ function DesktopLayout() {
   const t = useT();
   const [adding, setAdding] = useState(false);
   const view = useUiStore((s) => s.view);
+  const roomOpen = useUiStore((s) => s.roomOpen);
   const referenceOpen = useUiStore((state) => state.referenceOpen);
   const studio = view === '3d' && referenceOpen;
   return (
     <div className="flex h-dvh select-none flex-col bg-white text-zinc-900 print:h-auto">
       <TopBar />
-      {view !== 'list' ? (
+      {roomOpen ? <RoomWorkspace /> : view !== 'list' ? (
         <div className="flex min-h-0 flex-1">
           {view === 'plan' && <LibraryPanel />}
           <main className="relative min-w-0 flex-1">
@@ -48,7 +49,6 @@ function DesktopLayout() {
       <ConstructionDialog />
       <LayoutDialog />
       <ProjectsDialog />
-      <RoomDialog />
       <Dialog open={adding && view === '3d'} title={t.phone.addElement} onClose={() => setAdding(false)}>
         <div className="p-4"><LibrarySections wide onAdded={() => setAdding(false)} /></div>
       </Dialog>

@@ -1,28 +1,30 @@
 import { createItem, findPreset, itemFromPreset, nextLabel, type SizeField } from '../domain/catalog';
+import { cabinetResize } from '../domain/cabinetResize';
 import * as ops from '../domain/designOps';
 import { isWallMounted, rotateItem, aabbSize, clampToRoom } from '../domain/geometry';
 import { newId } from '../domain/ids';
-import { createKitchenDesign, KITCHEN_DESIGNS, type KitchenDesignId, type KitchenPreset } from '../domain/kitchens';
+import { createKitchenDesign, KITCHEN_DESIGNS, type KitchenDesignId } from '../domain/kitchens';
+import { applyKitchenLook } from '../domain/kitchenLook';
+import type { LayoutFit } from '../domain/fitLayout';
 import { centreOfRoom, findFreeSpot, placeCopy } from '../domain/placement';
 import { computeDragPlacement } from '../domain/snapping';
 import { planCabinetAbove, planThreeTier, type StackPlan, type ThreeTierOptions, type ThreeTierPlan } from '../domain/upperCabinets';
-import { buildLayout, type LayoutId } from '../domain/templates';
 import type { KitchenStyle } from '../domain/style';
-import { OPENING_DEFAULTS, wallLength } from '../domain/openings';
+import { OPENING_DEFAULTS } from '../domain/openings';
 import type { ConstructionSettings, CustomPart, Design, EdgeBand, KitchenItem, Material, Opening, OpeningKind, PartEdit, Room, RoomCutout, RoomFeature, RoomFeatureKind } from '../domain/types';
-import { MAX_ROOM_FEATURES, roomContainsRect } from '../domain/roomGeometry';
+import { MAX_ROOM_FEATURES, featureFitsRoom, roomFeaturePose } from '../domain/roomGeometry';
+import { attachFeature, featureDragPlacement, freeFeature } from '../domain/roomObjectPlacement';
 import { createRoomExample, type RoomExampleId } from '../domain/roomExamples';
 import { createPhotoDesign } from '../domain/photoDesigns';
-import type { PhotoReference, PhotoReferenceId } from '../domain/photoReferences';
+import type { PairedPhotoId, PhotoReference } from '../domain/photoReferences';
 import { createProject } from './projects';
-import { DEFAULT_CONSTRUCTION } from '../engine/settings';
+import { DEFAULT_CONSTRUCTION, withModuleMaterials } from '../engine/settings';
 import { currentMessages } from '../i18n';
 import { useDesignStore } from './designStore';
-import { cabinetIsLocked, useUiStore } from './uiStore';
+import { cabinetIsLocked, useUiStore, type FitRequest } from './uiStore';
 import { clientToPlan, snapSettings } from './viewport';
 import { normalizeAngle } from '../domain/polygons';
-import { roomOutline } from '../domain/roomGeometry';
-import { roomSegments } from '../domain/walls';
+import { openingOnWall, openingsOnSegment, roomSegments, wallCoordinates } from '../domain/walls';
 import type { RoomVertex } from '../domain/types';
 
 /** User-level commands that tie the pure design operations to the stores. */
@@ -30,7 +32,8 @@ import type { RoomVertex } from '../domain/types';
 const current = (): Design => useDesignStore.getState().design;
 const apply = (recipe: (design: Design) => Design): void => useDesignStore.getState().apply(recipe);
 
-export type ShuffleResult = { ok: true; presetId: KitchenDesignId } | { ok: false; reason: 'preview' | 'busy' };
+export type ShuffleResult = { ok: true; presetId: KitchenDesignId } | { ok: false; reason: 'preview' | 'busy' | 'review' };
+type GalleryKitchen = (typeof KITCHEN_DESIGNS)[number];
 
 export function shuffleKitchen(): ShuffleResult {
   const ui = useUiStore.getState();
@@ -39,13 +42,22 @@ export function shuffleKitchen(): ShuffleResult {
   if (ui.cabinetTool || store.gestureBase) return { ok: false, reason: 'busy' };
   const index = KITCHEN_DESIGNS.findIndex((preset) => preset.id === store.design.galleryPresetId);
   const preset = KITCHEN_DESIGNS[(index + 1) % KITCHEN_DESIGNS.length];
-  applyKitchenDesign(preset);
-  return { ok: true, presetId: preset.id };
+  return applyKitchenDesign(preset) ? { ok: true, presetId: preset.id } : { ok: false, reason: 'review' };
 }
 
 function selectedItem(): KitchenItem | null {
   const id = useUiStore.getState().selectedId;
   return id ? (current().items.find((item) => item.id === id) ?? null) : null;
+}
+
+export function editCabinetPositionInPlan(id: string): void {
+  const item = current().items.find((candidate) => candidate.id === id);
+  if (!item) return;
+  const ui = useUiStore.getState();
+  ui.setView('plan');
+  ui.setViewFilter(isWallMounted(item) ? 'wall' : 'floor');
+  if (isWallMounted(item)) ui.setWallElevation(item.elevation);
+  ui.select(id);
 }
 
 function editItem(id: string, edit: (item: KitchenItem, room: Room) => KitchenItem): void {
@@ -155,12 +167,13 @@ export function stackCabinetAbove(id: string): StackPlan {
 
 /** Rotates the selection in 90° steps; positive is clockwise. */
 export function rotateSelected(steps: number): void {
+  if (useUiStore.getState().view !== 'plan') return;
   const item = selectedItem();
-  if (item && !cabinetIsLocked(item.id)) editItem(item.id, (it, room) => rotateItem(it, steps, room));
+  if (item) editItem(item.id, (it, room) => rotateItem(it, steps, room));
 }
 
 export function setItemAngle(id: string, angle: number): void {
-  if (cabinetIsLocked(id)) return;
+  if (useUiStore.getState().view !== 'plan') return;
   if (!Number.isFinite(angle)) throw new RangeError('Invalid cabinet angle.');
   editItem(id, (item, room) => {
     const before = aabbSize(item);
@@ -187,26 +200,25 @@ export function addThreeTierRun(id: string, options: ThreeTierOptions): ThreeTie
 }
 
 export function editableRoomVertices(room: Room): RoomVertex[] {
-  return room.vertices?.map((v) => ({ ...v })) ?? roomOutline(room).map((point, index) => ({ ...point, id: roomSegments(room, false)[index].id }));
+  return roomSegments(room, false).map((s) => ({ ...s.start, id: s.id }));
 }
 
 export function setRoomVertices(vertices: RoomVertex[]): void {
+  if (useUiStore.getState().view !== 'plan') return;
   apply((design) => {
-    const oldSegments = roomSegments(design.room, false);
     const openings = design.openings.map((opening) => {
       if (opening.wallId) return opening;
-      const segment = oldSegments.find((s) => s.id === opening.wall);
-      if (!segment) return opening;
-      return { ...opening, wallId: segment.id,
-        offset: opening.wall === 'bottom' || opening.wall === 'left' ? segment.length - opening.offset - opening.width : opening.offset };
+      const onWall = openingOnWall(design.room, opening);
+      if (!onWall) throw new RangeError('Opening does not fit a room segment.');
+      return { ...opening, wallId: onWall.segment.id, offset: onWall.offset };
     });
     const ids = new Set(vertices.map((v) => v.id));
     if (openings.some((o) => o.wallId && !ids.has(o.wallId) && !design.room.partitions?.some((p) => o.wallId?.startsWith(`${p.id}:`)))
       || design.room.treatments?.some((t) => !ids.has(t.wallId) && !design.room.partitions?.some((p) => t.wallId.startsWith(`${p.id}:`)))) {
       throw new RangeError('Remove wall attachments before removing their wall.');
     }
-    const width = Math.max(design.room.width, ...vertices.map((p) => Math.ceil(p.x)));
-    const depth = Math.max(design.room.depth, ...vertices.map((p) => Math.ceil(p.y)));
+    const width = Math.max(ops.ROOM_LIMITS.width.min, ...vertices.map((p) => Math.ceil(p.x)));
+    const depth = Math.max(ops.ROOM_LIMITS.depth.min, ...vertices.map((p) => Math.ceil(p.y)));
     return ops.setRoom({ ...design, openings }, { vertices, cutout: undefined, width, depth });
   });
 }
@@ -217,6 +229,25 @@ export function editRoomWall(id: string, length: number, angle: number): void {
   const index = vertices.findIndex((v) => v.id === id);
   if (index < 0) throw new RangeError('Wall not found.');
   const frame = roomSegments({ ...room, vertices }, false)[index];
+  if (!Number.isFinite(length) || !Number.isFinite(angle) || length < 100 || length > 20000)
+    throw new RangeError('Invalid wall measurement.');
+  if (normalizeAngle(angle) === frame.angle) {
+    if (Math.abs(length - frame.length) < 0.001) return;
+    const rectangle = vertices.length === 4 && vertices.every((v, i) => {
+      const next = vertices[(i + 1) % 4];
+      return next.x === v.x || next.y === v.y;
+    });
+    if (rectangle) {
+      const horizontal = frame.start.y === frame.end.y;
+      const dim = horizontal ? 'width' : 'depth';
+      if (length < ops.ROOM_LIMITS[dim].min) throw new RangeError('Room is too small.');
+      if (!room.vertices) { setRoomSize({ [dim]: length }); return; }
+      const axis = horizontal ? 'x' : 'y';
+      const oldMax = Math.max(...vertices.map((p) => p[axis]));
+      setRoomVertices(vertices.map((p) => p[axis] === oldMax ? { ...p, [axis]: oldMax + Math.round(length - frame.length) } : p));
+      return;
+    }
+  }
   const radians = angle * Math.PI / 180;
   const end = { x: Math.round(frame.start.x + length * Math.cos(radians)), y: Math.round(frame.start.y + length * Math.sin(radians)) };
   const next = vertices.map((v, i) => i === (index + 1) % vertices.length ? { ...v, ...end } : v);
@@ -251,23 +282,32 @@ export function addWallTreatment(wallId: string): void {
 }
 
 export function nudgeSelected(dx: number, dy: number): void {
-  if (useUiStore.getState().view === '3d') return;
+  if (useUiStore.getState().view !== 'plan') return;
   const item = selectedItem();
   if (item) editItem(item.id, (it, room) => ops.withPosition(it, it.x + dx, it.y + dy, room));
 }
 
-export function setItemSize(id: string, field: SizeField, value: number): void {
-  if (cabinetIsLocked(id)) return;
-  editItem(id, (item, room) => ops.withSize(item, field, value, room));
+export function setItemSize(id: string, field: SizeField, value: number): void | false {
+  if (cabinetIsLocked(id)) return false;
+  if (useUiStore.getState().view !== '3d') {
+    editItem(id, (item, room) => ops.withSize(item, field, value, room));
+    return;
+  }
+  // Like the 3D handles, numeric resizing must never slide the cabinet to make it fit.
+  const design = current();
+  const item = design.items.find((candidate) => candidate.id === id);
+  const next = item && cabinetResize(item, field, value, design.room, 0);
+  if (!next) return false;
+  apply((design) => ops.replaceItem(design, next));
 }
 
 export function setItemElevation(id: string, value: number): void {
-  if (cabinetIsLocked(id)) return;
+  if (useUiStore.getState().view !== 'plan') return;
   editItem(id, (item) => ops.withElevation(item, value));
 }
 
 export function setItemPosition(id: string, x: number, y: number): void {
-  if (cabinetIsLocked(id)) return;
+  if (useUiStore.getState().view !== 'plan') return;
   editItem(id, (item, room) => ops.withPosition(item, x, y, room));
 }
 
@@ -277,10 +317,12 @@ export function setItemLabel(id: string, label: string): void {
 }
 
 export function setRoomSize(patch: Partial<Room>): void {
+  if (useUiStore.getState().view !== 'plan') return;
   apply((design) => ops.setRoom(design, patch));
 }
 
 export function setRoomCutout(cutout: RoomCutout | undefined): void {
+  if (useUiStore.getState().view !== 'plan') return;
   apply((design) => {
     const next = ops.setRoom(design, { cutout, vertices: undefined });
     const ids = new Set(roomSegments(next.room).map((s) => s.id));
@@ -289,9 +331,14 @@ export function setRoomCutout(cutout: RoomCutout | undefined): void {
   });
 }
 
-export function addRoomFeature(kind: RoomFeatureKind): void {
+export function addRoomFeature(kind: RoomFeatureKind, wallId?: string): string {
+  if (useUiStore.getState().view !== 'plan') throw new RangeError('Room objects can only be placed in 2D.');
+  const { room } = current();
+  const id = newId();
+  const walls = roomSegments(room);
+  const wall = wallId ? walls.find((s) => s.id === wallId) : undefined;
+  if (wallId && !wall) throw new RangeError('Wall not found.');
   apply((design) => {
-    const { room } = design;
     if ((room.features?.length ?? 0) >= MAX_ROOM_FEATURES) throw new RangeError('This room already has the maximum number of fixed structures.');
     const width = Math.min(kind === 'column' ? 400 : 500, room.width);
     const depth = Math.min(kind === 'projection' ? 900 : 450, room.depth);
@@ -300,21 +347,51 @@ export function addRoomFeature(kind: RoomFeatureKind): void {
       { x: room.width - width, y: 0 }, { x: 0, y: room.depth - depth },
       { x: room.width - width, y: room.depth - depth },
     ];
-    const position = positions.find((point) => roomContainsRect({ ...point, w: width, h: depth }, room));
-    if (!position) throw new Error('The room has no usable space for this structure.');
-    return ops.setRoom(design, { features: [...(room.features ?? []), { id: newId(), kind, ...position, width, depth }] });
+    const feature: RoomFeature = { id, kind, width, depth, x: 0, y: 0 };
+    const placed = wall ? attachFeature(room, feature, wall) : positions.map((p) => ({ ...feature, ...p })).find((f) => featureFitsRoom(room, f))
+      ?? freeFeature(room, attachFeature(room, feature, walls.filter((s) => !s.partitionId).reduce((a, b) => a.length > b.length ? a : b)));
+    return { ...design, room: { ...room, features: [...(room.features ?? []), placed] } };
   });
+  useUiStore.getState().selectRoomObject({ type: 'feature', id }, wallId);
+  useUiStore.getState().setRoomElevationOpen(false);
+  return id;
 }
 
-export function updateRoomFeature(id: string, patch: Partial<Pick<RoomFeature, 'x' | 'y' | 'width' | 'depth'>>): void {
+export function updateRoomFeature(id: string, patch: Partial<Omit<RoomFeature, 'id' | 'kind'>>): void {
+  if (useUiStore.getState().view !== 'plan') return;
   apply((design) => ops.updateRoomFeature(design, id, patch));
 }
 
+export function setRoomFeatureWall(id: string, wallId: string | null): void {
+  if (useUiStore.getState().view !== 'plan') return;
+  const { room } = current();
+  const f = room.features?.find((f) => f.id === id);
+  if (!f) return;
+  const wall = roomSegments(room).find((s) => s.id === wallId);
+  if (wallId && !wall) throw new RangeError('Wall not found.');
+  const next = wall ? attachFeature(room, f, wall, wallCoordinates(wall, roomFeaturePose(room, f).centre).x - f.width / 2) : freeFeature(room, f);
+  updateRoomFeature(id, { ...next, wallId: next.wallId, offset: next.offset });
+  useUiStore.getState().selectRoomObject({ type: 'feature', id }, wallId ?? undefined);
+}
+
+export function nudgeRoomFeature(id: string, dx: number, dy: number): void {
+  const { room } = current();
+  const feature = room.features?.find((f) => f.id === id);
+  if (!feature) return;
+  const centre = roomFeaturePose(room, feature).centre;
+  const wall = feature.wallId && roomSegments(room).find((s) => s.id === feature.wallId);
+  const delta = dx || dy;
+  const next = featureDragPlacement(room, feature, { x: centre.x + (wall ? delta * wall.tangent.x : dx), y: centre.y + (wall ? delta * wall.tangent.y : dy) }, 0);
+  if (next) updateRoomFeature(id, next);
+}
+
 export function removeRoomFeature(id: string): void {
+  if (useUiStore.getState().view !== 'plan') return;
   apply((design) => {
     const features = design.room.features;
     return features?.some((feature) => feature.id === id) ? ops.setRoom(design, { features: features.filter((feature) => feature.id !== id) }) : design;
   });
+  if (useUiStore.getState().roomSelection?.id === id) useUiStore.getState().selectRoomObject(null);
 }
 
 export function openRoomExample(id: RoomExampleId): void {
@@ -326,11 +403,6 @@ export function openRoomExample(id: RoomExampleId): void {
   ui.setView('plan');
   ui.setRoomOpen(false);
   ui.setLayoutsOpen(false);
-}
-
-export function setItemPlacement(id: string, placement: Pick<KitchenItem, 'x' | 'y' | 'rotation'>): void {
-  if (cabinetIsLocked(id)) return;
-  editItem(id, (item, room) => ops.withPosition({ ...item, rotation: placement.rotation }, placement.x, placement.y, room));
 }
 
 /** Door, drawer or shelf count of one unit; undefined goes back to the default. */
@@ -399,23 +471,44 @@ export function removeEdgeBand(id: string): void {
   apply((design) => ops.removeEdgeBand(design, id));
 }
 
-/** Adds a window or door in the middle of the top wall. */
-export function addOpening(kind: OpeningKind): void {
+/** New openings are always measured from a real segment's marked start. */
+export function addOpening(kind: OpeningKind, wallId = useUiStore.getState().selectedWallId): string {
+  if (useUiStore.getState().view !== 'plan') throw new RangeError('Room objects can only be placed in 2D.');
   const defaults = OPENING_DEFAULTS[kind];
+  const design = current();
+  const segments = roomSegments(design.room);
+  const wall = segments.find((s) => s.id === wallId) ?? segments[0];
+  const id = newId();
+  // Prefer a free span rather than putting the second opening on top of the first.
+  const holes = openingsOnSegment(design.room, wall, design.openings).sort((a, b) => a.from - b.from);
+  const gaps: Array<[number, number]> = [];
+  let end = 0;
+  for (const hole of holes) {
+    if (hole.from > end) gaps.push([end, hole.from]);
+    end = Math.max(end, hole.to);
+  }
+  gaps.push([end, wall.length]);
+  const [a, b] = gaps.sort((p, q) => (q[1] - q[0]) - (p[1] - p[0]))[0];
+  if (b - a < 100) throw new RangeError('No space for another opening.');
+  const width = Math.min(defaults.width, Math.floor(b - a));
+  const cardinal = (['top', 'right', 'bottom', 'left'] as const)[Math.round(wall.angle / 90) % 4];
   apply((design) => {
-    const frame = design.room.vertices ? roomSegments(design.room, false)[0] : null;
-    const length = frame?.length ?? wallLength(design.room, 'top');
-    const opening: Opening = { id: newId(), kind, wall: 'top', ...(frame ? { wallId: frame.id } : {}), offset: Math.round((length - defaults.width) / 2), ...defaults };
+    const opening: Opening = { id, kind, wall: cardinal, wallId: wall.id, ...defaults, width, offset: Math.round((a + b - width) / 2) };
     return ops.addOpening(design, opening);
   });
+  useUiStore.getState().selectRoomObject({ type: 'opening', id }, wall.id);
+  return id;
 }
 
 export function updateOpening(id: string, patch: Partial<Omit<Opening, 'id' | 'kind'>>): void {
+  if (useUiStore.getState().view !== 'plan') return;
   apply((design) => ops.updateOpening(design, id, patch));
 }
 
 export function removeOpening(id: string): void {
+  if (useUiStore.getState().view !== 'plan') return;
   apply((design) => ops.removeOpening(design, id));
+  if (useUiStore.getState().roomSelection?.id === id) useUiStore.getState().selectRoomObject(null);
 }
 
 export function setProjectName(name: string): void {
@@ -440,24 +533,52 @@ export function setStyle(patch: Partial<KitchenStyle>): void {
   apply((design) => ops.setStyle(design, patch));
 }
 
-/** Replaces the plan with a ready-made layout for the current room (one undo step). */
-export function applyLayout(id: LayoutId): void {
-  apply((design) => ({ ...design, items: buildLayout(id, design.room, currentMessages().labelPrefix), partEdits: {} }));
-  useUiStore.getState().select(null);
-}
-
-/** Opens exactly the kitchen shown in its preview, replacing the whole design in one undo step. */
-export function applyKitchenDesign(preset: KitchenPreset): void {
-  apply((design) => createKitchenDesign(preset, design.name, currentMessages().labelPrefix));
+function showKitchen(view: 'plan' | '3d', front = false): void {
   const ui = useUiStore.getState();
   ui.select(null);
   ui.setViewFilter('floor');
-  ui.setView('3d');
+  ui.setLayoutsOpen(false);
+  ui.setView(view);
   ui.setReferenceOpen(false);
-  ui.requestCamera(preset.framed ? 'front' : 'perspective');
+  ui.requestCamera(front ? 'front' : 'perspective');
 }
 
-export function openPhotoDesign(id: PhotoReferenceId): void {
+/** Furniture is never relocated by a gallery idea. In an empty room, review a fit first. */
+export function applyKitchenDesign(preset: GalleryKitchen): boolean {
+  if (!current().items.length) {
+    useUiStore.getState().reviewFit({ type: 'idea', id: preset.id });
+    return false;
+  }
+  apply((design) => {
+    const styled = applyKitchenLook(design, preset);
+    return styled.galleryPresetId === preset.id ? styled : { ...styled, galleryPresetId: preset.id };
+  });
+  showKitchen('3d');
+  return true;
+}
+
+/** Commit exactly what was drawn, never a stale preview from another room or project. */
+export function acceptFit(source: Design, request: FitRequest, fit: LayoutFit): boolean {
+  if (current() !== source || fit.status === 'cannot-fit' || !fit.items.length) return false;
+  const preset = request.type === 'idea' ? KITCHEN_DESIGNS.find((p) => p.id === request.id) : undefined;
+  if (request.type === 'idea' && (!preset || source.items.length > 0)) return false;
+  const { galleryPresetId: _lastIdea, ...rest } = source;
+  const next = { ...rest, items: fit.items, partEdits: {}, materials: withModuleMaterials(source.materials, fit.items) };
+  apply(() => preset ? { ...applyKitchenLook(next, preset), galleryPresetId: preset.id } : next);
+  showKitchen(request.type === 'idea' ? '3d' : 'plan');
+  return true;
+}
+
+/** The original, including its prepared room, opens only as an explicitly separate project. */
+export function openKitchenOriginal(preset: GalleryKitchen): void {
+  const t = currentMessages();
+  const name = t.kitchens.names[preset.id];
+  createProject(name);
+  useDesignStore.getState().load(createKitchenDesign(preset, name, t.labelPrefix));
+  showKitchen('3d', 'framed' in preset && Boolean(preset.framed));
+}
+
+export function openPhotoDesign(id: PairedPhotoId): void {
   const messages = currentMessages();
   const design = createPhotoDesign(id, messages.references.names[id], messages.labelPrefix);
   createProject(design.name);

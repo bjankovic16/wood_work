@@ -9,6 +9,8 @@ import { withModuleMaterials } from '../engine/settings';
 import { createFramedKitchen, createLayeredKitchen, type FramedKitchen, type LayeredKitchen } from './layeredKitchens';
 import { PREMIUM_KITCHENS, premiumUpperRows, type KitchenCollection } from './premiumKitchens';
 import { createGreenKitchen, GREEN_KITCHENS, type GreenKitchen } from './greenKitchens';
+import { kitchenLook, type CabinetPalette } from './kitchenLook';
+export { applyKitchenLook } from './kitchenLook';
 
 export interface KitchenPreset {
   id: string;
@@ -33,7 +35,7 @@ export interface KitchenPreset {
 }
 
 function warmStyle(front: FrontFinish, worktop: WorktopFinish, handles: HandleStyle = 'brass', backsplash: BacksplashFinish = 'travertine'): KitchenStyle {
-  return { front, worktop, handles, backsplash, lighting: true, decor: true };
+  return { front, worktop, handles, backsplash, decor: true };
 }
 
 export const FRAMED_KITCHENS = [
@@ -76,7 +78,7 @@ export const FRAMED_KITCHENS = [
   {
     id: 'noir-walnut-frame', layout: 'straight', framed: 'walnut', stacked: true, collection: 'dark',
     room: { width: 4200, depth: 3200, height: 2700 },
-    style: { ...warmStyle('anthracite', 'marble', 'none', 'marble'), appliances: 'black', decor: false, plinthLighting: true },
+    style: { ...warmStyle('anthracite', 'marble', 'none', 'marble'), appliances: 'black', decor: false },
     middleFinish: 'walnut',
   },
   {
@@ -91,7 +93,7 @@ export const FRAMED_KITCHENS = [
       width: 4800, depth: 4200, height: 2700,
       treatments: [{ id: 'walnut-island-backsplash', wallId: 'top', offset: 618, width: 3564, elevation: 858, height: 842, finish: 'walnut' }],
     },
-    style: { ...warmStyle('espresso', 'marble', 'none', 'marble'), appliances: 'black', decor: false, plinthLighting: true },
+    style: { ...warmStyle('espresso', 'marble', 'none', 'marble'), appliances: 'black', decor: false },
     middleFinish: 'walnut',
   },
   {
@@ -111,7 +113,7 @@ export const FRAMED_KITCHENS = [
   },
 ] as const satisfies readonly KitchenPreset[];
 
-export const KITCHEN_DESIGNS = [
+const PRESETS = [
   ...FRAMED_KITCHENS,
   { id: 'nordic-light', layout: 'straight', room: { width: 3600, depth: 2800, height: 2600 }, style: warmStyle('ash', 'marble', 'brass', 'marble'), glassFronts: true },
   { id: 'oak-studio', layout: 'straight', room: { width: 3800, depth: 2800, height: 2600 }, style: warmStyle('oak', 'travertine', 'bronze'), openShelves: true, glassFronts: true, ovenTower: true },
@@ -133,13 +135,15 @@ export const KITCHEN_DESIGNS = [
   { id: 'oak-island', layout: 'l-shape', room: { width: 4800, depth: 4000, height: 2600 }, style: warmStyle('oak', 'marble', 'brass', 'marble'), drawerBases: true, islandWidth: 1800, glassFronts: true, ovenTower: true, pantry: true, pullOut: true },
   { id: 'sage-island', layout: 'straight', room: { width: 4800, depth: 4000, height: 2600 }, style: warmStyle('sage', 'oak'), openShelves: true, islandWidth: 2400, glassFronts: true, pantry: true, breakfastBar: true },
   { id: 'monochrome-island', layout: 'l-shape', room: { width: 5000, depth: 4200, height: 2600 }, style: warmStyle('cream', 'black', 'bronze'), drawerBases: true, islandWidth: 1800, glassFronts: true, ovenTower: true, pantry: true },
-  { id: 'greige-gallery', layout: 'l-shape', room: { width: 3900, depth: 3000, height: 2700 }, style: { ...warmStyle('taupe', 'marble', 'none', 'marble'), appliances: 'black', plinthLighting: true }, layered: 'greige' },
-  { id: 'ivory-oak-gallery', layout: 'straight', room: { width: 4200, depth: 3000, height: 2700 }, style: { ...warmStyle('cream', 'travertine', 'none'), appliances: 'black', plinthLighting: true }, layered: 'ivory' },
-  { id: 'olive-stone-gallery', layout: 'l-shape', room: { width: 4200, depth: 3200, height: 2700 }, style: { ...warmStyle('olive', 'stone', 'none', 'stone'), appliances: 'black', plinthLighting: true }, layered: 'olive' },
-  { id: 'walnut-noir-gallery', layout: 'l-shape', room: { width: 4200, depth: 3200, height: 2700 }, style: { ...warmStyle('anthracite', 'black', 'none', 'black'), appliances: 'black', plinthLighting: true }, layered: 'graphite' },
+  { id: 'greige-gallery', layout: 'l-shape', room: { width: 3900, depth: 3000, height: 2700 }, style: { ...warmStyle('taupe', 'marble', 'none', 'marble'), appliances: 'black' }, layered: 'greige' },
+  { id: 'ivory-oak-gallery', layout: 'straight', room: { width: 4200, depth: 3000, height: 2700 }, style: { ...warmStyle('cream', 'travertine', 'none'), appliances: 'black' }, layered: 'ivory' },
+  { id: 'olive-stone-gallery', layout: 'l-shape', room: { width: 4200, depth: 3200, height: 2700 }, style: { ...warmStyle('olive', 'stone', 'none', 'stone'), appliances: 'black' }, layered: 'olive' },
+  { id: 'walnut-noir-gallery', layout: 'l-shape', room: { width: 4200, depth: 3200, height: 2700 }, style: { ...warmStyle('anthracite', 'black', 'none', 'black'), appliances: 'black' }, layered: 'graphite' },
   ...PREMIUM_KITCHENS,
   ...GREEN_KITCHENS,
 ] as const satisfies readonly KitchenPreset[];
+
+export const KITCHEN_DESIGNS = PRESETS.map((preset) => ({ ...preset, style: { ...preset.style, ...kitchenLook(preset).style } }));
 
 export type KitchenDesignId = (typeof KITCHEN_DESIGNS)[number]['id'];
 export type KitchenCategory = LayoutId | 'island';
@@ -150,13 +154,14 @@ export function kitchenCategory(preset: KitchenPreset): KitchenCategory {
 
 /** Both the gallery images and the editor use this complete, independently editable design. */
 export function createKitchenDesign(preset: KitchenPreset, name: string, prefixes?: LabelPrefixes): Design {
-  return { ...buildKitchenDesign(preset, name, prefixes), galleryPresetId: preset.id };
+  const { cabinets, style } = kitchenLook(preset);
+  return { ...buildKitchenDesign(preset, cabinets, name, prefixes), style: { ...preset.style, ...style }, galleryPresetId: preset.id };
 }
 
-function buildKitchenDesign(preset: KitchenPreset, name: string, prefixes?: LabelPrefixes): Design {
-  if (preset.green) return createGreenKitchen(preset.green, preset.room, preset.style, preset.middleFinish ?? 'oak', name, prefixes);
-  if (preset.framed) return createFramedKitchen(preset.framed, preset.room, preset.style, name, prefixes);
-  if (preset.layered) return createLayeredKitchen(preset.layered, preset.room, preset.style, name, prefixes);
+function buildKitchenDesign(preset: KitchenPreset, cabinets: CabinetPalette, name: string, prefixes?: LabelPrefixes): Design {
+  if (preset.green) return createGreenKitchen(preset.green, preset.room, preset.style, cabinets, name, prefixes);
+  if (preset.framed) return createFramedKitchen(preset.framed, preset.room, preset.style, cabinets, name, prefixes);
+  if (preset.layered) return createLayeredKitchen(preset.layered, preset.room, preset.style, cabinets, name, prefixes);
   const room = structuredClone(preset.room);
   let upperIndex = 0;
   let items = buildLayout(preset.layout, room, prefixes).map((item): KitchenItem => {
@@ -236,7 +241,7 @@ function buildKitchenDesign(preset: KitchenPreset, name: string, prefixes?: Labe
   }
 
   // Changing a cabinet's kind must also give it the right, unique code in the chosen language.
-  if (preset.stacked) items = premiumUpperRows(items, room, preset.style.front, preset.middleFinish ?? preset.style.front, prefixes);
+  if (preset.stacked) items = premiumUpperRows(items, room, cabinets, prefixes);
   const labelled: KitchenItem[] = [];
   for (const item of items) labelled.push({ ...item, label: nextLabel(item.kind, labelled, prefixes) });
 
@@ -244,21 +249,6 @@ function buildKitchenDesign(preset: KitchenPreset, name: string, prefixes?: Labe
   return { ...design, room, items: labelled, style: { ...preset.style }, materials: withModuleMaterials(design.materials, labelled) };
 }
 
-/** The finishes that make up a kitchen's look, without its lighting and decoration choices. */
-export type KitchenLook = Required<Pick<KitchenStyle, 'front' | 'worktop' | 'handles' | 'backsplash' | 'appliances'>>;
-
-/** Every distinct combination of finishes used by the kitchen collection: looks known to work together. */
-export const KITCHEN_LOOKS: readonly KitchenLook[] = (() => {
-  const looks = new Map<string, KitchenLook>();
-  for (const { style } of KITCHEN_DESIGNS as readonly KitchenPreset[]) {
-    const look: KitchenLook = { front: style.front, worktop: style.worktop, handles: style.handles, backsplash: style.backsplash ?? 'none', appliances: style.appliances ?? 'white' };
-    looks.set(Object.values(look).join('|'), look);
-  }
-  return [...looks.values()];
-})();
-
-/** Whether a kitchen already has exactly this look. */
-export function hasLook(style: KitchenStyle, look: KitchenLook): boolean {
-  return style.front === look.front && style.worktop === look.worktop && style.handles === look.handles
-    && (style.backsplash ?? 'none') === look.backsplash && (style.appliances ?? 'white') === look.appliances;
-}
+/** One representative per whole palette, including contrasting rows and islands. */
+export const KITCHEN_LOOK_PRESETS: readonly KitchenPreset[] =
+  [...new Map(KITCHEN_DESIGNS.map((preset) => [JSON.stringify(kitchenLook(preset)), preset])).values()];

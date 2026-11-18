@@ -7,7 +7,7 @@ import { assertScenePlacement, cabinetBodyDrag, close3DTools, open3DTools, resiz
 
 const output = path.join('test-results', 'resize');
 await mkdir(output, { recursive: true });
-const server = await createServer({ logLevel: 'error', cacheDir: path.resolve(output, '.vite'), server: { host: '127.0.0.1', port: 0 } });
+const server = await createServer({ logLevel: 'error', cacheDir: path.resolve(output, '.vite'), optimizeDeps: { entries: ['index.html'] }, server: { host: '127.0.0.1', port: 0, watch: null, hmr: false } });
 let browser;
 const errors = [];
 function observe(page) {
@@ -23,27 +23,36 @@ const resize = (page) => page.getByRole('button', { name: 'Resize cabinet', exac
 const done = (page) => page.getByTestId('cabinet-tools').getByRole('button', { name: 'Done', exact: true });
 const resizeLabel = (page, field) => page.locator(`[data-resize-field="${field}"]`);
 const undo = (page) => page.getByRole('button', { name: 'Undo', exact: true }).click();
-const lockMessage = 'Preview only: close this cabinet and exit Interior view to move, resize or rotate it.';
 
-async function fixture(page, kind = 'base', rotation = 0) {
-  await page.evaluate(async ({ kind, rotation }) => {
+// Ignore only the transferred finishes: room colours, floor settings and fabrication must survive.
+const lookFields = new Set(['front', 'frontProfile', 'worktop', 'handles', 'backsplash', 'appliances', 'windowFrame', 'doorFrame', 'doorLeaf']);
+const withoutLook = ({ style, galleryPresetId, items, ...rest }) => ({
+  ...rest, style: Object.fromEntries(Object.entries(style).filter(([key]) => !lookFields.has(key))),
+  items: items.map(({ frontFinish, carcassFinish, ...item }) => item),
+});
+
+async function fixture(page, kind = 'base', rotation = 0, placement = {}) {
+  await page.waitForFunction(() => Boolean(window.__kitchen));
+  await page.evaluate(async ({ kind, rotation, placement }) => {
     const { createDesign } = await import('/src/domain/designOps.ts');
     const { createItem } = await import('/src/domain/catalog.ts');
     const value = createDesign('Cabinet tools');
     value.room = { width: 4000, depth: 3200, height: 2700 };
     value.items = [
-      { ...createItem(kind, [], { x: 1800, y: 1700 }), id: 'resize-cabinet', rotation },
+      { ...createItem(kind, [], { x: 1800, y: 1700 }), id: 'resize-cabinet', rotation, ...placement },
       { ...createItem('base', [], { x: 0, y: 0 }), id: 'untouched' },
     ];
     window.__kitchen.design.getState().load(value);
     const ui = window.__kitchen.ui.getState();
     ui.setLanguage('en'); ui.setView('3d'); ui.setCabinetTool(null); ui.setReferenceOpen(false); ui.setRoomOpen(false);
     ui.setSnapEnabled(true); ui.setGridSize(50); ui.requestCamera('top'); ui.select('resize-cabinet');
-  }, { kind, rotation });
+  }, { kind, rotation, placement });
   await page.waitForFunction(() => Boolean(window.__kitchen3D?.scene.getObjectByName('resize-cabinet')));
   await close3DTools(page);
   await waitForIdleRendering(page);
-  await move(page).waitFor({ state: 'visible' });
+  await resize(page).waitFor({ state: 'visible' });
+  assert.equal(await move(page).count(), 0, '3D must not offer a cabinet Move tool.');
+  assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().selectedId), 'resize-cabinet');
 }
 
 async function drag(page, points, { touch = false, finish = true } = {}) {
@@ -71,10 +80,46 @@ async function armResize(page) {
   await waitForIdleRendering(page);
 }
 
+async function assertBodyOrbits(page, id, touch = false) {
+  const before = await design(page);
+  const revisions = await history(page);
+  const selection = await page.evaluate(() => window.__kitchen.ui.getState().selectedId);
+  await page.evaluate((id) => window.__kitchen.ui.getState().focusCamera(id), id);
+  await waitForIdleRendering(page);
+  // Grab the lower front face, not the large height-arrow target over the centre of its top.
+  const from = await page.evaluate(async (id) => {
+    const { localToRoom } = await import('/src/domain/geometry.ts');
+    const item = window.__kitchen.design.getState().design.items.find((i) => i.id === id);
+    const p = localToRoom(item, item.width * 0.24, item.depth);
+    const { camera } = window.__kitchen3D;
+    const ndc = camera.position.clone().set(p.x / 1000, (item.elevation + item.height * 0.26) / 1000, p.y / 1000).project(camera);
+    const b = document.querySelector('main canvas').getBoundingClientRect();
+    return { x: b.left + (1 + ndc.x) * b.width / 2, y: b.top + (1 - ndc.y) * b.height / 2 };
+  }, id);
+  assert.equal(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.tagName, from), 'CANVAS', `${id}: front face must not be hidden by controls.`);
+  const camera = await page.evaluate(() => window.__kitchen3D.camera.position.toArray());
+  const session = await drag(page, { from, to: { x: from.x + 32, y: from.y - 25 } }, { touch, finish: false });
+  try {
+    await page.waitForFunction((initial) => window.__kitchen3D.camera.position.toArray().some((v, i) => Math.abs(v - initial[i]) > 0.001), camera);
+    await assertScenePlacement(page, id);
+    assert.deepEqual(await design(page), before, 'Even while held, a cabinet body is not a translation handle.');
+    assert.equal(await page.evaluate(() => window.__kitchen.design.getState().gestureBase), null);
+  } finally {
+    if (touch) {
+      await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await session.detach();
+    } else await page.mouse.up();
+  }
+  assert.deepEqual(await design(page), before, 'Dragging a 3D cabinet must orbit without changing any cabinet or room data.');
+  assert.equal(await history(page), revisions, 'Camera movement must not create Undo entries.');
+  assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().selectedId), selection, 'Orbiting must not pick a different cabinet.');
+  await assertScenePlacement(page, id);
+}
+
 async function assertLocked(page, original) {
-  assert.equal(await move(page).isDisabled(), true);
+  assert.equal(await move(page).count(), 0);
   assert.equal(await resize(page).isDisabled(), true);
-  assert.equal(await page.getByTestId('cabinet-mode-hint').innerText(), lockMessage);
+  assert.equal(await page.getByTestId('cabinet-mode-hint').innerText(), 'Close this cabinet and exit Interior view to resize it.');
   assert.equal(await page.locator('[data-resize-field]').count(), 0);
   assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().cabinetTool), null);
   await page.getByRole('radio', { name: '3D', exact: true }).click();
@@ -85,7 +130,9 @@ async function assertLocked(page, original) {
   await open3DTools(page);
   if (page.viewportSize().width < 1024) await page.getByTestId('item-sheet').getByRole('button', { name: 'Edit', exact: true }).click();
   assert.equal(await page.getByLabel('Width', { exact: true }).isDisabled(), true);
-  assert.equal(await page.getByLabel('From left wall', { exact: true }).isDisabled(), true);
+  assert.equal(await page.getByLabel('From left wall', { exact: true }).count(), 0);
+  assert.equal(await page.getByLabel('From top wall', { exact: true }).count(), 0);
+  assert.equal(await page.getByLabel('Height from floor', { exact: true }).count(), 0);
   await close3DTools(page);
 }
 
@@ -95,42 +142,17 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
   observe(page);
   await page.goto(server.resolvedUrls.local[0], { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector('canvas');
   await fixture(page);
   let original = await design(page);
+  let after;
   assert.equal(await page.locator('[data-resize-field]').count(), 0, 'Selecting must not automatically enable resizing.');
   assert.equal(await page.getByRole('region', { name: 'Precise cabinet movement', exact: true }).count(), 0);
-  const camera = await page.evaluate(() => window.__kitchen3D.camera.position.toArray());
-  await drag(page, await cabinetBodyDrag(page, 'X', 0.35));
-  assert.deepEqual(await design(page), original, 'An unarmed body drag must never move a selected cabinet.');
-  assert.notDeepEqual(await page.evaluate(() => window.__kitchen3D.camera.position.toArray()), camera, 'An unarmed body drag must orbit.');
-  assert.equal(await history(page), 0);
-  await page.evaluate(() => window.__kitchen.ui.getState().requestCamera('top'));
-  await move(page).click();
-  assert.match(await page.getByTestId('cabinet-mode-hint').innerText(), /Hold the selected cabinet/);
-  await page.evaluate(() => window.__kitchen.ui.getState().setSnapEnabled(false));
-  await drag(page, await cabinetBodyDrag(page, 'X', 0.35));
-  let after = await design(page);
-  assert.ok(Math.abs(after.items[0].x - original.items[0].x - 350) < 20, 'The grabbed point must track the pointer without jumping.');
-  assert.deepEqual(after.items[1], original.items[1]);
-  assert.equal(after.items[0].elevation, original.items[0].elevation);
-  assert.equal(await history(page), 1);
-  await assertScenePlacement(page, 'resize-cabinet');
-  await undo(page);
-  assert.deepEqual(await design(page), original);
+  for (const id of ['resize-cabinet', 'untouched']) await assertBodyOrbits(page, id);
   await page.keyboard.press('ArrowRight');
-  assert.deepEqual(await design(page), original, 'Arrow keys must not move cabinets even with Move enabled.');
+  assert.deepEqual(await design(page), original, '3D arrow keys must not move cabinets.');
   await armResize(page);
-  assert.equal(await move(page).getAttribute('aria-pressed'), 'false');
-  assert.equal(await move(page).isDisabled(), true);
-  original = await design(page);
-  await drag(page, await cabinetBodyDrag(page, 'X', 0.25));
-  assert.ok(Math.abs((await design(page)).items[0].x - original.items[0].x - 250) < 20);
-  assert.equal(await history(page), 1);
+  for (const id of ['resize-cabinet', 'untouched']) await assertBodyOrbits(page, id);
   assert.equal(await resize(page).getAttribute('aria-pressed'), 'true');
-  await assertScenePlacement(page, 'resize-cabinet');
-  await undo(page);
-  assert.deepEqual(await design(page), original);
   await resize(page).click();
   await page.keyboard.press('Escape');
   assert.equal(await resize(page).getAttribute('aria-pressed'), 'true');
@@ -149,7 +171,7 @@ try {
   await page.mouse.click(otherBody.from.x, otherBody.from.y);
   assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().selectedId), 'untouched');
   await page.screenshot({ path: path.join(output, 'explicit-desktop.png') });
-  console.log('  PASS selection is safe; explicit Move tracks the pointer, preserves elevation and is one Undo step');
+  console.log('  PASS selected and unselected cabinet bodies orbit without edits or history, even during Resize');
 
   for (const [kind, rotation] of [['base', 0], ['base', 45], ['base', 90], ['wall', 180], ['corner', 270]]) {
     await fixture(page, kind, rotation);
@@ -218,8 +240,7 @@ try {
   await drag(page, await resizeArrowDrag(page, 'width', 0.3));
   assert.deepEqual(await design(page), original);
   assert.equal(await history(page), count, 'Catalog-clamped no-ops must not create Undo entries.');
-  await fixture(page);
-  await page.evaluate(async () => (await import('/src/store/actions.ts')).setItemPosition('resize-cabinet', 3400, 1700));
+  await fixture(page, 'base', 0, { x: 3400 });
   await armResize(page);
   original = await design(page);
   await drag(page, await resizeArrowDrag(page, 'width', 0.3));
@@ -227,8 +248,7 @@ try {
   assert.deepEqual(await design(page), original);
   await drag(page, await resizeArrowDrag(page, 'width', -0.15));
   assert.ok((await design(page)).items[0].width < original.items[0].width);
-  await fixture(page, 'wall');
-  await page.evaluate(async () => (await import('/src/store/actions.ts')).setItemElevation('resize-cabinet', 2000));
+  await fixture(page, 'wall', 0, { elevation: 2000 });
   await armResize(page);
   original = await design(page);
   await drag(page, await resizeArrowDrag(page, 'height', 0.4));
@@ -237,38 +257,34 @@ try {
   assert.equal(after.items[0].elevation, original.items[0].elevation);
   console.log('  PASS exact properties, interruption rollback, catalog no-ops, room rejection/recovery and ceiling constraints');
 
-  for (const tool of ['move', 'resize']) {
-    await fixture(page);
-    original = await design(page);
-    if (tool === 'move') await move(page).click(); else await armResize(page);
-    await drag(page, tool === 'move' ? await cabinetBodyDrag(page, 'X', 0.35) : await resizeArrowDrag(page), { finish: false });
-    assert.notDeepEqual(await design(page), original);
-    await page.getByRole('button', { name: 'Open cabinet', exact: true }).evaluate((element) => element.click());
-    await page.mouse.up();
-    assert.deepEqual(await design(page), original, 'Opening during a gesture must cancel it before entering preview.');
-    assert.equal(await history(page), 0);
-    await assertLocked(page, original);
-    await drag(page, await cabinetBodyDrag(page, 'X', 0.2));
-    assert.deepEqual(await design(page), original, 'An open cabinet must not move when its body is dragged.');
-    await page.getByRole('button', { name: 'Close cabinet', exact: true }).click();
-    assert.equal(await move(page).isEnabled(), true);
-    assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().cabinetTool), null);
-  }
+  await fixture(page);
+  original = await design(page);
+  await armResize(page);
+  await drag(page, await resizeArrowDrag(page), { finish: false });
+  assert.notDeepEqual(await design(page), original);
+  await page.getByRole('button', { name: 'Open cabinet', exact: true }).evaluate((element) => element.click());
+  await page.mouse.up();
+  assert.deepEqual(await design(page), original, 'Opening during a resize must cancel it before entering preview.');
+  assert.equal(await history(page), 0);
+  await assertLocked(page, original);
+  await assertBodyOrbits(page, 'resize-cabinet');
+  await page.getByRole('button', { name: 'Close cabinet', exact: true }).click();
+  assert.equal(await resize(page).isEnabled(), true);
+  assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().cabinetTool), null);
   await page.getByRole('button', { name: 'Open all', exact: true }).click();
   original = await design(page);
   await assertLocked(page, original);
   await page.evaluate(() => window.__kitchen.ui.getState().select('untouched'));
   await assertLocked(page, original);
   await page.getByRole('button', { name: 'Close all', exact: true }).click();
-  await move(page).click();
+  await armResize(page);
   await page.getByRole('button', { name: 'Interior view', exact: true }).click();
   await assertLocked(page, original);
   await page.getByRole('button', { name: 'Interior view', exact: true }).click();
-  assert.equal(await move(page).isEnabled(), true);
+  assert.equal(await resize(page).isEnabled(), true);
   assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().cabinetTool), null);
   await page.evaluate(() => window.__kitchen.ui.getState().requestCamera('top'));
-  await drag(page, await cabinetBodyDrag(page, 'X', 0.2));
-  assert.deepEqual(await design(page), original, 'Leaving preview must not silently rearm Move.');
+  await assertBodyOrbits(page, 'untouched');
   console.log('  PASS open/Open all/Interior preview locks tools, shortcuts and properties; opening cancels active gestures');
 
   const populatedId = await page.evaluate(async () => {
@@ -291,7 +307,9 @@ try {
   await armResize(page);
   await page.evaluate(() => window.__kitchen.ui.getState().select('untouched'));
   assert.equal(await page.locator('[data-resize-field]').count(), 0);
-  await page.evaluate(() => { const ui = window.__kitchen.ui.getState(); ui.setView('plan'); ui.select('untouched'); });
+  await page.getByTestId('cabinet-tools').getByRole('button', { name: 'Edit position in 2D', exact: true }).click();
+  await page.locator('.konvajs-content').waitFor();
+  assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().selectedId), 'untouched');
   const planX = (await design(page)).items[1].x;
   await page.keyboard.press('ArrowRight');
   assert.equal((await design(page)).items[1].x, planX + 10, 'Plan keyboard movement must remain available.');
@@ -300,17 +318,24 @@ try {
   console.log('  PASS populated kitchens resize one cabinet, selection/view changes disarm tools, and plan arrows still work');
 
   await fixture(page);
+  await page.evaluate(() => {
+    const store = window.__kitchen.design.getState();
+    store.load({ ...store.design, style: { ...store.design.style, wallColor: '#334455', floorPattern: 'tiles', floorTileSize: 450 } });
+  });
   original = await design(page);
   const shuffle = (target) => target.getByRole('button', { name: 'Next kitchen', exact: true });
   await shuffle(page).click();
-  await page.getByTestId('shuffle-feedback').getByText(/Loaded/).waitFor();
+  await page.getByTestId('shuffle-feedback').getByText(/^Applied /).waitFor();
   after = await design(page);
-  assert.notDeepEqual(after.items, original.items);
+  assert.deepEqual(withoutLook(after), withoutLook(original));
+  assert.notDeepEqual(after.style, original.style);
   assert.equal(await history(page), 1);
   assert.equal(after.galleryPresetId, 'walnut-frame');
-  assert.notDeepEqual(after.room, original.room);
   await shuffle(page).click();
-  assert.equal((await design(page)).galleryPresetId, 'oak-frame', 'Next kitchen must load the next prepared gallery design.');
+  const secondLook = await design(page);
+  assert.equal(secondLook.galleryPresetId, 'oak-frame', 'Next kitchen must advance to the next gallery look.');
+  assert.notDeepEqual(secondLook.style, after.style);
+  assert.deepEqual(withoutLook(secondLook), withoutLook(original));
   assert.equal(await history(page), 2);
   await undo(page);
   assert.deepEqual(await design(page), after);
@@ -330,38 +355,28 @@ try {
   });
   original = await design(page);
   await shuffle(page).click();
-  assert.equal((await design(page)).galleryPresetId, 'walnut-frame', 'Gallery kitchens include their own room, even if the old room does not fit.');
+  after = await design(page);
+  assert.equal(after.galleryPresetId, 'walnut-frame', 'Applying a look does not require the gallery geometry to fit.');
+  assert.deepEqual(withoutLook(after), withoutLook(original), 'Even an oversized existing cabinet must not be resized, dropped or replaced.');
   assert.equal(await history(page), 1);
   await undo(page);
   assert.deepEqual(await design(page), original);
   await page.getByTestId('shuffle-feedback').getByRole('button', { name: 'Close', exact: true }).click();
-  console.log('  PASS Next kitchen loads complete gallery designs in one Undo step and respects preview/tool locks');
+  console.log('  PASS Next kitchen applies successive looks without replacing the room or cabinets, in one Undo step per look, and respects preview/tool locks');
 
   const phoneContext = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
   const phone = await phoneContext.newPage();
   observe(phone);
   await phone.goto(server.resolvedUrls.local[0], { waitUntil: 'domcontentloaded' });
-  await phone.waitForSelector('canvas');
   await fixture(phone);
   original = await design(phone);
-  let session = await drag(phone, await cabinetBodyDrag(phone, 'X', 0.35), { touch: true });
-  await session.detach();
-  assert.deepEqual(await design(phone), original, 'A selected but unarmed cabinet must not move under a finger.');
-  await phone.evaluate(() => window.__kitchen.ui.getState().requestCamera('top'));
-  await move(phone).tap();
-  session = await drag(phone, await cabinetBodyDrag(phone, 'X', 0.35), { touch: true });
-  await session.detach();
-  assert.notDeepEqual((await design(phone)).items[0], original.items[0]);
-  assert.deepEqual((await design(phone)).items[1], original.items[1]);
-  assert.equal((await design(phone)).items[0].elevation, original.items[0].elevation);
-  await undo(phone);
+  for (const id of ['resize-cabinet', 'untouched']) await assertBodyOrbits(phone, id, true);
   await armResize(phone);
-  session = await drag(phone, await cabinetBodyDrag(phone, 'X', 0.25), { touch: true });
-  await session.detach();
-  assert.notDeepEqual((await design(phone)).items[0], original.items[0]);
+  for (const id of ['resize-cabinet', 'untouched']) await assertBodyOrbits(phone, id, true);
   assert.equal(await resize(phone).getAttribute('aria-pressed'), 'true');
-  await undo(phone);
-  session = await drag(phone, await resizeArrowDrag(phone), { touch: true });
+  // Restore the cabinet framing that Resize normally opens, after orbiting the other cabinet.
+  await phone.evaluate(() => window.__kitchen.ui.getState().focusCamera('resize-cabinet'));
+  let session = await drag(phone, await resizeArrowDrag(phone), { touch: true });
   await session.detach();
   assert.ok((await design(phone)).items[0].width > original.items[0].width);
   await undo(phone);
@@ -396,9 +411,12 @@ try {
   await phone.getByTestId('item-sheet').getByRole('button', { name: 'Less', exact: true }).tap();
   await phone.getByRole('button', { name: 'Open cabinet', exact: true }).tap();
   await assertLocked(phone, original);
+  // Closing Tools changes the canvas height and repositions the floating cabinet controls.
+  await waitForIdleRendering(phone);
   await phone.getByRole('button', { name: 'Close cabinet', exact: true }).tap();
-  const less = phone.getByTestId('item-sheet').getByRole('button', { name: 'Less', exact: true });
-  if (await less.isVisible()) await less.tap();
+  await phone.getByRole('button', { name: 'Open cabinet', exact: true }).waitFor();
+  assert.equal(await resize(phone).isEnabled(), true);
+  await phone.getByTestId('item-sheet').getByRole('button', { name: 'Less', exact: true }).tap();
   await armResize(phone);
   await waitForIdleRendering(phone);
   const idle = await phone.evaluate(() => window.__kitchen3D.renderer.info.render.frame);
@@ -411,8 +429,11 @@ try {
   assert.ok(Math.abs(openAllBox.y - shuffleBox.y) < 2 && shuffleBox.x > openAllBox.x, 'Shuffle must be beside Open all, not inside More.');
   original = await design(phone);
   await shuffle(phone).tap();
-  await phone.getByTestId('shuffle-feedback').getByText(/Loaded/).waitFor();
-  assert.notDeepEqual((await design(phone)).items, original.items);
+  await phone.getByTestId('shuffle-feedback').getByText(/^Applied /).waitFor();
+  after = await design(phone);
+  assert.equal(after.galleryPresetId, 'walnut-frame');
+  assert.deepEqual(withoutLook(after), withoutLook(original));
+  assert.notDeepEqual(after.style, original.style);
   assert.equal(await history(phone), 1);
   await undo(phone);
   assert.deepEqual(await design(phone), original);
@@ -420,7 +441,7 @@ try {
   await phone.screenshot({ path: path.join(output, 'phone-gallery-kitchen.png') });
   await phone.getByRole('status').getByRole('button', { name: 'Close', exact: true }).tap();
   await phoneContext.close();
-  console.log('  PASS touch Move/Resize, cancellation, preview locks and Shuffle/Undo; arrows fit 320px in Serbian and rendering stops at idle');
+  console.log('  PASS touch orbits without moving cabinets; Resize, cancellation, preview locks and Shuffle/Undo work at 320px and rendering stops at idle');
 
   const persisted = await design(page);
   await page.waitForTimeout(500);

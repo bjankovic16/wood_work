@@ -1,12 +1,13 @@
-import { Box, Ellipsis, FolderOpen, Hammer, Images, Languages, LayoutGrid, List, Magnet, Redo2, RulerDimensionLine, Undo2 } from 'lucide-react';
+import { Box, Ellipsis, FolderOpen, Hammer, Images, Languages, LayoutGrid, List, Magnet, Redo2, RulerDimensionLine } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { LANGUAGE_LABEL, LANGUAGES, useT, type Language } from '../../i18n';
 import { cn } from '../../lib/cn';
-import { redo, setProjectName, undo } from '../../store/actions';
+import { redo, setProjectName } from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
 import { GRID_SIZES, useUiStore, type MainView } from '../../store/uiStore';
 import { ChecksButton } from '../checks/ChecksButton';
 import { Button, Divider, Menu, Segmented, TooltipButton } from '../ui';
+import { UndoButton } from './UndoButton';
 
 function ProjectName({ className }: { className?: string }) {
   const t = useT();
@@ -56,15 +57,20 @@ function Logo() {
 function ViewTabs({ compact }: { compact: boolean }) {
   const t = useT();
   const view = useUiStore((s) => s.view);
+  const planLabel = useUiStore((s) => s.roomOpen) ? t.room.plan : t.topBar.plan;
   return (
     <Segmented<MainView>
       ariaLabel={t.topBar.view}
       size={compact ? 'md' : 'sm'}
       value={view}
-      onChange={(v) => useUiStore.getState().setView(v)}
-      className={compact ? 'w-full' : 'w-72'}
+      onChange={(v) => {
+        const ui = useUiStore.getState();
+        if (ui.roomOpen && v !== 'list') ui.setRoomView(v);
+        else ui.setView(v);
+      }}
+      className={compact ? 'min-w-0 flex-1 max-[380px]:[&_svg]:hidden' : 'w-72'}
       options={[
-        { value: 'plan', label: <><LayoutGrid className="size-3.5" /><span>{t.topBar.plan}</span></>, ariaLabel: t.topBar.plan, title: t.topBar.planTitle },
+        { value: 'plan', label: <><LayoutGrid className="size-3.5" /><span>{planLabel}</span></>, ariaLabel: planLabel, title: t.topBar.planTitle },
         { value: '3d', label: <><Box className="size-3.5" /><span>{t.topBar.view3d}</span></>, ariaLabel: t.topBar.view3d, title: t.topBar.view3dTitle },
         { value: 'list', label: <><List className="size-3.5" /><span>{compact ? t.topBar.listShort : t.topBar.list}</span></>, ariaLabel: t.topBar.list, title: t.topBar.listTitle },
       ]}
@@ -74,13 +80,10 @@ function ViewTabs({ compact }: { compact: boolean }) {
 
 function UndoRedo() {
   const t = useT();
-  const canUndo = useDesignStore((s) => s.past.length > 0);
-  const canRedo = useDesignStore((s) => s.future.length > 0);
+  const canRedo = useDesignStore((s) => !s.gestureBase && s.future.length > 0);
   return (
     <div role="group" aria-label={`${t.topBar.undo} / ${t.topBar.redo}`} className="flex items-center">
-      <TooltipButton tooltip={t.topBar.undoTitle} aria-label={t.topBar.undo} disabled={!canUndo} onClick={undo}>
-        <Undo2 className="size-4" />
-      </TooltipButton>
+      <UndoButton />
       <TooltipButton tooltip={t.topBar.redoTitle} aria-label={t.topBar.redo} disabled={!canRedo} onClick={redo}>
         <Redo2 className="size-4" />
       </TooltipButton>
@@ -154,17 +157,17 @@ function ViewOptions() {
 export function TopBar({ compact = false }: { compact?: boolean }) {
   const t = useT();
   const view = useUiStore((s) => s.view);
+  const roomOpen = useUiStore((s) => s.roomOpen);
   const language = useUiStore((s) => s.language);
   const ui = useUiStore.getState();
 
   if (compact) {
     return (
       <header className="studio-panel shrink-0 border-b print:hidden">
-        <div className="flex h-14 items-center gap-1 px-3">
-        <Logo />
+        <div className="flex h-14 items-center gap-1 px-2">
+        <span className="hidden shrink-0 min-[430px]:inline-flex"><Logo /></span>
         <ProjectName className="flex-1" />
         <UndoRedo />
-        <ChecksButton compact />
         <Menu label={t.topBar.more} icon={<Ellipsis className="size-4" />}>
           <div className="space-y-1">
             <Button className="w-full justify-start" data-close-menu onClick={() => ui.setProjectsOpen(true)}>
@@ -198,7 +201,13 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
           </div>
         </Menu>
         </div>
-        <div className="px-2 pb-2"><ViewTabs compact /></div>
+        <div className="flex items-center gap-1 px-2 pb-2">
+          <Button variant="outline" active={roomOpen} aria-label={t.room.setupTitle} title={t.room.setupTitle} onClick={() => ui.setRoomOpen(true)}>
+            <RulerDimensionLine className="size-4" /><span className="hidden min-[430px]:inline">{t.room.setupTitle}</span>
+          </Button>
+          <ViewTabs compact />
+          <ChecksButton compact />
+        </div>
       </header>
     );
   }
@@ -210,6 +219,9 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
         <span className="hidden whitespace-nowrap text-[13px] font-semibold text-zinc-900 2xl:inline">{t.appName}</span>
       </div>
       <Divider />
+      <Button active={roomOpen} aria-label={t.room.setupTitle} title={t.room.setupTitle} onClick={() => ui.setRoomOpen(true)}>
+        <RulerDimensionLine className="size-4" /><span className="hidden xl:inline">{t.room.setupTitle}</span>
+      </Button>
       <Button title={t.topBar.projectsTitle} onClick={() => ui.setProjectsOpen(true)}>
         <FolderOpen className="size-4" />
         {t.topBar.projects}

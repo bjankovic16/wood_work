@@ -1,4 +1,4 @@
-import { roomOutline } from './roomGeometry';
+import { roomFeaturePolygon, roomOutline } from './roomGeometry';
 import { normalizeAngle, polygonBounds } from './polygons';
 import type { Opening, Partition, Point, Room, Wall } from './types';
 
@@ -64,10 +64,8 @@ export function roomSegments(room: Room, includePartitions = true): WallSegment[
 export function mountingSegments(room: Room): WallSegment[] {
   const surfaces = roomSegments(room);
   for (const f of room.features ?? []) {
-    const a = { x: f.x, y: f.y };
-    const b = { x: f.x + f.width, y: f.y };
-    const c = { x: f.x + f.width, y: f.y + f.depth };
-    const d = { x: f.x, y: f.y + f.depth };
+    const [a, b, c, d] = roomFeaturePolygon(room, f);
+    if (!a) continue;
     for (const [index, [start, end]] of [[b, a], [c, b], [d, c], [a, d]].entries())
       surfaces.push(segmentFrame(`feature:${f.id}:${index}`, start, end, room.height));
   }
@@ -95,6 +93,21 @@ export function openingPolygon(room: Room, opening: Opening, depth: number): Poi
   if (!frame) return [];
   return [wallPoint(frame, opening.offset), wallPoint(frame, opening.offset + opening.width),
     wallPoint(frame, opening.offset + opening.width, depth), wallPoint(frame, opening.offset, depth)];
+}
+
+/** Express even a legacy opening in the actual segment's clockwise, start-relative coordinates. */
+export function openingOnWall(room: Room, opening: Opening): { segment: WallSegment; offset: number } | null {
+  const frame = openingFrame(room, opening);
+  if (!frame) return null;
+  if (opening.wallId) return { segment: frame, offset: opening.offset };
+  const a = wallPoint(frame, opening.offset), b = wallPoint(frame, opening.offset + opening.width);
+  for (const segment of roomSegments(room, false)) {
+    const p = wallCoordinates(segment, a), q = wallCoordinates(segment, b);
+    const offset = Math.min(p.x, q.x);
+    if (Math.abs(p.y) < 0.01 && Math.abs(q.y) < 0.01 && offset >= -0.01 && Math.max(p.x, q.x) <= segment.length + 0.01)
+      return { segment, offset: Math.max(0, offset) };
+  }
+  return null;
 }
 
 export function openingBounds(room: Room, opening: Opening, depth: number) {
