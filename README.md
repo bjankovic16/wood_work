@@ -60,8 +60,9 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
    **Projects**. It opens a new empty kitchen; your previous kitchen stays in
    **Projects**. To remeasure the *same* kitchen, choose **Room design** next to
    **3D** (**Dizajn prostorije**; **Room / Prostorija** on a phone).
-2. Tap a wall **line** to face that wall, or tap its **number** to edit its
-   measurement. The dropdown with the little floor plan lets you switch directly
+2. Tap the **eye / 2D** icon beside a wall to open its inside view, or tap its
+   **number** to edit the measurement. The wall line also opens the inside view.
+   The dropdown with the little floor plan lets you switch directly
    to any wall. In the wall view, choose **Add → Window** or **Door** and
    measure from the green start point. Add a chimney if needed. The
    selected object's measurements appear just below the room measurements.
@@ -69,7 +70,8 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
 3. In Room design, choose **3D review / 3D pregled** to see just the room,
    with dimension labels and a scrollable **Room measurements** list. It covers
    floor area, ceiling height, every wall (including diagonals), openings,
-   fixed structures, partitions and wall finishes. On desktop, **3D preview**
+   fixed structures, partitions and wall finishes. The same **eye / 2D** icon
+   opens a wall from its 3D label or its row in the list. On desktop, **3D preview**
    also shows the room beside the drawing. The top-level **3D** tab always
    shows the furnished kitchen in the same project. Choose
    **Continue to kitchen** to open the plan directly, or open **Ideas**

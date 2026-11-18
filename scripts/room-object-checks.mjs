@@ -52,6 +52,28 @@ async function dragDrawing(page, target, dx, dy, touch, cancel = false, held) {
 export async function planCornerChecks(page, touch) {
   const workspace = page.getByTestId('room-workspace');
   const plan = workspace.getByTestId('room-plan');
+  if (touch) {
+    const viewport = page.viewportSize();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.evaluate(async () => {
+      const { createProject } = await import('/src/store/projects.ts');
+      createProject('Caption regression');
+      const { design, ui } = window.__kitchen;
+      ui.getState().setLanguage('sr');
+      design.getState().apply((d) => ({ ...d, room: { ...d.room, width: 3000, depth: 3000 } }));
+    });
+    await plan.getByRole('button', { name: 'Pomeri ugao 2' }).waitFor();
+    await page.evaluate(() => document.fonts.ready);
+    const area = workspace.locator('.room-area'), caption = workspace.locator('.room-plan-caption');
+    const initial = await plan.boundingBox(), captionBox = await caption.boundingBox();
+    assert.equal(await area.innerText(), '9 m²');
+    await dragDrawing(page, plan.getByRole('button', { name: 'Pomeri ugao 2' }), 660, 0, true, false, async () => {
+      await page.waitForFunction(() => document.querySelector('.room-area').innerText !== '9 m²');
+      assert.deepEqual(await plan.boundingBox(), initial, 'A longer live area must not resize the drawing under a finger.');
+      assert.deepEqual(await caption.boundingBox(), captionBox, 'Moja prostorija must stay still as its area gains digits.');
+    });
+    await page.setViewportSize(viewport);
+  }
   await page.evaluate(async () => {
     const { createProject } = await import('/src/store/projects.ts');
     const { design, ui } = window.__kitchen;
@@ -361,7 +383,9 @@ export async function furnishedWallChecks(page, compact, output) {
     const opening = { id: 'through', kind: 'window', wall: 'top', wallId: 'divider:1', offset: 200, width: 600, height: 800, sill: 600 };
     store.load({ ...store.design, room: { ...store.design.room, partitions: [partition] }, openings: [opening] });
   });
-  await picker.selectOption('divider:-1');
+  await picker.selectOption('');
+  await tapOrClick(plan.getByRole('button', { name: 'Otvori zid 6 u 2D', exact: true }), compact);
+  assert.equal(await picker.inputValue(), 'divider:-1');
   assert.equal(await elevation.getByRole('button', { name: 'Visina do plafona: 2700 mm' }).count(), 0);
   await elevation.getByText('1700 mm', { exact: true }).waitFor();
   const beforeFace = await design(page);

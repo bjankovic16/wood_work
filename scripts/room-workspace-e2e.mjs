@@ -9,24 +9,43 @@ import { waitForIdleRendering } from './three-test-helpers.mjs';
 const server = await createServer({ logLevel: 'error', cacheDir: path.resolve('test-results/room-workspace/.vite'), server: { host: '127.0.0.1', port: 0 } });
 const planOnly = process.argv.includes('--plan-only');
 
+async function assertWallTargets(plan, count) {
+  const targets = await plan.locator('[data-wall-dimension],[data-wall-view]').evaluateAll((nodes) => nodes.map((node) => {
+    const box = node.getBoundingClientRect();
+    const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+    return { w: box.width, h: box.height, reachable: node.contains(hit), horizontal: node.getScreenCTM().b === 0 };
+  }));
+  assert.equal(targets.length, count);
+  assert.ok(targets.every((b) => b.w >= 43.9 && b.h >= 43.9 && b.reachable && b.horizontal), 'Every number and adjacent wall shortcut must have its own reachable target.');
+}
+
 async function phoneRoomTools(page, workspace) {
   await page.evaluate(() => window.__kitchen.ui.getState().setLanguage('sr'));
   const plan = workspace.getByTestId('room-plan');
   for (const viewport of [{ width: 320, height: 568 }, { width: 430, height: 778 }]) {
     await page.setViewportSize(viewport);
     await plan.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-    const badges = await plan.locator('[data-wall-dimension]').evaluateAll((nodes) => nodes.map((node) => {
-      const box = node.getBoundingClientRect();
-      const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
-      return { w: box.width, h: box.height, reachable: node.contains(hit), horizontal: node.getScreenCTM().b === 0 };
-    }));
-    assert.equal(badges.length, 4);
-    assert.ok(badges.every((b) => b.w >= 43.9 && b.h >= 43.9 && b.reachable && b.horizontal), 'Every wall measurement must be readable and tappable without an overlaid ceiling label.');
+    await assertWallTargets(plan, 8);
+    const shortcut = plan.getByRole('button', { name: 'Otvori zid 3 u 2D' });
+    await shortcut.tap();
+    assert.equal(await workspace.getByRole('combobox', { name: 'Izaberi pogled' }).inputValue(), 'bottom');
+    await workspace.getByRole('button', { name: 'Nazad na osnovu' }).tap();
+    await page.waitForFunction(() => document.activeElement?.getAttribute('data-wall-view') === 'bottom');
     const panel = workspace.getByTestId('room-inspector');
     const bounds = await panel.boundingBox();
     for (const control of [panel.getByRole('tab', { name: 'Boje i pločice' }), panel.getByLabel('Visina do plafona')]) {
       const box = await control.boundingBox();
       assert.ok(box && box.y + box.height <= bounds.y + bounds.height + 1, 'Finishes and the ceiling input must fit without scrolling.');
+    }
+    if (viewport.width === 320) {
+      await page.evaluate(() => window.__kitchen.design.getState().apply((d) => ({
+        ...d, room: { ...d.room, cutout: { kind: 'notch', corner: 'bottomRight', width: 1080, depth: 900 } },
+      })));
+      await assertWallTargets(plan, 12);
+      await plan.getByRole('button', { name: 'Otvori zid 3 u 2D' }).tap();
+      assert.equal(await workspace.getByRole('combobox', { name: 'Izaberi pogled' }).inputValue(), 'edge-2');
+      await workspace.getByRole('button', { name: 'Nazad na osnovu' }).tap();
+      await page.getByRole('button', { name: 'Korak unazad', exact: true }).tap();
     }
   }
   await workspace.getByRole('tab', { name: 'Boje i pločice' }).tap();
@@ -180,6 +199,16 @@ async function separatedRoomChecks(page) {
     window.__kitchen3D.scene.traverse((n) => { if (n.name === 'kitchen-only' || n.name.startsWith('kitchen-backsplash-')) names.push(n.name); });
     return names;
   }), []);
+  const projected = room.locator('[data-room-measure^="wall:"]:visible').first();
+  await projected.waitFor();
+  const projectedWall = (await projected.getAttribute('data-room-measure')).slice('wall:'.length);
+  await projected.getByRole('button').click();
+  const picker = room.getByRole('combobox', { name: 'Drawing view' });
+  assert.equal(await picker.inputValue(), projectedWall, 'The 3D icon opens the wall shown beside it.');
+  await room.getByRole('radio', { name: '3D review' }).click();
+  await schedule.locator('[data-measure="partition:divider"]').getByRole('button', { name: 'Open wall 6 in 2D' }).press('Enter');
+  assert.equal(await picker.inputValue(), 'divider:-1');
+  assert.deepEqual(await state(), edited, 'Wall shortcuts change the view, not measurements, selections in the design, or history.');
   await kitchen3D.click();
   await page.waitForFunction(() => window.__kitchen3D?.scene.getObjectByName('kitchen-only') && window.__kitchen3D.scene.getObjectByName('kitchen-backsplash-north-0'));
   assert.equal(await page.getByTestId('room-measurements').count(), 0);

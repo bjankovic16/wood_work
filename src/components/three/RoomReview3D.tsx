@@ -19,7 +19,7 @@ import { RoomObjectAnchor, RoomObjectAnnotation, RoomObjectTools } from './RoomO
 import { SceneCanvas, type CameraRequest } from './SceneCanvas';
 import { useThreeNavigation } from './useThreeNavigation';
 
-export default function RoomReview3D({ rows, split }: { rows: RoomMeasure[]; split: boolean }) {
+export default function RoomReview3D({ rows, split, onOpenWall }: { rows: RoomMeasure[]; split: boolean; onOpenWall: (id: string) => void }) {
   const t = useT();
   const { room, openings, style } = useDesignStore((s) => s.design);
   const picked = useUiStore((s) => s.roomSelection);
@@ -64,7 +64,7 @@ export default function RoomReview3D({ rows, split }: { rows: RoomMeasure[]; spl
         {showLabels && <ProjectRoomMeasures rows={rows} overlay={labels} />}
         {selection && <RoomObjectAnchor overlay={selectedLabel} />}
       </SceneCanvas>
-      {showLabels && <RoomMeasureLabels rows={rows} overlay={labels} />}
+      {showLabels && <RoomMeasureLabels rows={rows} overlay={labels} onOpenWall={onOpenWall} />}
       {selection && <RoomObjectAnnotation overlay={selectedLabel} />}
       {nav.showTip && <p role="status" data-testid="three-tip" className="three-tip pointer-events-none absolute inset-x-3 top-3 mx-auto w-fit rounded-full bg-studio-ink/85 px-4 py-2 text-center text-xs text-white">
         {touch ? t.view3d.tipTouch : t.view3d.tipMouse}</p>}

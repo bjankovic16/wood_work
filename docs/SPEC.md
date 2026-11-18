@@ -48,13 +48,17 @@ file for a customer. The customer does not need the editor or the cutting list.
 - Typing a wall length in a rectangle keeps it rectangular. On the 2D floor
   plan, dragging a perimeter corner instead moves only that vertex, allowing
   angled walls without changing views. Update the two adjacent wall lengths
-  and area live; keep the drawing steady under the pointer. Touch, mouse and
+  and area live; changing the area must not reflow the phone caption or resize
+  the drawing under the pointer. Touch, mouse and
   keyboard users can move a corner. A completed drag is one undo step; a tap
   or cancelled gesture is not an edit. Stop at the last valid position if the
   outline would cross or a cabinet, fixture or opening would no longer fit;
   do not move or shrink it to make it fit. Keep stable wall IDs and account
   for legacy bottom/left opening offsets.
-- Tapping a wall line opens its **2D inside elevation**. Provide a drawing
+- Tapping a wall's **eye / 2D** shortcut or the wall line opens its **2D inside
+  elevation**. Keep the shortcut distinct from the numeric measurement and
+  corner drag targets. Offer the same shortcut at the wall labels and in
+  the measurement list in room 3D, including both partition faces. Provide a drawing
   dropdown for the plan and all wall faces, a mini-plan marking the current face,
   and a one-tap return. Show the green origin, length and height rulers, real
   openings and optional read-only cabinet outlines (off by default). Use one **Add** dropdown shared by

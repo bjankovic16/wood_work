@@ -10,6 +10,7 @@ export interface RoomMeasure {
   name: string;
   value: string;
   details?: string;
+  faces?: { id: string; number: number }[];
   /** Position in the plan (mm), and distance above the floor (mm). */
   at?: Point;
   elevation?: number;
@@ -30,7 +31,7 @@ export function roomMeasurements(room: Room, openings: Opening[], t: Messages): 
     if (wall.partitionId) continue;
     rows.push({ id: `wall:${wall.id}`, name: t.advancedRoom.wall(i + 1), value: mm(wall.length),
       details: `${t.room.height}: ${mm(wall.height)} · ${angle(wall.angle)}`,
-      at: wallPoint(wall, wall.length / 2), elevation: 70 });
+      faces: [{ id: wall.id, number: i + 1 }], at: wallPoint(wall, wall.length / 2), elevation: 70 });
   }
   for (const selection of [...openings.map(({ id }) => ({ type: 'opening' as const, id })),
     ...(room.features ?? []).map(({ id }) => ({ type: 'feature' as const, id }))]) {
@@ -41,6 +42,7 @@ export function roomMeasurements(room: Room, openings: Opening[], t: Messages): 
   for (const [i, part] of (room.partitions ?? []).entries()) {
     const faceIndex = walls.findIndex((s) => s.partitionId === part.id), wall = walls[faceIndex];
     rows.push({ id: `partition:${part.id}`, name: t.advancedRoom.partition(i + 1), value: mm(wall.length),
+      faces: [faceIndex, faceIndex + 1].map((j) => ({ id: walls[j].id, number: j + 1 })),
       details: [`${t.advancedRoom.thickness}: ${mm(part.thickness)}`, `${t.room.height}: ${mm(part.height)}`, angle(wall.angle),
         `${t.advancedRoom.startX}: ${mm(part.start.x)}`, `${t.advancedRoom.startY}: ${mm(part.start.y)}`,
         `${t.advancedRoom.endX}: ${mm(part.end.x)}`, `${t.advancedRoom.endY}: ${mm(part.end.y)}`,

@@ -6,7 +6,7 @@ import type { RoomMeasure } from '../room/roomMeasurements';
 const Kitchen3D = lazy(() => import('./Kitchen3D'));
 const RoomReview3D = lazy(() => import('./RoomReview3D'));
 
-export function View3D(props: { compact?: boolean } | { rows: RoomMeasure[]; split: boolean }) {
+export function View3D(props: { compact?: boolean } | { rows: RoomMeasure[]; split: boolean; onOpenWall: (id: string) => void }) {
   const t = useT();
   return (
     <Suspense fallback={<div className="flex h-full items-center justify-center bg-[#ebe8e3] text-sm text-zinc-500">{t.view3d.loading}</div>}>

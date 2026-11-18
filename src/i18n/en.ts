@@ -379,7 +379,7 @@ export const en = {
     cabinetReference: 'Show kitchen outlines for reference',
     reviewHint: 'Orbit the room to see its dimensions. All measurements are also listed below.',
     kitchenShort: 'Kitchen',
-    cornerHintShort: 'Drag a dot. Tap a wall to face it.',
+    cornerHintShort: 'Drag a dot. Tap 2D to open a wall.',
     cameraHints: {
       perspective: 'Orbit the room in perspective.',
       studio: 'See the whole room against a dark background.',
@@ -387,7 +387,7 @@ export const en = {
       top: 'Look down at the room outline and its openings.',
     },
     plan: 'Plan',
-    measureHint: 'Drag a corner to reshape. Tap a wall for its view or a number to edit.',
+    measureHint: 'Drag a corner to reshape. Tap 2D to open a wall, or tap its measurement to edit.',
     cornerHandle: (n: number) => `Move corner ${n}`,
     cornerKeys: 'Drag or use arrow keys to move. Hold Shift for a larger step.',
     cornerBlocked: {
@@ -399,6 +399,7 @@ export const en = {
     drawingView: 'Drawing view',
     fromAbove: 'From above',
     facingWall: 'Inside elevation',
+    openWall: (n: number) => `Open wall ${n} in 2D`,
     addObject: 'Add an object',
     addShort: 'Add',
     fixedStructures: 'Fixed structures',

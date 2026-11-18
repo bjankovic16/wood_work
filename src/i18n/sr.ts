@@ -375,7 +375,7 @@ export const sr: Messages = {
     cabinetReference: 'Prikaži obrise kuhinje kao orijentir',
     reviewHint: 'Okrenite prostoriju da vidite mere. Sve mere su navedene i u spisku.',
     kitchenShort: 'Kuhinja',
-    cornerHintShort: 'Povucite tačku. Dodirnite zid za pogled iznutra.',
+    cornerHintShort: 'Povucite tačku. 2D otvara zid.',
     cameraHints: {
       perspective: 'Okrenite prostoriju u perspektivi.',
       studio: 'Pogledajte celu prostoriju na tamnoj pozadini.',
@@ -383,7 +383,7 @@ export const sr: Messages = {
       top: 'Pogledajte osnovu prostorije i otvore odozgo.',
     },
     plan: 'Osnova',
-    measureHint: 'Povucite ugao da promenite oblik. Dodirnite zid za pogled, a broj za meru.',
+    measureHint: 'Povucite ugao da promenite oblik. Dodirnite 2D za pogled na zid, a meru da je izmenite.',
     cornerHandle: (n) => `Pomeri ugao ${n}`,
     cornerKeys: 'Povucite ugao ili ga pomerite strelicama. Držite Shift za veći korak.',
     cornerBlocked: {
@@ -395,6 +395,7 @@ export const sr: Messages = {
     drawingView: 'Izaberi pogled',
     fromAbove: 'Pogled odozgo',
     facingWall: 'Pogled iznutra',
+    openWall: (n) => `Otvori zid ${n} u 2D`,
     addObject: 'Dodaj objekat',
     addShort: 'Dodaj',
     fixedStructures: 'Fiksne strukture',

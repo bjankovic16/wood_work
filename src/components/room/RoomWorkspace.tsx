@@ -11,6 +11,7 @@ import { RoomPlan } from './RoomPlan';
 import { RoomDrawingTools } from './RoomDrawingTools';
 import { RoomInspector } from './RoomInspector';
 import { WallElevation } from './WallElevation';
+import { WallViewButton } from './WallViewButton';
 import { roomSegments } from '../../domain/walls';
 import { useDesignStore } from '../../store/designStore';
 import { finishRoom, useProjectsStore } from '../../store/projects';
@@ -42,6 +43,10 @@ function ProjectRoom({ compact }: { compact: boolean }) {
     if (id) ui.setSelectedWallId(id);
     ui.setRoomElevationOpen(!!id);
   };
+  const openReviewedWall = (id: string) => {
+    ui.setRoomView('plan'); showDrawing(id);
+    requestAnimationFrame(() => viewPicker.current?.focus({ preventScroll: true }));
+  };
   const actions = <>
     {compact && <Button variant="outline" data-testid="room-ideas" aria-label={t.layouts.title} title={t.layouts.title} onClick={() => ui.setLayoutsOpen(true)}>
       <Images className="size-4" /><span className="max-[459px]:hidden">{t.layouts.title}</span>
@@ -70,7 +75,7 @@ function ProjectRoom({ compact }: { compact: boolean }) {
           <RoomDrawingTools room={room} walls={segments} facing={facing} selectedWall={wall} pickerRef={viewPicker} show={showDrawing}
             back={() => {
               showDrawing('');
-              if (facing) requestAnimationFrame(() => document.querySelector<SVGElement>(`[data-wall-id="${CSS.escape(facing.id)}"]`)?.focus({ preventScroll: true }));
+              if (facing) requestAnimationFrame(() => document.querySelector<SVGElement>(`[data-wall-view="${CSS.escape(facing.id)}"]`)?.focus({ preventScroll: true }));
             }} />
           {facing ? <WallElevation key={facing.id} wall={facing} number={segments.indexOf(facing) + 1} reference={reference} />
             : <RoomPlan reference={reference} onFaceWall={(id, keyboard) => { showDrawing(id); if (keyboard) viewPicker.current?.focus({ preventScroll: true }); }} />}
@@ -79,7 +84,7 @@ function ProjectRoom({ compact }: { compact: boolean }) {
         </div>}
         {(view === '3d' || !compact && preview) && <div className="min-w-0 flex-1 border-studio-line lg:border-l" data-testid="room-3d" data-room-3d="" tabIndex={-1}
           onPointerDownCapture={(e) => { if (e.target instanceof HTMLCanvasElement) e.currentTarget.focus({ preventScroll: true }); }}>
-          <View3D rows={rows} split={view === 'plan'} />
+          <View3D rows={rows} split={view === 'plan'} onOpenWall={openReviewedWall} />
         </div>}
       </div>
       <aside data-testid="room-inspector" className="room-inspector studio-panel">
@@ -89,13 +94,14 @@ function ProjectRoom({ compact }: { compact: boolean }) {
           <section aria-label={t.room.measurements} data-testid="room-measurements" className="min-h-0 overflow-y-auto p-4">
             <h2 className="text-sm font-semibold">{t.room.measurements}</h2>
             <p className="pt-1 text-xs text-studio-muted">{t.room.reviewHint}</p>
-            {wall && <Button variant="outline" className="mt-2" onClick={() => {
-              ui.setRoomView('plan'); showDrawing(wall.id);
-              requestAnimationFrame(() => viewPicker.current?.focus({ preventScroll: true }));
-            }}>{t.advancedRoom.wall(segments.indexOf(wall) + 1)} · {t.room.editIn2D}</Button>}
-            <dl className="mt-2 divide-y divide-studio-line text-sm">{rows.map((row) =>
-              <div key={row.id} data-measure={row.id} className="py-2">
-                <dt className="font-semibold">{row.name}</dt><dd>{row.value}{row.details && <small className="block text-studio-muted">{row.details}</small>}</dd>
+            {wall && <Button variant="outline" className="mt-2" onClick={() => openReviewedWall(wall.id)}>{t.advancedRoom.wall(segments.indexOf(wall) + 1)} · {t.room.editIn2D}</Button>}
+            <dl className="mt-2 divide-y divide-studio-line text-sm">{rows.map(({ id, name, value, details, faces = [] }) =>
+              <div key={id} data-measure={id} className="py-2">
+                <dt className="font-semibold">{name}</dt><dd className="flex items-center justify-between gap-2">
+                  <span>{value}{details && <small className="block text-studio-muted">{details}</small>}</span>
+                  {faces.length > 0 && <span className="flex">{faces.map((face) =>
+                    <WallViewButton key={face.id} face={face} numbered={faces.length > 1} open={openReviewedWall} />)}</span>}
+                </dd>
               </div>)}</dl>
           </section>
         </>}

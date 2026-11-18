@@ -1,4 +1,5 @@
-import { useId, useRef, useState, type KeyboardEvent, type TouchEvent } from 'react';
+import { Eye } from 'lucide-react';
+import { useId, useMemo, useRef, useState, type KeyboardEvent, type TouchEvent } from 'react';
 import { footprintPieces } from '../../domain/geometry';
 import { DEFAULT_FLOOR_COLOR, DEFAULT_FLOOR_GROUT_COLOR, DEFAULT_FLOOR_TILE_SIZE, DEFAULT_WALL_COLOR } from '../../domain/style';
 import { roomFeaturePolygon, roomFeaturePose, roomOutline } from '../../domain/roomGeometry';
@@ -13,6 +14,7 @@ import { DrawingReadout, useRoomReadout } from './RoomReadout';
 import { useDrawingDrag } from './useDrawingDrag';
 import { useDrawingSize } from './useDrawingSize';
 import { usePlanCorners } from './usePlanCorners';
+import { planWallControls } from './planWallControls';
 import { updateRoomFeature } from '../../store/actions';
 
 export const points = (polygon: Point[]) => polygon.map((p) => `${p.x},${p.y}`).join(' ');
@@ -36,7 +38,7 @@ export function RoomPlan({ onFaceWall, reference }: { onFaceWall: (id: string, k
   const [measure, setMeasure] = useState<string | null>(null);
   // Reserve actual screen space on all four sides for horizontal, tappable measurements.
   const fitted = Math.max(room.width / Math.max(40, size.width - 158), room.depth / Math.max(25, size.height - 102));
-  const allWalls = roomSegments(room);
+  const allWalls = useMemo(() => roomSegments(room), [room]);
   const segments = allWalls.filter((wall) => !wall.partitionId);
   const corners = usePlanCorners(segments, { px: fitted, x: (room.width - size.width * fitted) / 2, y: (room.depth - size.height * fitted) / 2 }, drag,
     (id) => { setMeasure(null); ui.setSelectedWallId(id); });
@@ -46,7 +48,8 @@ export function RoomPlan({ onFaceWall, reference }: { onFaceWall: (id: string, k
   const floor = style.floorColor ?? DEFAULT_FLOOR_COLOR;
   const tile = style.floorTileSize ?? DEFAULT_FLOOR_TILE_SIZE;
   const outline = points(roomOutline(room));
-  const labels: Point[] = [];
+  const { width, height } = size;
+  const { dimensions, icons } = useMemo(() => planWallControls(allWalls, { x, y, px }, { width, height }), [allWalls, x, y, px, width, height]);
   // Mobile browsers can discard the synthesized click on a thin, sloping SVG wall.
   // Treat a stationary single-finger release as a tap, without turning a swipe into one.
   const tap = useRef<{ x: number; y: number; id: number } | null>(null);
@@ -83,26 +86,35 @@ export function RoomPlan({ onFaceWall, reference }: { onFaceWall: (id: string, k
         const thickness = s.partitionId && room.partitions?.find((p) => p.id === s.partitionId)?.thickness;
         const outside = thickness ? -thickness / 2 : -20 * px, inside = (s.partitionId ? 20 : 24) * px;
         return <g key={s.id} data-wall-id={s.id} {...planButton(t.advancedRoom.wall(i + 1), (keyboard) => onFaceWall(s.id, keyboard))} aria-pressed={wallId === s.id}>
-          <title>{t.room.facingWall} · {t.advancedRoom.wall(i + 1)}</title>
+          <title>{t.room.openWall(i + 1)}</title>
           <line className="room-wall-edge" x1={s.start.x} y1={s.start.y} x2={s.end.x} y2={s.end.y}
             stroke={wallId === s.id ? '#376b4a' : 'transparent'} strokeWidth={5 * px} pointerEvents="none" />
           <polygon fill="transparent" points={points([wallPoint(s, 0, outside), wallPoint(s, s.length, outside),
             wallPoint(s, s.length, inside), wallPoint(s, 0, inside)])} />
         </g>;
       })}
+      {allWalls.map((s, i) => {
+        const icon = icons.get(s.id)!, label = t.room.openWall(i + 1);
+        const anchor = dimensions.get(s.id)?.at ?? wallPoint(s, s.length / 2);
+        return <g key={s.id}>
+          <line x1={anchor.x} y1={anchor.y} x2={icon.x} y2={icon.y} stroke="#8d9f95" strokeWidth={px} pointerEvents="none" />
+          <g data-wall-view={s.id} {...planButton(label, (keyboard) => onFaceWall(s.id, keyboard))}
+            transform={`translate(${icon.x} ${icon.y}) scale(${px})`}>
+            <title>{label}</title>
+            <rect x="-22" y="-22" width="44" height="44" fill="transparent" />
+            <rect className="room-wall-view-chip" x="-20" y="-12" width="40" height="24" rx="7" />
+            <Eye x="-16" y="-7" size={14} aria-hidden="true" color="#315a44" />
+            <text textAnchor="middle" x="8" y="4" fontSize="11" fontWeight="650" fill="#315a44">2D</text>
+          </g>
+        </g>;
+      })}
       {corners.targets}
       {segments.map((s, i) => {
         const label = `${t.advancedRoom.wall(i + 1)} · ${Math.round(s.length)} mm`;
         const selected = s.id === wallId;
-        const candidates = [0.5, 0.3, 0.7, 0.15, 0.85].map((fraction) => {
-          const anchor = wallPoint(s, s.length * fraction);
-          return { anchor, x: anchor.x - s.inward.x * 42 * px, y: anchor.y - s.inward.y * 28 * px };
-        });
-        const clear = (p: Point) => labels.every((q) => Math.abs(q.x - p.x) >= 70 * px || Math.abs(q.y - p.y) >= 45 * px);
-        const at = candidates.find(clear) ?? candidates[0];
-        labels.push(at);
+        const { anchor, at } = dimensions.get(s.id)!;
         return <g key={s.id}>
-          <line x1={at.anchor.x} y1={at.anchor.y} x2={at.x} y2={at.y} stroke="#8d9f95" strokeWidth={px} pointerEvents="none" />
+          <line x1={anchor.x} y1={anchor.y} x2={at.x} y2={at.y} stroke="#8d9f95" strokeWidth={px} pointerEvents="none" />
           <g data-wall-dimension={s.id} {...planButton(`${label}: ${t.advancedRoom.length}`, () => { ui.setSelectedWallId(s.id); setMeasure(s.id); })}
             transform={`translate(${at.x} ${at.y}) scale(${px})`}>
             <rect x="-32" y="-22" width="64" height="44" rx="8" fill="transparent" />
