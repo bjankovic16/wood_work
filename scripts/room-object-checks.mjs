@@ -139,6 +139,7 @@ export async function workspaceObjectChecks(page, touch = false, three = true) {
 
   await elevation.getByRole('button', { name: 'Back to plan' }).click();
   await tapOrClick(plan.getByRole('button', { name: 'Wall 1', exact: true }), touch);
+  await workspace.getByRole('region', { name: 'Inside wall view: Wall 1', exact: true }).waitFor();
   await inspector.getByRole('button', { name: 'Chimney', exact: true }).click();
   const feature = () => design(page).then((d) => d.room.features[0]);
   const f = await feature();

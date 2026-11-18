@@ -4,6 +4,7 @@ import { useT } from '../../i18n';
 
 interface NumberFieldProps {
   label: string;
+  shortLabel?: string;
   value: number;
   onCommit: (value: number) => void | false;
   min?: number;
@@ -22,6 +23,7 @@ interface NumberFieldProps {
  */
 export function NumberField({
   label,
+  shortLabel,
   value,
   onCommit,
   min = -Infinity,
@@ -55,7 +57,7 @@ export function NumberField({
   return (
     <div className="flex items-center gap-2" title={title}>
       <label htmlFor={id} className="w-[104px] shrink-0 text-xs text-zinc-500">
-        {label}
+        {shortLabel ? <><span aria-hidden="true">{shortLabel}</span><span className="sr-only">{label}</span></> : label}
       </label>
       <div className="relative min-w-0 flex-1">
         <input

@@ -2,13 +2,14 @@ import { Shuffle } from 'lucide-react';
 import { useRef } from 'react';
 import { applyKitchenLook, KITCHEN_LOOK_PRESETS, type KitchenPreset } from '../../domain/kitchens';
 import { randomSeed, shuffled } from '../../domain/shuffle';
-import { APPLIANCE_FINISHES, BACKSPLASH_FINISHES, DEFAULT_FLOOR_COLOR, DEFAULT_FLOOR_GROUT_COLOR, DEFAULT_FLOOR_TILE_SIZE, DEFAULT_WALL_COLOR, FLOOR_TILE_SIZE_LIMITS, FRONT_FINISHES, HANDLE_STYLES, JOINERY_FINISHES, ROOM_COLORS, WORKTOP_FINISHES, type Finish, type FrontFinish, type RoomColor } from '../../domain/style';
+import { APPLIANCE_FINISHES, BACKSPLASH_FINISHES, FRONT_FINISHES, HANDLE_STYLES, JOINERY_FINISHES, WORKTOP_FINISHES, type Finish, type FrontFinish } from '../../domain/style';
 import { useT } from '../../i18n';
 import { cn } from '../../lib/cn';
 import { setStyle } from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
 import { Button } from '../ui';
-import { CheckboxField, NumberField, SelectField } from '../properties/NumberField';
+import { SelectField } from '../properties/NumberField';
+import { RoomSurfaces } from '../room/RoomSurfaces';
 
 function swatchBackground(finish: Finish): string {
   // Wood finishes get a streaky gradient to hint at the grain.
@@ -57,26 +58,6 @@ function Swatches<K extends string>({
       </div>
     </div>
   );
-}
-
-function RoomColorPicker({ label, value, onChange }: { label: string; value: string; onChange: (color: string) => void }) {
-  const t = useT();
-  return <div className="space-y-2">
-    <label className="flex items-center justify-between gap-2 text-xs font-medium text-zinc-700">
-      {label}
-      <input type="color" aria-label={`${label}: ${t.style.customColor}`} value={value}
-        className="h-9 w-14 cursor-pointer rounded-md border border-zinc-200 bg-white p-1"
-        onChange={(event) => onChange(event.target.value)} />
-    </label>
-    <div role="group" aria-label={label} className="flex flex-wrap gap-1.5">
-      {(Object.keys(ROOM_COLORS) as RoomColor[]).map((key) => <button key={key} type="button"
-        aria-label={`${label}: ${t.style.roomColors[key]}`} title={t.style.roomColors[key]}
-        aria-pressed={value.toLowerCase() === ROOM_COLORS[key].color}
-        className={cn('size-8 rounded-full border border-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2',
-          value.toLowerCase() === ROOM_COLORS[key].color && 'ring-2 ring-blue-600 ring-offset-2')}
-        style={{ backgroundColor: ROOM_COLORS[key].color }} onClick={() => onChange(ROOM_COLORS[key].color)} />)}
-    </div>
-  </div>;
 }
 
 /** Fronts, worktop and handles for the whole kitchen, as shown in 3D. */
@@ -154,19 +135,7 @@ export function StylePicker() {
         {JOINERY_FINISHES.map((key) => <SelectField<FrontFinish | ''> key={key} label={t.style[key]}
           value={style[key] ?? ''} options={joineryOptions} onChange={(value) => setStyle({ [key]: value || undefined })} />)}
       </div>
-      <div className="space-y-4 border-t border-zinc-100 pt-3">
-        <h3 className="text-sm font-semibold text-zinc-800">{t.style.roomSurfaces}</h3>
-        <RoomColorPicker label={t.style.wallColor} value={style.wallColor ?? DEFAULT_WALL_COLOR} onChange={(wallColor) => setStyle({ wallColor })} />
-        <RoomColorPicker label={t.style.floorColor} value={style.floorColor ?? DEFAULT_FLOOR_COLOR} onChange={(floorColor) => setStyle({ floorColor })} />
-        <CheckboxField label={t.style.floorTiles} checked={style.floorPattern === 'tiles'} onChange={(enabled) => setStyle({ floorPattern: enabled ? 'tiles' : 'plain' })} />
-        {style.floorPattern === 'tiles' && <div className="space-y-3">
-          <NumberField label={t.style.tileSize} value={style.floorTileSize ?? DEFAULT_FLOOR_TILE_SIZE}
-            min={FLOOR_TILE_SIZE_LIMITS.min} max={FLOOR_TILE_SIZE_LIMITS.max} onCommit={(floorTileSize) => setStyle({ floorTileSize })} />
-          <RoomColorPicker label={t.style.groutColor} value={style.floorGroutColor ?? DEFAULT_FLOOR_GROUT_COLOR} onChange={(floorGroutColor) => setStyle({ floorGroutColor })} />
-          <p className="text-[11px] leading-relaxed text-zinc-600">{t.style.floorTilesNote}</p>
-        </div>}
-        <p className="text-[11px] leading-relaxed text-zinc-600">{t.style.roomColorNote}</p>
-      </div>
+      <div className="border-t border-zinc-100 pt-3"><RoomSurfaces /></div>
       <div className="space-y-3 border-t border-zinc-100 pt-3">
         <label className="flex cursor-pointer items-start gap-2 text-xs leading-relaxed text-zinc-700">
           <input type="checkbox" className="mt-0.5 size-4 accent-blue-600" checked={style.decor ?? false} onChange={(event) => setStyle({ decor: event.target.checked })} />

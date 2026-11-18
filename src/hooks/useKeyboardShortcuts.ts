@@ -19,7 +19,7 @@ function isTyping(target: EventTarget | null): boolean {
 
 /** A dialog covers the plan: keys must not change the units behind it. */
 function dialogOpen(): boolean {
-  return document.querySelector('[role="dialog"][aria-modal="true"]') !== null;
+  return document.querySelector('dialog:modal, [role="dialog"][aria-modal="true"]') !== null;
 }
 
 /** Arrow keys as steps along the screen: [to the right, upwards]. */

@@ -1,5 +1,6 @@
 import { ArrowLeft } from 'lucide-react';
 import { featureDragPlacement, openingDragPlacement } from '../../domain/roomObjectPlacement';
+import { DEFAULT_WALL_COLOR } from '../../domain/style';
 import { openingOnWall, wallCoordinates, wallPoint, type WallSegment } from '../../domain/walls';
 import { useT } from '../../i18n';
 import { updateOpening, updateRoomFeature } from '../../store/actions';
@@ -17,7 +18,7 @@ const snapGrid = () => { const ui = useUiStore.getState(); return ui.snapEnabled
 
 export function WallElevation({ wall, number }: { wall: WallSegment; number: number }) {
   const t = useT();
-  const { room, openings } = useDesignStore((s) => s.design);
+  const { room, openings, style } = useDesignStore((s) => s.design);
   const selection = useUiStore((s) => s.roomSelection);
   const ui = useUiStore.getState();
   const drag = useDrawingDrag();
@@ -35,8 +36,8 @@ export function WallElevation({ wall, number }: { wall: WallSegment; number: num
     </div>
     <p className="px-1 pt-1 text-[11px] text-studio-muted">{t.room.elevation} · {t.room.elevationHint}</p>
     <div ref={size.ref} className="relative min-h-0 flex-1">
-      <svg className="h-full w-full" aria-label={t.room.elevation} viewBox={`${-pad} ${-pad} ${wall.length + 2 * pad} ${height + 2.8 * pad}`}>
-        <rect x="0" y={height - wall.height} width={wall.length} height={wall.height} fill="#fffdf7" stroke="#847862" strokeWidth={pad / 18} />
+      <svg className="h-full w-full touch-none" aria-label={t.room.elevation} viewBox={`${-pad} ${-pad} ${wall.length + 2 * pad} ${height + 2.8 * pad}`}>
+        <rect x="0" y={height - wall.height} width={wall.length} height={wall.height} fill={style.wallColor ?? DEFAULT_WALL_COLOR} stroke="#66786b" strokeWidth={pad / 18} />
         <line x1="0" y1={height - wall.height} x2="0" y2={height} stroke="#376b4a" strokeWidth={pad / 12} />
         <text x="0" y={height + font * 1.4} fontSize={font} fill="#376b4a">{t.advancedRoom.start} · 0 mm</text>
         <text x={wall.length} y={height + font * 1.4} textAnchor="end" fontSize={font} fill="#544e42">{Math.round(wall.length)} mm</text>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useLayoutEffect, useRef, useState } from 'react';
 import { ROOM_LIMITS } from '../../domain/roomGeometry';
 import type { WallSegment } from '../../domain/walls';
 import { roomSegments } from '../../domain/walls';
@@ -8,6 +8,25 @@ import { useDesignStore } from '../../store/designStore';
 import { useUiStore } from '../../store/uiStore';
 import { NumberField, SelectField } from '../properties/NumberField';
 import { Button, PanelSection } from '../ui';
+
+export function WallMeasureDialog({ wall, number, close }: { wall: WallSegment; number: number; close: () => void }) {
+  const t = useT();
+  const id = useId();
+  const ref = useRef<HTMLDialogElement>(null);
+  useLayoutEffect(() => {
+    const dialog = ref.current!;
+    dialog.showModal();
+    return () => dialog.close();
+  }, []);
+  return <dialog ref={ref} aria-labelledby={id} data-testid="drawing-measure" className="room-measure-sheet"
+    onCancel={(event) => { event.preventDefault(); close(); }} onClick={(event) => { if (event.target === event.currentTarget) close(); }}>
+    <div className="space-y-3 p-5">
+      <h2 id={id} className="text-lg font-semibold">{t.advancedRoom.wall(number)}</h2>
+      <WallMeasureFields wall={wall} focus="length" />
+      <Button variant="primary" className="mt-1 h-11 w-full" onClick={close}>{t.common.done}</Button>
+    </div>
+  </dialog>;
+}
 
 export function WallMeasureFields({ wall, focus }: { wall: WallSegment; focus?: 'length' | 'height' }) {
   const t = useT();

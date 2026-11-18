@@ -178,6 +178,10 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
               <Images className="size-4" />
               {t.layouts.title}
             </Button>
+            {roomOpen && <>
+              <Button className="w-full justify-start" data-close-menu onClick={() => ui.setView('list')}><List className="size-4" />{t.topBar.list}</Button>
+              <div className="flex justify-end"><ChecksButton /></div>
+            </>}
             <details>
               <summary className="cursor-pointer rounded-lg px-2 py-3 text-[13px] font-medium text-studio-muted">{t.topBar.view}</summary>
               <ViewOptions />
@@ -201,13 +205,13 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
           </div>
         </Menu>
         </div>
-        <div className="flex items-center gap-1 px-2 pb-2">
-          <Button variant="outline" active={roomOpen} aria-label={t.room.setupTitle} title={t.room.setupTitle} onClick={() => ui.setRoomOpen(true)}>
+        {!roomOpen && <div className="flex items-center gap-1 px-2 pb-2">
+          <Button variant="outline" aria-label={t.room.setupTitle} title={t.room.setupTitle} onClick={() => ui.setRoomOpen(true)}>
             <RulerDimensionLine className="size-4" /><span className="hidden min-[430px]:inline">{t.room.setupTitle}</span>
           </Button>
           <ViewTabs compact />
           <ChecksButton compact />
-        </div>
+        </div>}
       </header>
     );
   }

@@ -107,7 +107,7 @@ export function RoomObjectButtons({ wallId, openingsOnly = false }: { wallId?: s
   </div>;
 }
 
-function RoomObjectsSection() {
+export function RoomObjectsSection() {
   const t = useT();
   const openings = useDesignStore((s) => s.design.openings);
   const room = useDesignStore((s) => s.design.room);
@@ -116,7 +116,7 @@ function RoomObjectsSection() {
   const ui = useUiStore.getState();
   const count = { window: 0, door: 0 };
   return (
-    <PanelSection title={t.room.windowsAndDoors}>
+    <PanelSection title={t.room.fixtures}>
       {openings.length === 0 && <p className="text-xs leading-relaxed text-zinc-500">{t.room.openingsHint}</p>}
       <RoomObjectButtons wallId={wall?.id} />
       <p className="text-xs leading-relaxed text-studio-muted">{t.roomStructure.fullHeight}</p>
@@ -150,17 +150,44 @@ export function SelectedRoomCard() {
   </div>;
 }
 
+export function RoomDimensions({ tiles = false }: { tiles?: boolean }) {
+  const t = useT();
+  const room = useDesignStore((s) => s.design.room);
+  const [failed, setFailed] = useState(false);
+  const resize = (patch: Partial<typeof room>) => {
+    try { actions.setRoomSize(patch); setFailed(false); }
+    catch (error) { if (!(error instanceof RangeError)) throw error; setFailed(true); return false; }
+  };
+  const fields = <>
+    <NumberField label={t.room.width} title={t.room.widthTitle} value={room.width} {...ROOM_LIMITS.width} onCommit={(v) => resize({ width: v })} />
+    <NumberField label={t.room.depth} title={t.room.depthTitle} value={room.depth} {...ROOM_LIMITS.depth} onCommit={(v) => resize({ depth: v })} />
+    <NumberField label={t.room.ceilingHeight} shortLabel={tiles ? t.room.height : undefined} title={t.room.ceilingHeight} value={room.height} {...ROOM_LIMITS.height} onCommit={(v) => resize({ height: v })} />
+  </>;
+  const error = failed && <p role="alert" className="text-xs text-red-700">{t.advancedRoom.invalid}</p>;
+  if (!tiles) return <PanelSection title={t.room.roomSize}>{fields}{error}</PanelSection>;
+  return <section className="room-sizes">
+    <h3>{t.room.roomSize}</h3>
+    <div className="room-size-grid">{fields}</div>
+    {error}
+  </section>;
+}
+
+export function AdvancedRoomSection({ children }: { children?: ReactNode }) {
+  const t = useT();
+  return <details className="border-b border-studio-line">
+    <summary className="cursor-pointer px-4 py-4 text-xs font-medium text-studio-accent">{t.room.advanced}</summary>
+    <RoomStructureSettings />
+    <AdvancedRoomSettings />
+    {children}
+  </details>;
+}
+
 export function RoomSettings({ children }: { children?: ReactNode }) {
   const t = useT();
   const room = useDesignStore((s) => s.design.room);
   const view = useUiStore((s) => s.view);
   const selectedWallId = useUiStore((s) => s.selectedWallId);
   const data = useRoomReadout();
-  const [failed, setFailed] = useState(false);
-  const resize = (patch: Partial<typeof room>) => {
-    try { actions.setRoomSize(patch); setFailed(false); }
-    catch (error) { if (!(error instanceof RangeError)) throw error; setFailed(true); return false; }
-  };
   if (view === '3d') {
     const segments = roomSegments(room);
     const wall = segments.find((s) => s.id === selectedWallId);
@@ -175,21 +202,11 @@ export function RoomSettings({ children }: { children?: ReactNode }) {
   }
   return (
     <>
-      <PanelSection title={t.room.roomSize}>
-        <NumberField label={t.room.width} title={t.room.widthTitle} value={room.width} {...ROOM_LIMITS.width} onCommit={(v) => resize({ width: v })} />
-        <NumberField label={t.room.depth} title={t.room.depthTitle} value={room.depth} {...ROOM_LIMITS.depth} onCommit={(v) => resize({ depth: v })} />
-        <NumberField label={t.room.ceilingHeight} value={room.height} {...ROOM_LIMITS.height} onCommit={(v) => resize({ height: v })} />
-        {failed && <p role="alert" className="text-xs text-red-700">{t.advancedRoom.invalid}</p>}
-      </PanelSection>
+      <RoomDimensions />
       <SelectedRoomCard />
       <WallMeasurements />
       <RoomObjectsSection />
-      <details className="border-b border-zinc-100">
-        <summary className="cursor-pointer px-4 py-4 text-xs font-medium text-studio-accent">{t.room.advanced}</summary>
-        <RoomStructureSettings />
-        <AdvancedRoomSettings />
-        {children}
-      </details>
+      <AdvancedRoomSection>{children}</AdvancedRoomSection>
     </>
   );
 }

@@ -81,6 +81,10 @@ browsers, English otherwise. A language chosen manually is remembered.
 
 ## Measuring the room
 
+- In **My room**, use **Dimensions** for room size and wall geometry, **Add objects**
+  for openings and fixed structures, or **Paint & tiles** to change walls and floors
+  right on the plan. On phones the drawing stays above the tools, and **Ideas**
+  and **Continue to kitchen** stay at the bottom.
 - **Walls:** perimeter segments are numbered in order: Wall 1–4 in a rectangle,
   continuing around longer outlines. Select one to see its starting end. To
   change **Wall length**, click or tap the dimension, or focus it with Tab and
@@ -212,7 +216,8 @@ or a cutting-list export for the workshop; the customer view is neither.
     the generated gallery images in `public/kitchens/` ship with the app. Pass
     preset IDs to render only changed previews, for example
     `npm run render:kitchens -- chimney-frame sage-oak-frame`.
-- **Wall and floor colours**: in **Style → Walls and floor**, pick a swatch or a
+- **Wall and floor colours**: in **My room → Paint & tiles** (**Moja prostorija → Boje i pločice**)
+  or **3D → Style → Walls and floor**, pick a swatch or a
   custom colour for all painted walls, and another for the floor. Changes appear
   in 3D, persist with the project and support Undo. Backsplashes and wall cladding
   retain their own finishes; room colours do not change the cutting list.
