@@ -184,6 +184,14 @@ export function DesignCanvas({ compact = false, onAdd = () => useUiStore.getStat
     }
   });
 
+  // Konva normally batches hit-canvas updates to the next frame. A click just
+  // after switching rows must already belong to the newly visible cabinets.
+  useLayoutEffect(() => {
+    for (const layer of stageRef.current?.getLayers() ?? []) {
+      if (layer.isListening()) layer.drawHit();
+    }
+  }, [manualFilter, wallElevation]);
+
   // A sheet snap is a viewport change, not a design edit. Never move the plan
   // underneath an active finger; finish the pick/drag first.
   const committedSelection = committedItems.find((item) => item.id === selectedId);

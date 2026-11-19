@@ -124,7 +124,14 @@ async function layers(page) {
   assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().selectedId), 'plan-upper');
 
   await button(page, 'Wall units').click();
-  await row.selectOption('1200');
+  const firstHit = await row.evaluate(async (select) => {
+    select.value = '1200';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    await Promise.resolve(); // Read the committed selection before the next animation frame.
+    const stage = window.Konva.stages[0];
+    return stage.getIntersection(stage.getAbsoluteTransform().point({ x: 1050, y: 160 }))?.findAncestor('.item')?.id();
+  });
+  assert.equal(firstHit, 'plan-hood', 'The newly visible row must be pickable from its first frame.');
   await page.mouse.click(...await canvasPoint(page, 1050, 160));
   assert.equal(await selected(), 'plan-hood', 'An accessory outside every cupboard row is still reachable above a floor unit.');
   await row.selectOption('2170');
