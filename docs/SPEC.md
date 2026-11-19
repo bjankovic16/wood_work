@@ -112,7 +112,11 @@ After room setup the editor has three main areas:
 
 Drag elements from the library onto the **2D plan**. The initial library
 shows eight most-used parts, with search and **Browse all parts** exposing
-the full catalogue.
+the full catalogue. Show real rendered pictures of all presets, including
+width and ceiling variants. Keep browsing and direct adding independent of
+WebGL. **Preview before adding** opens one isolated, rotatable model in the
+project's own finishes; dismissing it must not change the design, selection
+or Undo history. Confirming uses the ordinary placement command exactly once.
 
 Base cabinets:
 - 300mm cabinet

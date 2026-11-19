@@ -239,7 +239,12 @@ or a cutting-list export for the workshop; the customer view is neither.
   On desktop and phone, edit **Size**, **Fronts**, **Materials** or **Parts**
   without scrolling through the other sections. Use the common-size buttons
   for exact dimensions; stacking is at the end of **Size**.
-  **Add element** stays open so you can add several units in a row. On a phone,
+  **Add element** shows a rendered picture of each preset. Tap a picture to add
+  it immediately, or turn on **Preview before adding** to rotate the element in
+  your kitchen's finishes before you commit. Catalogue pictures use a sample
+  finish and remain available offline, even without WebGL. Regenerate them
+  with `npm run render:elements` after changing the presets or furniture model.
+  The phone Add sheet stays open so you can add several units in a row. On a phone,
   choose **Edit on plan** (**Na crtež**) after a pick to edit that cabinet without
   opening a form. Drag its body to move it, a side edge for width or the front
   edge for depth. On small footprints the square grips sit just outside the unit

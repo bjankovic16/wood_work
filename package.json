@@ -22,7 +22,8 @@
     "e2e:feedback": "node scripts/feedback-safety-e2e.mjs",
     "e2e:offline": "npm run build && node scripts/offline-app-e2e.mjs",
     "e2e:ideas": "node scripts/room-ideas-e2e.mjs",
-    "render:kitchens": "node scripts/render-kitchens.mjs"
+    "render:kitchens": "node scripts/render-kitchens.mjs",
+    "render:elements": "node scripts/render-elements.mjs"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",

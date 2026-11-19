@@ -19,6 +19,7 @@ try {
   await page.evaluate(async (longName) => {
     const { createDesign } = await import('/src/domain/designOps.ts');
     const fixture = createDesign('Sheets');
+    fixture.style = { front: 'navy', handles: 'brass', worktop: 'stone' };
     fixture.materials.push({ ...fixture.materials[0], name: longName, thickness: 19, id: 'long-board' });
     window.__kitchen.design.getState().load(fixture);
     window.__kitchen.ui.getState().setLanguage('en');
@@ -55,8 +56,45 @@ try {
   const add = dialog('Add element');
   const tile = add.locator('[data-preset="base-600"]');
   await checkGrip(add, 'Full');
+  await tile.locator('img').evaluate((img) => img.decode());
+  assert.equal(await add.locator('canvas').count(), 0, 'Browsing the catalogue must not create a WebGL canvas per tile.');
+  const designState = () => page.evaluate(() => {
+    const { design, past, future } = window.__kitchen.design.getState();
+    return JSON.stringify([design, past, future, window.__kitchen.ui.getState().selectedId]);
+  });
+  const original = await designState();
+  await add.getByLabel('Preview before adding').check();
+  const sink = add.locator('[data-preset="sink"]');
+  await sink.tap();
+  const preview = page.getByRole('dialog', { name: /^Preview:/ });
+  const model = preview.locator('canvas');
+  await model.waitFor();
+  const capture = () => model.screenshot();
+  await page.waitForFunction(() => document.querySelector('[data-element-model] canvas')?.width > 100);
+  const pixels = await capture();
+  const hasNavyFront = await page.evaluate(async (png) => {
+    const img = new Image(); img.src = `data:image/png;base64,${png}`; await img.decode();
+    const sample = document.createElement('canvas'); sample.width = sample.height = 48;
+    const ctx = sample.getContext('2d'); ctx.drawImage(img, 0, 0, 48, 48);
+    const colors = ctx.getImageData(0, 0, 48, 48).data;
+    let blue = 0;
+    for (let i = 0; i < colors.length; i += 4) if (colors[i + 2] > colors[i] + 15 && colors[i + 2] > colors[i + 1] + 8) blue++;
+    return blue > 80;
+  }, pixels.toString('base64'));
+  assert.ok(hasNavyFront, 'Live preview must show the saved navy fronts rather than the sage catalogue finish.');
+  const box = await model.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.8, box.y + box.height / 2, { steps: 6 }); await page.mouse.up();
+  assert.ok(!pixels.equals(await capture()), 'Orbit must reveal a different side of the element.');
+  await page.keyboard.press('Escape');
+  assert.ok(await add.isVisible() && await sink.evaluate((el) => el === document.activeElement));
+  assert.equal(await designState(), original, 'Looking and cancelling must not add, select or edit anything.');
+  await add.getByLabel('Preview before adding').uncheck();
   await tile.tap();
+  await add.getByLabel('Preview before adding').check();
   await tile.press('Enter');
+  await preview.getByRole('button', { name: /^Add / }).tap();
+  await add.getByLabel('Preview before adding').uncheck();
   assert.equal((await selected()).label, 'B2');
   assert.match(await add.getByRole('status').filter({ hasText: 'Added:' }).innerText(), /B2/);
   for (const name of ['Edit on plan', 'Move', 'Resize']) {

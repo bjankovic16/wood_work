@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { createItem, LIBRARY, nextLabel, sizeLimits } from './catalog';
 import { evaluateExpression } from './math';
 
 describe('library', () => {
+  it('ships a local model picture for every addable preset', () => {
+    for (const { presets } of LIBRARY) for (const { id } of presets) {
+      const picture = readFileSync(`public/elements/${id}.jpg`);
+      expect(picture.readUInt16BE(0), id).toBe(0xffd8);
+      expect(picture.length, id).toBeGreaterThan(1000);
+    }
+  });
   it('keeps every original element and offers all premium module sizes', () => {
     const ids = LIBRARY.flatMap((s) => s.presets.map((p) => p.id));
     expect(ids).toEqual([

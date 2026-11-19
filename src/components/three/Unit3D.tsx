@@ -610,16 +610,16 @@ function UnitGroup({ item, anchor, onSelect, children, objectRef, onToggleOpenin
         e.stopPropagation();
         if (e.delta <= 2) onSelect(item.id);
       }}
-      onPointerOver={(e) => {
+      onPointerOver={onHover && ((e) => {
         e.stopPropagation();
         document.body.style.cursor = 'pointer';
         // A finger has no hover: the outline would only flash on every tap.
-        if (e.nativeEvent.pointerType === 'mouse') onHover?.(item.id);
-      }}
-      onPointerOut={() => {
+        if (e.nativeEvent.pointerType === 'mouse') onHover(item.id);
+      })}
+      onPointerOut={onHover && (() => {
         document.body.style.cursor = '';
-        onHover?.(null);
-      }}
+        onHover(null);
+      })}
     >
       {children}
     </group>

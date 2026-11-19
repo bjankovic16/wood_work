@@ -104,6 +104,13 @@ try {
   await page.getByRole('button', { name: 'Add element', exact: true }).click();
   const add = page.getByRole('dialog', { name: 'Add element', exact: true });
   assert.equal(await add.locator('[data-preset]').count(), 8);
+  const editorCanvas = await page.getByTestId('three-viewport').locator('canvas').elementHandle();
+  await add.getByLabel('Preview before adding').check();
+  await add.locator('[data-preset="oven"]').press('Enter');
+  await page.locator('[data-element-model="oven"] canvas').waitFor();
+  await page.keyboard.press('Escape');
+  assert.ok(await add.isVisible() && await editorCanvas.evaluate((el) => el.isConnected), 'Preview should return to Add, not replace the furnished scene.');
+  await add.getByLabel('Preview before adding').uncheck();
   await add.getByRole('button', { name: 'Browse all parts', exact: true }).click();
   assert.ok(await add.locator('[data-preset]').count() > 8);
   await page.keyboard.press('Escape');

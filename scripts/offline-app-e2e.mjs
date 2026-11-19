@@ -54,6 +54,12 @@ try {
   await page.getByTestId('room-done').tap();
   await page.getByRole('button', { name: 'Add cabinets yourself', exact: true }).tap();
   const add = page.getByRole('dialog', { name: 'Add element', exact: true });
+  await add.locator('[data-preset="sink"] img').evaluate((img) => img.decode());
+  await add.getByLabel('Preview before adding').check();
+  await add.locator('[data-preset="sink"]').tap();
+  await page.locator('[data-element-model="sink"] canvas').waitFor();
+  await page.keyboard.press('Escape');
+  await add.getByLabel('Preview before adding').uncheck();
   await add.locator('[data-preset="base-600"]').tap();
   await add.locator('[data-preset="base-600"]').tap();
   await add.getByRole('button', { name: 'Close', exact: true }).tap();
@@ -74,6 +80,24 @@ try {
   await page.emulateMedia({ media: 'print' });
   assert.equal(await pieces.first().evaluate((el) => getComputedStyle(el).display), 'table-row');
   assert.equal(await nav.isVisible(), false);
+  const noGL = await context.newPage();
+  await noGL.addInitScript(() => {
+    const getContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function(type, ...rest) {
+      return type.includes('webgl') ? null : getContext.call(this, type, ...rest);
+    };
+  });
+  await noGL.goto(url);
+  await noGL.getByRole('radio', { name: '2. Layout', exact: true }).tap();
+  await noGL.getByRole('button', { name: 'Add element', exact: true }).tap();
+  const catalog = noGL.getByRole('dialog', { name: 'Add element', exact: true });
+  await catalog.getByLabel('Preview before adding').check();
+  await catalog.locator('[data-preset="sink"]').tap();
+  const still = noGL.getByRole('dialog', { name: /^Preview:/ });
+  await still.getByText('Live 3D is unavailable. Showing the catalogue finish.').waitFor();
+  await still.locator('img').evaluate((img) => img.decode());
+  await still.getByRole('button', { name: /^Add / }).tap();
+  await catalog.getByRole('status').filter({ hasText: 'Added:' }).waitFor();
   assert.deepEqual(errors, []);
   console.log('PASS Pages-path installation, offline reload, repeated adds, lazy 3D, workshop cards, printable rows and Excel export.');
 } finally {

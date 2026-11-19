@@ -193,6 +193,11 @@ export const en = {
   library: {
     mostUsed: 'Most used',
     browseAll: 'Browse all parts',
+    previewFirst: 'Preview before adding',
+    sampleFinishes: 'Sample finishes shown. Added elements use your kitchen’s style.',
+    preview: (name: string) => `Preview: ${name}`,
+    previewHint: 'Live 3D uses your kitchen finishes. Only Add places the element.',
+    sampleOnly: 'Live 3D is unavailable. Showing the catalogue finish.',
     elements: 'Elements',
     hint: 'Drag onto the plan, or click to add',
     sections: { base: 'Base cabinets', wall: 'Wall cabinets', ceiling: 'Ceiling cupboards', other: 'Other elements', storage: 'Storage & display', appliances: 'Appliances & housings', islands: 'Islands & breakfast bars' } as Record<string, string>,
