@@ -26,16 +26,16 @@ function WallBox({ piece, thickness, inset = -thickness / 2, material, color = '
   </mesh>;
 }
 
-function Treatment({ treatment, room, segment, holes, studio, contact }: { treatment: WallTreatment; room: Room; segment: WallSegment; holes: WallPiece[]; studio: boolean; contact?: THREE.Texture }) {
+function Treatment({ treatment, room, segment, holes, detailed, contact }: { treatment: WallTreatment; room: Room; segment: WallSegment; holes: WallPiece[]; detailed: boolean; contact?: THREE.Texture }) {
   const materials = useMemo(() => {
     const palette = createMaterials({
       front: Object.hasOwn(FRONT_FINISHES, treatment.finish) ? treatment.finish as keyof typeof FRONT_FINISHES : 'white',
       worktop: Object.hasOwn(WORKTOP_FINISHES, treatment.finish) ? treatment.finish as keyof typeof WORKTOP_FINISHES : 'stone',
       handles: 'none',
-    }, studio, room);
+    }, detailed, room);
     if (contact) palette.front.aoMap = palette.worktop.aoMap = contact;
     return palette;
-  }, [treatment.finish, studio, room, contact]);
+  }, [treatment.finish, detailed, room, contact]);
   const material = Object.hasOwn(FRONT_FINISHES, treatment.finish) ? materials.front : materials.worktop;
   const pieces = solidWallPieces(segment, holes, { from: treatment.offset, to: Math.min(segment.length, treatment.offset + treatment.width),
     bottom: treatment.elevation, top: Math.min(segment.height, treatment.elevation + treatment.height) });
@@ -48,16 +48,16 @@ function cutawayData(frame: WallSegment) {
   return frame.partitionId ? undefined : { cutaway: [m((frame.start.x + frame.end.x) / 2), m((frame.start.y + frame.end.y) / 2), frame.inward.x, frame.inward.y] };
 }
 
-export function Room3D({ room, openings, items = [], materials, selection, onSelect, selectedWallId, onWallSelect, exportModel = false, studio = false, build }: {
+export function Room3D({ room, openings, items = [], materials, selection, onSelect, selectedWallId, onWallSelect, exportModel = false, detailed = false, build }: {
   room: Room; openings: Opening[]; items?: KitchenItem[]; materials: KitchenMaterials;
   selection?: RoomObjectSelection | null; onSelect?: (selection: RoomObjectSelection) => void;
   selectedWallId?: string | null; onWallSelect?: (id: string) => void;
-  exportModel?: boolean; studio?: boolean; build?: BuildContext;
+  exportModel?: boolean; detailed?: boolean; build?: BuildContext;
 }) {
   const outline = useMemo(() => roomOutline(room), [room]);
   const segments = useMemo(() => roomSegments(room), [room]);
-  const contacts = useMemo(() => studio && build && items.length ? studioContacts(room, segments, items, build, materials) : null,
-    [studio, build, room, segments, items, materials]);
+  const contacts = useMemo(() => detailed && build && items.length ? studioContacts(room, segments, items, build, materials) : null,
+    [detailed, build, room, segments, items, materials]);
   useEffect(() => () => contacts?.dispose(), [contacts]);
   const groups = useRef(new Map<string, THREE.Group>());
   const floor = useMemo(() => {
@@ -151,7 +151,7 @@ export function Room3D({ room, openings, items = [], materials, selection, onSel
         </mesh>}
         {physicalWall && pieces.map((piece, i) => <WallBox key={`wall-${i}`} name={`room-wall-${segment.id}-${i}`} piece={piece} thickness={thickness} material={contact?.wall ?? materials.wall} projection={contact ? segment : undefined} />)}
         {materials.backsplash && cladding.map((piece, i) => <WallBox key={`cladding-${i}`} name={`kitchen-backsplash-${segment.id}-${i}`} piece={piece} thickness={12} inset={6} material={contact?.cladding ?? materials.backsplash!} projection={contact ? segment : undefined} />)}
-        {treatments.map((treatment) => <Treatment key={treatment.id} treatment={treatment} room={room} segment={segment} holes={holes} studio={studio} contact={contact?.map} />)}
+        {treatments.map((treatment) => <Treatment key={treatment.id} treatment={treatment} room={room} segment={segment} holes={holes} detailed={detailed} contact={contact?.map} />)}
       </group>;
     })}
   </>;

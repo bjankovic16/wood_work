@@ -25,7 +25,7 @@ async function show() {
   const exterior: Object3D[] = [];
   model.scene.traverse((node) => {
     if (Array.isArray(node.userData.cutaway)) exterior.push(node);
-    if (pose.studio && node instanceof Mesh) for (const mat of [node.material].flat()) {
+    if (node instanceof Mesh) for (const mat of [node.material].flat()) {
       if (mat instanceof MeshStandardMaterial && mat.userData.studioFinish) studioFinish(mat);
     }
   });

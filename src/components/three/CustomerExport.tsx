@@ -8,7 +8,7 @@ import { blobDataUrl, customerHtml } from '../../export/customerHtml';
 import type { Messages } from '../../i18n';
 import { safeFileName } from '../../lib/platform';
 import { Room3D } from './Room3D';
-import { Unit3D } from './Unit3D';
+import { coffeeCornerId, Unit3D } from './Unit3D';
 import { createMaterials, disposeMaterials } from './materials';
 
 const noop = () => {};
@@ -19,7 +19,9 @@ export default function CustomerExport({ design, studio, t, ready, failed }: {
 }) {
   const [model] = useState(() => new Scene());
   const ctx = useMemo(() => buildContext(design), [design]);
-  const materials = useMemo(() => createMaterials(design.style, studio, design.room), [design.style, studio, design.room]);
+  const coffeeCorner = coffeeCornerId(design.items);
+  // Customer files present the finished kitchen, even when shared from a Front or Top inspection.
+  const materials = useMemo(() => createMaterials(design.style, true, design.room), [design.style, design.room]);
   const gl = useThree((s) => s.gl);
   const editor = useThree((s) => s.scene);
   const camera = useThree((s) => s.camera);
@@ -71,7 +73,7 @@ export default function CustomerExport({ design, studio, t, ready, failed }: {
     return () => { active = false; cancelAnimationFrame(frame); };
   }, [model, gl, editor, camera, design, studio, t, ready, failed]);
   return createPortal(<>
-    <Room3D room={design.room} openings={design.openings} items={design.items} materials={materials} studio={studio} build={ctx} exportModel />
-    {design.items.map((item) => <Unit3D key={item.id} item={item} ctx={ctx} materials={materials} studio={studio} selected={false} onSelect={noop} />)}
+    <Room3D room={design.room} openings={design.openings} items={design.items} materials={materials} detailed build={ctx} exportModel />
+    {design.items.map((item) => <Unit3D key={item.id} item={item} ctx={ctx} materials={materials} detailed coffeeMaker={item.id === coffeeCorner} selected={false} onSelect={noop} />)}
   </>, model);
 }

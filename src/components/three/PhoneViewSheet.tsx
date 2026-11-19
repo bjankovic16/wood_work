@@ -56,7 +56,7 @@ export function PhoneViewSheet({ id, onClose, view, onView, stylePanel, children
               {view === key && <Check size={12} className="absolute right-1.5 top-1.5" aria-hidden="true" />}
             </TooltipButton>)}
           </div>
-          {stylePanel && <p className="mt-2 text-sm text-studio-muted">{t.view3d.cameraHints.studio}</p>}
+          {stylePanel && view && <p className="mt-2 text-sm text-studio-muted">{t.view3d.cameraHints[view]}</p>}
         </section>
         {stylePanel && <div className="[&>span]:flex">
           <TooltipButton data-style-nav="" tooltip={t.view3d.appearanceHint} variant="outline" className="w-full justify-start gap-2 px-3" onClick={() => setStyle(true)}>

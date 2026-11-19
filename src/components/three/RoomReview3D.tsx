@@ -59,7 +59,7 @@ export default function RoomReview3D({ rows, split, onOpenWall }: { rows: RoomMe
     </div>}
     <div data-testid="three-viewport" className="relative min-h-0 flex-1 touch-none overflow-hidden" {...nav.handlers}>
       <SceneCanvas request={request} roomOnly controls={controls} onReady={() => setReady(true)} onMiss={() => ui.setSelectedWallId(null)}>
-        <Room3D room={room} openings={openings} materials={materials} studio={studio} selection={selection} onSelect={select}
+        <Room3D room={room} openings={openings} materials={materials} detailed={studio} selection={selection} onSelect={select}
           selectedWallId={wallId} onWallSelect={ui.setSelectedWallId} />
         {showLabels && <ProjectRoomMeasures rows={rows} overlay={labels} />}
         {selection && <RoomObjectAnchor overlay={selectedLabel} />}

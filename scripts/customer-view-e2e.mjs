@@ -14,6 +14,7 @@ try {
   // Build fixture data on the test side. The browser only uses normal app controls, also in production.
   const { createPhotoDesign } = await server.ssrLoadModule('/src/domain/photoDesigns.ts');
   const fixture = createPhotoDesign('warm-island', 'Kitchen & <oak>');
+  fixture.style = { ...fixture.style, worktop: 'stone', backsplash: 'none' };
   const pixel = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ttd8AAAAASUVORK5CYII=';
   fixture.referencePhoto = { kind: 'upload', name: 'PRIVATE-REFERENCE-photo.jpg', dataUrl: pixel };
   if (process.env.KITCHEN_E2E_PRODUCTION === '1') {
@@ -29,19 +30,26 @@ try {
   await page.addInitScript((design) => localStorage.setItem('kitchen-designer:design', JSON.stringify({ state: { design }, version: 1 })), fixture);
   await page.goto(editor.resolvedUrls.local[0], { waitUntil: 'domcontentloaded' });
   await page.getByRole('radio', { name: '3. 3D', exact: true }).click();
-  await page.getByRole('group', { name: '3D camera' }).getByRole('button', { name: 'Studio', exact: true }).click();
   await page.getByTestId('three-tools-toggle').click();
-  const [download] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }), page.getByTestId('customer-export').click()]);
-  assert.equal(download.suggestedFilename(), 'Kitchen & oak.html');
-  const file = path.join(output, 'customer.html');
-  await download.saveAs(file);
-  const html = await readFile(file, 'utf8');
-  assert.ok(html.includes('Kitchen &amp; &lt;oak&gt;'));
-  assert.ok(!html.includes('PRIVATE-REFERENCE') && !html.includes(pixel));
-  assert.equal(JSON.parse(html.match(/id="pose">([^<]+)<\/script>/)[1]).studio, true);
-  const model = Buffer.from(html.match(/id="model">([^<]+)<\/script>/)[1], 'base64');
-  assert.equal(model.toString('ascii', 0, 4), 'glTF');
-  const json = JSON.parse(model.toString('utf8', 20, 20 + model.readUInt32LE(12)));
+  async function downloadKitchen(studio) {
+    const [download] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }), page.getByTestId('customer-export').click()]);
+    assert.equal(download.suggestedFilename(), 'Kitchen & oak.html');
+    const file = path.join(output, studio ? 'customer-studio.html' : 'customer.html');
+    await download.saveAs(file);
+    const html = await readFile(file, 'utf8');
+    assert.ok(html.includes('Kitchen &amp; &lt;oak&gt;'));
+    assert.ok(!html.includes('PRIVATE-REFERENCE') && !html.includes(pixel));
+    assert.equal(JSON.parse(html.match(/id="pose">([^<]+)<\/script>/)[1]).studio, studio);
+    const model = Buffer.from(html.match(/id="model">([^<]+)<\/script>/)[1], 'base64');
+    assert.equal(model.toString('ascii', 0, 4), 'glTF');
+    const json = JSON.parse(model.toString('utf8', 20, 20 + model.readUInt32LE(12)));
+    assert.ok(json.nodes.some((node) => node.name === 'arched-mixer'), 'The finished sink should appear without having to pick Studio.');
+    assert.ok(json.materials.some((mat) => mat.extras?.stoneSlab && mat.pbrMetallicRoughness.baseColorTexture), 'White stone must retain its mineral grain offline.');
+    return { file, json };
+  }
+  const { file, json } = await downloadKitchen(false);
+  await page.getByRole('group', { name: '3D camera' }).getByRole('button', { name: 'Studio', exact: true }).click();
+  const studio = await downloadKitchen(true);
   assert.ok(json.meshes.length > 10 && json.materials.length > 5 && json.textures.length > 0);
   assert.ok(json.nodes.some((node) => node.name === 'arched-mixer') && json.materials.some((mat) => mat.extras?.studioFinish));
   assert.equal(json.nodes.filter((n) => n.extras?.cutaway).length, 5, 'All four walls and the door travel with the model, regardless of editor camera.');
@@ -61,9 +69,34 @@ try {
   const shaderErrors = [];
   client.on('console', (m) => { if (/shader error/i.test(m.text())) shaderErrors.push(m.text()); });
   client.on('request', (req) => { if (/^https?:/.test(req.url())) calls.push(req.url()); });
-  await client.goto(pathToFileURL(file).href);
-  await client.waitForFunction(() => document.getElementById('poster').hidden && !document.getElementById('reset').disabled);
   const canvas = client.locator('canvas');
+  for (const preview of [studio.file, file]) {
+    await client.goto(pathToFileURL(preview).href);
+    await client.waitForFunction(() => document.getElementById('poster').hidden && !document.getElementById('reset').disabled);
+    // At matching framing the exported interactive surfaces should look like the editor-rendered poster.
+    const size = await client.locator('#poster').evaluate((img) => ({
+      width: img.naturalWidth, height: img.naturalHeight + document.body.offsetHeight - img.parentElement.offsetHeight,
+    }));
+    await client.setViewportSize(size);
+    await client.getByRole('button', { name: 'Reset view' }).click();
+    const meanError = await client.evaluate(async (png) => {
+      const picture = new Image();
+      picture.src = `data:image/png;base64,${png}`;
+      await picture.decode();
+      const sample = document.createElement('canvas');
+      sample.width = 96; sample.height = 64;
+      const ctx = sample.getContext('2d', { willReadFrequently: true });
+      const pixels = (image) => {
+        ctx.drawImage(image, 0, 0, sample.width, sample.height);
+        return ctx.getImageData(0, 0, sample.width, sample.height).data;
+      };
+      const a = pixels(document.getElementById('poster')), b = pixels(picture);
+      let total = 0;
+      for (let i = 0; i < a.length; i++) if (i % 4 !== 3) total += Math.abs(a[i] - b[i]);
+      return total / (sample.width * sample.height * 3);
+    }, (await canvas.screenshot()).toString('base64'));
+    assert.ok(meanError < 4, `Offline finishes differ from their poster by ${meanError.toFixed(2)} RGB levels on average.`);
+  }
   const baseline = await canvas.screenshot();
   await canvas.hover();
   const box = await canvas.boundingBox();

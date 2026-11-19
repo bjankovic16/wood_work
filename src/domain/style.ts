@@ -54,7 +54,7 @@ export interface Finish {
   color: string;
   /** Drawn with a wood grain. */
   wood?: boolean;
-  texture?: 'marble' | 'travertine' | 'granite';
+  texture?: 'marble' | 'travertine' | 'granite' | 'quartz' | 'concrete';
 }
 
 export const FRONT_FINISHES: Record<FrontFinish, Finish> = {
@@ -79,9 +79,9 @@ export const FRONT_FINISHES: Record<FrontFinish, Finish> = {
 };
 
 export const WORKTOP_FINISHES: Record<WorktopFinish, Finish> = {
-  stone: { color: '#ecebe6' },
+  stone: { color: '#ecebe6', texture: 'quartz' },
   oak: { color: '#b98955', wood: true },
-  concrete: { color: '#9d9c97' },
+  concrete: { color: '#9d9c97', texture: 'concrete' },
   black: { color: '#262628' },
   marble: { color: '#f0e9dd', texture: 'marble' },
   travertine: { color: '#d7c4a4', texture: 'travertine' },

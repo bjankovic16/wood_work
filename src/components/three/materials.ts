@@ -118,7 +118,7 @@ function stoneTexture(finish: Finish): THREE.CanvasTexture {
       ctx.bezierCurveTo(start - 90, 160, start + 140, 320, start + 180, 512);
       ctx.stroke();
     }
-  } else if (finish.texture === 'granite') {
+  } else if (finish.texture === 'granite' || finish.texture === 'quartz' || finish.texture === 'concrete') {
     const noise = (size: number) => {
       const grid = Array.from({ length: size * size }, random);
       const at = (x: number, y: number) => grid[(y % size) * size + x % size];
@@ -129,16 +129,20 @@ function stoneTexture(finish: Finish): THREE.CanvasTexture {
           + dy * ((1 - dx) * at(i, j + 1) + dx * at(i + 1, j + 1)) - 0.5;
       };
     };
-    const cloud = noise(6), mineral = noise(36);
+    const concrete = finish.texture === 'concrete', quartz = finish.texture === 'quartz';
+    const cloud = noise(concrete ? 4 : 6), mineral = noise(36);
+    const cloudStrength = concrete ? 34 : quartz ? 9 : 20;
     const field = ctx.getImageData(0, 0, 512, 512);
     for (let y = 0; y < 512; y++) for (let x = 0; x < 512; x++) {
-      const grain = 20 * cloud(x, y) + 13 * mineral(x, y) + 11 * (random() - 0.5);
+      const grain = cloudStrength * cloud(x, y) + 13 * mineral(x, y) + 11 * (random() - 0.5);
       const at = (y * 512 + x) * 4;
       for (let c = 0; c < 3; c++) field.data[at + c] += grain;
     }
     ctx.putImageData(field, 0, 0);
-    for (let i = 0; i < 14500; i++) {
-      ctx.fillStyle = random() < 0.6 ? `rgba(225,220,210,${0.04 + random() * 0.22})` : `rgba(25,21,19,${random() * 0.38})`;
+    for (let i = 0; i < (concrete ? 1600 : 14500); i++) {
+      if (concrete) ctx.fillStyle = `rgba(65,62,58,${0.08 + random() * 0.22})`;
+      else if (quartz) ctx.fillStyle = random() < 0.45 ? 'rgba(255,255,255,0.65)' : `rgba(98,92,84,${0.09 + random() * 0.34})`;
+      else ctx.fillStyle = random() < 0.6 ? `rgba(225,220,210,${0.04 + random() * 0.22})` : `rgba(25,21,19,${random() * 0.38})`;
       ctx.fillRect(random() * 512, random() * 512, 0.7 + random() * 1.8, 0.6 + random() * 1.5);
     }
   } else {
@@ -156,8 +160,9 @@ function stoneTexture(finish: Finish): THREE.CanvasTexture {
   return texture;
 }
 
-function finishMap(finish: Finish, across = false, studio = false): THREE.CanvasTexture | null {
-  return finish.wood ? woodTexture(finish.color, across, studio) : finish.texture ? stoneTexture(finish) : null;
+function finishMap(finish: Finish, across = false, detailed = false): THREE.CanvasTexture | null {
+  if (!detailed && (finish.texture === 'quartz' || finish.texture === 'concrete')) return null;
+  return finish.wood ? woodTexture(finish.color, across, detailed) : finish.texture ? stoneTexture(finish) : null;
 }
 
 function brushedMetal(): THREE.CanvasTexture {
@@ -184,13 +189,13 @@ function brushedMetal(): THREE.CanvasTexture {
   return texture;
 }
 
-export function cabinetMaterial(key: FrontFinish, roughness?: number, studio = false, size?: ReturnType<typeof studioSize>): THREE.MeshStandardMaterial {
+export function cabinetMaterial(key: FrontFinish, roughness?: number, detailed = false, size?: ReturnType<typeof studioSize>): THREE.MeshStandardMaterial {
   const finish = FRONT_FINISHES[key];
   const material = new THREE.MeshStandardMaterial({
-    color: finish.wood ? '#ffffff' : finish.color, map: finishMap(finish, false, studio), roughness: roughness ?? (finish.wood ? 0.7 : 0.55),
+    color: finish.wood ? '#ffffff' : finish.color, map: finishMap(finish, false, detailed), roughness: roughness ?? (finish.wood ? 0.7 : 0.55),
   });
-  if (studio && finish.wood) material.userData.woodGrain = true;
-  if (studio) studioFinish(material, size);
+  if (detailed && finish.wood) material.userData.woodGrain = true;
+  if (detailed) studioFinish(material, size);
   return material;
 }
 
@@ -231,10 +236,11 @@ function floorTileTexture(style: KitchenStyle): THREE.CanvasTexture {
 }
 
 /** The shared materials for one style. Callers should dispose them when the style changes. */
-export function createMaterials(style: KitchenStyle, studio = false, room?: Room): KitchenMaterials {
+export function createMaterials(style: KitchenStyle, detailed = false, room?: Room): KitchenMaterials {
   const worktop = WORKTOP_FINISHES[style.worktop];
   const handle = HANDLE_STYLES[style.handles];
   const backsplash = BACKSPLASH_FINISHES[style.backsplash ?? 'none'];
+  const worktopMap = finishMap(worktop, true, detailed), backsplashMap = finishMap(backsplash, false, detailed);
   const frame = (finish?: FrontFinish) => finish ? cabinetMaterial(finish) : new THREE.MeshStandardMaterial({ color: '#fafafa', roughness: 0.9 });
   const pane = (color: string, opacity: number) => new THREE.MeshStandardMaterial({ color, transparent: true, opacity, roughness: 0.2, depthWrite: false });
   const materials: KitchenMaterials = {
@@ -249,10 +255,9 @@ export function createMaterials(style: KitchenStyle, studio = false, room?: Room
     doorFrame: frame(style.doorFrame),
     doorLeaf: style.doorLeaf ? cabinetMaterial(style.doorLeaf) : pane('#cbb89c', 0.16),
     carcass: new THREE.MeshStandardMaterial({ color: '#f3f2ee', roughness: 0.78 }),
-    front: cabinetMaterial(style.front, undefined, studio),
+    front: cabinetMaterial(style.front, undefined, detailed),
     worktop: new THREE.MeshStandardMaterial({
-      color: worktop.wood || worktop.texture ? '#ffffff' : worktop.color,
-      map: finishMap(worktop, true, studio),
+      color: worktopMap ? '#ffffff' : worktop.color, map: worktopMap,
       roughness: style.worktop === 'black' ? 0.35 : 0.6,
     }),
     handle: handle.color
@@ -268,16 +273,18 @@ export function createMaterials(style: KitchenStyle, studio = false, room?: Room
     foliage: new THREE.MeshStandardMaterial({ color: '#63734b', roughness: 0.9 }),
     pot: new THREE.MeshStandardMaterial({ color: '#a66f51', roughness: 0.82 }),
     backsplash: style.backsplash && style.backsplash !== 'none'
-      ? new THREE.MeshStandardMaterial({ color: backsplash.texture ? '#ffffff' : backsplash.color, map: finishMap(backsplash), roughness: 0.55 })
+      ? new THREE.MeshStandardMaterial({ color: backsplashMap ? '#ffffff' : backsplash.color, map: backsplashMap, roughness: 0.55 })
       : null,
   };
-  if (studio) {
+  if (detailed) {
     if (worktop.texture) materials.worktop.userData.stoneSlab = true;
+    if (backsplash.texture && materials.backsplash) materials.backsplash.userData.stoneSlab = true;
     materials.worktop.roughness = worktop.wood ? 0.56 : style.worktop === 'concrete' ? 0.72 : 0.33;
     materials.basin.roughness = 0.27;
     materials.basin.vertexColors = true;
     materials.steel.roughness = 0.25;
     materials.steel.roughnessMap = materials.basin.roughnessMap = brushedMetal();
+    if (style.appliances === 'steel') materials.appliance.roughnessMap = materials.steel.roughnessMap;
     const size = room && studioSize(room);
     for (const material of Object.values(materials)) if (material) studioFinish(material, size);
   }

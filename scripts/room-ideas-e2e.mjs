@@ -4,13 +4,15 @@ import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
 import { assertNeutralScene, open3DTools, waitForIdleRendering } from './three-test-helpers.mjs';
 
-async function checkStudioSurfaces(page) {
+async function checkFinishedSurfaces(page) {
   const surfaces = await page.evaluate(async () => {
     const { mountedSpan } = await import('/src/domain/geometry.ts');
     const { roomSegments } = await import('/src/domain/walls.ts');
     const { room, items } = window.__kitchen.design.getState().design, { scene } = window.__kitchen3D;
     const floor = scene.getObjectByName('room-floor');
     const pos = floor.geometry.getAttribute('position'), uv = floor.geometry.getAttribute('uv1');
+    const sink = scene.getObjectByName('studio-sink');
+    const bowl = sink?.children.find((n) => n.material?.vertexColors)?.geometry.getAttribute('position');
     const shelf = items.find((item) => item.shelfForm === 'floating');
     const segment = roomSegments(room).find((s) => mountedSpan(shelf, s));
     const [left, right] = mountedSpan(shelf, segment);
@@ -23,11 +25,14 @@ async function checkStudioSurfaces(page) {
         && Math.abs(uv.getY(i) - (1 + pos.getY(i) * 1000 / room.depth)) < 1e-5).every(Boolean),
       board: sample(shelf.elevation + 9), gap: sample(shelf.elevation + shelf.height / 2),
       hardware: !!scene.getObjectByName('cabinet-pull'), floorMap: !!floor.material.aoMap,
+      bowlDepth: bowl && -Math.min(...Array.from({ length: bowl.count }, (_, i) => bowl.getY(i))),
+      stone: sink?.children.some((n) => n.material?.userData.stoneSlab && n.material.map),
     };
   });
-  assert.ok(surfaces.floorMap, 'The Studio floor must include the furniture contact map.');
+  assert.ok(surfaces.floorMap, 'The finished floor must include the furniture contact map.');
   assert.ok(surfaces.mapsFloor, 'Floor contact coordinates must match the measured room.');
-  assert.ok(surfaces.hardware, 'The Studio model must include attached cabinet pulls.');
+  assert.ok(surfaces.hardware, 'The finished model must include attached cabinet pulls.');
+  assert.ok(surfaces.bowlDepth > 0.1 && surfaces.stone, 'The sink must sit inside a patterned slab, not on a flat rectangle.');
   assert.ok(surfaces.gap > surfaces.board + 50, 'A floating shelf must not darken the wall as if it were a solid cupboard.');
 }
 
@@ -36,6 +41,48 @@ let browser;
 try {
   await server.listen();
   browser = await chromium.launch({ channel: 'chrome' });
+  const { createBasilKitchen } = await server.ssrLoadModule('/src/domain/basilKitchen.ts');
+  for (const [width, height, worktop] of [[1440, 900, 'concrete'], [390, 844, 'stone']]) {
+    const phone = width < 1024;
+    const saved = await browser.newPage({ viewport: { width, height }, hasTouch: phone, isMobile: phone, locale: 'en-US', reducedMotion: 'reduce' });
+    const fixture = createBasilKitchen('Saved kitchen');
+    fixture.style.worktop = worktop;
+    await saved.addInitScript((design) => localStorage.setItem('kitchen-designer:design', JSON.stringify({ state: { design }, version: 1 })), fixture);
+    await saved.goto(server.resolvedUrls.local[0]);
+    const snapshot = () => saved.evaluate(async () => {
+      const { buildCuttingList } = await import('/src/engine/cuttingList.ts');
+      const { design, past, future } = window.__kitchen.design.getState();
+      return { design, past, future, cuts: buildCuttingList(design) };
+    });
+    const before = await snapshot();
+    const tab = saved.getByRole('radio', { name: '3. 3D', exact: true });
+    if (phone) await tab.tap(); else await tab.click();
+    await saved.waitForFunction(() => window.__kitchen3D?.scene.getObjectByName('arched-mixer'));
+    assert.deepEqual(await saved.evaluate(() => [window.__kitchen.ui.getState().cameraView, window.__kitchen3D.scene.background.getHexString()]),
+      ['perspective', 'ebe8e3'], '3D must keep the ordinary Perspective camera and backdrop.');
+    await assertNeutralScene(saved);
+    await checkFinishedSurfaces(saved);
+    await waitForIdleRendering(saved);
+    const frame = await saved.evaluate(() => window.__kitchen3D.renderer.info.render.frame);
+    await saved.waitForTimeout(300);
+    assert.ok(await saved.evaluate(() => window.__kitchen3D.renderer.info.render.frame) - frame <= 1, 'Default 3D must stop rendering at idle.');
+    assert.equal(await saved.evaluate(() => window.__kitchen3D.scene.getObjectsByProperty('name', 'countertop-coffee-maker').length), 1,
+      'A U-shaped kitchen should not duplicate the coffee maker on every return.');
+    await saved.screenshot({ path: path.resolve(`test-results/room-ideas/perspective-${width}.png`) });
+    if (!phone) {
+      const camera = saved.getByRole('group', { name: '3D camera' });
+      await camera.getByRole('button', { name: 'Front', exact: true }).click();
+      await saved.waitForFunction(() => !window.__kitchen3D.scene.getObjectByName('studio-sink') && window.__kitchen3D.camera.fov === 45);
+      assert.equal(await saved.evaluate(() => window.__kitchen3D.scene.getObjectByName('room-floor').material.aoMap), null);
+      for (const [view, fov] of [['Studio', 28], ['Perspective', 45]]) {
+        await camera.getByRole('button', { name: view, exact: true }).click();
+        await saved.waitForFunction((fov) => window.__kitchen3D.scene.getObjectByName('arched-mixer') && window.__kitchen3D.camera.fov === fov, fov);
+        await checkFinishedSurfaces(saved);
+      }
+    }
+    assert.deepEqual(await snapshot(), before, 'Viewing the finished kitchen must not edit the project, history or cut list.');
+    await saved.close();
+  }
   const page = await browser.newPage({ locale: 'en-US', viewport: { width: 1440, height: 900 }, hasTouch: true, reducedMotion: 'reduce' });
   const errors = [];
   page.on('pageerror', (err) => errors.push(err.message));
@@ -99,14 +146,7 @@ try {
     if (id === 'basil-studio') {
       await page.waitForFunction(() => window.__kitchen3D?.scene.getObjectByName('studio-sink') && window.__kitchen3D.camera.fov === 28);
       await assertNeutralScene(page);
-      await checkStudioSurfaces(page);
-      const staged = await design();
-      const camera = page.getByRole('group', { name: '3D camera' });
-      await camera.getByRole('button', { name: 'Front', exact: true }).click();
-      await page.waitForFunction(() => !window.__kitchen3D.scene.getObjectByName('studio-sink') && window.__kitchen3D.camera.fov === 45);
-      assert.equal(await page.evaluate(() => window.__kitchen3D.scene.getObjectByName('room-floor').material.aoMap), null);
-      await camera.getByRole('button', { name: 'Studio', exact: true }).click();
-      assert.deepEqual(await design(), staged, 'Changing presentation must not change any project data.');
+      await checkFinishedSurfaces(page);
     }
     const message = await notice.innerText();
     if (changeCount) assert.match(message, new RegExp(`\\b${changeCount} layout adjustment`), id);
@@ -232,7 +272,7 @@ try {
   await page.getByTestId('phone-view-sheet').getByRole('button', { name: 'Studio', exact: true }).tap();
   await page.waitForFunction(() => window.__kitchen3D?.camera.fov === 28);
   await assertNeutralScene(page);
-  await checkStudioSurfaces(page);
+  await checkFinishedSurfaces(page);
   await waitForIdleRendering(page);
   const frame = await page.evaluate(() => window.__kitchen3D.renderer.info.render.frame);
   await page.waitForTimeout(300);
