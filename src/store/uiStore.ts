@@ -48,8 +48,8 @@ interface UiState {
   viewFilter: ViewFilter;
   wallElevation: number | null;
   libraryDrag: LibraryDrag | null;
-  /** A properties field to focus once it is on screen (used by "Custom" cabinets). */
-  focusRequest: string | null;
+  /** One-shot focus target, consumed once its field or tab is on screen. */
+  focusRequest: 'width' | 'parts' | 'library-search' | null;
   /** Main area: the plan, the 3D view, or the cutting list. */
   view: MainView;
   /** Which tab of the kitchen settings dialog is open, if any. */
@@ -102,7 +102,7 @@ interface UiState {
   setViewFilter: (filter: ViewFilter) => void;
   setWallElevation: (elevation: number | null) => void;
   setLibraryDrag: (drag: LibraryDrag | null) => void;
-  requestFocus: (field: string | null) => void;
+  requestFocus: (target: UiState['focusRequest']) => void;
 }
 
 export const useUiStore = create<UiState>()(

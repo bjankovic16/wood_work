@@ -151,12 +151,53 @@ try {
   await settings.waitFor({ state: 'detached' });
   await page.evaluate(async () => {
     const { createItem } = await import('/src/domain/catalog.ts');
+    const { buildContext } = await import('/src/engine/config.ts');
+    const { unitParts } = await import('/src/engine/parts.ts');
     const store = window.__kitchen.design.getState(), ui = window.__kitchen.ui.getState();
-    const item = createItem('wall', [], { width: 450, x: store.design.room.width - 450, elevation: store.design.room.height - 600, height: 600 });
-    store.load({ ...store.design, items: [item] }); ui.setLanguage('en'); ui.setView('3d'); ui.select(item.id);
+    const item = createItem('wall', [], { label: 'G8', shelves: 3, width: 450, x: store.design.room.width - 450, elevation: store.design.room.height - 600, height: 600 });
+    const back = unitParts(item, buildContext(store.design)).find((p) => p.name === 'Back');
+    store.load({ ...store.design, items: [item, createItem('wall', [item], { label: 'G7', shelves: 1 })],
+      partEdits: { [item.id]: { [back.key]: { length: 581.5 } } } });
+    ui.setView('3d'); ui.select(item.id);
   });
   await page.waitForFunction(() => !!window.__kitchen3D?.scene.getObjectByName(window.__kitchen.ui.getState().selectedId));
+  const saved = () => page.evaluate(() => {
+    const { design, past, future } = window.__kitchen.design.getState();
+    return JSON.stringify([design, past, future]);
+  });
+  const beforeInspection = await saved();
+  const open = button(page.getByTestId('cabinet-tools'), 'Otvorite element');
+  assert.ok((await open.getByText('Otvori', { exact: true }).boundingBox()).width > 20, 'Open needs a visible label, not just an icon.');
+  assert.ok(await cabinet.evaluate((sheet) => [...sheet.querySelectorAll('button')].every((b) => {
+    const r = b.getBoundingClientRect();
+    return r.left >= 0 && r.right <= innerWidth && r.width >= 44 && r.height >= 44
+      && b.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
+  })), 'Parts and the existing 3D actions must all fit the collapsed 320px sheet.');
+  await button(cabinet, 'Delovi').tap();
+  const partsTab = tab('Delovi'), panel = cabinet.getByRole('tabpanel', { name: 'Delovi' });
+  assert.ok(await partsTab.evaluate((el) => el === document.activeElement && el.getAttribute('aria-selected') === 'true'));
+  const cuts = panel.getByRole('list', { name: 'Delovi' });
+  assert.equal(await cuts.getByRole('listitem').count(), 6, 'The upper has sides, bottom, top, back, shelves and a door.');
+  assert.match(await cuts.getByRole('listitem').filter({ hasText: 'Polica' }).innerText(), /3×[\s\S]*19 mm/);
+  assert.match(await cuts.getByRole('listitem').filter({ hasText: 'Leđa' }).innerText(), /581,5 ×/);
+  const fittings = panel.getByRole('list', { name: 'Okov' });
+  const pins = fittings.getByRole('listitem').filter({ hasText: 'Nosač police' });
+  await pins.scrollIntoViewIfNeeded();
+  assert.match(await pins.innerText(), /12×/, 'Only G8’s shelf pins, not the neighbouring cabinet’s.');
+  assert.match(await fittings.innerText(), /Nosači za kačenje gornjeg elementa/);
+  assert.ok(await panel.evaluate((el) => el.scrollWidth <= el.clientWidth), 'Long board and fitting names fit at 320px.');
+  await handle(cabinet).press('Home');
+  await open.tap();
+  await page.waitForFunction(() => {
+    const { items } = window.__kitchen.design.getState().design, scene = window.__kitchen3D.scene;
+    const angle = (item) => Math.abs(scene.getObjectByName(item.id).getObjectByName('cabinet-opening').rotation.y);
+    return angle(items[0]) > 1 && angle(items[1]) === 0;
+  });
+  await button(page.getByTestId('cabinet-tools'), 'Zatvorite element').tap();
+  assert.equal(await saved(), beforeInspection);
+  await page.evaluate(() => window.__kitchen.ui.getState().setLanguage('en'));
   await handle(cabinet).press('End');
+  await tab('Size').tap();
   const picks = (root) => root.getByRole('group', { name: 'Common sizes: Width', exact: true }).getByRole('button').allInnerTexts();
   const phonePicks = await picks(cabinet);
   assert.ok(await button(cabinet, 'Width: 800 mm').isDisabled(), '3D shortcuts must respect the fixed back-left anchor.');
@@ -199,7 +240,7 @@ try {
   await doors.press('ArrowUp');
   assert.equal((await selected()).doors, 2);
   assert.deepEqual(errors, []);
-  console.log('PASS cabinet editors: captionless touch/keyboard sheets, shared desktop/phone tabs and size picks, material pickers and narrow forms.');
+  console.log('PASS cabinet editors: sheet gestures, shared tabs and size picks, narrow forms, and one-tap 3D inspection of one upper cabinet’s cut pieces and hardware.');
 } finally {
   await browser?.close();
   await server.close();

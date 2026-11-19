@@ -317,7 +317,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
           aria-pressed={selectedOpen} onClick={() => toggleOpening(selected.id)}
           className="flex h-11 touch-manipulation items-center justify-center gap-2 rounded-xl px-3 text-studio-ink transition-colors hover:bg-[#ece8df] aria-pressed:bg-[#e6ecdf] aria-pressed:text-[#3e5539] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-studio-accent">
           {selectedOpen ? <DoorClosed className="size-5" aria-hidden="true" /> : <DoorOpen className="size-5" aria-hidden="true" />}
-          <span className={cn('text-[13px] font-semibold', compact && 'sr-only')}>{selectedOpen ? text.view3d.closeShort : text.view3d.openShort}</span>
+          <span className="text-sm font-semibold">{selectedOpen ? text.view3d.closeShort : text.view3d.openShort}</span>
         </TooltipButton>}
         {cabinetTool && <TooltipButton aria-label={text.common.done} tooltip={text.common.done} onClick={() => useUiStore.getState().setCabinetTool(null)} className="h-11 min-w-11 rounded-xl"><X className="size-5" /></TooltipButton>}
       </div>}
