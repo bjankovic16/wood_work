@@ -16,8 +16,9 @@ export async function plannerChecks(browser, url) {
       const compare = phone ? 'Uporedi rasporede' : 'Compare layouts';
       const dialog = page.getByRole('dialog'), button = (root, name) => root.getByRole('button', { name, exact: true });
       const open = async (label) => {
-        if (phone) await button(bar, 'Više').tap();
-        await button(bar, label).click();
+        const lastStep = phone && label === projects && await button(bar, projects).and(bar.getByTestId('step-next')).isVisible();
+        if (phone && label === projects && !lastStep) await button(bar, 'Više').tap();
+        await (lastStep ? bar.getByTestId('step-next') : phone && label === guide ? bar.getByRole('button', { name: /^Vodič za planiranje:/ }) : button(bar, label)).click();
         await page.getByRole('dialog', { name: label, exact: true }).waitFor();
       };
       const step = async (n) => {
@@ -27,6 +28,7 @@ export async function plannerChecks(browser, url) {
       const addBase = async () => {
         if (phone) await button(page, 'Dodaj element').and(page.locator('[data-plan-controls]')).tap();
         await page.locator('[data-preset="base-600"]').click();
+        if (phone) await page.keyboard.press('Escape');
       };
       await name.fill('Kitchen A'); await name.press('Enter');
       await open(guide);
@@ -34,7 +36,8 @@ export async function plannerChecks(browser, url) {
       await page.keyboard.press('Shift+Tab');
       assert.ok(await button(dialog, compare).evaluate((b) => b === document.activeElement));
       await page.keyboard.press('Tab');
-      assert.ok(await button(dialog, phone ? 'Zatvori' : 'Close').evaluate((b) => b === document.activeElement));
+      const firstControl = phone ? dialog.getByRole('slider', { name: 'Visina panela' }) : button(dialog, 'Close');
+      assert.ok(await firstControl.evaluate((b) => b === document.activeElement));
       await button(dialog, compare).click();
       assert.equal(await dialog.getByRole('table').count(), 0, 'One project alone is not a comparison.');
       await button(dialog, guide).click();
@@ -49,9 +52,9 @@ export async function plannerChecks(browser, url) {
       const width = room.getByLabel(phone ? 'Širina' : 'Width', { exact: true });
       await width.fill('4800'); await width.press('Enter');
       await step(3);
-      assert.equal(await bar.getByRole('radio', { name: '3D', exact: true }).getAttribute('aria-checked'), 'true');
+      assert.equal(await page.getByRole('radio', { name: '3D', exact: true }).getAttribute('aria-checked'), 'true');
       await step(4);
-      assert.equal(await bar.getByRole('radio', { name: phone ? 'Krojna lista' : 'Cutting list', exact: true }).getAttribute('aria-checked'), 'true');
+      assert.equal(await page.getByRole('radio', { name: phone ? 'Krojna lista' : 'Cutting list', exact: true }).getAttribute('aria-checked'), 'true');
       const snapshot = () => page.evaluate(() => JSON.stringify(Object.fromEntries(Object.entries(localStorage).filter(([k]) => k.startsWith('kitchen-designer:project')))));
       await page.waitForFunction(() => {
         const index = JSON.parse(localStorage.getItem('kitchen-designer:projects'));

@@ -9,9 +9,11 @@ import {
   localDepthExtent,
   localRectToRoom,
   localToRoom,
+  rectsOverlap,
 } from '../../domain/geometry';
 import type { KitchenItem, Point, Rect as PlanRect } from '../../domain/types';
 import { FONT_FAMILY, measureText } from '../../lib/measureText';
+import { COMPACT_LABEL_PX } from './theme';
 
 interface ItemStyle {
   fill: string;
@@ -181,6 +183,45 @@ function HobSymbol({ item, px, color }: { item: KitchenItem; px: number; color: 
 const LABEL_FONT_PX = 11;
 const LINE_HEIGHT_PX = 14;
 
+function labelSlot(item: KitchenItem, px: number) {
+  const box = itemRect(item);
+  const anchor = item.kind === 'corner'
+    ? localToRoom(item, item.depth * 0.75, item.depth * 0.75)
+    : localToRoom(item, item.width / 2, localDepthExtent(item) * (isWallMounted(item) ? 0.42 : 0.72));
+  return {
+    anchor,
+    availableWidth: 2 * Math.min(anchor.x - box.x, box.x + box.w - anchor.x) / px,
+    availableHeight: 2 * Math.min(anchor.y - box.y, box.y + box.h - anchor.y) / px,
+  };
+}
+
+/** Place the selected/preview code first, then the frontmost readable code at each location. */
+export const CompactPlanCodes = memo(function CompactPlanCodes({ items, selected, px, measurements }: {
+  items: KitchenItem[]; selected?: KitchenItem; px: number; measurements: boolean;
+}) {
+  const priority = items.filter((item) => item.id !== selected?.id).reverse();
+  if (selected) priority.unshift(selected);
+  const used: PlanRect[] = [];
+  const labels = priority.map((item) => {
+    const { anchor, availableWidth, availableHeight } = labelSlot(item, px);
+    const w = measureText(item.label, COMPACT_LABEL_PX, 600) + 4, h = COMPACT_LABEL_PX + 4;
+    const box = { x: anchor.x - w * px / 2, y: anchor.y - h * px / 2, w: w * px, h: h * px };
+    if (item !== selected && used.some((other) => rectsOverlap(box, other, 0))) return null;
+    // Reserve room for the active rulers even when the code itself won't fit.
+    if (measurements && item === selected) {
+      const r = itemRect(item), gap = 22 * px;
+      used.push({ x: r.x - gap, y: r.y - gap, w: r.w + 2 * gap, h: r.h + 2 * gap });
+    }
+    if (w > availableWidth || h + 2 > availableHeight) return null;
+    const gap = 2 * px;
+    used.push({ x: box.x - gap, y: box.y - gap, w: box.w + 2 * gap, h: box.h + 2 * gap });
+    return <Text key={item.id} x={box.x} y={box.y} width={box.w} height={box.h} text={item.label}
+      align="center" verticalAlign="middle" wrap="none" fontFamily={FONT_FAMILY} fontStyle="600"
+      fontSize={COMPACT_LABEL_PX * px} fill={itemStyle(item).text} />;
+  });
+  return <Group name="plan-codes" listening={false}>{labels}</Group>;
+});
+
 /**
  * Item code and width, written where they fit. Floor units are labelled towards
  * the front and wall units towards the back, so the two labels do not collide
@@ -189,13 +230,7 @@ const LINE_HEIGHT_PX = 14;
  */
 function ItemLabel({ item, px, color }: { item: KitchenItem; px: number; color: string }) {
   const corner = item.kind === 'corner';
-  const box: PlanRect = itemRect(item);
-  const anchor = corner
-    ? localToRoom(item, item.depth * 0.75, item.depth * 0.75)
-    : localToRoom(item, item.width / 2, localDepthExtent(item) * (isWallMounted(item) ? 0.42 : 0.72));
-
-  const availableWidth = (2 * Math.min(anchor.x - box.x, box.x + box.w - anchor.x)) / px;
-  const availableHeight = (2 * Math.min(anchor.y - box.y, box.y + box.h - anchor.y)) / px;
+  const { anchor, availableWidth, availableHeight } = labelSlot(item, px);
   const size = corner ? `${item.width}×${item.width2 ?? item.width}` : String(item.width);
   const codeWidth = measureText(item.label, LABEL_FONT_PX, 600);
   const sizeWidth = measureText(size, LABEL_FONT_PX, 400);
@@ -229,6 +264,8 @@ interface ItemShapeProps {
   px: number;
   /** Shown faded and not clickable (hidden by the view filter). */
   dimmed?: boolean;
+  /** Compact labels are laid out together, after all cabinet footprints. */
+  compact?: boolean;
   hovered?: boolean;
   onPointerDown?: (item: KitchenItem, event: KonvaEventObject<PointerEvent>) => void;
   onHoverChange?: (id: string | null) => void;
@@ -238,6 +275,7 @@ export const ItemShape = memo(function ItemShape({
   item,
   px,
   dimmed = false,
+  compact = false,
   hovered = false,
   onPointerDown,
   onHoverChange,
@@ -261,14 +299,14 @@ export const ItemShape = memo(function ItemShape({
         stroke={dimmed ? '#71717a' : hovered ? style.hoverStroke : style.stroke}
         strokeWidth={(hovered ? 1.5 : 1) * px}
         dash={style.dashed ? [5 * px, 3 * px] : undefined}
-        hitStrokeWidth={10 * px}
+        hitStrokeWidth={(compact ? 1 : 10) * px}
         perfectDrawEnabled={false}
       />
       {!dimmed && <ItemSymbol item={item} px={px} color={style.symbol} />}
       {!dimmed && frontEdges(item).map(([a, b], i) => (
         <Line key={i} points={line(a, b)} stroke={style.front} strokeWidth={2 * px} listening={false} />
       ))}
-      {!dimmed && <ItemLabel item={item} px={px} color={style.text} />}
+      {!dimmed && !compact && <ItemLabel item={item} px={px} color={style.text} />}
     </Group>
   );
 });

@@ -15,9 +15,12 @@
     "e2e:room-workspace": "node scripts/room-workspace-e2e.mjs",
     "e2e:stacked": "node scripts/stacked-e2e.mjs",
     "e2e:resize": "node scripts/resize-e2e.mjs",
+    "e2e:sheets": "node scripts/mobile-sheets-e2e.mjs",
     "profile:move": "node scripts/move-profile.mjs",
     "e2e:ux": "node scripts/usability-e2e.mjs",
     "e2e:customer": "node scripts/customer-view-e2e.mjs",
+    "e2e:feedback": "node scripts/feedback-safety-e2e.mjs",
+    "e2e:offline": "npm run build && node scripts/offline-app-e2e.mjs",
     "e2e:ideas": "node scripts/room-ideas-e2e.mjs",
     "render:kitchens": "node scripts/render-kitchens.mjs"
   },

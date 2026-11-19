@@ -5,9 +5,10 @@ import { createServer } from 'vite';
 import { draftedWindowCheck, furnishedWallChecks, planCornerChecks, workspaceObjectChecks } from './room-object-checks.mjs';
 import { startFreshChecks } from './start-fresh-checks.mjs';
 import { plannerChecks } from './planner-checks.mjs';
-import { waitForIdleRendering } from './three-test-helpers.mjs';
+import { showRoomModel, waitForIdleRendering } from './three-test-helpers.mjs';
 
-const server = await createServer({ logLevel: 'error', cacheDir: path.resolve('test-results/room-workspace/.vite'), server: { host: '127.0.0.1', port: 0 } });
+const server = await createServer({ logLevel: 'error', cacheDir: path.resolve('test-results/room-workspace/.vite'),
+  optimizeDeps: { entries: ['index.html'] }, server: { host: '127.0.0.1', port: 0, watch: null, hmr: false } });
 const planOnly = process.argv.includes('--plan-only');
 
 async function assertWallTargets(plan, count) {
@@ -27,29 +28,29 @@ async function phoneRoomTools(page, workspace) {
     await page.setViewportSize(viewport);
     await plan.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     await assertWallTargets(plan, 8);
-    const shortcut = plan.getByRole('button', { name: 'Otvori zid 3 u 2D' });
+    const shortcut = plan.getByRole('button', { name: 'Pogled na zid 3' });
     await shortcut.tap();
     assert.equal(await workspace.getByRole('combobox', { name: 'Izaberi pogled' }).inputValue(), 'bottom');
     await workspace.getByRole('button', { name: 'Nazad na osnovu' }).tap();
     await page.waitForFunction(() => document.activeElement?.getAttribute('data-wall-view') === 'bottom');
     const panel = workspace.getByTestId('room-inspector');
-    const bounds = await panel.boundingBox();
-    for (const control of [panel.getByRole('tab', { name: 'Boje i pločice' }), panel.getByLabel('Visina do plafona')]) {
+    for (const control of [panel.getByRole('button', { name: 'Boje i pločice' }), panel.getByLabel('Visina do plafona')]) {
+      await control.scrollIntoViewIfNeeded();
       const box = await control.boundingBox();
-      assert.ok(box && box.y + box.height <= bounds.y + bounds.height + 1, 'Finishes and the ceiling input must fit without scrolling.');
+      assert.ok(box && box.width >= 44 && box.x >= 0 && box.x + box.width <= viewport.width, 'Inspector fields and disclosures must fit horizontally.');
     }
     if (viewport.width === 320) {
       await page.evaluate(() => window.__kitchen.design.getState().apply((d) => ({
         ...d, room: { ...d.room, cutout: { kind: 'notch', corner: 'bottomRight', width: 1080, depth: 900 } },
       })));
       await assertWallTargets(plan, 12);
-      await plan.getByRole('button', { name: 'Otvori zid 3 u 2D' }).tap();
+      await plan.getByRole('button', { name: 'Pogled na zid 3' }).tap();
       assert.equal(await workspace.getByRole('combobox', { name: 'Izaberi pogled' }).inputValue(), 'edge-2');
       await workspace.getByRole('button', { name: 'Nazad na osnovu' }).tap();
       await page.getByRole('button', { name: 'Korak unazad', exact: true }).tap();
     }
   }
-  await workspace.getByRole('tab', { name: 'Boje i pločice' }).tap();
+  await workspace.getByRole('button', { name: 'Boje i pločice' }).tap();
   await workspace.getByRole('checkbox', { name: 'Podne pločice' }).check();
   await workspace.getByRole('button', { name: 'Boja zidova: Maslina' }).tap();
   assert.equal(await plan.locator('[data-wall-paint]').getAttribute('stroke'), '#777c64');
@@ -77,7 +78,7 @@ async function phoneRoomPreview(page, workspace) {
     window.__kitchen.ui.getState().setMoveHintSeen();
     return d;
   });
-  await workspace.getByRole('radio', { name: '3D review', exact: true }).tap();
+  await showRoomModel(page);
   const bar = page.getByTestId('three-toolbar');
   const canvas = workspace.getByTestId('three-viewport').locator('canvas');
   const trigger = (name) => bar.getByRole('button', { name, exact: true });
@@ -127,27 +128,36 @@ async function phoneRoomPreview(page, workspace) {
   await page.getByRole('radio', { name: '3D', exact: true }).tap();
   await page.waitForFunction((id) => window.__kitchen3D?.scene.getObjectByName(id), original.items[0].id);
   const kitchen = sheet('Prikaz');
-  const next = kitchen.getByRole('button', { name: 'Sledeća kuhinja' });
+  const openIdeas = async () => {
+    const header = page.getByRole('banner');
+    await header.getByRole('button', { name: 'Više', exact: true }).tap();
+    await header.getByRole('button', { name: 'Ideje', exact: true }).tap();
+  };
+  const gallery = page.getByRole('dialog', { name: 'Ideje' });
+  const next = gallery.getByRole('button', { name: 'Isprobaj drugi stil' });
+  assert.ok(await page.getByTestId('three-toolbar').getByRole('button', { name: 'Podeli', exact: true }).isEnabled());
   await view.tap();
-  assert.ok(await kitchen.getByTestId('customer-export').isEnabled());
+  assert.equal(await kitchen.getByRole('button', { name: /Podeli|Isprobaj drugi stil/ }).count(), 0);
   await page.touchscreen.tap(8, 8);
   await kitchen.waitFor({ state: 'hidden' });
   for (const [on, off] of [['Otvori sve', 'Zatvori sve'], ['Unutrašnjost elemenata', 'Unutrašnjost elemenata']]) {
     await view.tap();
     await kitchen.getByRole('button', { name: on }).tap();
     await kitchen.waitFor({ state: 'hidden' });
+    await openIdeas();
+    assert.ok(await next.isDisabled(), 'A cabinet preview still locks style changes from Ideas.');
+    await gallery.getByRole('button', { name: 'Zatvori', exact: true }).tap();
     await view.tap();
-    assert.ok(await next.isDisabled(), 'A cabinet preview still locks Next kitchen.');
     const disablePreview = kitchen.getByRole('button', { name: off });
     assert.equal(await disablePreview.getAttribute('aria-pressed'), 'true');
     await disablePreview.tap();
   }
   assert.deepEqual(await state(), before, 'Browsing cameras, finishes and cabinet previews must not edit the project or Undo history.');
-  await view.tap();
+  await openIdeas();
   await next.tap();
   assert.equal((await state()).revisions, before.revisions + 1);
-  await page.getByRole('button', { name: 'Korak unazad', exact: true }).tap();
-  assert.deepEqual((await state()).design, original, 'The View sheet must use the existing undoable command.');
+  await page.getByTestId('feedback-toast').getByRole('button', { name: 'Korak unazad', exact: true }).tap();
+  assert.deepEqual((await state()).design, original, 'Ideas must use the existing undoable style command.');
 }
 
 async function separatedRoomChecks(page) {
@@ -185,7 +195,7 @@ async function separatedRoomChecks(page) {
   assert.equal(edited.design.room.vertices[2].x, 3400);
   assert.equal(edited.past, initial.past + 1);
   await room.getByRole('combobox', { name: 'Drawing view' }).selectOption('slope');
-  await room.getByRole('radio', { name: '3D review' }).click();
+  await showRoomModel(page);
   await page.waitForFunction(() => window.__kitchen3D?.scene.getObjectByName('wall-finish-panel-0'));
   assert.equal(await roomTab.getAttribute('aria-checked'), 'true');
   const schedule = room.getByTestId('room-measurements');
@@ -206,8 +216,8 @@ async function separatedRoomChecks(page) {
   await projected.getByRole('button').click();
   const picker = room.getByRole('combobox', { name: 'Drawing view' });
   assert.equal(await picker.inputValue(), projectedWall, 'The 3D icon opens the wall shown beside it.');
-  await room.getByRole('radio', { name: '3D review' }).click();
-  await schedule.locator('[data-measure="partition:divider"]').getByRole('button', { name: 'Open wall 6 in 2D' }).press('Enter');
+  await showRoomModel(page);
+  await schedule.locator('[data-measure="partition:divider"]').getByRole('button', { name: 'Wall view: Wall 6' }).press('Enter');
   assert.equal(await picker.inputValue(), 'divider:-1');
   assert.deepEqual(await state(), edited, 'Wall shortcuts change the view, not measurements, selections in the design, or history.');
   await kitchen3D.click();
@@ -257,9 +267,10 @@ try {
       await workspace.getByRole('button', { name: '3D preview' }).click();
     }
     if (!planOnly) {
-      await workspace.getByRole('radio', { name: '3D review', exact: true }).click();
+      await showRoomModel(page);
       await workspace.getByTestId('three-viewport').locator('canvas').waitFor();
-      await page.getByRole('radio', { name: '2D', exact: true }).click();
+      if (compact) await workspace.locator('.room-view-picker select').selectOption('');
+      else await page.getByRole('radio', { name: '2D', exact: true }).click();
     }
     await workspace.getByTestId('room-plan').waitFor();
     assert.equal(await workspace.locator('[data-wall-id="right"]').getAttribute('aria-pressed'), 'true');

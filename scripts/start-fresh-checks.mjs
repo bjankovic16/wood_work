@@ -8,8 +8,9 @@ const preferences = (page) => page.evaluate(() => localStorage.getItem('kitchen-
 async function checkBlankRoom(page, dimensions, blank) {
   const room = page.getByTestId('room-workspace');
   await room.getByTestId('room-plan').waitFor();
-  assert.equal(await page.getByRole('radio', { name: '2D', exact: true }).getAttribute('aria-checked'), 'true');
-  assert.equal(await room.getByRole('tab', { name: dimensions, exact: true }).getAttribute('aria-selected'), 'true');
+  assert.equal(await room.locator('.room-view-picker select').inputValue(), '');
+  const compact = page.viewportSize().width < 1024;
+  assert.equal(await room.getByRole(compact ? 'button' : 'tab', { name: dimensions, exact: true }).getAttribute(compact ? 'aria-expanded' : 'aria-selected'), 'true');
   assert.equal(await room.getByTestId('room-3d').count(), 0, 'No 3D preview should follow a kitchen switch.');
   assert.deepEqual({ ...await design(page), name: blank.name }, blank);
 }
@@ -80,7 +81,7 @@ export async function startFreshChecks(browser, url) {
   const phoneBlank = await design(phone);
   await phoneRoom.getByLabel('Širina', { exact: true }).fill('4200');
   await phoneRoom.getByLabel('Širina', { exact: true }).press('Enter');
-  await phoneRoom.getByRole('tab', { name: 'Objekti' }).tap();
+  await phoneRoom.getByRole('button', { name: 'Objekti' }).tap();
   const more = button(phoneBar, 'Više');
   const start = button(phoneBar, 'Počni iznova');
   assert.ok(await start.isHidden(), 'The shortcut must not crowd the closed phone toolbar.');

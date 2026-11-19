@@ -842,6 +842,9 @@ try {
   await projectsDialog.getByRole('button', { name: 'Copy Kuhinja Petrović' }).click();
   check('a project can be copied', (await projectRows.count()) === projectsWithOriginals + 1 && (await projectsDialog.getByText('Kuhinja Petrović (copy)').isVisible()));
 
+  // Exercise the non-picker path: a download request alone is not proof the file was saved.
+  await page.evaluate(() => Object.defineProperty(window, 'showSaveFilePicker', { configurable: true, value: undefined }));
+  const backupRow = projectRows.filter({ has: page.getByRole('button', { name: 'Save Kuhinja Petrović to a file', exact: true }) });
   const [projectDownload] = await Promise.all([
     page.waitForEvent('download'),
     projectsDialog.getByRole('button', { name: 'Save Kuhinja Petrović to a file' }).click(),
@@ -849,6 +852,9 @@ try {
   const projectPath = path.join(shotsDir, 'project.kitchen.json');
   await projectDownload.saveAs(projectPath);
   const projectFile = JSON.parse(await readFile(projectPath, 'utf8'));
+  check('a download alone does not count as a backup', await backupRow.getByText('No confirmed file backup yet.').isVisible());
+  await backupRow.getByRole('button', { name: 'I saved the file' }).click();
+  check('Projects shows the confirmed file backup', await backupRow.getByText(/^Last file backup:/).isVisible());
   check(
     'a project can be saved to a file, extra pieces and all',
     projectDownload.suggestedFilename() === 'Kuhinja Petrović.kitchen.json' && projectFile.customParts.length === 1 && projectFile.items.length > 10,
@@ -982,14 +988,19 @@ try {
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-01-empty-sr.png') });
   check('the phone starts in the Serbian room editor too', await phoneRoom.getByRole('heading', { name: 'Moja prostorija' }).isVisible());
   await mobile.setViewportSize({ width: 320, height: 568 });
-  const startActions = await Promise.all(['room-ideas', 'room-done'].map((id) => phoneRoom.getByTestId(id).boundingBox()));
+  const startActions = await Promise.all([mobile.getByRole('button', { name: /^Vodič za planiranje:/ }), mobile.getByTestId('room-done')].map((el) => el.boundingBox()));
   check('the room starting actions fit on a 320 px phone', startActions.every((box) => box && box.x >= 0 && box.x + box.width <= 320 && box.y + box.height <= 568), startActions);
   await mobile.screenshot({ path: path.join(shotsDir, 'usability-start-phone-narrow.png') });
-  await phoneRoom.getByTestId('room-done').tap();
+  await mobile.getByTestId('room-done').tap();
   await mobile.locator('.konvajs-content').waitFor();
   const filterBounds = await mobile.getByRole('group', { name: 'Prikaz elemenata' }).boundingBox();
-  const zoomBounds = await mobile.getByRole('group', { name: 'Uvećanje osnove' }).boundingBox();
-  check('plan filters and zoom controls do not overlap at 320 px', filterBounds.x >= 0 && zoomBounds.x + zoomBounds.width <= 320 && (filterBounds.x + filterBounds.width + 4 <= zoomBounds.x || filterBounds.y + filterBounds.height + 4 <= zoomBounds.y), { filterBounds, zoomBounds });
+  const planTools = mobile.getByRole('group', { name: 'Uvećanje osnove' });
+  const zoomBounds = await planTools.boundingBox();
+  const fitBounds = await planTools.getByRole('button', { name: 'Prikaži celu prostoriju' }).boundingBox();
+  check('320px plan filters leave room for a tappable Fit button', fitBounds.width >= 44 && fitBounds.height >= 44
+    && filterBounds.x >= 0 && zoomBounds.x + zoomBounds.width <= 320
+    && (filterBounds.x + filterBounds.width + 4 <= zoomBounds.x || filterBounds.y + filterBounds.height + 4 <= zoomBounds.y),
+    { filterBounds, zoomBounds, fitBounds });
   await mobile.setViewportSize({ width: 390, height: 844 });
   await mobile.getByRole('button', { name: 'Više' }).tap();
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-00-menu-sr.png') });
@@ -1000,16 +1011,18 @@ try {
   await mobile.getByRole('radio', { name: 'Room design', exact: true }).tap();
   await phoneRoom.getByTestId('room-plan').waitFor();
   await mobile.screenshot({ path: path.join(shotsDir, 'usability-room-setup-phone.png') });
-  await phoneRoom.getByTestId('room-done').tap();
+  await mobile.getByTestId('room-done').tap();
   await mobile.getByRole('button', { name: 'Add element', exact: true }).tap();
   check('users can open the part picker after room setup on phones', await mobile.getByRole('dialog', { name: 'Add element', exact: true }).isVisible());
   await mobile.getByRole('searchbox', { name: 'Search kitchen parts' }).fill('600');
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-02-add.png') });
   await mobile.locator('[data-preset="base-600"]').tap();
-  check('tapping an element adds it and closes the panel', (await mobileDesign()).items.length === 1 && !(await mobile.getByRole('dialog').isVisible()));
+  const phoneAdd = mobile.getByRole('dialog', { name: 'Add element', exact: true });
+  check('tapping a part keeps the picker ready for another', (await mobileDesign()).items.length === 1 && await phoneAdd.getByRole('status').filter({ hasText: 'Added:' }).isVisible());
+  await phoneAdd.getByRole('button', { name: 'Close', exact: true }).tap();
   check('the new unit is selected and shown at the bottom', await mobile.getByTestId('item-sheet').isVisible());
 
-  check('the "Add element" button makes way for the selected unit', await mobile.getByRole('button', { name: 'Add element' }).isHidden());
+  check('users can add another element without deselecting', await mobile.getByTestId('item-sheet').getByRole('button', { name: 'Add element' }).isVisible());
   const unitCentre = await mobileScreen(300, 400);
   const target = await mobileScreen(1500, 400);
   await touchPath([unitCentre], [target]);
@@ -1027,11 +1040,12 @@ try {
   check('a pinch does not move the unit', (await mobileDesign()).items[0].x === 1200);
   await mobile.getByRole('button', { name: 'Fit the room in view' }).tap();
 
-  await mobile.getByRole('button', { name: 'Edit' }).tap();
+  await mobile.getByTestId('item-sheet').getByRole('slider').tap();
+  await mobile.getByRole('tab', { name: 'Fronts', exact: true }).tap();
   await mobile.getByRole('button', { name: 'More drawers' }).tap();
   check('the unit can be configured on the phone', (await mobileDesign()).items[0].drawers === 1);
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-03-edit.png') });
-  await mobile.getByRole('button', { name: 'Less' }).tap();
+  await mobile.getByTestId('item-sheet').getByRole('slider').press('Home');
 
   await mobile.getByRole('radio', { name: 'Cutting list', exact: true }).tap();
   check('the cutting list opens on the phone', await mobile.locator('table').first().isVisible());
@@ -1056,7 +1070,8 @@ try {
   await close3DTools(mobile);
   await mobile.getByRole('button', { name: 'Deselect' }).tap();
   await mobile.getByRole('radio', { name: 'Room design', exact: true }).tap();
-  await phoneRoom.getByTestId('room-ideas').tap();
+  await mobile.getByRole('button', { name: 'More', exact: true }).tap();
+  await mobile.getByTestId('room-ideas').tap();
   const beforeStarter = await mobileDesign();
   await mobile.getByRole('radio', { name: 'My room layout' }).tap();
   await mobile.getByRole('button', { name: /^U-shaped/ }).tap();
@@ -1068,6 +1083,7 @@ try {
   await mobile.waitForTimeout(2000);
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-06-u-3d.png') });
 
+  await mobile.getByRole('banner').getByRole('button', { name: 'More', exact: true }).tap();
   await mobile.getByRole('button', { name: 'Ideas', exact: true }).tap();
   const phoneGallery = mobile.getByRole('dialog', { name: 'Ideas' });
   check('phone gallery keeps advanced filters collapsed until requested', !(await phoneGallery.locator('#kitchen-design-filters').isVisible()));

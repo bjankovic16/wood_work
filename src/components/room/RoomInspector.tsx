@@ -1,5 +1,5 @@
-import { AppWindow, Palette, Ruler } from 'lucide-react';
-import { useId, useLayoutEffect, useRef, useState } from 'react';
+import { AppWindow, ChevronDown, Palette, Ruler } from 'lucide-react';
+import { Fragment, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { WallSegment } from '../../domain/walls';
 import { useT } from '../../i18n';
 import { useDesignStore } from '../../store/designStore';
@@ -11,18 +11,18 @@ import { WallMeasureFields, WallMeasurements } from './WallMeasures';
 const tools = [{ key: 'dimensions', Icon: Ruler }, { key: 'objects', Icon: AppWindow }, { key: 'surfaces', Icon: Palette }] as const;
 type Tool = typeof tools[number]['key'];
 
-export function RoomInspector({ wall, wallNumber, reference, onReference }: {
-  wall?: WallSegment; wallNumber: number; reference: boolean; onReference?: (visible: boolean) => void;
+export function RoomInspector({ compact, wall, wallNumber, reference, onReference }: {
+  compact: boolean; wall?: WallSegment; wallNumber: number; reference: boolean; onReference?: (visible: boolean) => void;
 }) {
   const t = useT();
   const id = useId();
   const tabs = useRef<HTMLDivElement>(null);
   const selected = useUiStore((s) => s.roomSelection?.id);
   const room = useDesignStore((s) => s.design.room);
-  const [tool, setTool] = useState<Tool>('dimensions');
-  useLayoutEffect(() => { setTool(selected ? 'objects' : 'dimensions'); }, [selected, wall?.id]);
+  const [tool, setTool] = useState<Tool | null>('dimensions');
+  useLayoutEffect(() => { setTool(selected ? 'objects' : 'dimensions'); }, [selected, wall?.id, compact]);
   return <>
-    <div className="room-tool-tabs" ref={tabs} role="tablist" aria-label={t.room.setupTitle}>
+    {!compact && <div className="room-tool-tabs" ref={tabs} role="tablist" aria-label={t.room.setupTitle}>
       {tools.map(({ key, Icon }, i) => <button key={key} type="button" role="tab" id={`${id}-${key}`}
         aria-selected={tool === key} tabIndex={tool === key ? 0 : -1} aria-controls={`${id}-panel-${key}`}
         onClick={() => setTool(key)} onKeyDown={(e) => {
@@ -35,8 +35,11 @@ export function RoomInspector({ wall, wallNumber, reference, onReference }: {
         }}>
         <Icon size={16} aria-hidden="true" />{t.room[key]}
       </button>)}
-    </div>
-    {tools.map(({ key }) => <div key={key} role="tabpanel" hidden={tool !== key} tabIndex={0}
+    </div>}
+    {tools.map(({ key, Icon }) => <Fragment key={key}>
+      {compact && <button type="button" className="room-disclosure" aria-expanded={tool === key} aria-controls={`${id}-panel-${key}`}
+        id={`${id}-${key}`} onClick={() => setTool(tool === key ? null : key)}><Icon size={16} />{t.room[key]}<ChevronDown size={16} /></button>}
+      <div role={compact ? 'region' : 'tabpanel'} hidden={tool !== key} tabIndex={0}
       id={`${id}-panel-${key}`} aria-labelledby={`${id}-${key}`} className="room-tool-panel">
       {tool === key && (key === 'dimensions' ? wall ? <>
         <section className="room-sizes">
@@ -62,6 +65,6 @@ export function RoomInspector({ wall, wallNumber, reference, onReference }: {
       {tool === key && key === 'dimensions' && onReference && <label className="flex min-h-11 cursor-pointer items-center gap-2 px-4 py-2 text-xs">
         <input type="checkbox" checked={reference} onChange={(e) => onReference(e.target.checked)} />{t.room.cabinetReference}
       </label>}
-    </div>)}
+    </div></Fragment>)}
   </>;
 }

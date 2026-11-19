@@ -3,8 +3,10 @@ import { createDesign, parseDesign } from '../domain/designOps';
 import { newId } from '../domain/ids';
 import type { Design } from '../domain/types';
 import { currentMessages } from '../i18n';
-import { safeStorage } from '../lib/platform';
+import { safeFileName, safeStorage } from '../lib/platform';
+import { saveBackupFile, type BackupOutcome } from '../lib/backupFile';
 import { committedDesign, useDesignStore } from './designStore';
+import { checkFeedbackScope, offerUndo } from './feedback';
 import { useUiStore, type MainView } from './uiStore';
 
 /**
@@ -20,14 +22,18 @@ export interface ProjectMeta {
   updatedAt: number;
   units: number;
   roomMeasured?: boolean;
+  lastBackupAt?: number;
+  /** The committed revision exported, not the revision open when the file chooser finished. */
+  backupUpdatedAt?: number;
 }
 
-interface ProjectsState {
+interface ProjectIndex {
   activeId: string;
   projects: ProjectMeta[];
 }
 
-export const useProjectsStore = create<ProjectsState>(() => ({ activeId: '', projects: [] }));
+export const useProjectsStore = create<ProjectIndex & { writeFailed: boolean }>(() => ({ activeId: '', projects: [], writeFailed: false }));
+useProjectsStore.subscribe(checkFeedbackScope);
 
 const INDEX_KEY = 'kitchen-designer:projects';
 const projectKey = (id: string) => `kitchen-designer:project:${id}`;
@@ -58,7 +64,9 @@ function write(key: string, value: unknown): boolean {
 }
 
 function saveIndex(): void {
-  write(INDEX_KEY, useProjectsStore.getState());
+  const { activeId, projects, writeFailed } = useProjectsStore.getState();
+  const failed = !write(INDEX_KEY, { activeId, projects }) || [...memory.values()].some((entry) => !entry.written);
+  if (failed !== writeFailed) useProjectsStore.setState({ writeFailed: failed });
 }
 
 function metaOf(id: string, design: Design): ProjectMeta {
@@ -90,7 +98,8 @@ export function flushSave(): void {
   storeDesign(activeId, design);
   savedDesign = design;
   useProjectsStore.setState((state) => ({
-    projects: state.projects.map((p) => (p.id === activeId ? { ...p, ...metaOf(activeId, design) } : p)),
+    projects: state.projects.map((p) => (p.id === activeId
+      ? { ...p, name: design.name, units: design.items.length, updatedAt: Math.max(Date.now(), p.updatedAt + 1) } : p)),
   }));
   saveIndex();
 }
@@ -100,12 +109,15 @@ function scheduleSave(): void {
   saveTimer = setTimeout(flushSave, SAVE_DELAY);
 }
 
-function parseIndex(raw: unknown): ProjectsState | null {
+function parseIndex(raw: unknown): ProjectIndex | null {
   const v = raw as { activeId?: unknown; projects?: unknown } | null;
   if (!v || !Array.isArray(v.projects)) return null;
   const projects = v.projects
     .filter((p): p is ProjectMeta => !!p && typeof p.id === 'string' && typeof p.name === 'string')
-    .map((p) => ({ id: p.id, name: p.name, updatedAt: Number(p.updatedAt) || 0, units: Number(p.units) || 0, ...(p.roomMeasured === true ? { roomMeasured: true } : {}) }));
+    .map((p) => ({ id: p.id, name: p.name, updatedAt: Number(p.updatedAt) || 0, units: Number(p.units) || 0,
+      ...(p.roomMeasured === true ? { roomMeasured: true } : {}),
+      ...(typeof p.lastBackupAt === 'number' && Number.isFinite(p.lastBackupAt) && p.lastBackupAt > 0 ? { lastBackupAt: p.lastBackupAt } : {}),
+      ...(Number.isFinite(p.backupUpdatedAt) ? { backupUpdatedAt: p.backupUpdatedAt } : {}) }));
   if (projects.length === 0) return null;
   const activeId = typeof v.activeId === 'string' && projects.some((p) => p.id === v.activeId) ? v.activeId : projects[0].id;
   return { activeId, projects };
@@ -201,6 +213,28 @@ export function createProject(name?: string): string {
   return id;
 }
 
+/** Unlike creating an example or importing a file, Start fresh offers a short way back. Never delete either project. */
+export function startFresh(): string {
+  const previous = useProjectsStore.getState().activeId;
+  const name = committedDesign(useDesignStore.getState()).name;
+  const { roomOpen, view, cameraView } = useUiStore.getState();
+  const fresh = createProject();
+  offerUndo('fresh', (t) => t.feedback.fresh(name), () => {
+    openProject(previous);
+    if (useProjectsStore.getState().activeId !== previous) return;
+    const ui = useUiStore.getState();
+    if (roomOpen) {
+      ui.setRoomOpen(true);
+      ui.setRoomView(view === '3d' ? '3d' : 'plan');
+    } else ui.setView(view);
+    if (view === '3d') ui.requestCamera(cameraView);
+  }, () => {
+    const { activeId, projects } = useProjectsStore.getState();
+    return activeId === fresh && projects.some((p) => p.id === previous);
+  });
+  return fresh;
+}
+
 export function openProject(id: string): void {
   const { activeId } = useProjectsStore.getState();
   if (id === activeId) return;
@@ -280,6 +314,39 @@ export function projectDesign(id: string): Design | null {
   return loadDesign(id);
 }
 
+export function backupStatus(project: ProjectMeta, now = Date.now()): 'missing' | 'changed' | 'old' | 'current' {
+  if (!project.lastBackupAt) return 'missing';
+  if (project.backupUpdatedAt !== project.updatedAt) return 'changed';
+  return now - project.lastBackupAt >= 7 * 86400_000 ? 'old' : 'current';
+}
+
+export type BackupResult = { outcome: Exclude<BackupOutcome, 'download-started'> } | { outcome: 'download-started'; confirm: () => void };
+
+export async function saveProjectBackup(id: string): Promise<BackupResult> {
+  flushSave();
+  const meta = useProjectsStore.getState().projects.find((p) => p.id === id);
+  const design = meta && projectDesign(id);
+  if (!meta || !design) return { outcome: 'unavailable' };
+  let recorded = false;
+  const confirm = () => {
+    const { projects } = useProjectsStore.getState();
+    if (recorded || !projects.some((p) => p.id === id)) return;
+    recorded = true;
+    useProjectsStore.setState({ projects: projects.map((p) => p.id === id
+      ? { ...p, lastBackupAt: Date.now(), backupUpdatedAt: meta.updatedAt } : p) });
+    saveIndex();
+  };
+  try {
+    const data = new Blob([JSON.stringify(design, null, 2)], { type: 'application/json' });
+    const outcome = await saveBackupFile(`${safeFileName(design.name)}.kitchen.json`, data);
+    if (outcome === 'download-started') return { outcome, confirm };
+    if (outcome === 'saved') confirm();
+    return { outcome };
+  } catch {
+    return { outcome: 'unavailable' };
+  }
+}
+
 function nextName(): string {
   const names = new Set(useProjectsStore.getState().projects.map((p) => p.name));
   for (let n = 1; ; n++) {
@@ -295,5 +362,5 @@ export function resetProjectsForTests(): void {
   memory.clear();
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = null;
-  useProjectsStore.setState({ activeId: '', projects: [] });
+  useProjectsStore.setState({ activeId: '', projects: [], writeFailed: false });
 }

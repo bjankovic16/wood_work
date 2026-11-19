@@ -26,14 +26,20 @@ file for a customer. The customer does not need the editor or the cutting list.
   an undo step on navigation.
   **Start fresh** in the desktop toolbar, the phone's **⋯** menu or **Projects**
   saves the current kitchen and opens a separate empty project at the first
-  measurement step. It does not erase projects or reset preferences.
+  measurement step. It does not erase projects or reset preferences. Offer
+  five seconds to Undo Start fresh, deleting a cabinet, or trying another
+  style. Bind the action to the original change; never undo a later edit.
+  Undo Start fresh returns to the previous project without deleting either.
 - From any workspace, a compact planning guide identifies the current step and
   links to room measurements, the kitchen plan, furnished 3D and the cutting list.
   The guide and Projects offer read-only A/B comparison of the active design
   with another saved kitchen at the same scale. Use actual floor area and
   cutting-list quantities. Explicitly choosing **Edit a copy** opens a separate
   numbered variant; preserve the original, including just-committed edits.
-- In Room design, **2D / 3D review** switches between geometry editing and a
+- On phones, keep four equal, labeled bottom destinations: **Room → Plan → 3D →
+  Cutting list**. Keep the project header stable across them. Put the current
+  step, next-step action and issue count above the workspace.
+- In Room design, **Room model** switches between geometry editing and a
   read-only architectural scene. On desktop, also offer a preview beside the
   plan. Omit kitchen meshes and automatic backsplashes, but retain manual
   wall finishes. Project dimension labels into the scene and show a complete,
@@ -61,7 +67,7 @@ file for a customer. The customer does not need the editor or the cutting list.
   outline would cross or a cabinet, fixture or opening would no longer fit;
   do not move or shrink it to make it fit. Keep stable wall IDs and account
   for legacy bottom/left opening offsets.
-- Tapping a wall's **eye / 2D** shortcut or the wall line opens its **2D inside
+- Tapping a wall's **Wall view** shortcut or the wall line opens its **2D inside
   elevation**. Keep the shortcut distinct from the numeric measurement and
   corner drag targets. Offer the same shortcut at the wall labels and in
   the measurement list in room 3D, including both partition faces. Provide a drawing
@@ -151,13 +157,16 @@ Requirements:
 - Undo and redo.
 - Support straight kitchens, L-shaped kitchens, and U-shaped kitchens.
 
-The plan opens on **All**, with a fit control on the zoom percentage. During a
+The plan opens on **All**. On phones fit to the usable drawing area, show total
+and selected dimensions by default, allow all dimensions on demand, and use
+pinch and a single **Fit** button. Keep the selected cabinet above its sheet. During a
 drag, isolate its layer and restore the user's filter on release or cancellation.
 Filtered rows are faint, noninteractive outlines. Wall-unit mode defaults to one
 upper height band and allows selecting another band. **View** groups snapping,
 grid size and dimensions. One **Settings** dialog contains materials and
 construction. On phones keep the selected cabinet's plan controls in a bottom
-sheet, with touch targets at least 44 pixels high/wide.
+sheet with small, half and full detents and keyboard alternatives. Group changes
+under Size, Fronts, Materials and Parts; opening Add allows repeated picks.
 
 - Interior partitions have independent endpoints, thickness and height.
   Both faces are usable; collisions take the cabinet's vertical range into
@@ -212,7 +221,7 @@ Selecting a cabinet issue reveals that cabinet on the 2D plan at either width.
 
 **Continue to kitchen** goes directly to the plan, even when it is still empty.
 Remember measured projects separately from new ones. Provide a single **Ideas**
-entry in the desktop top bar and the phone bottom actions. Cards open review;
+entry in the desktop top bar and the phone More menu before the cutting step. Cards open review;
 opening the original as a separate project is a secondary menu action. Start
 with the original room-size filter on. The decision depends on the number of
 **kitchen elements**, not the presence of room objects:
@@ -236,7 +245,7 @@ with the original room-size filter on. The decision depends on the number of
      the blocking constraint. Do not insert overlapping units, partially apply
      a rejected proposal or substitute the example room.
 2. **At least one kitchen element:** review and transfer only the visual finishes;
-   the 3D **Next kitchen** shortcut can cycle these directly. Preserve
+   **Try another style** in Ideas can cycle these directly. Preserve
    every item's identity, kind, position, dimensions, rotation and elevation.
    Do not add a missing upper row or island, reorient an existing L, remove
    furniture or recalculate its layout.
@@ -246,7 +255,7 @@ fabrication rules. A fitted layout generates parts for the **new** cabinets.
 Changing only the appearance must leave the **existing** cutting list unchanged.
 
 Apply the look by role: base cabinets, towers, upper rows, island and visible
-side panels. Both **Apply this look** and **Next kitchen** set fronts, profile,
+side panels. Both **Apply this look** and **Try another style** set fronts, profile,
 carcasses, handles, worktop and visible room joinery (window frames, door frames
 and door leaves). Update existing per-unit finishes as well as common defaults;
 do not flatten a two-tone design into one finish or leave the old per-unit
@@ -267,17 +276,17 @@ project.
 
 ### Editing and previewing in 3D
 
-- In both full phone 3D views, use at most 120 CSS px above the usable canvas at
-  390 × 844. **View / Prikaz** opens a bottom sheet for camera presets/reset
+- Keep the project and navigation bars in the same position in both phone 3D
+  views. The scene's **View / Prikaz** opens a bottom sheet for camera presets/reset
   and help. Room review offers dimension labels, not cabinet actions. In
-  kitchen 3D the sheet adds **Style**, cabinet previews, **Next kitchen** and
-  customer export. Keep the workspace tabs distinct from camera choices.
+  kitchen 3D the sheet adds **Style** and cabinet previews. **Share** is
+  a separate main action. Keep the workspace tabs distinct from camera choices.
   Opening the sheet does not reframe the camera or edit the project. Real orbit
-  drags hide the bars; a tap restores them without moving or selecting anything.
+  drags hide scene controls, not navigation; a tap restores the controls without moving or selecting anything.
   The first tip disappears on drag or after six seconds, and stays dismissed
   across visits unless explicitly requested via **?**.
-- In the desktop editor, dock **3D / Studio / Front / Top**, **Style**, cabinet previews and **Next kitchen**
-  above the viewport. **Tools** includes room objects, help and customer export.
+- In the desktop editor, dock **3D / Studio / Front / Top**, **Style**, cabinet previews and **Share**
+  above the viewport. **Tools** includes room objects and help.
   Click or tap a cabinet, wall, opening or structure to select it. Mouse
   drags and touch swipes on the background **or an object's body** orbit the
   camera; scroll or pinch to zoom. This holds even when the object is already
@@ -346,8 +355,8 @@ project files; omit them from the customer presentation.
 
 ### Customer presentation
 
-In the desktop editor's **3D → Tools** or either phone **View** sheet, **Export 3D for customer (.html)** saves
-one self-contained HTML file. The customer opens the file locally, drags to
+The furnished kitchen's **3D → Share** presents one self-contained HTML file
+to the native share sheet when supported, otherwise offers to save it. The customer opens the file locally, drags to
 orbit, scrolls or pinches to zoom, and can reset the initial view. No install,
 account or hosted project is required. The file must make no external network
 requests, including to a CDN. This is a presentation of the finished kitchen,

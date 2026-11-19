@@ -2,9 +2,10 @@ import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { offlineViewerPlugin } from './scripts/offline-viewer-plugin.ts';
+import { offlineAppPlugin } from './scripts/offline-app-plugin.ts';
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), offlineViewerPlugin()],
+  plugins: [react(), tailwindcss(), offlineViewerPlugin(), offlineAppPlugin()],
   // Relative asset paths, so a build works from any folder or host path.
   base: './',
   // Listen on the local network too, so the app can be opened from a phone on the same Wi-Fi.

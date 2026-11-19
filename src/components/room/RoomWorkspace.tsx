@@ -1,4 +1,4 @@
-import { ArrowRight, Box, ChevronLeft, ChevronRight, Images, MousePointer2, Scaling } from 'lucide-react';
+import { ArrowRight, Box, ChevronLeft, ChevronRight, MousePointer2 } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { polygonArea } from '../../domain/polygons';
 import { roomOutline } from '../../domain/roomGeometry';
@@ -16,6 +16,7 @@ import { roomSegments } from '../../domain/walls';
 import { adjoiningWalls } from '../../domain/adjoiningWalls';
 import { useDesignStore } from '../../store/designStore';
 import { finishRoom, useProjectsStore } from '../../store/projects';
+import { PhoneViewButton } from '../layout/PhoneThreeChrome';
 
 export function RoomWorkspace({ compact = false }: { compact?: boolean }) {
   const activeId = useProjectsStore((s) => s.activeId);
@@ -50,16 +51,13 @@ function ProjectRoom({ compact }: { compact: boolean }) {
     requestAnimationFrame(() => viewPicker.current?.focus({ preventScroll: true }));
   };
   const actions = <>
-    {compact && <Button variant="outline" data-testid="room-ideas" aria-label={t.layouts.title} title={t.layouts.title} onClick={() => ui.setLayoutsOpen(true)}>
-      <Images className="size-4" /><span className="max-[459px]:hidden">{t.layouts.title}</span>
-    </Button>}
     <Button variant="primary" data-testid="room-done" aria-label={t.room.continue} onClick={finishRoom}>
       <span className="max-[459px]:hidden">{t.room.continue}</span><span className="min-[460px]:hidden">{t.room.kitchenShort}</span><ArrowRight className="size-4" />
     </Button>
   </>;
   const title = <div className="mr-auto flex min-w-0 items-center gap-2">
     <h1>{t.room.setupTitle}</h1>
-    <span className="room-area" title={t.room.area} aria-label={`${t.room.area}: ${area} m²`}><Scaling size={13} aria-hidden="true" />{area} m²</span>
+    <span className="room-area" data-prefix={t.room.areaShort} aria-label={`${t.room.area}: ${area} m²`}>{area} m²</span>
   </div>;
   const wallEnd = (side: 'left' | 'right') => {
     const neighbour = neighbours?.[side], n = neighbour ? segments.indexOf(neighbour) + 1 : 0;
@@ -71,23 +69,27 @@ function ProjectRoom({ compact }: { compact: boolean }) {
     </button> : <span className={`room-wall-end ${side}`}>{wording}</span>;
   };
   const views = <Segmented<'plan' | '3d'> ariaLabel={t.room.view} size="sm" value={reviewing ? '3d' : 'plan'}
-        options={[{ value: 'plan', label: '2D', title: t.room.plan }, { value: '3d', label: t.room.review }]}
+        options={[{ value: 'plan', label: '2D', title: t.room.plan }, { value: '3d', label: t.room.model }]}
         onChange={(v) => { setPreview(false); ui.setRoomView(v); }} />;
   const heading = <header className="room-heading">
       {title}{views}
       {!compact && view === 'plan' && <Button variant="outline" active={preview} onClick={() => setPreview(!preview)}><Box className="size-4" />{t.room.preview}</Button>}
       {!compact && actions}
     </header>;
+  const tools = <RoomDrawingTools room={room} walls={segments} facing={facing} selectedWall={wall} pickerRef={viewPicker}
+    roomModel={compact ? { active: reviewing, open: () => ui.setRoomView('3d') } : undefined}
+    show={(id) => { ui.setRoomView('plan'); showDrawing(id); }}
+    back={() => {
+      showDrawing('');
+      if (facing) requestAnimationFrame(() => document.querySelector<SVGElement>(`[data-wall-view="${CSS.escape(facing.id)}"]`)?.focus({ preventScroll: true }));
+    }} />;
   return <main data-testid="room-workspace" aria-label={t.room.tab} className="flex h-full min-h-0 flex-1 flex-col bg-studio-canvas">
     {!compact && heading}
+    {compact && !reviewing && tools}
     <div className="room-work-area" data-view={view} data-elevation={view === 'plan' && !!facing || undefined}>
       <div className="room-drawing-area">
         {view === 'plan' && <div className="room-drawing-pane">
-          <RoomDrawingTools room={room} walls={segments} facing={facing} selectedWall={wall} pickerRef={viewPicker} show={showDrawing}
-            back={() => {
-              showDrawing('');
-              if (facing) requestAnimationFrame(() => document.querySelector<SVGElement>(`[data-wall-view="${CSS.escape(facing.id)}"]`)?.focus({ preventScroll: true }));
-            }} />
+          {!compact && tools}
           {facing ? <WallElevation key={facing.id} wall={facing} number={segments.indexOf(facing) + 1} reference={reference} />
             : <RoomPlan reference={reference} onFaceWall={(id, keyboard) => { showDrawing(id); if (keyboard) viewPicker.current?.focus({ preventScroll: true }); }} />}
           {facing ? <nav className="room-wall-ends" aria-label={t.room.adjoiningWalls}>
@@ -95,15 +97,16 @@ function ProjectRoom({ compact }: { compact: boolean }) {
           </nav> : compact ? <header className="room-plan-caption">{title}<p>{t.room.cornerHintShort}</p></header>
             : <p className="room-drawing-hint"><MousePointer2 size={13} />{t.room.measureHint}</p>}
         </div>}
-        {(view === '3d' || !compact && preview) && <div className="min-w-0 flex-1 border-studio-line lg:border-l" data-testid="room-3d" data-room-3d="" tabIndex={-1}
+        {(view === '3d' || !compact && preview) && <div className="relative min-w-0 flex-1 border-studio-line lg:border-l" data-testid="room-3d" data-room-3d="" tabIndex={-1}
           onPointerDownCapture={(e) => { if (e.target instanceof HTMLCanvasElement) e.currentTarget.focus({ preventScroll: true }); }}>
           <View3D rows={rows} split={view === 'plan'} onOpenWall={openWallIn2D} />
+          {compact && <><div className="mobile-scene-tools"><PhoneViewButton /></div>
+            <div className="room-scene-picker">{tools}</div></>}
         </div>}
       </div>
       <aside data-testid="room-inspector" className="room-inspector studio-panel">
-        {view === 'plan' ? <RoomInspector wall={facing} wallNumber={wall ? segments.indexOf(wall) + 1 : 0}
+        {view === 'plan' ? <RoomInspector compact={compact} wall={facing} wallNumber={wall ? segments.indexOf(wall) + 1 : 0}
           reference={reference} onReference={furnished ? setReference : undefined} /> : <>
-          {compact && heading}
           <section aria-label={t.room.measurements} data-testid="room-measurements" className="min-h-0 overflow-y-auto p-4">
             <h2 className="text-sm font-semibold">{t.room.measurements}</h2>
             <p className="pt-1 text-xs text-studio-muted">{t.room.reviewHint}</p>
@@ -120,6 +123,5 @@ function ProjectRoom({ compact }: { compact: boolean }) {
         </>}
       </aside>
     </div>
-    {compact && !reviewing && <div className="room-footer">{views}{actions}</div>}
   </main>;
 }

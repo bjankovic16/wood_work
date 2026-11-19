@@ -61,7 +61,9 @@ export async function checkWorkshopPanels(browser, url) {
       await price.fill(compact ? '1234,5' : '1234.5'); await price.press('Enter');
       assert.match(await row.innerText(), /2800×2070×18 mm/);
       assert.ok((await row.innerText()).includes(expected.money));
-      assert.ok(await row.evaluate((el) => el.scrollWidth <= el.clientWidth && el.offsetHeight === 46 && getComputedStyle(el).listStyleType === 'none'));
+      assert.ok(await row.evaluate((el) => el.scrollWidth <= el.clientWidth && el.offsetHeight >= 46 && getComputedStyle(el).listStyleType === 'none'),
+        'Material names and prices can wrap on a phone; rows must not overflow or shrink their touch targets.');
+      if (compact) assert.ok(await row.locator('.board-name').evaluate((el) => el.clientWidth > 0 && el.scrollWidth <= el.clientWidth));
       await press(settings.getByRole('button', { name: expected.done }));
 
       const summary = page.getByTestId('cutting-summary');
@@ -108,7 +110,7 @@ export async function checkWorkshopPanels(browser, url) {
       await press(checks.getByRole('button', { name: expected.roomOnly, exact: true }));
       await page.getByTestId('room-plan').waitFor();
       await page.getByTestId('selected-room-card').locator('[data-room-feature="outside"]').waitFor();
-      await press(page.getByRole('tab', { name: expected.dimensions, exact: true }));
+      await press(page.getByRole(compact ? 'button' : 'tab', { name: expected.dimensions, exact: true }));
       const walls = page.locator('.room-wall-details > summary'), advanced = page.locator('summary').filter({ hasText: expected.advanced });
       const treatment = (el) => [el.offsetHeight, getComputedStyle(el).padding, getComputedStyle(el, '::after').transform];
       assert.deepEqual(await advanced.evaluate(treatment), await walls.evaluate(treatment));
@@ -116,9 +118,8 @@ export async function checkWorkshopPanels(browser, url) {
       await press(walls);
       assert.notEqual((await walls.evaluate(treatment))[2], closed[2]);
       assert.equal(await walls.locator('svg').count(), 0, 'Walls must not add another arrow to the shared chevron.');
-      // Exercise the room's 3D-to-2D hand-off, including Checks nested inside More on phones.
+      // Exercise the room's 3D-to-2D hand-off using the same Checks chip on every step.
       await page.evaluate(() => window.__kitchen.ui.getState().setRoomView('3d'));
-      if (compact) await press(page.getByRole('button', { name: expected.more, exact: true }));
       await press(badge); await press(checks.getByRole('button', { name: expected.collision, exact: true }));
       await page.waitForFunction(cabinetVisible);
     } finally { await context.close(); }

@@ -2,26 +2,34 @@ import { useId, useLayoutEffect, useRef, useState } from 'react';
 import { ROOM_LIMITS } from '../../domain/roomGeometry';
 import type { WallSegment } from '../../domain/walls';
 import { roomSegments } from '../../domain/walls';
+import { useIsCompact } from '../../hooks/useMediaQuery';
 import { useT } from '../../i18n';
 import { editRoomWall, setRoomSize } from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
 import { useUiStore } from '../../store/uiStore';
 import { NumberField, SelectField } from '../properties/NumberField';
+import { SheetHandle, type SheetSnap } from '../sheets/SheetHandle';
 import { Button, PanelSection } from '../ui';
 
 export function WallMeasureDialog({ wall, number, close, focus = 'length' }: { wall: WallSegment; number: number; close: () => void; focus?: 'length' | 'height' }) {
   const t = useT();
   const id = useId();
   const ref = useRef<HTMLDialogElement>(null);
+  const compact = useIsCompact();
+  const [snap, setSnap] = useState<SheetSnap>('full');
   useLayoutEffect(() => {
     const dialog = ref.current!;
     dialog.showModal();
     return () => dialog.close();
   }, []);
-  return <dialog ref={ref} aria-labelledby={id} data-testid="drawing-measure" className="room-sheet"
+  return <dialog ref={ref} aria-labelledby={id} data-testid="drawing-measure" className="room-sheet open:flex open:flex-col"
+    data-sheet-panel={compact ? 'modal' : undefined} data-snap={compact ? snap : undefined}
     onCancel={(event) => { event.preventDefault(); close(); }} onClick={(event) => { if (event.target === event.currentTarget) close(); }}>
-    <div className="space-y-3 p-5">
+    <div className={compact ? 'flex shrink-0 items-center gap-2 border-b border-studio-line px-2 py-1' : 'px-5 pt-5'}>
+      {compact && <SheetHandle snap={snap} onSnap={setSnap} onClose={close} controls={`${id}-fields`} />}
       <h2 id={id} className="text-lg font-semibold">{t.advancedRoom.wall(number)}</h2>
+    </div>
+    <div id={`${id}-fields`} className="min-h-0 space-y-3 overflow-y-auto overscroll-contain px-5 pb-5 pt-3">
       <WallMeasureFields wall={wall} focus={focus} />
       <Button variant="primary" className="mt-1 h-11 w-full" onClick={close}>{t.common.done}</Button>
     </div>

@@ -1,4 +1,4 @@
-import { Eye } from 'lucide-react';
+import { PanelsTopLeft } from 'lucide-react';
 import { useId, useMemo, useRef, useState, type KeyboardEvent, type TouchEvent } from 'react';
 import { footprintPieces } from '../../domain/geometry';
 import { DEFAULT_FLOOR_COLOR, DEFAULT_FLOOR_GROUT_COLOR, DEFAULT_FLOOR_TILE_SIZE, DEFAULT_WALL_COLOR } from '../../domain/style';
@@ -103,8 +103,7 @@ export function RoomPlan({ onFaceWall, reference }: { onFaceWall: (id: string, k
             <title>{label}</title>
             <rect x="-22" y="-22" width="44" height="44" fill="transparent" />
             <rect className="room-wall-view-chip" x="-20" y="-12" width="40" height="24" rx="7" />
-            <Eye x="-16" y="-7" size={14} aria-hidden="true" color="#315a44" />
-            <text textAnchor="middle" x="8" y="4" fontSize="11" fontWeight="650" fill="#315a44">2D</text>
+            <PanelsTopLeft x="-10" y="-9" size={20} aria-hidden="true" color="#315a44" />
           </g>
         </g>;
       })}
@@ -119,8 +118,8 @@ export function RoomPlan({ onFaceWall, reference }: { onFaceWall: (id: string, k
             transform={`translate(${at.x} ${at.y}) scale(${px})`}>
             <rect x="-32" y="-22" width="64" height="44" rx="8" fill="transparent" />
             <rect x="-32" y="-18" width="64" height="36" rx="7" fill={selected ? '#34594d' : '#fffefa'} stroke={selected ? '#34594d' : '#c9d2c8'} />
-            <text textAnchor="middle" y="-4" fontSize="10" fontWeight="600" fill={selected ? '#e2eee3' : '#53665e'}>{t.advancedRoom.wall(i + 1)}</text>
-            <text textAnchor="middle" y="11" fontSize="13" fontWeight="650" fill={selected ? 'white' : '#233c33'}>{Math.round(s.length)}<tspan fontSize="9" fontWeight="500"> mm</tspan></text>
+            <text textAnchor="middle" y="-4" fontSize="12" fontWeight="600" fill={selected ? '#e2eee3' : '#475b50'}>{t.advancedRoom.wall(i + 1)}</text>
+            <text textAnchor="middle" y="11" fontSize="13" fontWeight="650" fill={selected ? 'white' : '#233c33'}>{Math.round(s.length)}<tspan fontSize="12" fontWeight="500"> mm</tspan></text>
           </g>
         </g>;
       })}

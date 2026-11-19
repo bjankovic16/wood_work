@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { close3DTools, open3DTools, waitForIdleRendering } from './three-test-helpers.mjs';
+import { close3DTools, open3DTools, showRoomModel, waitForIdleRendering } from './three-test-helpers.mjs';
 
 const ready = (page) => page.waitForFunction(() => window.__kitchen3D?.scene.getObjectByName('room-floor'));
 const state = (page) => page.evaluate(() => {
@@ -16,7 +16,7 @@ async function checkChrome(page, mode) {
     return Infinity;
   });
   assert.ok(usableTop <= 120, `${mode}: ${usableTop} CSS px of chrome above the tappable canvas at 390×844`);
-  assert.deepEqual(await page.getByTestId('three-toolbar').getByRole('button').allInnerTexts(), ['View']);
+  assert.deepEqual(await page.getByTestId('three-toolbar').getByRole('button').allInnerTexts(), mode === 'editor' ? ['View', 'Share'] : ['View']);
   for (const name of ['Undo', 'Redo']) {
     const button = page.getByRole('button', { name, exact: true });
     const bounds = await button.boundingBox();
@@ -56,7 +56,7 @@ async function checkOrbit(page) {
   } finally { await cdp.detach(); }
   assert.ok(!await toggle.isVisible(), 'Lifting a drag is not the tap that restores the chrome.');
   await page.evaluate(() => window.__kitchen.ui.getState().select('fixed-cabinet'));
-  await page.touchscreen.tap(14, 14); // This was underneath the bar before orbiting.
+  await canvas.tap({ position: { x: 14, y: 14 } });
   await toggle.waitFor();
   assert.deepEqual(await canvas.boundingBox(), bounds);
   assert.deepEqual(await state(page), before);
@@ -72,7 +72,7 @@ async function checkHistory(page) {
   const undo = page.getByRole('button', { name: 'Undo', exact: true });
   const redo = page.getByRole('button', { name: 'Redo', exact: true });
   await page.waitForFunction(() => window.__kitchen.design.getState().design.name === 'Workshop test');
-  await page.getByTestId('phone-view-toggle').focus();
+  await name.focus();
   await page.keyboard.press('Tab');
   assert.ok(await undo.evaluate((b) => b === document.activeElement));
   await page.getByRole('tooltip').getByText('Undo (Ctrl+Z)', { exact: true }).waitFor();
@@ -114,7 +114,7 @@ export async function checkPhoneThreeUX(browser, url) {
         const gate = new Promise((resolve) => { release = resolve; });
         await page.route('**/src/components/three/RoomReview3D.tsx*', async (route) => { await gate; await route.continue(); });
         try {
-          await page.getByRole('radio', { name: '3D review', exact: true }).tap();
+          await showRoomModel(page);
           await page.getByRole('button', { name: 'View', exact: true }).tap();
           assert.equal(await page.evaluate(() => Boolean(window.__kitchen3D)), false, 'This tap deliberately precedes the lazy scene mount.');
         } finally { release(); }
@@ -138,7 +138,8 @@ export async function checkPhoneThreeUX(browser, url) {
       await checkOrbit(page);
       await page.reload();
       if (mode === 'room') await page.getByRole('radio', { name: 'Room design', exact: true }).tap();
-      await page.getByRole('radio', { name: mode === 'room' ? '3D review' : '3D', exact: true }).tap();
+      if (mode === 'room') await showRoomModel(page);
+      else await page.getByRole('radio', { name: '3D', exact: true }).tap();
       await ready(page);
       assert.equal(await tip.count(), 0, 'Reloading must not resurrect the first-visit tip.');
       await open3DTools(page);
@@ -151,13 +152,16 @@ export async function checkPhoneThreeUX(browser, url) {
       if (mode === 'editor') {
         const before = await state(page);
         await open3DTools(page);
-        const [file] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }), page.getByTestId('customer-export').tap()]);
+        assert.equal(await page.getByTestId('phone-view-sheet').getByRole('button', { name: 'Share', exact: true }).count(), 0);
+        assert.match(await page.getByTestId('phone-view-sheet').innerText(), /Tap an object.*pinch to zoom/i);
+        await close3DTools(page);
+        await page.evaluate(() => Object.defineProperty(navigator, 'canShare', { configurable: true, value: () => false }));
+        const [file] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }), page.getByRole('button', { name: 'Share', exact: true }).tap()]);
         assert.match(file.suggestedFilename(), /\.html$/);
         assert.equal(await file.failure(), null);
         assert.deepEqual(await state(page), before, 'Exporting the offline view must not change the design or history.');
-        await close3DTools(page);
         await checkHistory(page);
-      } else assert.equal(await page.getByTestId('customer-export').count(), 0);
+      } else assert.equal(await page.getByTestId('customer-share').count(), 0);
     } finally { await context.close(); }
   }
 }

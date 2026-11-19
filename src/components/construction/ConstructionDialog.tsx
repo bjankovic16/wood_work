@@ -11,7 +11,7 @@ import * as actions from '../../store/actions';
 import { useBuildContext } from '../../store/derived';
 import { useDesignStore } from '../../store/designStore';
 import { useUiStore, type SettingsTab } from '../../store/uiStore';
-import { CheckboxField, NumberField, SelectField, TextField } from '../properties/NumberField';
+import { CheckboxField, NumberField, PickerField, TextField } from '../properties/NumberField';
 import { Button, Dialog, PanelSection, Segmented } from '../ui';
 
 function Choice({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
@@ -45,15 +45,15 @@ function MaterialCard({ material, used, locked, group }: { material: Material; u
   const name = t.engine.material(material);
   return (
     <details name={group} className="min-w-0 rounded-lg border border-zinc-200 bg-white" data-testid="material-card" data-material-id={material.id}>
-      <summary className="rounded-lg">
-        <span className="min-w-0 flex-1 truncate" title={name}>{name}</span>
+      <summary className="board-summary rounded-lg">
+        <span className="board-name min-w-0 flex-1 truncate" title={name}>{name}</span>
         {used && <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-800" title={s.usedBoard}>
           <Check className="size-3" aria-hidden="true" /><span className="max-[400px]:sr-only">{s.usedBoard}</span>
         </span>}
-        <span className="shrink-0 whitespace-nowrap text-xs font-normal tabular-nums text-studio-muted">
+        <span className="board-size shrink-0 whitespace-nowrap text-xs font-normal tabular-nums text-studio-muted">
           {t.mm(material.sheetLength)}×{t.mm(material.sheetWidth)}×{t.mm(material.thickness)} mm
         </span>
-        <span className="shrink-0 whitespace-nowrap text-xs tabular-nums">{material.price > 0 ? t.money(material.price) : `— ${CURRENCY}`}</span>
+        <span className="board-price shrink-0 whitespace-nowrap text-xs tabular-nums">{material.price > 0 ? t.money(material.price) : `— ${CURRENCY}`}</span>
       </summary>
       <div className="grid gap-2 border-t border-zinc-100 p-3 sm:grid-cols-2">
         <TextField label={s.name} value={name} maxLength={60} onCommit={(name) => actions.updateMaterial(material.id, { name: name.trim() })} />
@@ -96,15 +96,15 @@ function EdgeBandCard({ band }: { band: EdgeBand }) {
   const s = t.settings;
   const name = t.engine.edgeBand(band);
   return (
-    <div className="space-y-1.5 rounded-lg border border-zinc-200 p-3">
+    <div data-testid="edge-band-card" className="edge-band-card min-w-0 space-y-2 rounded-lg border border-zinc-200 p-3">
       <TextField label={s.name} value={name} maxLength={60} onCommit={(next) => actions.updateEdgeBand(band.id, { name: next.trim() })} />
       <NumberField label={s.thickness} value={band.thickness} precision={1} {...EDGE_LIMITS.thickness} onCommit={(thickness) => actions.updateEdgeBand(band.id, { thickness })} />
-      <div className="flex items-center gap-2">
-        <div className="flex-1">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+        <div className="min-w-0 flex-1">
           <NumberField label={`${s.pricePerMetre} (${CURRENCY})`} shortLabel={s.pricePerMetre} suffix={CURRENCY} value={band.price} precision={2} {...EDGE_LIMITS.price} onCommit={(price) => actions.updateEdgeBand(band.id, { price })} />
         </div>
-        <Button title={s.removeBand} aria-label={s.removeNamed(name)} onClick={() => actions.removeEdgeBand(band.id)}>
-          <Trash2 className="size-4" />
+        <Button className="self-end" title={s.removeBand} aria-label={s.removeNamed(name)} onClick={() => actions.removeEdgeBand(band.id)}>
+          <Trash2 className="size-4" /><span className="lg:hidden">{s.removeBand}</span>
         </Button>
       </div>
     </div>
@@ -130,25 +130,28 @@ function MaterialsTab() {
   }, [ctx, design.customParts, design.items, design.partEdits]);
   const { construction: c, materials, edgeBands } = design;
   const materialOptions = materials.map((m) => ({ value: m.id, label: boardLabel(m, t) }));
-  const bandOptions = [{ value: '', label: s.noBand }, ...edgeBands.map((b) => ({ value: b.id, label: t.engine.edgeBand(b) }))];
+  const bandOptions = [{ value: '', label: s.noBand }, ...edgeBands.map((b) => {
+    const name = t.engine.edgeBand(b), thickness = `${t.mm(b.thickness)} mm`;
+    return { value: b.id, label: name.endsWith(` ${thickness}`) ? name : `${name} · ${thickness}` };
+  })];
   return (
     <>
       <PanelSection title={s.usedInKitchen}>
-        <SelectField label={s.carcass} value={c.carcassMaterial} options={materialOptions} onChange={(carcassMaterial) => actions.setConstruction({ carcassMaterial })} />
-        <SelectField label={s.backPanels} value={c.backMaterial} options={materialOptions} onChange={(backMaterial) => actions.setConstruction({ backMaterial })} />
-        <SelectField label={s.fronts} value={c.frontMaterial} options={materialOptions} onChange={(frontMaterial) => actions.setConstruction({ frontMaterial })} />
+        <PickerField label={s.carcass} value={c.carcassMaterial} options={materialOptions} onChange={(carcassMaterial) => actions.setConstruction({ carcassMaterial })} />
+        <PickerField label={s.backPanels} value={c.backMaterial} options={materialOptions} onChange={(backMaterial) => actions.setConstruction({ backMaterial })} />
+        <PickerField label={s.fronts} value={c.frontMaterial} options={materialOptions} onChange={(frontMaterial) => actions.setConstruction({ frontMaterial })} />
         <p className="text-[11px] leading-snug text-zinc-400">{s.unitOverrideHint}</p>
       </PanelSection>
 
       <PanelSection title={s.edgeBanding}>
-        <SelectField
+        <PickerField
           label={s.carcassEdges}
           title={s.carcassEdgesTitle}
           value={c.carcassEdge ?? ''}
           options={bandOptions}
           onChange={(id) => actions.setConstruction({ carcassEdge: id || null })}
         />
-        <SelectField
+        <PickerField
           label={s.frontEdges}
           title={s.frontEdgesTitle}
           value={c.frontEdge ?? ''}
@@ -183,7 +186,7 @@ function MaterialsTab() {
           </Button>
         }
       >
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid gap-2 lg:grid-cols-2">
           {edgeBands.map((b) => (
             <EdgeBandCard key={b.id} band={b} />
           ))}
@@ -335,7 +338,7 @@ export function ConstructionDialog() {
         </>
       }
     >
-      <div className="sticky top-0 z-10 border-b border-zinc-100 bg-white px-5 py-3">
+      <div data-sheet-sticky="" className="sticky top-0 z-10 border-b border-zinc-100 bg-white px-5 py-3">
         <Segmented<SettingsTab>
           ariaLabel={t.settings.tabs}
           value={tab ?? 'materials'}

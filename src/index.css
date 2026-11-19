@@ -7,7 +7,7 @@
   --color-studio-canvas: #f0ede6;
   --color-studio-line: #e1dbd0;
   --color-studio-ink: #332f28;
-  --color-studio-muted: #746d61;
+  --color-studio-muted: #60594e;
   --color-studio-accent: #52644d;
 }
 
@@ -112,4 +112,52 @@ details > summary:focus-visible { outline: 2px solid var(--color-studio-accent);
   select {
     min-width: 44px;
   }
+
+  .phone-project-bar { padding-top: env(safe-area-inset-top); padding-inline: env(safe-area-inset-left) env(safe-area-inset-right); z-index: 20; }
+  .phone-step-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: .2rem; padding: 0 .45rem .25rem; }
+  .phone-step-bar > button { padding-inline: .25rem; font-size: .875rem; white-space: normal; line-height: 1.15; }
+  .phone-step-bar > button:first-child { color: #35523e; }
+  .phone-step-bar > div > button { border-radius: 2rem; background: #f1f3eb; }
+  .mobile-bottom-nav { flex: none; background: var(--color-studio-paper); border-top: 1px solid var(--color-studio-line);
+    padding: .2rem max(.25rem, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(.25rem, env(safe-area-inset-left)); }
+  .mobile-destinations { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 0; gap: 2px; background: none; border: 0; }
+  .mobile-destinations button { min-height: 52px; height: auto; padding: .2rem 0; flex-direction: column; gap: 2px;
+    color: #514d44; font-size: 14px; white-space: normal; line-height: 1.1; }
+  .mobile-destinations svg { width: 20px; height: 20px; }
+  [role="radiogroup"] [role="radio"], [data-plan-filters] button { color: #554f44; }
+  [role="radiogroup"] [role="radio"][aria-checked="true"], [data-plan-filters] button[aria-pressed="true"] { background: #e3ebe1; color: #254a34; box-shadow: inset 0 0 0 1px #99b099; }
+  :is(h1,h2,h3,h4,legend,th,.uppercase) { text-transform: none; letter-spacing: normal; }
+  :is([class*="text-[9px]"], [class*="text-[10px]"], [class*="text-[11px]"], small) { font-size: .75rem; }
+  :is(.text-xs, .text-\[13px\]) { font-size: .875rem; }
+  :is(p, button).text-sm { font-size: 1rem; }
+}
+@media (max-width: 600px) {
+  .board-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto .5rem; gap: .25rem .4rem; padding: .5rem .65rem; }
+  .board-summary .board-name { white-space: normal; font-size: 1rem; overflow-wrap: anywhere; }
+  .board-summary :is(.board-size, .board-price) { grid-row: 2; white-space: normal; overflow-wrap: anywhere; }
+  .board-summary .board-price { text-align: end; }
+  .board-summary::after { grid-area: 1 / 3 / span 2; }
+  .board-summary > span:nth-child(2):not(.board-size) { justify-self: end; }
+}
+
+/* A single set of rows feeds the mobile cards, editable workshop data and the printed table. */
+@media screen and (max-width: 1023px) {
+  .workshop-cards { border: 0; background: transparent; overflow: visible; }
+  .workshop-cards :is(table, tbody) { display: block; min-width: 0; }
+  .workshop-cards thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .workshop-cards tbody { display: grid; gap: .6rem; }
+  .workshop-cards tbody tr { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .55rem .35rem; padding: .8rem;
+    background: var(--color-studio-paper); border: 1px solid var(--color-studio-line); border-radius: .75rem; }
+  .workshop-cards td { display: block; text-align: left; padding: 0; min-width: 0; overflow-wrap: anywhere; white-space: normal; font-size: 1rem; }
+  .workshop-cards td:not([data-label]) { grid-column: 1 / -1; }
+  .workshop-cards td[data-wide] { grid-column: span 2; }
+  .workshop-cards td[data-empty] { display: none; }
+  .workshop-cards td[data-label]::before { content: attr(data-label); display: block; color: var(--color-studio-muted); font-weight: 500; font-size: .75rem; }
+  .workshop-cards select { max-width: 100%; }
+  .workshop-cards label { min-width: 0; flex-wrap: wrap; }
+  .workshop-actions .absolute.top-full { top: auto; bottom: 100%; margin: 0 0 .4rem; max-height: 55dvh; overflow-y: auto; }
+}
+@media print {
+  body, #root, #root > div { height: auto; overflow: visible; }
+  #root main:has([data-testid="cutting-scroll"]) { height: auto; }
 }

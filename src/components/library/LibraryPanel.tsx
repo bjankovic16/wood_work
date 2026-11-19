@@ -91,24 +91,26 @@ interface PresetTileProps {
   preset: LibraryPreset;
   layout: LibrarySection['layout'];
   onAdded?: () => void;
+  tapOnly?: boolean;
 }
 
-function PresetTile({ preset, layout, onAdded }: PresetTileProps) {
+function PresetTile({ preset, layout, onAdded, tapOnly }: PresetTileProps) {
   const t = useT();
   // Mouse clicks are handled by the pointer logic; this covers Enter/Space from the keyboard.
   const onKeyboardClick = (e: MouseEvent) => {
-    if (e.detail === 0 && addPresetToPlan(preset.id)) onAdded?.();
+    if ((tapOnly || e.detail === 0) && addPresetToPlan(preset.id)) onAdded?.();
   };
   return (
     <button
       type="button"
-      title={presetTooltip(preset, t)}
+      title={tapOnly ? presetName(preset, t) : presetTooltip(preset, t)}
       aria-label={t.library.add(presetName(preset, t))}
       data-preset={preset.id}
-      onPointerDown={(e) => startPointerDrag(preset.id, e, onAdded)}
+      onPointerDown={tapOnly ? undefined : (e) => startPointerDrag(preset.id, e, onAdded)}
       onClick={onKeyboardClick}
       className={cn(
-        'group flex scroll-mt-36 cursor-grab touch-pan-y select-none flex-col items-center justify-center rounded-xl border border-studio-line bg-studio-paper text-[#84785f] shadow-[0_1px_2px_#332f2804] transition-colors',
+        'group flex scroll-mt-36 touch-pan-y select-none flex-col items-center justify-center rounded-xl border border-studio-line bg-studio-paper text-[#84785f] shadow-[0_1px_2px_#332f2804] transition-colors',
+        tapOnly ? 'cursor-pointer' : 'cursor-grab',
         'hover:border-[#acb59e] hover:bg-[#f1f3eb] hover:text-studio-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-studio-accent/50',
         layout === 'compact' ? 'h-[58px] gap-0.5' : 'min-h-[82px] gap-1 px-1.5 py-2',
       )}
@@ -127,7 +129,7 @@ function PresetTile({ preset, layout, onAdded }: PresetTileProps) {
 }
 
 /** The element sections, shared by the desktop sidebar and the phone's "Add" panel. */
-export function LibrarySections({ onAdded, wide = false }: { onAdded?: () => void; wide?: boolean }) {
+export function LibrarySections({ onAdded, wide = false, multiple = false }: { onAdded?: () => void; wide?: boolean; multiple?: boolean }) {
   const t = useT();
   const searchRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
@@ -147,7 +149,7 @@ export function LibrarySections({ onAdded, wide = false }: { onAdded?: () => voi
   const count = sections.reduce((total, section) => total + section.presets.length, 0);
   return (
     <>
-      <div className="sticky top-0 z-10 space-y-2 bg-studio-paper pb-3 pt-1">
+      <div data-sheet-sticky="" className="sticky top-0 z-10 space-y-2 bg-studio-paper pb-3 pt-1">
         <div className="relative">
           <Search className="pointer-events-none absolute left-2.5 top-3 size-4 text-zinc-500" />
           <input
@@ -180,7 +182,7 @@ export function LibrarySections({ onAdded, wide = false }: { onAdded?: () => voi
         <h3 className="py-2 text-xs font-semibold text-zinc-700">{t.library.mostUsed}</h3>
         <div className={cn('grid gap-2', wide ? 'grid-cols-4' : 'grid-cols-2')}>
           {LIBRARY.flatMap((section) => section.presets).filter((preset) => ['base-600', 'wall-600', 'drawer', 'sink', 'oven', 'dishwasher', 'tall', 'corner'].includes(preset.id)).map((preset) =>
-            <PresetTile key={preset.id} preset={preset} layout="regular" onAdded={onAdded} />,
+            <PresetTile key={preset.id} preset={preset} layout="regular" onAdded={onAdded} tapOnly={multiple} />,
           )}
         </div>
         <Button variant="outline" className="mt-3 w-full" onClick={() => setBrowseAll(true)}>{t.library.browseAll}</Button>
@@ -216,7 +218,7 @@ export function LibrarySections({ onAdded, wide = false }: { onAdded?: () => voi
                 )}
               >
                 {section.presets.map((preset) => (
-                  <PresetTile key={preset.id} preset={preset} layout={section.layout} onAdded={onAdded} />
+                  <PresetTile key={preset.id} preset={preset} layout={section.layout} onAdded={onAdded} tapOnly={multiple} />
                 ))}
               </div>
               </>

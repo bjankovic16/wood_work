@@ -1,4 +1,4 @@
-import { Box, CircleHelp, Ellipsis, FolderOpen, Hammer, Images, Languages, LayoutGrid, List, Magnet, Redo2, RulerDimensionLine } from 'lucide-react';
+import { ArrowRight, Box, CircleHelp, Ellipsis, FolderOpen, Hammer, Images, Languages, LayoutGrid, List, Magnet, Redo2, Route, RulerDimensionLine } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { LANGUAGE_LABEL, LANGUAGES, useT, type Language } from '../../i18n';
 import { cn } from '../../lib/cn';
@@ -10,7 +10,6 @@ import { ChecksButton } from '../checks/ChecksButton';
 import { StartFreshButton } from '../projects/StartFreshButton';
 import { Button, Divider, Menu, Segmented, TooltipButton } from '../ui';
 import { UndoButton } from './UndoButton';
-import { PhoneViewButton } from './PhoneThreeChrome';
 
 function ProjectName({ className }: { className?: string }) {
   const t = useT();
@@ -67,15 +66,37 @@ function ViewTabs({ compact }: { compact: boolean }) {
       size={compact ? 'md' : 'sm'}
       value={roomOpen ? 'room' : view}
       onChange={openWorkspace}
-      className={compact ? 'min-w-0 flex-1 [&_button]:h-11 [&_button]:px-1.5 [&_svg]:hidden' : 'max-2xl:[&_svg]:hidden max-xl:[&_button]:px-1.5'}
+      className={compact ? 'mobile-destinations' : 'max-2xl:[&_svg]:hidden max-xl:[&_button]:px-1.5'}
       options={[
+        { value: 'room', label: <><RulerDimensionLine className="size-3.5" />{compact ? t.room.tabShort : <><span className="xl:hidden">{t.room.tabShort}</span><span className="hidden xl:inline">{t.room.tab}</span></>}</>, ariaLabel: t.room.tab, title: t.room.tabHint },
         { value: 'plan', label: <><LayoutGrid className="size-3.5" /><span>{t.topBar.plan}</span></>, ariaLabel: t.topBar.plan, title: t.topBar.planTitle },
         { value: '3d', label: <><Box className="size-3.5" /><span>{t.topBar.view3d}</span></>, ariaLabel: t.topBar.view3d, title: t.topBar.view3dTitle },
-        { value: 'room', label: <><RulerDimensionLine className="size-3.5" />{compact ? t.room.tabShort : <><span className="xl:hidden">{t.room.tabShort}</span><span className="hidden xl:inline">{t.room.tab}</span></>}</>, ariaLabel: t.room.tab, title: t.room.tabHint },
         { value: 'list', label: <><List className="size-3.5" /><span>{compact ? t.topBar.listShort : t.topBar.list}</span></>, ariaLabel: t.topBar.list, title: t.topBar.listTitle },
       ]}
     />
   );
+}
+
+export function MobileNavigation() {
+  return <nav className="mobile-bottom-nav print:hidden" aria-label={useT().topBar.workspace}><ViewTabs compact /></nav>;
+}
+
+function StepBar() {
+  const t = useT();
+  const step = useUiStore((s) => s.roomOpen ? 1 : s.view === 'plan' ? 2 : s.view === '3d' ? 3 : 4);
+  const ui = useUiStore.getState();
+  const next = [t.room.kitchenShort, t.planner.see3d, t.topBar.listShort, t.topBar.projects][step - 1];
+  return <div className="phone-step-bar">
+    <Button aria-haspopup="dialog" aria-label={`${t.planner.guide}: ${t.planner.step(step)}`} onClick={() => ui.setProjectPage('guide')}>
+      <Route size={16} aria-hidden="true" />{t.planner.step(step)}
+    </Button>
+    <ChecksButton compact />
+    <Button variant={step === 4 ? 'outline' : 'primary'} data-testid={step === 1 ? 'room-done' : 'step-next'}
+      aria-label={step === 1 ? t.room.continue : next}
+      onClick={() => { if (step === 4) ui.setProjectPage('projects'); else openWorkspace(step === 1 ? 'plan' : step === 2 ? '3d' : 'list'); }}>
+      {next}{step !== 4 && <ArrowRight size={15} aria-hidden="true" />}
+    </Button>
+  </div>;
 }
 
 function UndoRedo({ compact = false }: { compact?: boolean }) {
@@ -157,30 +178,26 @@ function ViewOptions() {
 export function TopBar({ compact = false }: { compact?: boolean }) {
   const t = useT();
   const view = useUiStore((s) => s.view);
-  const roomOpen = useUiStore((s) => s.roomOpen);
   const language = useUiStore((s) => s.language);
   const ui = useUiStore.getState();
 
-  const guide = <Button aria-label={t.planner.guide} title={t.planner.guide} aria-haspopup="dialog" data-close-menu={compact || undefined}
-    className={compact ? 'w-full justify-start' : undefined} onClick={() => ui.setProjectPage('guide')}>
-    <CircleHelp className="size-4" aria-hidden="true" />{compact && t.planner.guide}
-  </Button>;
   if (compact) {
     return (
-      <header className="studio-panel shrink-0 border-b print:hidden">
-        <div className="flex h-14 items-center gap-1 px-2">
+      <header className="phone-project-bar studio-panel shrink-0 border-b print:hidden">
+        <div className="flex h-12 items-center gap-1 px-2">
         <span className="hidden shrink-0 min-[430px]:inline-flex"><Logo /></span>
         <ProjectName className="flex-1" />
-        <PhoneViewButton />
         <UndoRedo compact />
         <Menu label={t.topBar.more} icon={<Ellipsis className="size-4" />}>
           <div className="flex max-h-[calc(100dvh-5rem)] flex-col gap-1">
             <div className="min-h-0 space-y-1 overflow-y-auto overscroll-contain">
-              {guide}
               <Button className="w-full justify-start" data-close-menu onClick={() => ui.setProjectPage('projects')}>
                 <FolderOpen className="size-4" />
                 {t.topBar.projects}
               </Button>
+              {view !== 'list' && <Button className="w-full justify-start" data-close-menu data-testid="room-ideas" onClick={() => ui.setLayoutsOpen(true)}>
+                <Images size={16} />{t.layouts.title}
+              </Button>}
               <StartFreshButton placement="menu" />
               {view !== '3d' && <details>
                 <summary className="cursor-pointer rounded-lg px-2 py-3 text-[13px] font-medium text-studio-muted">{t.topBar.view}</summary>
@@ -203,14 +220,10 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
                 />
               </div>
             </div>
-            {roomOpen && <div className="flex shrink-0 justify-end"><ChecksButton /></div>}
           </div>
         </Menu>
         </div>
-        <div className="flex items-center gap-1 px-2 pb-1">
-          <ViewTabs compact />
-          {!roomOpen && <ChecksButton compact />}
-        </div>
+        <StepBar />
       </header>
     );
   }
@@ -239,7 +252,9 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
 
       <UndoRedo />
       <ChecksButton />
-      {guide}
+      <Button aria-label={t.planner.guide} title={t.planner.guide} aria-haspopup="dialog" onClick={() => ui.setProjectPage('guide')}>
+        <CircleHelp className="size-4" aria-hidden="true" />
+      </Button>
       <Divider />
       {view === 'plan' && (
         <Menu label={t.topBar.view} text={<span className="hidden 2xl:inline">{t.topBar.view}</span>} icon={<LayoutGrid className="size-4" />}>

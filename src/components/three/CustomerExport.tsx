@@ -6,7 +6,7 @@ import type { Design } from '../../domain/types';
 import { buildContext } from '../../engine/config';
 import { blobDataUrl, customerHtml } from '../../export/customerHtml';
 import type { Messages } from '../../i18n';
-import { safeFileName, saveFile } from '../../lib/platform';
+import { safeFileName } from '../../lib/platform';
 import { Room3D } from './Room3D';
 import { Unit3D } from './Unit3D';
 import { createMaterials, disposeMaterials } from './materials';
@@ -14,7 +14,9 @@ import { createMaterials, disposeMaterials } from './materials';
 const noop = () => {};
 
 /** Mount the same closed, unselected furniture in a private scene, not a second WebGL context. */
-export default function CustomerExport({ design, studio, t, finish }: { design: Design; studio: boolean; t: Messages; finish: (message: string) => void }) {
+export default function CustomerExport({ design, studio, t, ready, failed }: {
+  design: Design; studio: boolean; t: Messages; ready: (filename: string, blob: Blob) => void; failed: () => void;
+}) {
   const [model] = useState(() => new Scene());
   const ctx = useMemo(() => buildContext(design), [design]);
   const materials = useMemo(() => createMaterials(design.style, studio), [design.style, studio]);
@@ -58,17 +60,16 @@ export default function CustomerExport({ design, studio, t, finish }: { design: 
       if (!active) return;
       const html = customerHtml(design.name, data.slice(data.indexOf(',') + 1), poster, { ...pose, studio, aspect }, viewer, t);
       const filename = `${safeFileName(design.name)}.html`;
-      const outcome = await saveFile(filename, html, 'text/html');
-      if (active) finish(outcome === 'saved' ? t.files.saved(filename) : t.files[outcome]);
+      ready(filename, html);
     };
     // Let Fiber commit all portal children before taking the snapshot.
     const frame = requestAnimationFrame(() => { void run().catch((error: unknown) => {
       if (!active) return;
       console.error('Could not export the customer view', error);
-      finish(t.customerView.failed);
+      failed();
     }); });
     return () => { active = false; cancelAnimationFrame(frame); };
-  }, [model, gl, editor, camera, design, studio, t, finish]);
+  }, [model, gl, editor, camera, design, studio, t, ready, failed]);
   return createPortal(<>
     <Room3D room={design.room} openings={design.openings} items={design.items} materials={materials} studio={studio} exportModel />
     {design.items.map((item) => <Unit3D key={item.id} item={item} ctx={ctx} materials={materials} studio={studio} selected={false} onSelect={noop} />)}

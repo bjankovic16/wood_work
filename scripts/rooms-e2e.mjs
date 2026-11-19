@@ -447,7 +447,6 @@ try {
   await mobile.getByTestId('room-workspace').waitFor();
   await mobile.getByRole('button', { name: 'Više', exact: true }).tap();
   await mobile.getByRole('radio', { name: 'English', exact: true }).tap();
-  await mobile.getByRole('button', { name: 'More', exact: true }).tap();
   await mobile.getByTestId('room-ideas').tap();
   await mobile.getByRole('dialog', { name: 'Ideas' }).getByRole('radio', { name: 'Photo studio', exact: true }).tap();
   await mobile.locator('[data-photo-design="warm-island"]').tap();

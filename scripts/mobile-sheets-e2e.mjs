@@ -1,0 +1,160 @@
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import { chromium } from 'playwright-core';
+import { createServer } from 'vite';
+
+const server = await createServer({ logLevel: 'error', cacheDir: path.resolve('test-results/mobile-sheets/.vite'),
+  optimizeDeps: { entries: ['index.html'] }, server: { host: '127.0.0.1', port: 0, watch: null, hmr: false } });
+let browser;
+try {
+  await server.listen();
+  browser = await chromium.launch({ channel: 'chrome', headless: true });
+  const page = await browser.newPage({ viewport: { width: 320, height: 720 }, isMobile: true, hasTouch: true, locale: 'en-US' });
+  page.setDefaultTimeout(15000);
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(server.resolvedUrls.local[0], { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await page.waitForFunction(() => !!window.__kitchen, null, { timeout: 60000 });
+  const longName = 'Silver birch with an exceptionally long workshop finish name';
+  await page.evaluate(async (longName) => {
+    const { createDesign } = await import('/src/domain/designOps.ts');
+    const fixture = createDesign('Sheets');
+    fixture.materials.push({ ...fixture.materials[0], name: longName, thickness: 19, id: 'long-board' });
+    window.__kitchen.design.getState().load(fixture);
+    window.__kitchen.ui.getState().setLanguage('en');
+    window.__kitchen.ui.getState().finishRoom();
+  }, longName);
+  const button = (root, name) => root.getByRole('button', { name, exact: true });
+  const dialog = (name) => page.getByRole('dialog', { name, exact: true });
+  const cabinet = page.getByTestId('item-sheet');
+  const handle = (sheet) => sheet.getByRole('slider');
+  const tab = (name) => cabinet.getByRole('tab', { name, exact: true });
+  const selected = () => page.evaluate(() => window.__kitchen.design.getState().design.items.find((i) => i.id === window.__kitchen.ui.getState().selectedId));
+  const swipe = async (sheet, distance, cancel = false) => {
+    const box = await handle(sheet).boundingBox();
+    const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const cdp = await page.context().newCDPSession(page);
+    try {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
+      for (let n = 1; n <= 4; n++)
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: point.x, y: point.y + distance * n / 4 }] });
+      await cdp.send('Input.dispatchTouchEvent', { type: cancel ? 'touchCancel' : 'touchEnd', touchPoints: [] });
+    } finally { await cdp.detach(); }
+  };
+  await button(page, 'Add element').tap();
+  const add = dialog('Add element');
+  const tile = add.locator('[data-preset="base-600"]');
+  await tile.tap();
+  await tile.press('Enter');
+  assert.equal((await selected()).label, 'B2');
+  assert.match(await add.getByRole('status').filter({ hasText: 'Added:' }).innerText(), /B2/);
+  assert.equal(await tile.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
+  }), true, 'Added feedback must not cover the next tile.');
+  await handle(add).press('Home'); await swipe(add, 82);
+  await add.waitFor({ state: 'detached' });
+  const small = await cabinet.boundingBox();
+  await swipe(cabinet, -74, true);
+  assert.deepEqual(await cabinet.boundingBox(), small, 'Interrupted resizing restores the last snap.');
+  await swipe(cabinet, -80);
+  const half = await cabinet.boundingBox();
+  assert.ok(half.height > small.height && (await cabinet.getAttribute('data-snap')) === 'half');
+  const before = await selected();
+  await handle(cabinet).press('End');
+  const full = await cabinet.boundingBox(), main = await page.locator('main').boundingBox();
+  assert.ok(full.height > half.height && full.y >= main.y + 75, 'Even the full cabinet editor must leave drawing space.');
+  assert.deepEqual(await selected(), before, 'Sizing the sheet must not nudge the cabinet.');
+  assert.deepEqual(await cabinet.getByRole('tab').allInnerTexts(), ['Size', 'Fronts', 'Materials', 'Parts']);
+  await button(cabinet, 'Width: 450 mm').tap();
+  assert.equal((await selected()).width, 450);
+  await button(page.getByRole('banner'), 'Undo').tap();
+  assert.equal((await selected()).width, 600);
+  const angle = cabinet.getByRole('textbox', { name: 'Exact angle' });
+  await angle.fill('27.5'); await angle.press('Enter');
+  await button(cabinet, 'Rotate cabinet 90° clockwise').tap();
+  assert.equal((await selected()).rotation, 117.5);
+  await tab('Size').press('ArrowRight');
+  await button(cabinet, 'More drawers').tap();
+  assert.equal((await selected()).drawers, 1);
+  const drawers = cabinet.getByRole('spinbutton', { name: 'Drawers' });
+  await drawers.press('ArrowUp');
+  assert.equal(await drawers.getAttribute('aria-valuenow'), '2');
+  await tab('Fronts').press('ArrowRight');
+  const board = button(cabinet, 'Carcass');
+  await board.tap();
+  const choice = button(dialog('Carcass'), `${longName} 19 mm`);
+  assert.ok(await choice.evaluate((b) => b.scrollWidth <= b.clientWidth && b.offsetHeight >= 44));
+  await choice.tap();
+  assert.equal((await selected()).carcassMaterial, 'long-board');
+  assert.equal(await board.evaluate((b) => b === document.activeElement), true);
+  assert.match(await board.innerText(), /finish name 19 mm/);
+  await tab('Parts').tap();
+  assert.ok(await cabinet.getByRole('listitem').count() > 0);
+  await button(cabinet, 'Add element').tap();
+  const search = add.getByRole('searchbox');
+  await search.fill('custom');
+  await add.locator('[data-preset="base-custom"]').tap();
+  assert.equal(await search.inputValue(), 'custom');
+  assert.ok(await add.evaluate((el) => el.contains(document.activeElement)), 'A custom pick must not focus the editor behind Add.');
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => document.activeElement?.closest('[data-testid="item-sheet"]') && document.activeElement.tagName === 'INPUT');
+  assert.equal(await cabinet.getByRole('textbox', { name: 'Width', exact: true }).evaluate((el) => el === document.activeElement), true);
+  await handle(cabinet).press('Home'); await swipe(cabinet, 72);
+  await cabinet.waitFor({ state: 'detached' });
+  await page.evaluate(() => window.__kitchen.ui.getState().setLanguage('sr'));
+  const bar = page.getByRole('banner');
+  await button(bar, 'Više').press('Enter');
+  await button(bar, 'Podešavanja').press('Enter');
+  const settings = dialog('Podešavanja kuhinje');
+  const field = button(settings, 'Korpus');
+  await field.press('Enter');
+  const inner = dialog('Korpus');
+  await button(inner, `${longName} 19 mm`).press('Enter');
+  assert.equal(await page.evaluate(() => window.__kitchen.design.getState().design.construction.carcassMaterial), 'long-board');
+  await field.press('Space'); await inner.waitFor(); await page.keyboard.press('Escape');
+  await inner.waitFor({ state: 'detached' });
+  assert.ok(await settings.isVisible() && await field.evaluate((el) => el === document.activeElement), 'Escape dismisses only the picker.');
+  const band = settings.getByTestId('edge-band-card').first();
+  const inputs = await band.getByRole('textbox').all();
+  assert.equal(inputs.length, 3);
+  for (const input of inputs) {
+    assert.ok(await input.evaluate((el) => {
+      const box = el.getBoundingClientRect(), label = el.labels[0].getBoundingClientRect();
+      return box.width > 220 && box.right <= innerWidth && label.bottom <= box.top;
+    }), 'Edge-band labels should stack above full-width fields at 320px.');
+  }
+  await handle(settings).press('Home'); await swipe(settings, 72);
+  await settings.waitFor({ state: 'detached' });
+  await page.evaluate(async () => {
+    const { createItem } = await import('/src/domain/catalog.ts');
+    const store = window.__kitchen.design.getState(), ui = window.__kitchen.ui.getState();
+    const item = createItem('wall', [], { width: 450, x: store.design.room.width - 450, elevation: store.design.room.height - 600, height: 600 });
+    store.load({ ...store.design, items: [item] }); ui.setLanguage('en'); ui.setView('3d'); ui.select(item.id);
+  });
+  await page.waitForFunction(() => !!window.__kitchen3D?.scene.getObjectByName(window.__kitchen.ui.getState().selectedId));
+  await handle(cabinet).press('End');
+  assert.ok(await button(cabinet, 'Width: 800 mm').isDisabled(), '3D shortcuts must respect the fixed back-left anchor.');
+  assert.ok(await button(cabinet, 'Height: 720 mm').isDisabled(), 'Never offer a shortcut that crosses the ceiling.');
+  assert.equal(await cabinet.getByRole('textbox', { name: 'Exact angle' }).count(), 0);
+  await page.evaluate(() => { const ui = window.__kitchen.ui.getState(); ui.setPreviewLockedIds([ui.selectedId]); });
+  assert.ok(await button(cabinet, 'Width: 300 mm').isDisabled());
+  assert.ok(await cabinet.getByRole('textbox', { name: 'Width', exact: true }).isDisabled());
+  await handle(cabinet).press('Home');
+  await page.getByTestId('phone-view-toggle').tap();
+  const view = page.getByTestId('phone-view-sheet');
+  await handle(view).press('Home'); await swipe(view, 74);
+  await view.waitFor({ state: 'detached' });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.evaluate(() => window.__kitchen.ui.getState().setView('plan'));
+  await page.getByRole('combobox', { name: 'Carcass', exact: true }).waitFor();
+  const doors = page.getByLabel('Doors', { exact: true });
+  assert.equal(await doors.textContent(), '1', 'Desktop keeps one labelled count and native material selects.');
+  await doors.press('ArrowUp');
+  assert.equal((await selected()).doors, 2);
+  assert.deepEqual(errors, []);
+  console.log('PASS mobile sheets: touch and keyboard snaps/close, repeat Add, cabinet tabs, guarded sizes, material pickers and narrow forms.');
+} finally {
+  await browser?.close();
+  await server.close();
+}

@@ -1,10 +1,11 @@
+import type { KonvaEventObject } from 'konva/lib/Node';
 import { Group, Line, Rect, Text } from 'react-konva';
 import type { Opening, Room } from '../../domain/types';
 import { openingFitsRoomWall, roomFeaturePolygon, roomFeaturePose, roomOutline } from '../../domain/roomGeometry';
 import { useT } from '../../i18n';
 import { FONT_FAMILY } from '../../lib/measureText';
 import { WALL_THICKNESS } from '../../store/viewport';
-import { ROOM_COLORS } from './theme';
+import { COMPACT_LABEL_PX, ROOM_COLORS } from './theme';
 import { openingFrame, openingIsValid, openingOnWall, partitionPolygon, roomSegments, wallPoint } from '../../domain/walls';
 import { useUiStore } from '../../store/uiStore';
 
@@ -55,7 +56,7 @@ function OpeningSymbol({ room, opening, px }: { room: Room; opening: Opening; px
 }
 
 /** Walls with their windows and doors, floor, and a background grid that gets finer as you zoom in. */
-export function RoomShape({ room, zoom, openings = [] }: { room: Room; zoom: number; openings?: Opening[] }) {
+export function RoomShape({ room, zoom, compact, openings = [] }: { room: Room; zoom: number; compact: boolean; openings?: Opening[] }) {
   const t = useT();
   const px = 1 / zoom;
   const outline = roomOutline(room);
@@ -85,7 +86,7 @@ export function RoomShape({ room, zoom, openings = [] }: { room: Room; zoom: num
 
   return (
     <>
-      <Line points={points} closed fill={ROOM_COLORS.wall} stroke={ROOM_COLORS.wall} strokeWidth={WALL_THICKNESS * 2} lineJoin="miter" />
+      <Line name="room-perimeter" points={points} closed fill={ROOM_COLORS.wall} stroke={ROOM_COLORS.wall} strokeWidth={WALL_THICKNESS * 2} lineJoin="miter" />
       <Line points={points} closed fill={ROOM_COLORS.floor} stroke={ROOM_COLORS.wallEdge} strokeWidth={px} />
       <Group clipFunc={(context) => {
         context.beginPath();
@@ -96,7 +97,7 @@ export function RoomShape({ room, zoom, openings = [] }: { room: Room; zoom: num
         const { centre, angle } = roomFeaturePose(room, feature);
         return <Group key={feature.id} x={centre.x} y={centre.y} rotation={angle} offsetX={feature.width / 2} offsetY={feature.depth / 2}>
           <Rect width={feature.width} height={feature.depth} fill="#d8cdbb" stroke="#847766" strokeWidth={1.5 * px} />
-          {feature.width * zoom > 48 && feature.depth * zoom > 24 && <Text x={4 * px} y={feature.depth / 2 - 6 * px} width={feature.width - 8 * px} text={`${t.engine.roomFeatures[feature.kind]} ${index + 1}`} fontFamily={FONT_FAMILY} fontSize={10 * px} fill="#574b3e" align="center" ellipsis wrap="none" />}
+          {feature.width * zoom > 48 && feature.depth * zoom > 24 && <Text x={4 * px} y={feature.depth / 2 - 6 * px} width={feature.width - 8 * px} text={`${t.engine.roomFeatures[feature.kind]} ${index + 1}`} fontFamily={FONT_FAMILY} fontSize={(compact ? COMPACT_LABEL_PX : 10) * px} fill="#574b3e" align="center" ellipsis wrap="none" />}
         </Group>
       })}
       {(room.partitions ?? []).map((partition) => <Line key={partition.id} closed points={partitionPolygon(partition).flatMap((p) => [p.x, p.y])} fill="#d8cdbb" stroke="#847766" strokeWidth={1.5 * px} />)}
@@ -115,16 +116,18 @@ export function RoomShape({ room, zoom, openings = [] }: { room: Room; zoom: num
 }
 
 /** Below cabinets in the hit stack: a room surface opens the same 2D editor as the header. */
-export function RoomPickTargets({ room, openings, px }: { room: Room; openings: Opening[]; px: number }) {
+export function RoomPickTargets({ room, openings, px, onPress }: {
+  room: Room; openings: Opening[]; px: number; onPress: (event: KonvaEventObject<PointerEvent>, pick: () => void) => void;
+}) {
   const ui = useUiStore.getState();
   return <Group>
     {roomSegments(room, false).map((s) => {
       const select = () => { ui.setRoomOpen(true); ui.setSelectedWallId(s.id); ui.setRoomElevationOpen(true); };
-      return <Line key={s.id} points={[s.start.x, s.start.y, s.end.x, s.end.y]} stroke="transparent" strokeWidth={9 * px} onClick={select} onTap={select} />;
+      return <Line key={s.id} points={[s.start.x, s.start.y, s.end.x, s.end.y]} stroke="transparent" strokeWidth={9 * px} onPointerDown={(e) => onPress(e, select)} />;
     })}
     {room.features?.map((f) => {
       const select = () => { ui.setRoomOpen(true); ui.selectRoomObject({ type: 'feature', id: f.id }, f.wallId); ui.setRoomElevationOpen(false); };
-      return <Line key={f.id} points={roomFeaturePolygon(room, f).flatMap((p) => [p.x, p.y])} closed fill="transparent" onClick={select} onTap={select} />;
+      return <Line key={f.id} points={roomFeaturePolygon(room, f).flatMap((p) => [p.x, p.y])} closed fill="transparent" onPointerDown={(e) => onPress(e, select)} />;
     })}
     {openings.map((o) => {
       const binding = openingOnWall(room, o);
@@ -132,7 +135,7 @@ export function RoomPickTargets({ room, openings, px }: { room: Room; openings: 
       const a = wallPoint(binding.segment, binding.offset, -WALL_THICKNESS / 2);
       const b = wallPoint(binding.segment, binding.offset + o.width, -WALL_THICKNESS / 2);
       const select = () => { ui.setRoomOpen(true); ui.selectRoomObject({ type: 'opening', id: o.id }, binding.segment.id); ui.setRoomElevationOpen(true); };
-      return <Line key={o.id} points={[a.x, a.y, b.x, b.y]} stroke="transparent" strokeWidth={Math.max(WALL_THICKNESS, 14 * px)} onClick={select} onTap={select} />;
+      return <Line key={o.id} points={[a.x, a.y, b.x, b.y]} stroke="transparent" strokeWidth={Math.max(WALL_THICKNESS, 14 * px)} onPointerDown={(e) => onPress(e, select)} />;
     })}
   </Group>;
 }

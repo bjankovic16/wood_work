@@ -85,6 +85,7 @@ export const en = {
     busy: 'Preparing the offline 3D view…',
     failed: 'The 3D file could not be created. Your project has not changed.',
     controls: 'Drag to rotate. Scroll or pinch to zoom.',
+    touchControls: 'Swipe to rotate. Pinch to zoom.',
     reset: 'Reset view',
     fallback: 'Interactive 3D is unavailable. The image shows the saved kitchen.',
   },
@@ -107,12 +108,42 @@ export const en = {
   },
 
   shuffle: {
-    title: 'Next kitchen',
+    title: 'Try another style',
     hint: 'Apply the next idea to your room. Your cabinets stay where they are; an empty room gets a fitted proposal.',
     success: (name: string) => `Applied “${name}” to your kitchen. Your room and cabinet positions are unchanged.`,
     review: 'Review how this idea fits your room.',
-    preview: 'Close all cabinets and exit Interior view before loading another kitchen.',
+    preview: 'Close all cabinets and exit Interior view before trying another style.',
     busy: 'Finish the current edit before applying another design.',
+  },
+
+  feedback: {
+    undoAvailable: 'Undo available for five seconds.',
+    deleted: (label: string) => `Deleted cabinet ${label}.`,
+    fresh: (name: string) => `Started a blank kitchen. “${name}” is still in Projects.`,
+    localTitle: 'Projects stay in this browser',
+    localWarning: 'There is no cloud copy. Clearing site data, private browsing or losing this device can erase your work.',
+    sessionWarning: 'This browser could not store all project data. Recent work may be lost when you close this page.',
+    backupHint: 'Keep an editable .kitchen.json file elsewhere. Restore it with “Open a file”.',
+    requestRetention: 'Ask browser to keep projects',
+    retained: 'This browser granted persistent storage. You still need file backups.',
+    notRetained: 'Storage protection was not granted. Keep a file backup.',
+    backUp: 'Back up to file',
+    noBackup: 'No confirmed file backup yet.',
+    lastBackup: (date: string) => `Last file backup: ${date}.`,
+    changedBackup: 'Back up again: the latest changes are not in that file.',
+    oldBackup: 'Back up again: this copy is at least a week old.',
+    backupSaved: 'File backup recorded.',
+    confirmDownload: 'Download started. Check that the project file was saved before recording this backup.',
+    fileKept: 'I saved the file',
+    share: 'Share',
+    shareFile: 'Share file',
+    downloadHtml: 'Download HTML',
+    shareReady: 'Your offline customer view is ready. Share the file or download a copy.',
+    shareFailed: 'The sharing app could not take the file. Try again or download the offline HTML.',
+    shared: (name: string) => `Handed “${name}” to your sharing app.`,
+    shareCancelled: 'Not shared. No download was started.',
+    downloading: (name: string) => `Download started: ${name}.`,
+    touchHint: 'Tap an object to select it. Swipe to orbit; pinch to zoom. Move objects on the 2D plan.',
   },
 
   topBar: {
@@ -150,6 +181,7 @@ export const en = {
   },
 
   checks: {
+    chip: (n: number) => n ? plural(n, 'issue', 'issues') : 'No issues',
     precut: 'Before cutting: supplier checklist',
     precutHint: 'Confirm these details with your supplier or installer. These are reminders, not design problems.',
     checks: 'Checks',
@@ -230,10 +262,18 @@ export const en = {
     addHint: 'Tap an element: it goes into the first free spot along the walls.',
   },
 
+  sheet: {
+    height: 'Sheet height', small: 'Small', half: 'Half', full: 'Full',
+    hint: 'Drag or use the arrow keys to resize. Tap to cycle sizes. Swipe down to dismiss, or press Escape.',
+    tabs: 'Cabinet settings', commonSizes: (field: string) => `Common sizes: ${field}`,
+    customAngle: 'Exact angle', noMaterials: 'No boards are used for this appliance.',
+    added: (name: string, code: string) => `Added: ${name} · ${code}`,
+  },
+
   item: {
     room: 'Room',
     roomHint: 'Click an element on the plan to edit it',
-    roomHint3d: 'Click a cabinet to edit it',
+    roomHint3d: 'Select a cabinet to edit it',
     inCorner: (corner: CornerName) => `In the ${corner} corner`,
     notInCorner: 'Not in a corner',
     backAgainst: (wall: Wall) => `Back against the ${wall} wall`,
@@ -386,8 +426,11 @@ export const en = {
       front: 'Look straight at the far wall.',
       top: 'Look down at the room outline and its openings.',
     },
-    plan: 'Plan',
-    measureHint: 'Drag a corner to reshape. Tap 2D to open a wall, or tap its measurement to edit.',
+    plan: 'Room outline',
+    wallView: 'Wall view',
+    areaShort: 'Area',
+    model: 'Room model',
+    measureHint: 'Drag a corner to reshape. Open a wall view, or tap a measurement to edit it.',
     cornerHandle: (n: number) => `Move corner ${n}`,
     cornerKeys: 'Drag or use arrow keys to move. Hold Shift for a larger step.',
     cornerBlocked: {
@@ -399,7 +442,7 @@ export const en = {
     drawingView: 'Drawing view',
     fromAbove: 'From above',
     facingWall: 'Inside elevation',
-    openWall: (n: number) => `Open wall ${n} in 2D`,
+    openWall: (n: number) => `Wall view: Wall ${n}`,
     adjoiningWalls: 'Adjoining walls',
     wallEnd: { left: 'Left', right: 'Right' },
     freeEnd: 'Free end',
@@ -711,8 +754,8 @@ export const en = {
     perspectiveName: 'Perspective',
     cabinetPreview: 'Cabinet preview',
     cameraMenuHint: 'Choose a viewing angle or reset the camera.',
-    kitchenMenuHint: 'Preview cabinets, try the next kitchen or export your design.',
-    kitchenActions: 'Kitchen designs and preview',
+    kitchenMenuHint: 'Preview cabinet fronts and interiors.',
+    kitchenActions: 'Cabinet previews',
     appearanceHint: 'Change fronts, worktops and handles without changing the layout.',
     cameraHints: {
       perspective: 'See the whole kitchen in perspective. Drag the background to turn the view.',
@@ -732,7 +775,7 @@ export const en = {
     toolbar: '3D view',
     toolsShort: 'Tools',
     tipMouse: 'Drag to orbit. Double-click a cabinet to open it. Change positions on the 2D plan.',
-    tipTouch: 'Swipe to orbit. Tap to bring the controls back. Change positions on the 2D plan.',
+    tipTouch: 'Swipe to orbit. Pinch to zoom. Tap to bring the controls back. Move objects in 2D.',
     interior: 'Interior view',
     interiorHint: 'Fronts are hidden to reveal shelves and drawer boxes. This is a schematic view, not appliance or fitting detail; your design and cutting list stay unchanged.',
     camera: '3D camera',
@@ -904,6 +947,7 @@ export const en = {
   },
 
   planner: {
+    step: (n: number) => `Step ${n} of 4`, see3d: 'See in 3D',
     guide: 'Planning guide', intro: 'Choose what you want to do. Each step opens the same kitchen.', here: 'You are here',
     steps: {
       room: ['Measure the room', 'Draw walls and place windows and doors. Check the room on its own in 3D.'],

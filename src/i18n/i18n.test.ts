@@ -15,8 +15,9 @@ import { sr } from './sr';
 import { browserLanguage } from './language';
 
 describe('browser language', () => {
-  it.each([en, sr])('uses one name per view in the room, editor and phone tabs', (t) => {
-    expect(t.room.plan).toBe(t.topBar.plan);
+  it.each([en, sr])('distinguishes room drawings from kitchen destinations in both languages', (t) => {
+    expect(t.room.plan).not.toBe(t.topBar.plan);
+    expect(t.room.model).not.toBe(t.topBar.view3d);
     expect(t.topBar.listShort).toBe(t.topBar.list);
     expect(t.cutting.title).toBe(t.topBar.list);
     expect(t.room.ideasShort).toBe(t.layouts.title);

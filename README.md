@@ -19,7 +19,10 @@ npm run e2e:ideas # apply ideas in empty and furnished rooms
 npm run e2e:customer # open the downloaded customer HTML offline; check controls and image fallback
 npm run e2e:stacked # stacking, upper-row selection and layered kitchen designs
 npm run e2e:resize # cabinet resize handles, measurements, Undo and phone touch
+npm run e2e:sheets # phone sheet gestures, keyboard controls, repeat Add and material pickers
 npm run e2e:ux    # desktop/phone usability, row visibility, gallery and touch targets
+npm run e2e:feedback # five-second Undo, backup confirmation and sharing
+npm run e2e:offline # build under the Pages path, then use 3D and export with the network off
 npm run profile:move # profile mouse/touch placement on the 2D plan in the chimney-frame kitchen
 npm run build    # static files in dist/, with relative paths so they work from any folder
 npm run render:kitchens # regenerate gallery images with the real 3D renderer (requires local Chrome)
@@ -58,19 +61,19 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
    Returning to a saved project resumes it. To measure a different room, choose
    **Start fresh** in the desktop toolbar, in the phone's **⋯** menu, or in
    **Projects**. It opens a new empty kitchen; your previous kitchen stays in
-   **Projects**. To remeasure the *same* kitchen, choose **Room design** next to
-   **3D** (**Dizajn prostorije**; **Room / Prostorija** on a phone).
-2. Tap the **eye / 2D** icon beside a wall to open its inside view, or tap its
+   **Projects**. To remeasure the *same* kitchen, choose **Room design**
+   (**Dizajn prostorije**; **Room / Prostorija** on a phone).
+2. Tap the **Wall view** icon beside a wall to open its inside elevation, or tap its
    **number** to edit the measurement. The wall line also opens the inside view.
    The dropdown with the little floor plan lets you switch directly
    to any wall. In the wall view, choose **Add → Window** or **Door** and
    measure from the green start point. Add a chimney if needed. The
    selected object's measurements appear just below the room measurements.
    See [Measuring the room](#measuring-the-room) for diagonals and keyboard input.
-3. In Room design, choose **3D review / 3D pregled** to see just the room,
+3. In Room design, choose **Room model / Model prostorije** to see just the room,
    with dimension labels and a scrollable **Room measurements** list. It covers
    floor area, ceiling height, every wall (including diagonals), openings,
-   fixed structures, partitions and wall finishes. The same **eye / 2D** icon
+   fixed structures, partitions and wall finishes. The same **Wall view** icon
    opens a wall from its 3D label or its row in the list. On desktop, **3D preview**
    also shows the room beside the drawing. The top-level **3D** tab always
    shows the furnished kitchen in the same project. Choose
@@ -91,9 +94,19 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
 The interface follows the browser's primary language: Serbian for Serbian
 browsers, English otherwise. A language chosen manually is remembered.
 
-**Find your next step:** open **? → Planning guide** on desktop or **⋯ → Vodič za
-planiranje** on a phone in Serbian. Choose room measurements, cabinet layout,
-furnished 3D or the cutting list to go there in the current project.
+**Find your next step:** on a phone the bottom bar goes **Room → Plan → 3D →
+Cutting list**. Tap **Step 1 of 4** (**Korak 1 od 4**) to open the Planning
+guide, or use the arrow in the header to continue. On desktop choose **Planning
+guide** in the top bar. Neither action creates a new kitchen.
+
+**Keep a copy:** Projects are stored in this browser, not in an account. In
+**Projects**, save a project file you can import on another device. Each project
+shows its last confirmed file backup and flags edits since that backup or a
+backup at least a week old. If the browser only starts a download, check the
+file before choosing **I saved the file**. Keeping browser storage or installing
+the app is not a substitute for a backup. After
+one complete online load, the production app can reopen and work offline,
+including the plan, 3D and workshop exports.
 
 **Try a different layout:** open **Compare layouts / Uporedi rasporede** from
 the guide or **Projects**. **Edit a copy of this kitchen** opens a separately
@@ -106,8 +119,8 @@ does not switch projects or change either design.
 
 - In **My room**, use **Dimensions** for room size and wall geometry, **Objects**
   to find an existing opening or structure, or **Paint & tiles** to change walls and floors
-  right on the plan. On phones the drawing stays above the tools, and **Ideas**
-  and **Continue to kitchen** stay at the bottom.
+  right on the plan. On phones these are expandable sections below the drawing.
+  Use the drawing picker to switch between the room outline, a wall and the room model.
 - **Walls:** perimeter segments are numbered in order: Wall 1–4 in a rectangle,
   continuing around longer outlines. Select one to see its starting end. To
   change **Wall length**, click or tap the dimension, or focus it with Tab and
@@ -121,7 +134,7 @@ does not switch projects or change either design.
   cabinet, or leaves too little wall for a door or window. One **Undo** restores
   the room. You can also Tab to a corner and use the arrow keys (10 mm, or
   100 mm with Shift), or tap a wall's number to enter an exact measurement.
-- **Wall elevation:** tap the wall's **eye / 2D** shortcut or choose it in **Drawing view**.
+- **Wall elevation:** tap the wall's **Wall view** shortcut or choose it in **Drawing view**.
   The mini-plan marks which wall you're facing. **Left** and **Right** below the
   drawing tell you which wall meets each end; tap either to open it. An
   unattached partition end reads **Free end**. In **Dimensions**, turn on **Show kitchen outlines for
@@ -148,10 +161,10 @@ does not switch projects or change either design.
 
 ## Trying an idea in your room
 
-Open **Ideas** in the desktop top bar or phone bottom bar. The size filter
+Open **Ideas** in the desktop top bar or the phone's **⋯** menu. The size filter
 starts on; clear it to browse larger originals as well. Click any card or
 photo to review it in **your** room. Open the pictured original in a separate
-project via **⋯**. **Next kitchen** in 3D cycles looks on installed cabinets,
+project via **⋯**. In Ideas, **Try another style** cycles looks on installed cabinets,
 or opens a layout review if the room is empty.
 
 | What's already in the room? | What happens when you apply an idea? |
@@ -185,9 +198,11 @@ separate from applying the idea.
 
 ## Sending a customer the 3D view
 
-1. In either 3D workspace on a phone, open **View**. On desktop, open
-   **3D → Tools**. Choose **Export 3D for customer (.html)**
-   and send that single file to the customer.
+1. In the furnished kitchen's **3D** workspace, choose **Share**. Send the
+   self-contained HTML through the device's share sheet when available, or
+   save the file and send it yourself. If preparation outlasts the original
+   tap, tap **Share file** to open the native chooser. Cancelling never starts
+   a download. Desktop **3D → Tools** also offers the direct HTML export.
 2. The customer opens the file locally in a browser. Drag to rotate, scroll
    or pinch to zoom, and use **Reset view** to return to the starting angle.
    If interactive 3D is unavailable, the file displays an explanation and an
@@ -211,15 +226,21 @@ or a cutting-list export for the workshop; the customer view is neither.
   in its properties. You can also resize, rotate, duplicate or delete a unit.
   Release to commit a changed drag in one Undo step; Escape or an interrupted
   touch restores the starting position without a step. **All** is the initial
-  layer. A drag isolates its layer until release or cancellation. Tap the zoom
-  percentage to fit the room and dimensions again. Switch to wall units to work on
+  layer. A drag isolates its layer until release or cancellation. On a phone,
+  pinch to zoom or tap **Fit** to see the whole room again. The drawing shows
+  totals and the selected unit by default; turn on all measurements for more detail.
+  Drag the cabinet sheet's handle or focus it and use the arrow keys to change its height.
+  Home/End choose small/full; swipe down from small or press Escape to close. Edit **Size**, **Fronts**,
+  **Materials** or **Parts** without scrolling through the other sections.
+  **Add element** stays open so you can add several units in a row.
+  Switch to wall units to work on
   one row at a time. **View** groups snapping, grid size and dimensions;
   **Settings** contains materials and construction.
 - **61 kitchen designs**: browse straight, L-shaped, U-shaped and island
   kitchens. The thumbnails show the **original models**, not a prediction of
   the fit in your room and not photographs. Eighteen premium originals form
   **Warm contemporary**, **Dark luxury** and **Japandi** collections.
-  **Next kitchen** cycles through the gallery without repeating an idea until
+  **Try another style** cycles through the gallery without repeating an idea until
   the collection has been visited. Close cabinet previews and finish resizing
   before using it.
   - **Basil & graphite / Bosiljak i grafit** is a green U-shaped kitchen with an
@@ -409,14 +430,14 @@ or a cutting-list export for the workshop; the customer view is neither.
   face of an interior partition are supported. These diagrams are not
   door-swing or glazing specifications.
 - On phones, **View / Prikaz** opens camera controls in both 3D workspaces.
-  In **Room → 3D review**, it also toggles dimension labels; the complete
+  In **Room → Room model**, it also toggles dimension labels; the complete
   measurement list stays below the scene. In kitchen **3D**, use **Style**,
-  preview cabinets, try **Next kitchen**, or export the offline customer HTML. Drag to orbit
-  without moving objects; tap the scene to bring the bars back. The navigation
+  preview cabinets, or use the separate **Share** action. Drag to orbit
+  without moving objects; tap the scene to bring its controls back. The navigation
   tip disappears on a drag or after six seconds. Use **?** in View to see it again.
 - **Desktop 3D toolbar**: the toolbar above the viewport holds **Style**, **3D /
-  Front / Top**, **Open all** and **Next kitchen**. **Tools** includes the room
-  object list, customer HTML export and help. A selected door, window or structure shows its own
+  Front / Top**, **Open all** and **Share**. **Tools** includes the room
+  object list and help. A selected door, window or structure shows its own
   actions. Hover or focus a toolbar button to read its hint, or hold it
   briefly on a touch screen.
 - **Open a cabinet**: double-click it, or select it and press **Open**. Doors

@@ -1,18 +1,11 @@
-/* Both chrome rows overlay the same canvas. Hiding them reveals the scene without reframing the camera. */
-[data-phone-three] {
-  --three-header-row: 56px;
-  --three-chrome-bottom: calc(2 * var(--three-header-row) + 1px);
-}
-[data-phone-three] > header {
-  position: absolute;
-  inset: 0 0 auto;
-  z-index: 20;
-}
-[data-phone-three] > header > div:nth-child(2) { height: var(--three-header-row); padding-block: 0; }
-[data-phone-three] > header { z-index: 21; } /* Keep the project menu above the room heading. */
-[data-phone-three][data-chrome-hidden] > header { visibility: hidden; }
+.mobile-scene-tools { position: absolute; z-index: 12; inset: .4rem auto auto .5rem; }
+.mobile-scene-tools [role="toolbar"] { display: flex; gap: .35rem; }
+[data-phone-three][data-chrome-hidden] .mobile-scene-tools { visibility: hidden; }
+.room-scene-picker { position: absolute; z-index: 12; inset: .4rem .5rem auto auto; }
+.room-scene-picker .room-drawing-tools { background: none; border: 0; padding: 0; }
+[data-phone-three][data-chrome-hidden] .room-scene-picker { visibility: hidden; }
 [data-phone-three] .three-scene > aside { order: 1; padding-bottom: 4.5rem; }
-[data-phone-three] .three-scene :is(.three-tip, .three-mode-hint, .three-resize-status) { top: calc(var(--three-chrome-bottom) + .5rem); }
+[data-phone-three] .three-scene :is(.three-tip, .three-mode-hint, .three-resize-status) { top: 3.5rem; }
 [data-phone-three] .three-feedback, [data-phone-three] [data-three-object-tools] {
   position: absolute; inset: auto .5rem 5rem; z-index: 11;
   max-height: 32%; overflow: auto; border: 1px solid var(--color-studio-line); border-radius: .75rem;

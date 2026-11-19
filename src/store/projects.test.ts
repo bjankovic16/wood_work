@@ -4,8 +4,11 @@ import * as ops from '../domain/designOps';
 import { KITCHEN_DESIGNS } from '../domain/kitchens';
 import { useDesignStore } from './designStore';
 import { useUiStore } from './uiStore';
-import { applyKitchenDesign, openKitchenOriginal } from './actions';
+import { applyKitchenDesign, openKitchenOriginal, undo } from './actions';
+import { undoFeedback, useFeedback } from './feedback';
+import * as backupFile from '../lib/backupFile';
 import {
+  backupStatus,
   createProject,
   deleteProject,
   duplicateProject,
@@ -17,6 +20,8 @@ import {
   openProject,
   projectDesign,
   resetProjectsForTests,
+  saveProjectBackup,
+  startFresh,
   useProjectsStore,
 } from './projects';
 
@@ -31,6 +36,70 @@ beforeEach(() => {
 });
 
 describe('projects', () => {
+  it('undoes only the last Start fresh, by opening its actual predecessor without deleting either kitchen', () => {
+    initProjects();
+    const original = projects().activeId;
+    const second = startFresh();
+    const obsolete = useFeedback.getState().notice!;
+    const third = startFresh();
+    expect(undoFeedback(obsolete)).toBe(false);
+    undo(); // Same command used by Ctrl/Cmd+Z and toolbar Undo.
+    expect(projects().activeId).toBe(second);
+    expect(projects().projects.map((p) => p.id)).toEqual([third, second, original]);
+
+    const fourth = startFresh();
+    const stale = useFeedback.getState().notice!;
+    useDesignStore.getState().apply((d) => ops.setName(d, 'New work'));
+    expect(undoFeedback(stale)).toBe(false);
+    expect(projects().activeId).toBe(fourth);
+    openProject(original);
+    expect(projectDesign(fourth)?.name).toBe('New work');
+    expect(undoFeedback(stale)).toBe(false);
+    startFresh();
+    const missing = useFeedback.getState().notice!;
+    deleteProject(original);
+    expect(undoFeedback(missing)).toBe(false);
+  });
+
+  it('records only the exported project/revision after a successful save, including across reload', async () => {
+    initProjects();
+    const original = projects().activeId;
+    let finish!: (value: backupFile.BackupOutcome) => void;
+    const write = vi.spyOn(backupFile, 'saveBackupFile').mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+    try {
+      const saving = saveProjectBackup(original);
+      expect(write).toHaveBeenCalledOnce();
+      const rev = projects().projects[0].updatedAt;
+      useDesignStore.getState().apply((d) => ops.setName(d, 'Edited during save'));
+      const other = createProject();
+      finish('saved');
+      await saving;
+      const meta = projects().projects.find((p) => p.id === original)!;
+      expect(meta.backupUpdatedAt).toBe(rev);
+      expect(backupStatus(meta)).toBe('changed');
+      expect(projects().projects.find((p) => p.id === other)?.lastBackupAt).toBeUndefined();
+      const previous = meta.lastBackupAt;
+      for (const outcome of ['declined', 'format', 'busy', 'unavailable'] as const) {
+        write.mockResolvedValueOnce(outcome);
+        expect(await saveProjectBackup(original)).toEqual({ outcome });
+      }
+      write.mockRejectedValueOnce(new Error('disk full'));
+      expect((await saveProjectBackup(original)).outcome).toBe('unavailable');
+      write.mockResolvedValueOnce('download-started');
+      const started = await saveProjectBackup(original);
+      expect(projects().projects.find((p) => p.id === original)?.lastBackupAt).toBe(previous);
+      if (started.outcome !== 'download-started') throw new Error('Expected unconfirmed download');
+      started.confirm();
+      resetProjectsForTests();
+      initProjects();
+      const saved = projects().projects.find((p) => p.id === original)!;
+      expect(backupStatus(saved)).toBe('current');
+      expect(backupStatus(saved, saved.lastBackupAt! + 7 * 86400_000)).toBe('old');
+      const copy = duplicateProject(original);
+      expect(projects().projects.find((p) => p.id === copy)?.lastBackupAt).toBeUndefined();
+    } finally { write.mockRestore(); }
+  });
+
   it('opens a uniquely named editable variant of the committed kitchen without changing the source', () => {
     initProjects();
     const original = projects().activeId;

@@ -4,13 +4,13 @@ import { useCanSaveFiles } from '../../hooks/useCanSaveFiles';
 import { useIsCompact } from '../../hooks/useMediaQuery';
 import { useT, type Messages } from '../../i18n';
 import { cn } from '../../lib/cn';
-import { safeFileName, saveTextFile, storageWorks } from '../../lib/platform';
 import {
+  backupStatus,
   deleteProject,
   duplicateProject,
   importProject,
   openProject,
-  projectDesign,
+  saveProjectBackup,
   useProjectsStore,
 } from '../../store/projects';
 import { useUiStore } from '../../store/uiStore';
@@ -18,6 +18,7 @@ import { Button, Dialog } from '../ui';
 import { StartFreshButton } from './StartFreshButton';
 import { PlanningGuide } from './PlanningGuide';
 import { ProjectComparison } from './ProjectComparison';
+import { LocalStorageNotice } from './LocalStorageNotice';
 
 function edited(time: number, t: Messages): string {
   const minutes = Math.round((Date.now() - time) / 60_000);
@@ -40,9 +41,15 @@ export function ProjectsDialog() {
   const canSave = useCanSaveFiles();
   const [confirming, setConfirming] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [download, setDownload] = useState<{ id: string; confirm: () => void } | null>(null);
+  const attempt = useRef(0);
   const [returnPage, setReturnPage] = useState<'guide' | 'projects'>('projects');
   const fileInput = useRef<HTMLInputElement>(null);
   const close = () => {
+    ++attempt.current;
+    setSaving(null);
+    setDownload(null);
     setConfirming(null);
     setMessage(null);
     setPage(null);
@@ -60,12 +67,15 @@ export function ProjectsDialog() {
   };
 
   const saveToFile = async (id: string) => {
-    const design = projectDesign(id);
-    if (!design) return;
-    const filename = `${safeFileName(design.name)}.kitchen.json`;
-    const outcome = await saveTextFile(filename, JSON.stringify(design, null, 2), 'application/json', false);
-    // A download shows itself, and a viewer who said no knows it.
-    if (outcome === 'busy' || outcome === 'format' || outcome === 'unavailable') setMessage(t.files[outcome]);
+    const token = ++attempt.current;
+    setSaving(id);
+    setMessage(null);
+    setDownload(null);
+    const result = await saveProjectBackup(id);
+    if (token !== attempt.current) return;
+    setSaving(null);
+    if (result.outcome === 'download-started') setDownload({ id, confirm: result.confirm });
+    else setMessage(result.outcome === 'saved' ? t.feedback.backupSaved : t.files[result.outcome]);
   };
 
   if (page === 'guide' || page === 'compare') return <Dialog key={page} open title={page === 'guide' ? t.planner.guide : t.planner.compare}
@@ -75,6 +85,7 @@ export function ProjectsDialog() {
   </Dialog>;
   return (
     <Dialog open={page === 'projects'} title={p.title} sheet={compact} wide onClose={close}>
+      <LocalStorageNotice canSave={canSave} />
       <div className="flex flex-wrap gap-2 border-b border-zinc-100 px-5 py-3">
         <StartFreshButton placement="dialog" onCreated={close} />
         <Button variant="outline" onClick={() => compare('projects')}>
@@ -105,9 +116,10 @@ export function ProjectsDialog() {
       <ul className="divide-y divide-zinc-100">
         {sorted.map((project) => {
           const active = project.id === activeId;
+          const backup = backupStatus(project);
           return (
-            <li key={project.id} className={cn('flex items-center gap-2 px-5 py-3', active && 'bg-blue-50/40')} data-testid="project-row">
-              <div className="min-w-0 flex-1">
+            <li key={project.id} className={cn('flex flex-wrap items-center gap-2 px-5 py-3', active && 'bg-blue-50/40')} data-testid="project-row">
+              <div className="w-full min-w-0 sm:w-auto sm:flex-1">
                 <div className="flex items-center gap-2">
                   <span className="truncate text-sm font-semibold text-zinc-900">{project.name}</span>
                   {active && <span className="rounded bg-blue-100 px-1.5 text-[11px] font-medium text-blue-700">{p.openBadge}</span>}
@@ -115,6 +127,10 @@ export function ProjectsDialog() {
                 <div className="text-xs text-zinc-500">
                   {p.units(project.units)} · {p.edited(edited(project.updatedAt, t))}
                 </div>
+                <p className={cn('mt-1 text-xs', backup !== 'current' ? 'font-medium text-amber-900' : 'text-studio-muted')}>
+                  {project.lastBackupAt ? t.feedback.lastBackup(t.dateTime(new Date(project.lastBackupAt))) : t.feedback.noBackup}
+                  {backup === 'changed' ? ` ${t.feedback.changedBackup}` : backup === 'old' ? ` ${t.feedback.oldBackup}` : ''}
+                </p>
               </div>
               {!active && (
                 <Button
@@ -131,8 +147,8 @@ export function ProjectsDialog() {
                 <Copy className="size-4" />
               </Button>
               {canSave && (
-                <Button title={p.saveTitle} aria-label={p.saveAria(project.name)} onClick={() => void saveToFile(project.id)}>
-                  <Download className="size-4" />
+                <Button variant="outline" className="min-h-11" disabled={saving !== null} aria-label={p.saveAria(project.name)} onClick={() => void saveToFile(project.id)}>
+                  <Download className="size-4" />{t.feedback.backUp}
                 </Button>
               )}
               {confirming === project.id ? (
@@ -150,24 +166,17 @@ export function ProjectsDialog() {
                   <Trash2 className="size-4" />
                 </Button>
               )}
+              {download?.id === project.id && <div className="w-full space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <p role="status" className="text-sm">{t.feedback.confirmDownload}</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="primary" className="min-h-11" onClick={() => { download.confirm(); setDownload(null); setMessage(t.feedback.backupSaved); }}>{t.feedback.fileKept}</Button>
+                  <Button variant="outline" className="min-h-11" onClick={() => setDownload(null)}>{t.common.cancel}</Button>
+                </div>
+              </div>}
             </li>
           );
         })}
       </ul>
-      {storageWorks ? (
-        <p className="border-t border-zinc-100 px-5 py-3 pb-[max(env(safe-area-inset-bottom),12px)] text-[11px] leading-relaxed text-zinc-500">
-          {p.savedHere}
-          {canSave && p.moveHint}
-        </p>
-      ) : (
-        <p
-          role="note"
-          className="border-t border-amber-100 bg-amber-50 px-5 py-3 pb-[max(env(safe-area-inset-bottom),12px)] text-[12px] leading-relaxed text-amber-900"
-        >
-          {p.notKept}
-          {canSave && p.saveEach}
-        </p>
-      )}
     </Dialog>
   );
 }

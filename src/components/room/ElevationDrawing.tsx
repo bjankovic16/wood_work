@@ -46,7 +46,7 @@ export function ElevationBackdrop({ wall, height, px, reference }: { wall: WallS
           fill={item.kind === 'glassWall' ? '#d2e0dc' : 'none'} stroke="#69766b" strokeWidth={.7 * px} />)}
         {hasWorktop(item) && <rect y={-WORKTOP_THICKNESS} width={width} height={WORKTOP_THICKNESS} fill={WORKTOP_FINISHES[style.worktop].color} stroke="#566258" strokeWidth={px} />}
         {item.shelfForm !== 'floating' && width / px > item.label.length * 8 + 8 && item.height / px > 18 &&
-          <text x={width / 2} y={item.height / 2} textAnchor="middle" dominantBaseline="central" fontSize={10 * px}
+          <text x={width / 2} y={item.height / 2} textAnchor="middle" dominantBaseline="central" fontSize={12 * px}
             fill="#32463a" stroke="#fffefa" strokeWidth={2 * px} paintOrder="stroke">{item.label}</text>}
       </g>;
     })}

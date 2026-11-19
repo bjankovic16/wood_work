@@ -6,6 +6,9 @@ import './phone-three.css';
 
 interface Chrome {
   id: string;
+  shareSlot: HTMLSpanElement | null;
+  setShareSlot: (node: HTMLSpanElement | null) => void;
+  kitchen: boolean;
   open: boolean;
   setOpen: (open: boolean) => void;
   hidden: boolean;
@@ -21,9 +24,10 @@ export function PhoneThreeChrome({ mode, children }: { mode: 'room' | 'editor' |
   const active = mode !== null;
   const [open, setOpen] = useState(false);
   const [hidden, setHidden] = useState(false);
+  const [shareSlot, setShareSlot] = useState<HTMLSpanElement | null>(null);
   // Reset on an actual workspace change, never on a lazy scene mount/StrictMode effect replay.
   useLayoutEffect(() => { setOpen(false); setHidden(false); }, [mode]);
-  return <Context.Provider value={active ? { id, open, setOpen, hidden, setHidden } : null}>
+  return <Context.Provider value={active ? { id, open, setOpen, hidden, setHidden, shareSlot, setShareSlot, kitchen: mode === 'editor' } : null}>
     <div className="relative flex h-dvh select-none flex-col bg-studio-canvas text-studio-ink"
       data-phone-three={active || undefined} data-chrome-hidden={active && hidden || undefined}
       onKeyDownCapture={() => { if (hidden) setHidden(false); }}
@@ -42,5 +46,6 @@ export function PhoneViewButton() {
       data-testid="phone-view-toggle" className="h-11 gap-1 px-2.5" onClick={() => chrome.setOpen(true)}>
       <SlidersHorizontal size={16} aria-hidden="true" />{t.topBar.view}<ChevronDown size={12} aria-hidden="true" />
     </Button>
+    {chrome.kitchen && <span ref={chrome.setShareSlot} className="inline-flex" />}
   </div>;
 }

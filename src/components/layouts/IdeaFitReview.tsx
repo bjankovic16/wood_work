@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Undo2 } from 'lucide-react';
 import { footprintPieces, isWallMounted } from '../../domain/geometry';
 import { KITCHEN_DESIGNS } from '../../domain/kitchens';
 import { roomFeaturePolygon, roomOutline } from '../../domain/roomGeometry';
@@ -122,25 +121,4 @@ export function IdeaFitReview({ request }: { request: FitRequest }) {
     <Button variant="primary" data-testid="confirm-idea-fit" className="min-h-11" disabled={!review.candidate || review.candidate === design}
       onClick={() => acceptFit(review)}>{review.candidate === design ? t.fit.alreadyApplied : appearanceOnly ? t.fit.applyLook : t.fit.confirm}</Button>
   </section>;
-}
-
-export function FitNotice() {
-  const t = useT();
-  const notice = useUiStore((s) => s.fitNotice);
-  const current = useDesignStore((s) => s.design);
-  useEffect(() => {
-    if (!notice) return;
-    const clear = () => useUiStore.setState({ fitNotice: null });
-    if (current !== notice.design) { clear(); return; }
-    const timer = setTimeout(clear, 10000);
-    return () => clearTimeout(timer);
-  }, [notice, current]);
-  if (!notice || current !== notice.design) return null;
-  return <div data-testid="fit-notice" className="fixed inset-x-3 bottom-24 z-30 mx-auto flex w-fit max-w-sm items-center gap-3 rounded-xl bg-studio-ink px-3 py-1 text-sm text-white shadow-xl lg:bottom-5">
-    <span role="status">{t.fit.applied(notice.changes)}</span>
-    <button className="flex min-h-11 shrink-0 items-center gap-1 font-semibold underline" onClick={() => {
-      const store = useDesignStore.getState();
-      if (!store.gestureBase && store.design === notice.design) store.undo();
-    }}><Undo2 className="size-4" />{t.topBar.undo}</button>
-  </div>;
 }

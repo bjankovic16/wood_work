@@ -22,6 +22,7 @@ import { createProject, finishRoom } from './projects';
 import { DEFAULT_CONSTRUCTION } from '../engine/settings';
 import { currentMessages } from '../i18n';
 import { useDesignStore } from './designStore';
+import { offerUndo, undoFeedback, useFeedback } from './feedback';
 import { cabinetIsLocked, useUiStore } from './uiStore';
 import { clientToPlan, snapSettings } from './viewport';
 import { normalizeAngle } from '../domain/polygons';
@@ -43,7 +44,9 @@ export function shuffleKitchen(): ShuffleResult {
   if (ui.cabinetTool || store.gestureBase) return { ok: false, reason: 'busy' };
   const index = KITCHEN_DESIGNS.findIndex((preset) => preset.id === store.design.galleryPresetId);
   const preset = KITCHEN_DESIGNS[(index + 1) % KITCHEN_DESIGNS.length];
-  return applyKitchenDesign(preset) ? { ok: true, presetId: preset.id } : { ok: false, reason: 'review' };
+  if (!applyKitchenDesign(preset)) return { ok: false, reason: 'review' };
+  if (current() !== store.design) offerUndo('style', (t) => t.shuffle.success(t.kitchens.names[preset.id]));
+  return { ok: true, presetId: preset.id };
 }
 
 function selectedItem(): KitchenItem | null {
@@ -137,9 +140,10 @@ export function finishLibraryDrag(drop: boolean): boolean {
 
 export function deleteSelected(): void {
   const item = selectedItem();
-  if (!item) return;
+  if (!item || useDesignStore.getState().gestureBase) return;
   apply((design) => ops.removeItem(design, item.id));
   useUiStore.getState().select(null);
+  offerUndo('cabinet', (t) => t.feedback.deleted(item.label));
 }
 
 export function duplicateSelected(): void {
@@ -518,6 +522,8 @@ export function clearAllItems(): void {
 }
 
 export function undo(): void {
+  const { notice } = useFeedback.getState();
+  if (notice?.action?.kind === 'fresh' && undoFeedback(notice)) return;
   useDesignStore.getState().undo();
 }
 

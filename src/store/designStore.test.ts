@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createItem } from '../domain/catalog';
 import * as ops from '../domain/designOps';
 import { KITCHEN_DESIGNS } from '../domain/kitchens';
@@ -9,6 +9,7 @@ import { useDesignStore } from './designStore';
 import { prepareIdeaReview } from './ideaReview';
 import { en } from '../i18n/en';
 import { useUiStore } from './uiStore';
+import { undoFeedback, useFeedback } from './feedback';
 
 const store = () => useDesignStore.getState();
 
@@ -134,6 +135,53 @@ describe('explicit 3D cabinet tools', () => {
 });
 
 describe('shuffle kitchen', () => {
+  it('cannot undo another edit or re-use a toast after keyboard Undo/Redo', () => {
+    store().load({ ...ops.createDesign(), items: [createItem('base', [])] });
+    const original = store().design;
+    actions.shuffleKitchen();
+    const first = useFeedback.getState().notice!;
+    actions.undo();
+    expect(store().design).toBe(original);
+    actions.redo();
+    expect(undoFeedback(first)).toBe(false);
+    actions.shuffleKitchen();
+    const second = useFeedback.getState().notice!;
+    actions.setProjectName('Later');
+    expect(undoFeedback(second)).toBe(false);
+    expect(store().design.name).toBe('Later');
+  });
+
+  it('restores a deleted cabinet and its manual edits in one step but never mixes deletion or Undo into a drag', () => {
+    vi.useFakeTimers();
+    try {
+      const item = createItem('base', []);
+      const original = { ...ops.createDesign(), items: [item], partEdits: { [item.id]: { shelf: { quantity: 3 } } } };
+      store().load(original);
+      useUiStore.getState().select(item.id);
+      store().beginGesture();
+      actions.deleteSelected();
+      expect(store().design).toBe(original);
+      store().cancelGesture();
+      actions.deleteSelected();
+      const notice = useFeedback.getState().notice!;
+      expect(store().design.partEdits[item.id]).toBeUndefined();
+      store().beginGesture();
+      store().apply((d) => ops.setName(d, 'Preview'));
+      expect(undoFeedback(notice)).toBe(false);
+      store().cancelGesture();
+      vi.advanceTimersByTime(4999);
+      expect(undoFeedback(notice)).toBe(true);
+      expect(store().design).toBe(original);
+      useUiStore.getState().select(item.id);
+      actions.deleteSelected();
+      const expired = useFeedback.getState().notice!;
+      vi.advanceTimersByTime(5000);
+      expect(useFeedback.getState().notice).toBeNull();
+      expect(undoFeedback(expired)).toBe(false);
+      expect(store().design.items).toHaveLength(0);
+    } finally { vi.useRealTimers(); }
+  });
+
   it('applies the next look to the existing sink and oven as one undoable change', () => {
     const original = {
       ...ops.createDesign(),

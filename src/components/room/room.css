@@ -4,7 +4,8 @@
   border-bottom: 1px solid var(--color-studio-line);
 }
 .room-heading h1 { font-size: clamp(1.25rem, 3vw, 1.5rem); font-weight: 650; letter-spacing: -.035em; line-height: 1.2; }
-.room-area { display: inline-flex; align-items: center; gap: .35rem; padding: .2rem .55rem; border-radius: 2rem; background: #e8eee6; color: #425d4e; font-size: .72rem; font-weight: 600; white-space: nowrap; }
+.room-area { display: inline-flex; align-items: center; gap: .25rem; color: #405447; font-size: .75rem; font-weight: 550; white-space: nowrap; }
+.room-area::before { content: attr(data-prefix) ':'; }
 .room-work-area { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) clamp(315px, 28vw, 390px); }
 .room-drawing-area { display: flex; min-height: 0; min-width: 0; }
 .room-drawing-pane { display: flex; flex: 1; min-height: 0; min-width: 0; flex-direction: column; container-type: inline-size; }
@@ -34,7 +35,7 @@
 .room-plan-caption { display: grid; grid-template-columns: auto minmax(0, 1fr); flex: none; align-items: center; gap: .45rem; padding: .25rem .65rem; border-top: 1px solid #d8e1d5; background: #f3f6f0; }
 .room-plan-caption h1 { font-size: .82rem; font-weight: 650; white-space: nowrap; }
 /* Reserve space for the longest area (399.99 m²) so live digits never reflow the drawing. */
-.room-plan-caption .room-area { inline-size: 8.5em; justify-content: center; font-variant-numeric: tabular-nums; }
+.room-plan-caption .room-area { inline-size: 10.3em; justify-content: start; font-variant-numeric: tabular-nums; }
 .room-plan-caption p { color: #465e4f; font-size: .69rem; text-align: right; line-height: 1.25; }
 .room-elevation-paper { background-color: #f5f6ef; background-image: radial-gradient(#cbd4c5 .75px, transparent .85px); background-size: 14px 14px; }
 .room-wall-ends { flex: none; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: .25rem; padding-inline: .5rem; border-top: 1px solid #d8e1d5; background: #f3f6f0; }
@@ -107,8 +108,9 @@ button.room-wall-end:is(:hover, :focus-visible) { background: #dfebdc; }
 .room-inventory select { width: 100%; min-height: 44px; margin-top: .45rem; padding: .4rem .6rem; border: 1px solid #c9d4c8; border-radius: .55rem; background: #fffefa; font-size: .9rem; }
 .room-inventory p { margin-top: .35rem; color: #5a685d; font-size: .78rem; line-height: 1.5; }
 .room-size-grid [role="alert"] { grid-column: 1 / -1; }
-.room-swatches { clear: both; display: flex; flex-wrap: wrap; gap: .15rem; }
-.room-swatches button { display: grid; width: 35px; height: 35px; place-items: center; border-radius: 50%; cursor: pointer; }
+.room-swatches { clear: both; display: flex; gap: .35rem; overflow-x: auto; padding: .25rem; }
+.room-swatches button { flex: none; display: grid; min-width: 46px; gap: .25rem; justify-items: center; align-content: start; cursor: pointer; }
+.room-swatches small { color: #4a544c; font-size: .75rem; }
 .room-swatches button span { width: 28px; height: 28px; border: 1px solid #0002; border-radius: 50%; }
 .room-swatches button[aria-pressed="true"] span { outline: 2px solid #3c5a48; outline-offset: 2px; }
 .room-custom-colour { position: relative; display: flex; width: max-content; min-height: 32px; align-items: center; gap: .45rem; margin: -.25rem 0 0 auto; padding: 0 .45rem; font-size: .73rem; color: #46604d; border-radius: .45rem; }
@@ -125,6 +127,17 @@ button.room-wall-end:is(:hover, :focus-visible) { background: #dfebdc; }
 .room-sheet { position: fixed; inset: 0; margin: auto; width: min(94vw, 24rem); max-height: 88dvh; overflow-y: auto; background: var(--color-studio-paper); color: var(--color-studio-ink); border: 1px solid var(--color-studio-line); border-radius: 1rem; box-shadow: 0 16px 70px #1e342733; }
 .room-sheet::backdrop { background: #263a3066; }
 @media (max-width: 1023px) {
+  .room-disclosure { flex: none; display: flex; gap: .45rem; align-items: center; padding: .45rem .8rem; border-bottom: 1px solid #d5ded2; text-align: left; font-size: .875rem; font-weight: 600; }
+  :is(.room-inventory-label span, .room-size-grid input + span, .room-wall-end small, .room-plan-caption p,
+    .room-measure-text, .room-wall-view-button span, .room-elevation-note, .room-add-choices legend) { font-size: .75rem; }
+  :is(.room-plan-caption h1, .room-wall-end strong, .room-size-grid label, .room-inventory-label, .room-custom-colour) { font-size: .875rem; }
+  .room-disclosure svg:last-child { margin-left: auto; }
+  .room-disclosure[aria-expanded="true"] svg:last-child { transform: rotate(180deg); }
+  .room-inspector .room-tool-panel { overflow: visible; flex: none; }
+  .room-drawing-tools { flex-wrap: nowrap; padding: .2rem .5rem; }
+  .room-view-picker { min-width: 0; }
+  .room-view-picker strong { line-height: 1.05; }
+  .room-work-area[data-elevation="true"] { overscroll-behavior: contain; }
   .room-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .15rem .35rem; padding: .35rem 1rem .55rem; }
   .room-heading [role="radiogroup"] { padding: 2px; }
   .room-heading [role="radio"] { padding-inline: .5rem; }
@@ -132,7 +145,7 @@ button.room-wall-end:is(:hover, :focus-visible) { background: #dfebdc; }
   .room-work-area[data-view="3d"] { grid-template-rows: minmax(0, 1fr) minmax(0, 30%); }
   .room-inspector { border-left: 0; border-top: 1px solid #c8d2c5; }
   .room-tool-tabs { padding-block: .2rem; }
-  .room-swatches button { width: 44px; height: 44px; }
+  .room-swatches button { min-height: 54px; }
   .room-custom-colour { min-height: 44px; }
   .room-sheet { inset: auto 0 0; width: min(100%, 34rem); border-radius: 1.2rem 1.2rem 0 0; padding-bottom: env(safe-area-inset-bottom); }
 }
@@ -141,7 +154,9 @@ button.room-wall-end:is(:hover, :focus-visible) { background: #dfebdc; }
   .room-heading h1 { font-size: 1.12rem; }
   .room-area { padding-inline: .4rem; }
   .room-area svg { display: none; }
-  .room-plan-caption .room-area { inline-size: 6.6em; }
+  .room-plan-caption { grid-template-columns: minmax(0, 1fr); }
+  .room-plan-caption p { display: none; }
+  .room-plan-caption .room-area { inline-size: 10.3em; }
   .room-tool-tabs button { flex-direction: column; gap: 2px; font-size: .7rem; }
 }
 @media (max-width: 619px) and (max-height: 680px) {
