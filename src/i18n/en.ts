@@ -755,7 +755,7 @@ export const en = {
     appearanceHint: 'Change fronts, worktops and handles without changing the layout.',
     cameraHints: {
       perspective: 'See the whole kitchen in perspective. Drag the background to turn the view.',
-      studio: 'Frame the cabinetry from above and to one side, with a charcoal backdrop and more surface detail.',
+      studio: 'Choose Studio for a realistic preview of your cabinet fronts, wood grain and metal fittings. Your layout stays the same.',
       front: 'Look straight at the kitchen fronts.',
       top: 'Look down from above to check the arrangement and free space.',
     },

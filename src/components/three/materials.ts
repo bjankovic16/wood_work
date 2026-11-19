@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { studioFinish } from './studioFinish';
+import { studioFinish, studioSize } from './studioFinish';
+import type { Room } from '../../domain/types';
 import { APPLIANCE_FINISHES, BACKSPLASH_FINISHES, DEFAULT_FLOOR_COLOR, DEFAULT_FLOOR_GROUT_COLOR, DEFAULT_FLOOR_TILE_SIZE, DEFAULT_WALL_COLOR, FRONT_FINISHES, HANDLE_STYLES, WORKTOP_FINISHES, type Finish, type FrontFinish, type KitchenStyle } from '../../domain/style';
 
 /** Millimetres to scene units (metres). */
@@ -12,8 +13,8 @@ const floorTextures = new Map<string, THREE.CanvasTexture>();
  * A wood grain drawn on a canvas, so no image files are needed. Grain runs
  * up the texture; `across` turns it sideways (for worktops).
  */
-function woodTexture(color: string, across: boolean): THREE.CanvasTexture {
-  const key = `${color}|${across}`;
+function woodTexture(color: string, across: boolean, figured = false): THREE.CanvasTexture {
+  const key = `${color}|${across}|${figured}`;
   const cached = textures.get(key);
   if (cached) return cached;
 
@@ -28,6 +29,19 @@ function woodTexture(color: string, across: boolean): THREE.CanvasTexture {
     seed = (seed * 16807) % 2147483647;
     return seed / 2147483647;
   };
+  if (figured) {
+    const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    for (let y = 0; y < canvas.height; y++) for (let x = 0; x < canvas.width; x++) {
+      const u = x * Math.PI * 2 / canvas.width, v = y * Math.PI * 2 / canvas.height;
+      const growth = 12 * u + 2.8 * Math.cos(v + 0.6 * Math.sin(u)) + 1.6 * Math.sin(2 * u - v);
+      const ring = (0.5 + 0.5 * Math.cos(growth)) ** 9;
+      const fibre = 0.5 * Math.sin(6 * growth + 0.8 * Math.sin(v)) + random() - 0.5;
+      const grain = 1.025 - 0.11 * ring + 0.045 * fibre;
+      const index = (y * canvas.width + x) * 4;
+      for (let c = 0; c < 3; c++) image.data[index + c] *= grain;
+    }
+    ctx.putImageData(image, 0, 0);
+  }
   for (let i = 0; i < 110; i++) {
     const x = random() * canvas.width;
     const amplitude = 1 + random() * 4;
@@ -142,16 +156,41 @@ function stoneTexture(finish: Finish): THREE.CanvasTexture {
   return texture;
 }
 
-function finishMap(finish: Finish, across = false): THREE.CanvasTexture | null {
-  return finish.wood ? woodTexture(finish.color, across) : finish.texture ? stoneTexture(finish) : null;
+function finishMap(finish: Finish, across = false, studio = false): THREE.CanvasTexture | null {
+  return finish.wood ? woodTexture(finish.color, across, studio) : finish.texture ? stoneTexture(finish) : null;
 }
 
-export function cabinetMaterial(key: FrontFinish, roughness?: number, studio = false): THREE.MeshStandardMaterial {
+function brushedMetal(): THREE.CanvasTexture {
+  const key = 'brushed-metal';
+  const cached = textures.get(key);
+  if (cached) return cached;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 128;
+  const pen = canvas.getContext('2d')!;
+  const pixels = pen.createImageData(128, 128);
+  let seed = 113;
+  const random = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+  for (let y = 0; y < 128; y++) {
+    const line = 188 + random() * 52;
+    for (let x = 0; x < 128; x++) {
+      const i = (y * 128 + x) * 4;
+      pixels.data.fill(line + 14 * random(), i, i + 3); pixels.data[i + 3] = 255;
+    }
+  }
+  pen.putImageData(pixels, 0, 0);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  textures.set(key, texture);
+  return texture;
+}
+
+export function cabinetMaterial(key: FrontFinish, roughness?: number, studio = false, size?: ReturnType<typeof studioSize>): THREE.MeshStandardMaterial {
   const finish = FRONT_FINISHES[key];
   const material = new THREE.MeshStandardMaterial({
-    color: finish.wood ? '#ffffff' : finish.color, map: finishMap(finish), roughness: roughness ?? (finish.wood ? 0.7 : 0.55),
+    color: finish.wood ? '#ffffff' : finish.color, map: finishMap(finish, false, studio), roughness: roughness ?? (finish.wood ? 0.7 : 0.55),
   });
-  if (studio) studioFinish(material);
+  if (studio && finish.wood) material.userData.woodGrain = true;
+  if (studio) studioFinish(material, size);
   return material;
 }
 
@@ -192,7 +231,7 @@ function floorTileTexture(style: KitchenStyle): THREE.CanvasTexture {
 }
 
 /** The shared materials for one style. Callers should dispose them when the style changes. */
-export function createMaterials(style: KitchenStyle, studio = false): KitchenMaterials {
+export function createMaterials(style: KitchenStyle, studio = false, room?: Room): KitchenMaterials {
   const worktop = WORKTOP_FINISHES[style.worktop];
   const handle = HANDLE_STYLES[style.handles];
   const backsplash = BACKSPLASH_FINISHES[style.backsplash ?? 'none'];
@@ -210,10 +249,10 @@ export function createMaterials(style: KitchenStyle, studio = false): KitchenMat
     doorFrame: frame(style.doorFrame),
     doorLeaf: style.doorLeaf ? cabinetMaterial(style.doorLeaf) : pane('#cbb89c', 0.16),
     carcass: new THREE.MeshStandardMaterial({ color: '#f3f2ee', roughness: 0.78 }),
-    front: cabinetMaterial(style.front),
+    front: cabinetMaterial(style.front, undefined, studio),
     worktop: new THREE.MeshStandardMaterial({
       color: worktop.wood || worktop.texture ? '#ffffff' : worktop.color,
-      map: finishMap(worktop, true),
+      map: finishMap(worktop, true, studio),
       roughness: style.worktop === 'black' ? 0.35 : 0.6,
     }),
     handle: handle.color
@@ -232,7 +271,16 @@ export function createMaterials(style: KitchenStyle, studio = false): KitchenMat
       ? new THREE.MeshStandardMaterial({ color: backsplash.texture ? '#ffffff' : backsplash.color, map: finishMap(backsplash), roughness: 0.55 })
       : null,
   };
-  if (studio) for (const material of Object.values(materials)) if (material) studioFinish(material);
+  if (studio) {
+    if (worktop.texture) materials.worktop.userData.stoneSlab = true;
+    materials.worktop.roughness = worktop.wood ? 0.56 : style.worktop === 'concrete' ? 0.72 : 0.33;
+    materials.basin.roughness = 0.27;
+    materials.basin.vertexColors = true;
+    materials.steel.roughness = 0.25;
+    materials.steel.roughnessMap = materials.basin.roughnessMap = brushedMetal();
+    const size = room && studioSize(room);
+    for (const material of Object.values(materials)) if (material) studioFinish(material, size);
+  }
   return materials;
 }
 

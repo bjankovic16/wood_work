@@ -138,7 +138,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
 
   const studio = cameraView === 'studio';
   const customer = useCustomerFile(studio, sceneReady, compact);
-  const materials = useMemo(() => createMaterials(style, studio), [style, studio]);
+  const materials = useMemo(() => createMaterials(style, studio, room), [style, studio, room]);
   useEffect(() => () => disposeMaterials(materials), [materials]);
   useLayoutEffect(() => {
     useUiStore.getState().setPreviewLockedIds(committedItems.filter((item) => interior || openedCabinets.has(item.id)).map((item) => item.id));
@@ -270,7 +270,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
             selectRoomObject(null);
           }
         }}>
-        <SceneRoom room={room} openings={openings} items={committedItems} materials={materials} studio={studio} selection={activeRoomSelection} onSelect={selectRoomObject} />
+        <SceneRoom room={room} openings={openings} items={committedItems} materials={materials} studio={studio} build={ctx} selection={activeRoomSelection} onSelect={selectRoomObject} />
         {items.map((item) => (
           <Unit3D
             key={item.id}

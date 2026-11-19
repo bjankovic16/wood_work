@@ -47,12 +47,19 @@ try {
   assert.equal(json.nodes.filter((n) => n.extras?.cutaway).length, 5, 'All four walls and the door travel with the model, regardless of editor camera.');
   assert.ok(!json.nodes.some((n) => /selection|gizmo|kitchen-resize-tool/i.test(n.name ?? '')));
   const floor = json.nodes.find((n) => n.name === 'room-floor');
-  const bounds = json.accessors[json.meshes[floor.mesh].primitives[0].attributes.POSITION];
+  const floorMesh = json.meshes[floor.mesh].primitives[0];
+  assert.ok(floorMesh.attributes.TEXCOORD_1 !== undefined && json.materials[floorMesh.material].occlusionTexture?.texCoord === 1,
+    'The offline floor must retain cabinet contacts independently of its finish texture.');
+  assert.ok(json.nodes.some((n) => n.name === 'cabinet-pull') && json.meshes.some((mesh) =>
+    mesh.primitives.some((p) => p.attributes.COLOR_0 !== undefined)), 'Fittings and the shade inside recesses travel with the model.');
+  const bounds = json.accessors[floorMesh.attributes.POSITION];
   assert.ok(Math.abs(bounds.max[0] - bounds.min[0] - 4.2) < 0.001, 'The 4200 mm floor is 4.2 metres wide.');
 
   const offline = await browser.newContext({ offline: true });
   const client = await offline.newPage();
   const calls = [];
+  const shaderErrors = [];
+  client.on('console', (m) => { if (/shader error/i.test(m.text())) shaderErrors.push(m.text()); });
   client.on('request', (req) => { if (/^https?:/.test(req.url())) calls.push(req.url()); });
   await client.goto(pathToFileURL(file).href);
   await client.waitForFunction(() => document.getElementById('poster').hidden && !document.getElementById('reset').disabled);
@@ -70,6 +77,7 @@ try {
   await client.mouse.wheel(0, -180);
   assert.ok(!reset.equals(await canvas.screenshot()), 'Zoom changes the offline picture.');
   assert.deepEqual(calls, []);
+  assert.deepEqual(shaderErrors, []);
   await offline.close();
   const fallback = await browser.newPage();
   await fallback.addInitScript(() => {

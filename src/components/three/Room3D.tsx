@@ -11,28 +11,36 @@ import type { KitchenItem, Opening, Room, WallTreatment } from '../../domain/typ
 import type { RoomObjectSelection } from '../../domain/roomObjectPlacement';
 import { openingFrame, openingsOnSegment, roomSegments, solidWallPieces, wallPoint, type WallPiece, type WallSegment } from '../../domain/walls';
 import { WALL_THICKNESS } from '../../store/viewport';
+import type { BuildContext } from '../../engine/config';
 import { createMaterials, disposeMaterials, m, type KitchenMaterials } from './materials';
+import { projectContactUV, studioContacts } from './studioContact';
 
-function WallBox({ piece, thickness, inset = -thickness / 2, material, color = '#f0ede7', name }: {
-  piece: WallPiece; thickness: number; inset?: number; material?: THREE.Material; color?: string; name?: string;
+function WallBox({ piece, thickness, inset = -thickness / 2, material, color = '#f0ede7', name, projection }: {
+  piece: WallPiece; thickness: number; inset?: number; material?: THREE.Material; color?: string; name?: string; projection?: WallSegment;
 }) {
   return <mesh name={name} position={[m((piece.from + piece.to) / 2), m((piece.bottom + piece.top) / 2), m(inset)]} material={material}>
-    <boxGeometry args={[m(piece.to - piece.from), m(piece.top - piece.bottom), m(thickness)]} />
+    <boxGeometry key={projection ? `${projection.length}:${projection.height}:${piece.from}:${piece.bottom}` : 'plain'}
+      args={[m(piece.to - piece.from), m(piece.top - piece.bottom), m(thickness)]} onUpdate={projection ? (g) =>
+      projectContactUV(g, (piece.from + piece.to) / 2, (piece.bottom + piece.top) / 2, projection.length, projection.height) : undefined} />
     {!material && <meshStandardMaterial color={color} roughness={0.9} />}
   </mesh>;
 }
 
-function Treatment({ treatment, segment, holes, studio }: { treatment: WallTreatment; segment: WallSegment; holes: WallPiece[]; studio: boolean }) {
-  const materials = useMemo(() => createMaterials({
-    front: Object.hasOwn(FRONT_FINISHES, treatment.finish) ? treatment.finish as keyof typeof FRONT_FINISHES : 'white',
-    worktop: Object.hasOwn(WORKTOP_FINISHES, treatment.finish) ? treatment.finish as keyof typeof WORKTOP_FINISHES : 'stone',
-    handles: 'none',
-  }, studio), [treatment.finish, studio]);
+function Treatment({ treatment, room, segment, holes, studio, contact }: { treatment: WallTreatment; room: Room; segment: WallSegment; holes: WallPiece[]; studio: boolean; contact?: THREE.Texture }) {
+  const materials = useMemo(() => {
+    const palette = createMaterials({
+      front: Object.hasOwn(FRONT_FINISHES, treatment.finish) ? treatment.finish as keyof typeof FRONT_FINISHES : 'white',
+      worktop: Object.hasOwn(WORKTOP_FINISHES, treatment.finish) ? treatment.finish as keyof typeof WORKTOP_FINISHES : 'stone',
+      handles: 'none',
+    }, studio, room);
+    if (contact) palette.front.aoMap = palette.worktop.aoMap = contact;
+    return palette;
+  }, [treatment.finish, studio, room, contact]);
   const material = Object.hasOwn(FRONT_FINISHES, treatment.finish) ? materials.front : materials.worktop;
   const pieces = solidWallPieces(segment, holes, { from: treatment.offset, to: Math.min(segment.length, treatment.offset + treatment.width),
     bottom: treatment.elevation, top: Math.min(segment.height, treatment.elevation + treatment.height) });
   useEffect(() => () => disposeMaterials(materials), [materials]);
-  return <>{pieces.map((piece, i) => <WallBox key={i} name={`wall-finish-${treatment.id}-${i}`} piece={piece} thickness={12} inset={6} material={material} />)}</>;
+  return <>{pieces.map((piece, i) => <WallBox key={i} name={`wall-finish-${treatment.id}-${i}`} piece={piece} thickness={12} inset={6} material={material} projection={contact ? segment : undefined} />)}</>;
 }
 
 /** Only this small geometric hint is shared with the offline viewer. */
@@ -40,14 +48,17 @@ function cutawayData(frame: WallSegment) {
   return frame.partitionId ? undefined : { cutaway: [m((frame.start.x + frame.end.x) / 2), m((frame.start.y + frame.end.y) / 2), frame.inward.x, frame.inward.y] };
 }
 
-export function Room3D({ room, openings, items = [], materials, selection, onSelect, selectedWallId, onWallSelect, exportModel = false, studio = false }: {
+export function Room3D({ room, openings, items = [], materials, selection, onSelect, selectedWallId, onWallSelect, exportModel = false, studio = false, build }: {
   room: Room; openings: Opening[]; items?: KitchenItem[]; materials: KitchenMaterials;
   selection?: RoomObjectSelection | null; onSelect?: (selection: RoomObjectSelection) => void;
   selectedWallId?: string | null; onWallSelect?: (id: string) => void;
-  exportModel?: boolean; studio?: boolean;
+  exportModel?: boolean; studio?: boolean; build?: BuildContext;
 }) {
   const outline = useMemo(() => roomOutline(room), [room]);
   const segments = useMemo(() => roomSegments(room), [room]);
+  const contacts = useMemo(() => studio && build && items.length ? studioContacts(room, segments, items, build, materials) : null,
+    [studio, build, room, segments, items, materials]);
+  useEffect(() => () => contacts?.dispose(), [contacts]);
   const groups = useRef(new Map<string, THREE.Group>());
   const floor = useMemo(() => {
     const shape = new THREE.Shape();
@@ -67,8 +78,9 @@ export function Room3D({ room, openings, items = [], materials, selection, onSel
     }
   });
   return <>
-    <mesh name="room-floor" rotation={[-Math.PI / 2, 0, 0]} material={materials.floor}>
-      <shapeGeometry args={[floor]} />
+    <mesh name="room-floor" rotation={[-Math.PI / 2, 0, 0]} material={contacts?.floor ?? materials.floor}>
+      <shapeGeometry key={contacts?.floor.aoMap ? `${room.width}:${room.depth}` : 'plain'}
+        args={[floor]} onUpdate={contacts?.floor.aoMap ? (g) => projectContactUV(g, 0, room.depth, room.width, room.depth) : undefined} />
     </mesh>
     {(room.features ?? []).map((feature) => {
       const { centre, angle } = roomFeaturePose(room, feature);
@@ -110,6 +122,7 @@ export function Room3D({ room, openings, items = [], materials, selection, onSel
       </group>;
     })}
     {segments.map((segment) => {
+      const contact = contacts?.walls.get(segment.id);
       const partition = room.partitions?.find((p) => p.id === segment.partitionId);
       const physicalWall = !partition || segment.id.endsWith(':1');
       const thickness = partition?.thickness ?? WALL_THICKNESS;
@@ -136,9 +149,9 @@ export function Room3D({ room, openings, items = [], materials, selection, onSel
         {selectedWallId === segment.id && <mesh position={[m(segment.length / 2), m(segment.height), 0]}>
           <boxGeometry args={[m(segment.length), 0.035, 0.04]} /><meshBasicMaterial color="#376b4a" />
         </mesh>}
-        {physicalWall && pieces.map((piece, i) => <WallBox key={`wall-${i}`} name={`room-wall-${segment.id}-${i}`} piece={piece} thickness={thickness} material={materials.wall} />)}
-        {materials.backsplash && cladding.map((piece, i) => <WallBox key={`cladding-${i}`} name={`kitchen-backsplash-${segment.id}-${i}`} piece={piece} thickness={12} inset={6} material={materials.backsplash!} />)}
-        {treatments.map((treatment) => <Treatment key={treatment.id} treatment={treatment} segment={segment} holes={holes} studio={studio} />)}
+        {physicalWall && pieces.map((piece, i) => <WallBox key={`wall-${i}`} name={`room-wall-${segment.id}-${i}`} piece={piece} thickness={thickness} material={contact?.wall ?? materials.wall} projection={contact ? segment : undefined} />)}
+        {materials.backsplash && cladding.map((piece, i) => <WallBox key={`cladding-${i}`} name={`kitchen-backsplash-${segment.id}-${i}`} piece={piece} thickness={12} inset={6} material={contact?.cladding ?? materials.backsplash!} projection={contact ? segment : undefined} />)}
+        {treatments.map((treatment) => <Treatment key={treatment.id} treatment={treatment} room={room} segment={segment} holes={holes} studio={studio} contact={contact?.map} />)}
       </group>;
     })}
   </>;

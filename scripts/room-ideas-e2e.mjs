@@ -2,7 +2,34 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
-import { assertNeutralScene, open3DTools } from './three-test-helpers.mjs';
+import { assertNeutralScene, open3DTools, waitForIdleRendering } from './three-test-helpers.mjs';
+
+async function checkStudioSurfaces(page) {
+  const surfaces = await page.evaluate(async () => {
+    const { mountedSpan } = await import('/src/domain/geometry.ts');
+    const { roomSegments } = await import('/src/domain/walls.ts');
+    const { room, items } = window.__kitchen.design.getState().design, { scene } = window.__kitchen3D;
+    const floor = scene.getObjectByName('room-floor');
+    const pos = floor.geometry.getAttribute('position'), uv = floor.geometry.getAttribute('uv1');
+    const shelf = items.find((item) => item.shelfForm === 'floating');
+    const segment = roomSegments(room).find((s) => mountedSpan(shelf, s));
+    const [left, right] = mountedSpan(shelf, segment);
+    const map = scene.getObjectByName(`room-wall-${segment.id}-0`).material.aoMap.image;
+    const sample = (y) => map.getContext('2d').getImageData(Math.floor(map.width * (left + right) / (2 * segment.length)),
+      Math.floor((1 - y / segment.height) * map.height), 1, 1).data[0];
+    return {
+      mapsFloor: !!uv && Array.from({ length: pos.count }, (_, i) =>
+        Math.abs(uv.getX(i) - pos.getX(i) * 1000 / room.width) < 1e-5
+        && Math.abs(uv.getY(i) - (1 + pos.getY(i) * 1000 / room.depth)) < 1e-5).every(Boolean),
+      board: sample(shelf.elevation + 9), gap: sample(shelf.elevation + shelf.height / 2),
+      hardware: !!scene.getObjectByName('cabinet-pull'), floorMap: !!floor.material.aoMap,
+    };
+  });
+  assert.ok(surfaces.floorMap, 'The Studio floor must include the furniture contact map.');
+  assert.ok(surfaces.mapsFloor, 'Floor contact coordinates must match the measured room.');
+  assert.ok(surfaces.hardware, 'The Studio model must include attached cabinet pulls.');
+  assert.ok(surfaces.gap > surfaces.board + 50, 'A floating shelf must not darken the wall as if it were a solid cupboard.');
+}
 
 const server = await createServer({ logLevel: 'error', cacheDir: path.resolve('test-results/room-ideas/.vite'), optimizeDeps: { entries: ['index.html'] }, server: { host: '127.0.0.1', port: 0, watch: null, hmr: false } });
 let browser;
@@ -72,10 +99,12 @@ try {
     if (id === 'basil-studio') {
       await page.waitForFunction(() => window.__kitchen3D?.scene.getObjectByName('studio-sink') && window.__kitchen3D.camera.fov === 28);
       await assertNeutralScene(page);
+      await checkStudioSurfaces(page);
       const staged = await design();
       const camera = page.getByRole('group', { name: '3D camera' });
       await camera.getByRole('button', { name: 'Front', exact: true }).click();
       await page.waitForFunction(() => !window.__kitchen3D.scene.getObjectByName('studio-sink') && window.__kitchen3D.camera.fov === 45);
+      assert.equal(await page.evaluate(() => window.__kitchen3D.scene.getObjectByName('room-floor').material.aoMap), null);
       await camera.getByRole('button', { name: 'Studio', exact: true }).click();
       assert.deepEqual(await design(), staged, 'Changing presentation must not change any project data.');
     }
@@ -203,6 +232,11 @@ try {
   await page.getByTestId('phone-view-sheet').getByRole('button', { name: 'Studio', exact: true }).tap();
   await page.waitForFunction(() => window.__kitchen3D?.camera.fov === 28);
   await assertNeutralScene(page);
+  await checkStudioSurfaces(page);
+  await waitForIdleRendering(page);
+  const frame = await page.evaluate(() => window.__kitchen3D.renderer.info.render.frame);
+  await page.waitForTimeout(300);
+  assert.ok(await page.evaluate(() => window.__kitchen3D.renderer.info.render.frame) - frame <= 1, 'Studio should not redraw a stationary phone view.');
   assert.deepEqual(errors, []);
   console.log('Both L returns fit around the measured room; a subsequent idea keeps every cabinet, opening, structure and cut part, with one Undo.');
 } finally {
