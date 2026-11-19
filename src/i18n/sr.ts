@@ -189,6 +189,11 @@ export const sr: Messages = {
   library: {
     mostUsed: 'Najčešće korišćeno',
     browseAll: 'Svi elementi',
+    previewFirst: 'Pregled pre dodavanja',
+    sampleFinishes: 'Boje u katalogu su primer. Dodati elementi prate stil vaše kuhinje.',
+    preview: (name) => `Pregled: ${name}`,
+    previewHint: '3D pregled koristi materijale vaše kuhinje. Element nije na crtežu dok ga ne dodate.',
+    sampleOnly: '3D pregled nije dostupan. Prikazan je primer iz kataloga.',
     elements: 'Elementi',
     hint: 'Prevucite na osnovu ili kliknite da dodate',
     sections: { base: 'Donji elementi', wall: 'Gornji elementi', ceiling: 'Elementi do plafona', other: 'Ostali elementi', storage: 'Odlaganje i vitrine', appliances: 'Aparati i ormari', islands: 'Ostrva i barski stolovi' },
