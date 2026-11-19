@@ -177,7 +177,12 @@ sheet with small, half and full detents. The grip has no visible height caption;
 its accessible value and help, tap, drag and keyboard controls remain available.
 Both editor widths use Size, Fronts, Materials and Parts tabs and common-size
 picks. Put stacking after the everyday size, position and code fields.
-On phones, opening Add allows repeated picks.
+On phones, Add allows repeated picks or direct **Resize** and **Move** for the
+last pick. Resize opens Size with the width ready to edit, even when a unit is
+too small for edge handles. In Layout, Move lets a user tap a free destination
+for the selected footprint's centre without rotation or wall snapping. Check
+the actual room and obstacles before placing; a rejected tap, a pinch or Cancel
+does not edit the design. Normal body drags, edge resizing and 3D orbit still work independently.
 
 - Interior partitions have independent endpoints, thickness and height.
   Both faces are usable; collisions take the cabinet's vertical range into

@@ -72,7 +72,8 @@ export function useKeyboardShortcuts(): void {
         rotateSelected(e.shiftKey ? -1 : 1);
       } else if (e.key === 'Escape') {
         const ui = useUiStore.getState();
-        if (!ui.cabinetTool) ui.select(null);
+        if (ui.cabinetTool === 'place') ui.setCabinetTool(null);
+        else if (!ui.cabinetTool) ui.select(null);
       } else if (e.key in ARROWS && hasSelection && view === 'plan' && !roomOpen) {
         e.preventDefault();
         const step = e.shiftKey ? 100 : 10;

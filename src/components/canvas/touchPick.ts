@@ -15,7 +15,7 @@ function candidates(items: KitchenItem[], point: Point, px: number) {
   });
 }
 
-/** Bare-canvas taps only: give small footprints a 44px target without enlarging
+/** Bare-canvas touches only: give small footprints a 44px target without enlarging
  * the drawing, stealing an actual shape's hit or guessing between neighbours. */
 export function nearbyCabinet(items: KitchenItem[], point: Point, px: number, upperOutlines: KitchenItem[] = []): KitchenItem | undefined {
   const primary = candidates(items, point, px);

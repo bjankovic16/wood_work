@@ -245,6 +245,9 @@ export const en = {
     startIdeaHint: 'Preview a design in your room.',
     startManual: 'Add cabinets yourself',
     startManualHint: 'Choose your first cabinet.',
+    move: 'Move', editSize: 'Resize', sizeShort: 'Resize',
+    placeHint: (code: string) => `Choose where the centre of ${code} should go.`,
+    placeBlocked: 'The cabinet won’t fit there. Choose another spot in the room.',
     startFromLayout: 'Choose a kitchen',
     filterLabel: 'Visible units',
     zoomControls: 'Plan zoom',
@@ -257,7 +260,7 @@ export const en = {
     room: 'Room',
     edit: 'Edit',
     less: 'Less',
-    addHint: 'Tap an element: it goes into the first free spot along the walls.',
+    addHint: 'Tap to add a cabinet. Keep adding, or choose what to do with the last one.',
   },
 
   sheet: {

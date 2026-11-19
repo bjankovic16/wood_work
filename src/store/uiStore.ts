@@ -12,7 +12,7 @@ import { safeStorage } from '../lib/platform';
 export type ViewFilter = 'all' | 'floor' | 'wall';
 export type MainView = 'plan' | '3d' | 'list';
 export type SettingsTab = 'materials' | 'construction';
-export type CabinetTool = 'resize' | null;
+export type CabinetTool = 'resize' | 'place' | null;
 export type FitRequest = { type: 'idea'; id: KitchenDesignId } | { type: 'starter'; id: LayoutId };
 
 export const GRID_SIZES = [10, 50, 100] as const;
@@ -144,7 +144,11 @@ export const useUiStore = create<UiState>()(
         planForegroundId: source === 'plan' && selectedId !== state.planForegroundId ? null : selectedId,
       })),
       setCabinetTool: (cabinetTool) => set((state) => ({
-        cabinetTool: state.view === '3d' && state.selectedId && !state.previewLockedIds.includes(state.selectedId) ? cabinetTool : null,
+        cabinetTool: !state.roomOpen && state.selectedId && (
+          cabinetTool === 'place' && state.view === 'plan' ||
+          cabinetTool === 'resize' && state.view === '3d' && !state.previewLockedIds.includes(state.selectedId)
+        ) ? cabinetTool : null,
+        ...(cabinetTool === 'place' ? { focusRequest: null } : {}),
       })),
       setPreviewLockedIds: (previewLockedIds) => set((state) => {
         if (state.previewLockedIds.length === previewLockedIds.length && state.previewLockedIds.every((id, index) => id === previewLockedIds[index])) return state;

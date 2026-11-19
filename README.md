@@ -223,7 +223,9 @@ or a cutting-list export for the workshop; the customer view is neither.
   choose **Browse all parts**, or search the catalogue by name or width
   (e.g. `drawers 900`). Serbian search works without accents. On the plan, drag a
   cabinet to move it, nudge it with the arrow keys, or type its exact position
-  in its properties. You can also resize, rotate, duplicate or delete a unit.
+  in its properties. To move it without dragging or snapping to a wall, choose
+  **Move**, then click or tap where its centre should go. An occupied spot is
+  rejected without changing the layout. You can also resize, rotate, duplicate or delete a unit.
   Release to commit a changed drag in one Undo step; Escape or an interrupted
   touch restores the starting position without a step. **All** is the initial
   layer: upper units are dashed outlines, and a click or tap on stacked units
@@ -237,7 +239,9 @@ or a cutting-list export for the workshop; the customer view is neither.
   On desktop and phone, edit **Size**, **Fronts**, **Materials** or **Parts**
   without scrolling through the other sections. Use the common-size buttons
   for exact dimensions; stacking is at the end of **Size**.
-  **Add element** stays open so you can add several units in a row.
+  **Add element** stays open so you can add several units in a row. On a phone,
+  **Resize** in the picker or the selected cabinet's toolbar opens its exact
+  size fields. Use the blue edge handles on the drawing for width and depth.
   Switch to wall units to work on
   one row at a time. **View** groups snapping, grid size and dimensions;
   **Settings** contains materials and construction.

@@ -185,7 +185,7 @@ interface SelectionProps {
 export function Selection({ item, px, touch = false, onHandlePointerDown, onCursor }: SelectionProps) {
   const size = (touch ? 14 : 9) * px;
   // Below this on-screen size the handles would cover the whole unit, leaving nothing to grab.
-  const minResizable = touch ? 64 : 28;
+  const minResizable = touch ? 44 : 28;
   const rect = itemRect(item);
   const handles = itemHandles(item).filter((handle) => {
     const extent = handle.side === 'left' || handle.side === 'right' ? rect.w : rect.h;
