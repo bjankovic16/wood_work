@@ -48,6 +48,7 @@ export async function startFreshChecks(browser, url) {
   await room.getByTestId('room-3d').waitFor();
   await room.getByRole('tab', { name: 'Paint & tiles' }).click();
   const edited = { ...await design(desktop), name: 'Working kitchen' };
+  await desktop.waitForFunction(() => window.__kitchen.ui.getState().moveHintSeen);
   const prefs = await preferences(desktop);
   // Blur commits the name just before Start fresh; no waiting for autosave.
   await bar.getByLabel('Project name').fill(edited.name);

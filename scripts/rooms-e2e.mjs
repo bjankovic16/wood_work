@@ -143,9 +143,11 @@ async function ready3D(page) {
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 }
 
-async function openAdvancedRoom(root) {
-  const summary = root.getByText('Advanced room', { exact: true });
-  if (!await summary.count()) await root.getByRole('radio', { name: '1. Room', exact: true }).click();
+async function openAdvancedRoom(page) {
+  const room = page.getByTestId('room-workspace');
+  if (!await room.isVisible()) await page.getByRole('radio', { name: '1. Room', exact: true }).click();
+  const summary = room.getByText('Advanced room', { exact: true });
+  if (!await summary.isVisible()) await room.getByRole(page.viewportSize().width < 1024 ? 'button' : 'tab', { name: 'Dimensions', exact: true }).click();
   if (!await summary.locator('..').evaluate((element) => element.open)) await summary.click();
 }
 
@@ -218,7 +220,7 @@ try {
   console.log('Room geometry and structures');
   await page.getByRole('radio', { name: '1. Room', exact: true }).click();
   const setup = page.getByTestId('room-workspace');
-  await openAdvancedRoom(setup);
+  await openAdvancedRoom(page);
   await setup.getByLabel('Floor shape').selectOption('notch');
   await setup.getByLabel('Cut-out width').fill('1000');
   await setup.getByLabel('Cut-out width').press('Enter');
@@ -453,8 +455,8 @@ try {
   observe(mobile);
   await mobile.goto(url, { waitUntil: 'domcontentloaded' });
   await mobile.getByTestId('room-workspace').waitFor();
-  await mobile.getByRole('button', { name: 'Više', exact: true }).tap();
-  await mobile.getByRole('radio', { name: 'English', exact: true }).tap();
+  await chooseLanguage(mobile, 'en');
+  await mobile.getByRole('button', { name: 'More', exact: true }).tap();
   await mobile.getByTestId('room-ideas').tap();
   await mobile.getByRole('dialog', { name: 'Ideas' }).getByRole('radio', { name: 'Photo studio', exact: true }).tap();
   await mobile.locator('[data-photo-design="warm-island"]').tap();
@@ -489,7 +491,7 @@ try {
     ui.select(null); ui.setView('plan'); ui.setReferenceOpen(false); ui.setRoomOpen(true);
   });
   const wallSetup = mobile.getByTestId('room-workspace');
-  await openAdvancedRoom(wallSetup);
+  await openAdvancedRoom(mobile);
   await wallSetup.getByRole('button', { name: 'Edit wall corners on plan', exact: true }).tap();
   const corner = await cornerPoint(wallSetup.getByRole('button', { name: 'Move corner 3', exact: true }));
   const touch = await phone.newCDPSession(mobile);

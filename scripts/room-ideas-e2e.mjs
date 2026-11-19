@@ -79,7 +79,12 @@ try {
       await camera.getByRole('button', { name: 'Studio', exact: true }).click();
       assert.deepEqual(await design(), staged, 'Changing presentation must not change any project data.');
     }
-    assert.match(await notice.innerText(), new RegExp(`\\b${changeCount} layout adjustment`), id);
+    const message = await notice.innerText();
+    if (changeCount) assert.match(message, new RegExp(`\\b${changeCount} layout adjustment`), id);
+    else {
+      assert.match(message, /^Idea applied\./, id);
+      assert.doesNotMatch(message, /layout adjustment/, id);
+    }
     await notice.getByRole('button', { name: 'Undo' }).click();
     assert.deepEqual(await design(), initial, `Undo ${id}`);
   }

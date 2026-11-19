@@ -85,7 +85,7 @@ export function NumberField({
           }}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={(e) => {
-            if (!skipBlurCommit.current && !(e.relatedTarget instanceof HTMLElement && e.relatedTarget.dataset.pickFor === id)) commit(e.target.value);
+            if (!skipBlurCommit.current) commit(e.target.value);
             skipBlurCommit.current = false;
             setDraft(null);
           }}
@@ -115,10 +115,21 @@ export function NumberField({
       </div>
     </div>
     {picks && picks.length > 0 && <div role="group" aria-label={t.sheet.commonSizes(label)} className="flex flex-wrap gap-1">
-      {picks.map((pick) => <button key={pick.value} type="button" data-pick-for={id}
+      {picks.map((pick) => <button key={pick.value} type="button"
         aria-label={`${label}: ${show(pick.value)} ${suffix}`} aria-pressed={pick.value === value} disabled={pick.disabled}
         className="min-h-8 min-w-11 rounded-lg border border-studio-line px-2 text-xs font-medium tabular-nums text-studio-muted aria-pressed:border-studio-accent aria-pressed:bg-[#ecf1e8] aria-pressed:text-studio-accent disabled:opacity-40"
-        onClick={() => { if (pick.value !== value) onCommit(pick.value); setDraft(null); }}>{show(pick.value)}</button>)}
+        onPointerDown={(e) => {
+          // A completed pick replaces the draft in one Undo step. Tabbing to it, or canceling a tap, doesn't.
+          if (e.button === 0 && document.activeElement === inputRef.current) e.preventDefault();
+        }}
+        onClick={(e) => {
+          if (document.activeElement === inputRef.current) {
+            skipBlurCommit.current = true;
+            e.currentTarget.focus({ preventScroll: true });
+          }
+          if (pick.value !== value) onCommit(pick.value);
+          setDraft(null);
+        }}>{show(pick.value)}</button>)}
     </div>}
   </>;
 }

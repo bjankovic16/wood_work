@@ -255,9 +255,10 @@ async function run() {
   await phone.goto(url, { waitUntil: 'domcontentloaded' });
   await phone.waitForSelector('.konvajs-content');
   await phone.getByRole('button', { name: 'Wall units', exact: true }).tap();
-  const phoneRows = await phone.getByLabel('Upper cabinet row', { exact: true }).locator('option').count();
-  assert.equal(phoneRows, 2);
   const current = await design(phone);
+  const phoneRows = await phone.getByLabel('Upper cabinet row', { exact: true }).locator('option').evaluateAll((opts) => opts.map((o) => Number(o.value)));
+  const tiers = current.items.filter((item) => item.kind === 'wall' || item.kind === 'hood').map((item) => item.elevation);
+  assert.deepEqual(phoneRows, [...new Set(tiers)].sort((a, b) => a - b), 'Both cupboard tiers and the separate hood in this layout must be selectable.');
   const phoneLower = current.items.find((item) => item.kind === 'wall' && item.rotation === 0);
   assert.ok(phoneLower);
   await phone.getByLabel('Upper cabinet row', { exact: true }).selectOption(String(phoneLower.elevation));

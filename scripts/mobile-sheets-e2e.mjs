@@ -80,10 +80,11 @@ try {
   assert.ok(full.height > half.height && full.y >= main.y + 75, 'Even the full cabinet editor must leave drawing space.');
   assert.deepEqual(await selected(), before, 'Sizing the sheet must not nudge the cabinet.');
   assert.deepEqual(await cabinet.getByRole('tab').allInnerTexts(), ['Size', 'Fronts', 'Materials', 'Parts']);
+  await cabinet.getByRole('textbox', { name: 'Width', exact: true }).fill('550');
   await button(cabinet, 'Width: 450 mm').tap();
   assert.equal((await selected()).width, 450);
   await button(page.getByRole('banner'), 'Undo').tap();
-  assert.equal((await selected()).width, 600);
+  assert.equal((await selected()).width, 600, 'A size pick replaces the unfinished draft in one Undo step.');
   const angle = cabinet.getByRole('textbox', { name: 'Exact angle' });
   await angle.fill('27.5'); await angle.press('Enter');
   await button(cabinet, 'Rotate cabinet 90° clockwise').tap();
