@@ -745,7 +745,7 @@ export const sr: Messages = {
     appearanceHint: 'Promenite fronte, radnu ploču i ručice bez promene rasporeda.',
     cameraHints: {
       perspective: 'Pogledajte celu kuhinju u prostoru. Prevucite pozadinu da okrenete pogled.',
-      studio: 'Pogled na elemente ukoso i odozgo, sa tamnom pozadinom i naglašenim detaljima materijala.',
+      studio: 'Izaberite Studio za realističan prikaz frontova, teksture drveta i metalnih ručica. Raspored ostaje isti.',
       front: 'Pogledajte kuhinju pravo spreda, u nivou frontova.',
       top: 'Pogledajte kuhinju odozgo radi provere rasporeda i slobodnog prostora.',
     },

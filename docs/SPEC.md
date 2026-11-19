@@ -317,7 +317,11 @@ project.
 - **Studio** frames the actual furniture from an elevated three-quarter angle
   with a charcoal background and detailed material surfaces. The same view is
   available in the phone camera sheet and travels in the offline customer file.
-  It does not change the design or add lights, reflections of scene objects or shadows.
+  Keep the material response fixed in room space, scale timber grain to the
+  board and continue patterned stone across worktop joins. Use the actual
+  board recesses and furniture footprints for local ambient occlusion, including
+  the gaps between floating shelves. Carry the surface detail in the offline
+  viewer. Do not edit the design or add lamps, scene reflections or cast shadows.
   **Basil & graphite** opens in Studio. Its oak floating shelves have board cuts
   but no cabinet sides, back or shelf pins; wall fixings are specified separately.
 - **Resize** is the exception for **dimensions**, not position: only a drag

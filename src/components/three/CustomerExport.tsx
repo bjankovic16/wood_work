@@ -19,7 +19,7 @@ export default function CustomerExport({ design, studio, t, ready, failed }: {
 }) {
   const [model] = useState(() => new Scene());
   const ctx = useMemo(() => buildContext(design), [design]);
-  const materials = useMemo(() => createMaterials(design.style, studio), [design.style, studio]);
+  const materials = useMemo(() => createMaterials(design.style, studio, design.room), [design.style, studio, design.room]);
   const gl = useThree((s) => s.gl);
   const editor = useThree((s) => s.scene);
   const camera = useThree((s) => s.camera);
@@ -71,7 +71,7 @@ export default function CustomerExport({ design, studio, t, ready, failed }: {
     return () => { active = false; cancelAnimationFrame(frame); };
   }, [model, gl, editor, camera, design, studio, t, ready, failed]);
   return createPortal(<>
-    <Room3D room={design.room} openings={design.openings} items={design.items} materials={materials} studio={studio} exportModel />
+    <Room3D room={design.room} openings={design.openings} items={design.items} materials={materials} studio={studio} build={ctx} exportModel />
     {design.items.map((item) => <Unit3D key={item.id} item={item} ctx={ctx} materials={materials} studio={studio} selected={false} onSelect={noop} />)}
   </>, model);
 }

@@ -10,7 +10,7 @@ import { KIND_OPTIONS, resolveConfig, type BuildContext } from '../../engine/con
 import { cornerDoorWidths, frontLayout, OVEN_NICHE_HEIGHT, TOWER_OVEN_BOTTOM, type FrontRect } from '../../engine/fronts';
 import { drawerBoxHeight, innerDepth, slideLength } from '../../engine/parts';
 import { cabinetMaterial, m, type KitchenMaterials } from './materials';
-import { CoffeeMaker, ShelfStillLife, StudioFront, StudioSink } from './StudioFittings';
+import { boardGrainUV, boardRecess, CoffeeMaker, ShelfStillLife, StudioFront, StudioPull, StudioSink, StudioSlabFront, useRecessMaterial, type RecessFace } from './StudioFittings';
 
 type Vec3 = [number, number, number];
 
@@ -22,10 +22,16 @@ const WORKTOP_OVERHANG = 0.02;
 const PLINTH_SETBACK = 0.06;
 /** How far an opened door swings: a little past square, like a 110-degree hinge. */
 const DOOR_SWING = Math.PI * 0.6;
-function Box({ size, position, material, rotation }: { size: Vec3; position: Vec3; material: THREE.Material; rotation?: Vec3 }) {
+function Box({ size, position, material, rotation, recess }: {
+  size: Vec3; position: Vec3; material: THREE.Material; rotation?: Vec3; recess?: { face: RecessFace; depth: number };
+}) {
   return (
     <mesh position={position} rotation={rotation} material={material}>
-      <boxGeometry args={size} />
+      <boxGeometry key={`${!!material.userData.woodGrain}:${recess ? `${recess.face}:${recess.depth}:${position[2]}` : ''}`} args={size}
+        onUpdate={recess || material.userData.woodGrain ? (g) => {
+        if (material.userData.woodGrain) boardGrainUV(g, size[1] < Math.min(size[0], size[2]));
+        if (recess) boardRecess(g, recess.face, position[2], recess.depth);
+      } : undefined} />
     </mesh>
   );
 }
@@ -91,7 +97,8 @@ function drawerOpenings(fronts: readonly FrontRect[], slide: number): Map<FrontR
   }]));
 }
 
-function DoorSurface({ W, H, thickness, material, profile, studio }: { W: number; H: number; thickness: number; material: THREE.Material; profile?: FrontProfile; studio?: boolean }) {
+function DoorSurface({ W, H, thickness, material, profile, studio }: { W: number; H: number; thickness: number; material: THREE.MeshStandardMaterial; profile?: FrontProfile; studio?: boolean }) {
+  if (studio && profile !== 'shaker') return <StudioSlabFront W={W} H={H} thickness={thickness} material={material} />;
   if (profile !== 'shaker') return <Box size={[W, H, thickness]} position={[W / 2, H / 2, thickness / 2]} material={material} />;
   if (studio) return <StudioFront W={W} H={H} thickness={thickness} material={material} />;
   const frame = Math.min(0.055, W * 0.18, H * 0.18);
@@ -156,7 +163,9 @@ function Fronts({ fronts, z, thickness, materials, lowHandles, glass = false, pr
             {glass && [0.07, h - 0.07].map((offset) => (
               <Box key={offset} size={[0.022, 0.032, 0.018]} position={[m(front.x) + (front.hinge === 'right' ? w - 0.008 : 0.008), m(front.y) + offset, z + thickness]} material={materials.steel} />
             ))}
-            {handle && materials.handle && <Box size={handle.size} position={handle.position} material={materials.handle} />}
+            {handle && materials.handle && (studio
+              ? <StudioPull length={Math.max(handle.size[0], handle.size[1])} vertical={front.kind === 'door'} position={handle.position} material={materials.handle} />
+              : <Box size={handle.size} position={handle.position} material={materials.handle} />)}
           </group>
           </OpeningPart>
         );
@@ -170,17 +179,20 @@ function OpenCarcass({ W, H, D, t, tb, shelves, setback, materials, back = true,
   W: number; H: number; D: number; t: number; tb: number; shelves: number; setback: number; materials: KitchenMaterials; back?: boolean; top?: boolean; shelfTop?: number;
 }) {
   const inner = W - 2 * t;
+  const source = materials.carcass;
+  const lining = useRecessMaterial(source);
+  const board = (face: RecessFace) => ({ material: lining ?? source, recess: lining ? { face, depth: D } : undefined });
   return (
     <>
-      <Box size={[t, H, D]} position={[t / 2, H / 2, D / 2]} material={materials.carcass} />
-      <Box size={[t, H, D]} position={[W - t / 2, H / 2, D / 2]} material={materials.carcass} />
-      <Box size={[inner, t, D]} position={[W / 2, t / 2, D / 2]} material={materials.carcass} />
-      {top && <Box size={[inner, t, D]} position={[W / 2, H - t / 2, D / 2]} material={materials.carcass} />}
-      {back && <Box size={[inner, H - 2 * t, tb]} position={[W / 2, H / 2, tb / 2]} material={materials.carcass} />}
+      <Box size={[t, H, D]} position={[t / 2, H / 2, D / 2]} {...board('right')} />
+      <Box size={[t, H, D]} position={[W - t / 2, H / 2, D / 2]} {...board('left')} />
+      <Box size={[inner, t, D]} position={[W / 2, t / 2, D / 2]} {...board('up')} />
+      {top && <Box size={[inner, t, D]} position={[W / 2, H - t / 2, D / 2]} {...board('down')} />}
+      {back && <Box size={[inner, H - 2 * t, tb]} position={[W / 2, H / 2, tb / 2]} {...board('back')} />}
       {Array.from({ length: shelves }, (_, i) => {
         const y = t + (((shelfTop ?? H - t) - t) * (i + 1)) / (shelves + 1);
         const depth = D - tb - setback;
-        return <Box key={i} size={[inner, t, depth]} position={[W / 2, y, tb + depth / 2]} material={materials.carcass} />;
+        return <Box key={i} size={[inner, t, depth]} position={[W / 2, y, tb + depth / 2]} {...board('shelf')} />;
       })}
     </>
   );
@@ -353,10 +365,11 @@ interface UnitProps {
  * from the back towards the front, matching the plan's local frame.
  */
 export const Unit3D = memo(function Unit3D({ item, ctx, materials: sharedMaterials, studio = false, selected, onSelect, invalid = false, objectRef, interior = false, opened = false, onToggleOpening, hovered = false, onHover }: UnitProps) {
+  const size = sharedMaterials.front.userData.studioSize;
   const overrides = useMemo(() => ({
-    ...(item.frontFinish ? { front: cabinetMaterial(item.frontFinish, undefined, studio) } : {}),
-    ...(item.carcassFinish ? { carcass: cabinetMaterial(item.carcassFinish, 0.78, studio) } : {}),
-  }), [item.frontFinish, item.carcassFinish, studio]);
+    ...(item.frontFinish ? { front: cabinetMaterial(item.frontFinish, undefined, studio, size) } : {}),
+    ...(item.carcassFinish ? { carcass: cabinetMaterial(item.carcassFinish, 0.78, studio, size) } : {}),
+  }), [item.frontFinish, item.carcassFinish, studio, size]);
   useEffect(() => () => { overrides.front?.dispose(); overrides.carcass?.dispose(); }, [overrides]);
   const materials = { ...sharedMaterials, ...overrides };
   const { settings } = ctx;
@@ -441,7 +454,9 @@ export const Unit3D = memo(function Unit3D({ item, ctx, materials: sharedMateria
           <OpeningPart opened={opened} position={[W - gap / 2, gap / 2, D]} angle={DOOR_SWING}>
             <group position={[-a, 0, 0]}>
               <DoorSurface W={a} H={doorH} thickness={tf} material={materials.front} profile={ctx.style?.frontProfile} studio={studio} />
-              {materials.handle && <Box size={[0.012, Math.min(0.16, doorH * 0.5), 0.012]} position={[0.035, wallUnit ? 0.13 : doorH - 0.13, tf + 0.014]} material={materials.handle} />}
+              {materials.handle && (studio
+                ? <StudioPull length={Math.min(0.16, doorH * 0.5)} vertical position={[0.035, wallUnit ? 0.13 : doorH - 0.13, tf + 0.014]} material={materials.handle} />
+                : <Box size={[0.012, Math.min(0.16, doorH * 0.5), 0.012]} position={[0.035, wallUnit ? 0.13 : doorH - 0.13, tf + 0.014]} material={materials.handle} />)}
             </group>
           </OpeningPart>
           <group position={[D, gap / 2, W2 - gap / 2]} rotation={[0, Math.PI / 2, 0]}>
@@ -466,7 +481,7 @@ export const Unit3D = memo(function Unit3D({ item, ctx, materials: sharedMateria
               <Box size={[0.016, E, W2 - D + PLINTH_SETBACK]} position={[D - PLINTH_SETBACK, -E / 2, (W2 + D - PLINTH_SETBACK) / 2]} material={materials.front} />
             </>
           )}
-          {studio && ctx.style?.decor && worktop && <group position={[D / 2, H + WORKTOP, D / 2]}><CoffeeMaker materials={materials} /></group>}
+          {studio && ctx.style?.decor && worktop && <group position={[D / 2, H + WORKTOP, D / 2]} rotation={[0, Math.PI / 4, 0]}><CoffeeMaker materials={materials} /></group>}
         </>
       );
       bounds = { size: [W, H, W2], position: [W / 2, H / 2, W2 / 2] };
