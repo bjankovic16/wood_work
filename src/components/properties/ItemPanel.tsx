@@ -6,6 +6,7 @@ import type { KitchenItem, Room } from '../../domain/types';
 import { KIND_OPTIONS, resolveConfig, type BuildContext } from '../../engine/config';
 import { FRONT_FINISHES, type FrontFinish } from '../../domain/style';
 import { edgeText } from '../../engine/cuttingList';
+import { unitHardware } from '../../engine/hardware';
 import { boardLabel } from '../../engine/materialLabel';
 import { unitParts } from '../../engine/parts';
 import { useT, type CornerName, type Messages } from '../../i18n';
@@ -343,8 +344,9 @@ function PartsSection({ item, ctx }: { item: KitchenItem; ctx: BuildContext }) {
   const t = useT();
   const edits = useDesignStore((s) => s.design.partEdits[item.id]);
   const parts = useMemo(() => unitParts(item, ctx, edits), [item, ctx, edits]);
+  const hardware = useMemo(() => unitHardware(item, ctx), [item, ctx]);
   const pieces = parts.reduce((sum, p) => sum + p.quantity, 0);
-  return (
+  return <>
     <PanelSection
       title={t.item.parts(pieces)}
       aside={
@@ -361,14 +363,21 @@ function PartsSection({ item, ctx }: { item: KitchenItem; ctx: BuildContext }) {
       {parts.length === 0 ? (
         <p className="text-xs text-zinc-500">{t.item.nothingToCut}</p>
       ) : (
-        <ul className="divide-y divide-zinc-100">
-          {parts.map((p, i) => (
-            <li key={i} className={cn('flex items-baseline gap-2 py-1.5 text-xs', p.quantity <= 0 && 'opacity-50')}>
+        <ul aria-label={t.report.parts} className="divide-y divide-zinc-100">
+          {parts.map((p, i) => {
+            const material = ctx.materials.get(p.materialId);
+            return <li key={i} className={cn('flex items-baseline gap-2 py-2 text-sm', p.quantity <= 0 && 'opacity-60')}>
               <span className="w-6 shrink-0 font-semibold tabular-nums text-zinc-900">{p.quantity}×</span>
-              <span className="min-w-0 flex-1 text-zinc-700">
-                {p.name}
+              <div className="min-w-0 flex-1 text-zinc-700">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+                  <span className="font-medium">{p.name}</span>
+                  <span className={cn('tabular-nums', p.edited && 'text-blue-700')}>{t.mm(p.length)} × {t.mm(p.width)} mm</span>
+                </div>
+                <span className="block break-words text-xs text-studio-muted">
+                  {material ? boardLabel(material, t.engine) : `${t.engine.unknownBoard} ${t.mm(p.thickness)} mm`}
+                </span>
                 {(p.note || p.edgeBandId || p.edited) && (
-                  <span className="block text-[11px] leading-snug text-zinc-400">
+                  <span className="block text-xs leading-snug text-studio-muted">
                     {[
                       p.edited && (p.quantity <= 0 ? t.engine.leftOutByHand : t.engine.changedByHand),
                       p.edgeBandId && t.item.edges(edgeText(p, t.engine)),
@@ -378,17 +387,21 @@ function PartsSection({ item, ctx }: { item: KitchenItem; ctx: BuildContext }) {
                       .join(' · ')}
                   </span>
                 )}
-              </span>
-              <span className={cn('shrink-0 tabular-nums', p.edited ? 'font-medium text-blue-700' : 'text-zinc-500')}>
-                {t.mm(p.length)} × {t.mm(p.width)}
-                <span className="text-zinc-400"> · {t.mm(p.thickness)}</span>
-              </span>
-            </li>
-          ))}
+              </div>
+            </li>;
+          })}
         </ul>
       )}
     </PanelSection>
-  );
+    {hardware.length > 0 && <PanelSection title={t.report.hardware}>
+      <ul aria-label={t.report.hardware} className="divide-y divide-zinc-100">
+        {hardware.map((fitting) => <li key={fitting.name} className="flex items-baseline gap-2 py-2 text-sm text-zinc-700">
+          <span className="w-6 shrink-0 font-semibold tabular-nums text-zinc-900">{fitting.quantity}×</span>
+          {fitting.name}
+        </li>)}
+      </ul>
+    </PanelSection>}
+  </>;
 }
 
 export function PlanMoveButton({ onStart }: { onStart?: () => void }) {

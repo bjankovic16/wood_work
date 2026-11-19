@@ -337,6 +337,10 @@ project.
   drawer boxes, not the internals of appliances. Lock resizing of open
   cabinets and during Interior view. These preview controls do not
   change the project, Undo history or cutting list. Respect reduced motion.
+- On a phone, label **Open/Close** on the selected cabinet. Provide **Parts**
+  directly from its collapsed 3D sheet. List that unit's cut quantities, sizes,
+  materials and hardware from the same rules as the workshop report, including
+  applicable hand edits to cut parts. Inspecting the list must not edit the project.
 - **Undo** (**Korak unazad**) is visible in the room and kitchen editors and
   uses one shared design history. A 2D move, 3D handle resize, committed
   measurement or applied idea that changes the design is **one** step.

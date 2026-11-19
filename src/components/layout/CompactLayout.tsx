@@ -1,4 +1,4 @@
-import { MousePointer2, Plus, Ruler } from 'lucide-react';
+import { Layers, MousePointer2, Plus, Ruler } from 'lucide-react';
 import { useEffect, useId, useState } from 'react';
 import { isWallMounted } from '../../domain/geometry';
 import type { KitchenItem } from '../../domain/types';
@@ -60,7 +60,10 @@ function ItemSheet({ item, onAdd, adding }: { item: KitchenItem; onAdd: () => vo
         handle={<SheetHandle snap={snap} onSnap={setSnap} onClose={() => useUiStore.getState().select(null)} controls={small ? undefined : id} />}
         action={(!small || inPlan) && <AddButton iconOnly open={onAdd} />} />
       {small && <div className="flex shrink-0 items-center justify-between gap-0.5 px-1 pb-1">
-        {inPlan && <><PlanMoveButton /><SizeButton short /></>}
+        {inPlan ? <><PlanMoveButton /><SizeButton short /></> : <Button variant="outline" onClick={() => {
+          useUiStore.getState().requestFocus('parts');
+          setSnap('half');
+        }}><Layers className="size-4" aria-hidden="true" />{t.report.parts}</Button>}
         <RotateButton />
         <DuplicateButton iconOnly />
         <DeleteButton iconOnly />

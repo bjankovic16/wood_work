@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useId, useLayoutEffect, useState } from 'react';
 import type { KitchenItem } from '../../domain/types';
 import { useT } from '../../i18n';
 import { useUiStore } from '../../store/uiStore';
@@ -11,10 +11,16 @@ export function CabinetEditor({ item, expanded = true, id }: { item: KitchenItem
   const t = useT();
   const prefix = useId();
   const [section, setSection] = useState<ItemSection>('size');
-  const focusWidth = useUiStore((s) => s.focusRequest === 'width');
-  useEffect(() => {
-    if (expanded && focusWidth) setSection('size');
-  }, [expanded, focusWidth]);
+  const focusRequest = useUiStore((s) => s.focusRequest);
+  useLayoutEffect(() => {
+    if (!expanded) return;
+    if (focusRequest === 'width') setSection('size');
+    if (focusRequest === 'parts') {
+      setSection('parts');
+      document.getElementById(`${prefix}-tab-parts`)?.focus({ preventScroll: true });
+      useUiStore.getState().requestFocus(null);
+    }
+  }, [expanded, focusRequest, prefix]);
   if (!expanded) return null;
 
   return <div id={id} className="sheet-editor flex min-h-0 flex-1 flex-col" onKeyDown={(e) => {

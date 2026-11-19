@@ -464,6 +464,10 @@ or a cutting-list export for the workshop; the customer view is neither.
   An open cabinet cannot be resized. Close its preview to use the resize
   handles again; cabinet placement is always edited in 2D.
   Animations are skipped when the system asks for reduced motion.
+- **Inspect one cabinet on a phone**: select it in **3D**. Tap **Open** (**Otvori**)
+  next to it to look behind the doors, or tap **Parts** (**Delovi**) in the bottom
+  panel for its cut pieces, sizes, boards and fittings. Hardware such as shelf
+  pins and wall hangers is listed even when it isn't drawn in the 3D preview.
 - **See inside cabinets**: turn on **Interior view** in the toolbar (under
   **View** on phones) to hide
   fronts and reveal shelves, corner compartments and drawer boxes. Toggle it off
