@@ -307,16 +307,19 @@ project.
   drags hide scene controls, not navigation; a tap restores the controls without moving or selecting anything.
   The first tip disappears on drag or after six seconds, and stays dismissed
   across visits unless explicitly requested via **?**.
-- In the desktop editor, dock **3D / Studio / Front / Top**, **Style**, cabinet previews and **Share**
+- In the desktop editor, dock **Perspective / Studio / Front / Top**, **Style**, cabinet previews and **Share**
   above the viewport. **Tools** includes room objects and help.
   Click or tap a cabinet, wall, opening or structure to select it. Mouse
   drags and touch swipes on the background **or an object's body** orbit the
   camera; scroll or pinch to zoom. This holds even when the object is already
   selected or **Resize** is active. There is no 3D translation mode, move
   handle, nudge shortcut or numeric position control that moves an object.
-- **Studio** frames the actual furniture from an elevated three-quarter angle
-  with a charcoal background and detailed material surfaces. The same view is
-  available in the phone camera sheet and travels in the offline customer file.
+- In the furnished kitchen, **Perspective** shows detailed surfaces and fittings
+  on first entry, for new and existing projects on desktop and phone. **Studio**
+  uses the same model from an elevated three-quarter angle with a charcoal
+  background; **Front** and **Top** are simpler inspection views. The architectural
+  Room model remains separate. Share a detailed Perspective or Studio presentation,
+  including its poster and interactive offline model.
   Keep the material response fixed in room space, scale timber grain to the
   board and continue patterned stone across worktop joins. Use the actual
   board recesses and furniture footprints for local ambient occlusion, including

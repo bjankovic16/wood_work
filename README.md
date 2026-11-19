@@ -259,13 +259,14 @@ or a cutting-list export for the workshop; the customer view is neither.
     card to review it in your room, or use **⋯ → Open original in a separate
     project** for the pictured composition. The reference paint, floor tiles and
     accessories are optional; existing room finishes are kept unless you opt in.
-    Any kitchen can use **3D → Studio** (on a phone: **3D → View → Studio**).
-    In Studio, the grain follows each shelf, the stone pattern continues across
-    worktop joins, and the brushed sink and curved handles catch the light as
-    you orbit. Shaker fronts have a recessed field; open shelves are darker at
-    the back than at the edge. Choose Studio on your **existing** kitchen to
-    see its own finishes without loading an idea or changing its cuts.
-    Exporting in Studio keeps the same presentation in the offline HTML.
+  - Open **3D** on your own kitchen to see its finished surfaces immediately.
+    In **Perspective**, grain follows each shelf, stone continues across worktop
+    joins and metal catches the light as you orbit. Sinks have an inset bowl,
+    Shaker fronts are recessed, and open shelves are darker at the back. No idea
+    or style change is needed; dimensions and cuts stay the same. **Studio** shows
+    the same kitchen with different framing and a charcoal background. **Front**
+    and **Top** stay simple for inspection. **Share** keeps the detailed finishes,
+    including in the offline customer file.
   - Eight additional timber-and-green kitchens include four reference-inspired
     layouts: an olive/oak L with a glass display, a compact olive/oak corner,
     eucalyptus/walnut cabinetry, and a straight olive run by a window. Forest,

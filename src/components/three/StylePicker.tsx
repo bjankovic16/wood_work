@@ -11,6 +11,8 @@ import { Button } from '../ui';
 
 function swatchBackground(finish: Finish): string {
   if (finish.texture === 'granite') return `radial-gradient(#9b9490 0.7px, transparent 1px) 0 0 / 4px 5px, ${finish.color}`;
+  if (finish.texture === 'quartz') return `radial-gradient(#c2bdb6 0.6px, transparent 1px) 0 0 / 3px 4px, ${finish.color}`;
+  if (finish.texture === 'concrete') return `radial-gradient(ellipse at 30% 65%, #aba9a4, transparent 65%), ${finish.color}`;
   // Wood finishes get a streaky gradient to hint at the grain.
   return finish.wood
     ? `repeating-linear-gradient(100deg, ${finish.color} 0 5px, color-mix(in srgb, ${finish.color} 82%, #3b2410) 5px 7px)`

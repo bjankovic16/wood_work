@@ -25,7 +25,7 @@ import { RoomObjectAnchor, RoomObjectAnnotation, RoomObjectTools } from './RoomO
 import { CabinetResizeLabels, CabinetResizeTool, ResizeFeedback } from './CabinetResizeTool';
 import { SelectionOverlay } from './SelectionOverlay';
 import { StylePicker } from './StylePicker';
-import { Unit3D } from './Unit3D';
+import { coffeeCornerId, Unit3D } from './Unit3D';
 import { PhotoReferencePanel } from '../references/PhotoReferences';
 import { CabinetEditor } from '../properties/CabinetEditor';
 import { StackAboveButton } from '../properties/StackAboveButton';
@@ -136,9 +136,10 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
   }, [compact, canResize, selectedId]);
   const navigation = useThreeNavigation(sceneReady && !selected && !activeRoomSelection, Boolean(chrome?.open || toolsOpen || styleOpen));
 
-  const studio = cameraView === 'studio';
-  const customer = useCustomerFile(studio, sceneReady, compact);
-  const materials = useMemo(() => createMaterials(style, studio, room), [style, studio, room]);
+  const detailed = cameraView === 'perspective' || cameraView === 'studio';
+  const coffeeCorner = coffeeCornerId(committedItems);
+  const customer = useCustomerFile(cameraView === 'studio', sceneReady, compact);
+  const materials = useMemo(() => createMaterials(style, detailed, room), [style, detailed, room]);
   useEffect(() => () => disposeMaterials(materials), [materials]);
   useLayoutEffect(() => {
     useUiStore.getState().setPreviewLockedIds(committedItems.filter((item) => interior || openedCabinets.has(item.id)).map((item) => item.id));
@@ -270,14 +271,15 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
             selectRoomObject(null);
           }
         }}>
-        <SceneRoom room={room} openings={openings} items={committedItems} materials={materials} studio={studio} build={ctx} selection={activeRoomSelection} onSelect={selectRoomObject} />
+        <SceneRoom room={room} openings={openings} items={committedItems} materials={materials} detailed={detailed} build={ctx} selection={activeRoomSelection} onSelect={selectRoomObject} />
         {items.map((item) => (
           <Unit3D
             key={item.id}
             item={item}
             ctx={ctx}
             materials={materials}
-            studio={studio}
+            detailed={detailed}
+            coffeeMaker={item.id === coffeeCorner}
             selected={item.id === selectedId}
             onSelect={select}
             invalid={invalid.has(item.id)}
