@@ -5,7 +5,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { Layer, Stage } from 'react-konva';
 import { replaceItem, updateItem } from '../../domain/designOps';
 import { attachedWall, isWallMounted, itemRect } from '../../domain/geometry';
-import { computeDragPlacement, computeHandleResize, type Guide, type HandleId } from '../../domain/snapping';
+import { computeDragPlacement, computeHandleResize, type Guide, type HandleId, type ItemHandle } from '../../domain/snapping';
 import type { Design, KitchenItem, Point, Wall } from '../../domain/types';
 import { editableUpperRows, inUpperRow, type UpperRow } from '../../domain/upperCabinets';
 import { cn } from '../../lib/cn';
@@ -38,6 +38,7 @@ import { RoomPickTargets, RoomShape } from './RoomShape';
 import { KitchenPlanRoomReadout } from '../room/RoomReadout';
 import { StartGuide } from './StartGuide';
 import { nearbyCabinet } from './touchPick';
+import { planSelectionRect } from './planResizeEdges';
 
 /** Pointer travel (px) before a press turns into a drag; fingers wobble more than mice. */
 const DRAG_START_PX = { mouse: 3, touch: 8 };
@@ -64,7 +65,7 @@ type Gesture =
       wall: Wall | null;
       started: boolean;
     })
-  | (GestureBase & { kind: 'resize'; base: Design; id: string; item: KitchenItem; handle: HandleId; started: boolean });
+  | (GestureBase & { kind: 'resize'; base: Design; id: string; item: KitchenItem; handle: HandleId; grabOffset: Point; started: boolean });
 
 /** Two fingers on the plan: zoom and pan together. */
 interface Pinch {
@@ -97,7 +98,7 @@ export function DesignCanvas({ compact = false, onAdd = () => useUiStore.getStat
   /** Fingers currently on the plan, for pinch zoom. */
   const touchesRef = useRef(new Map<number, Point>());
   const pinchRef = useRef<Pinch | null>(null);
-  const pendingReveal = useRef(false);
+  const pendingReveal = useRef<'grips' | 'body' | null>(null);
   const coarse = useCoarsePointer();
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [guides, setGuides] = useState<Guide[]>([]);
@@ -192,21 +193,29 @@ export function DesignCanvas({ compact = false, onAdd = () => useUiStore.getStat
   }, [placing, committedSelection]);
   const revealIfPending = useCallback(() => {
     if (!pendingReveal.current || gestureRef.current || touchesRef.current.size) return;
-    pendingReveal.current = false;
-    const id = useUiStore.getState().selectedId;
+    const grips = pendingReveal.current === 'grips';
+    pendingReveal.current = null;
+    const { selectedId: id, zoom } = useUiStore.getState();
     const item = useDesignStore.getState().design.items.find((entry) => entry.id === id);
-    if (item) revealPlanRect(itemRect(item));
-  }, []);
+    if (item) revealPlanRect(grips ? planSelectionRect(item, 1 / zoom, coarse) : itemRect(item));
+  }, [coarse]);
   useLayoutEffect(() => {
-    if (!compact || !committedSelection || placing) return;
+    if (compact && committedSelection && !placing) {
+      pendingReveal.current ??= 'body';
+      revealIfPending();
+    }
+  }, [compact, committedSelection, placing, revealIfPending]);
+  useLayoutEffect(() => {
+    if (!compact || !selectedId || placing) return;
     const sheet = containerRef.current?.closest('main')?.querySelector('[data-testid="item-sheet"][data-plan-overlay]');
     if (!sheet) return;
-    const reveal = () => { pendingReveal.current = true; revealIfPending(); };
-    reveal();
-    const observer = new ResizeObserver(reveal);
+    pendingReveal.current = 'grips';
+    revealIfPending();
+    // When snapping the *form*, keep the footprint visible rather than chasing screen-sized grips.
+    const observer = new ResizeObserver(() => { pendingReveal.current ??= 'body'; revealIfPending(); });
     observer.observe(sheet, { box: 'border-box' });
-    return () => { observer.disconnect(); pendingReveal.current = false; };
-  }, [compact, committedSelection, placing, revealIfPending]);
+    return () => { observer.disconnect(); pendingReveal.current = null; };
+  }, [compact, selectedId, placing, manualFilter, wallElevation, revealIfPending]);
 
   // Wheel zooms around the pointer. Registered by hand to be able to cancel browser zoom.
   useEffect(() => {
@@ -289,7 +298,8 @@ export function DesignCanvas({ compact = false, onAdd = () => useUiStore.getStat
         store.apply((d) => updateItem(d, g.id, { x: result.x, y: result.y, rotation: result.rotation }));
         showGuides(result.guides);
       } else {
-        const result = computeHandleResize({ room, others, item: g.item, handleId: g.handle, pointer, snap: snapSettings() });
+        const edgePoint = { x: pointer.x - g.grabOffset.x, y: pointer.y - g.grabOffset.y };
+        const result = computeHandleResize({ room, others, item: g.item, handleId: g.handle, pointer: edgePoint, snap: snapSettings() });
         const { x, y, width, depth, width2 } = result.item;
         store.apply((d) => updateItem(d, g.id, { x, y, width, depth, ...(width2 !== undefined ? { width2 } : {}) }));
         showGuides(result.guides);
@@ -337,7 +347,7 @@ export function DesignCanvas({ compact = false, onAdd = () => useUiStore.getStat
       touches.delete(e.pointerId);
       if (pinching) {
         pinchRef.current = null;
-        pendingReveal.current = false; // The manual viewport takes precedence over a deferred initial reveal.
+        pendingReveal.current = null; // The manual viewport takes precedence over a deferred initial reveal.
       }
       const g = gestureRef.current;
       if (!g || e.pointerId !== g.pointerId) return;
@@ -374,7 +384,7 @@ export function DesignCanvas({ compact = false, onAdd = () => useUiStore.getStat
     }
     const onPointerCancel = (e: PointerEvent) => {
       if (gestureRef.current?.pointerId === e.pointerId || touches.has(e.pointerId)) {
-        if (pinchRef.current) pendingReveal.current = false;
+        if (pinchRef.current) pendingReveal.current = null;
         cancel();
         revealIfPending();
       }
@@ -446,7 +456,7 @@ export function DesignCanvas({ compact = false, onAdd = () => useUiStore.getStat
     };
   }, []);
 
-  const onHandlePointerDown = useCallback((handle: HandleId, e: KonvaEventObject<PointerEvent>) => {
+  const onHandlePointerDown = useCallback((handle: ItemHandle, e: KonvaEventObject<PointerEvent>) => {
     const { button, pointerId, pointerType, clientX, clientY } = e.evt;
     if (button !== 0) return;
     e.cancelBubble = true;
@@ -454,7 +464,8 @@ export function DesignCanvas({ compact = false, onAdd = () => useUiStore.getStat
     blurActiveField();
     const id = useUiStore.getState().selectedId;
     const item = useDesignStore.getState().design.items.find((i) => i.id === id);
-    if (!item) return;
+    const pointer = clientToPlan(clientX, clientY);
+    if (!item || !pointer) return;
     gestureRef.current = {
       kind: 'resize',
       base: useDesignStore.getState().design,
@@ -463,7 +474,8 @@ export function DesignCanvas({ compact = false, onAdd = () => useUiStore.getStat
       start: { x: clientX, y: clientY },
       id: item.id,
       item,
-      handle,
+      handle: handle.id,
+      grabOffset: { x: pointer.x - handle.point.x, y: pointer.y - handle.point.y },
       started: false,
     };
   }, []);
@@ -495,6 +507,7 @@ export function DesignCanvas({ compact = false, onAdd = () => useUiStore.getStat
   const selectedDetail = activeSelection && detailed.includes(activeSelection) ? activeSelection : undefined;
   const annotated = ghost ?? selectedDetail;
   const identified = dragging ? undefined : items.find((i) => i.id === hoveredId && !dimmed.includes(i)) ?? activeSelection;
+  const gesture = gestureRef.current;
   const drawItem = (item: KitchenItem, mode: PlanItemMode) => <ItemShape key={item.id} item={item} px={px}
     compact={compact} mode={mode} hovered={hoveredId === item.id} onPointerDown={onItemPointerDown} onHoverChange={onHoverChange} />;
 
@@ -556,6 +569,7 @@ export function DesignCanvas({ compact = false, onAdd = () => useUiStore.getStat
                 item={selectedDetail}
                 px={px}
                 touch={coarse}
+                resizing={gesture?.kind === 'resize' && gesture.id === selectedDetail.id ? gesture : undefined}
                 onHandlePointerDown={onHandlePointerDown}
                 onCursor={setCursor}
               />

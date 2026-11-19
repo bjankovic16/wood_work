@@ -242,6 +242,8 @@ export const sr: Messages = {
     startManual: 'Samostalno dodaj elemente',
     startManualHint: 'Izaberite prvi element.',
     move: 'Pomeri', editSize: 'Promeni mere', sizeShort: 'Mere',
+    onDrawing: 'Na crtež',
+    drawingHint: 'Na crtežu prevucite element da ga pomerite. Povucite bočnu ili prednju ručicu da promenite mere.',
     placeHint: (code) => `Izaberite gde želite da bude sredina elementa ${code}.`,
     placeBlocked: 'Element ne može da stane tu. Izaberite drugo mesto u prostoriji.',
     startFromLayout: 'Izaberite kuhinju',
@@ -489,12 +491,12 @@ export const sr: Messages = {
     threeEditTip: 'Izaberite element da ga otvorite ili mu promenite mere. Za pomeranje otvorite Raspored.',
     touchTips: [
       'Dodirnite „Dodaj element“ i izaberite element. Biće postavljen na prvo slobodno mesto uz zidove.',
-      'Prevucite element jednim prstom da ga pomerite. Kod zida se sam okrene i prisloni uz njega.',
+      'Prevucite element jednim prstom da ga pomerite. Za širinu ili dubinu povucite kvadratnu ručicu.',
       'Raširite dva prsta za zum, prevucite prazan deo za pomeranje prikaza.',
     ],
     desktopTips: [
       'Prevucite element sa leve strane na osnovu. Kod zida se sam okrene i prisloni uz njega.',
-      'Prevucite postavljeni element da ga pomerite; prevucite plave ručice da mu promenite veličinu.',
+      'Prevucite element da ga pomerite. Za širinu povucite bočnu ivicu, a za dubinu prednju.',
       'Točkić miša za zum, prevucite prazan deo za pomeranje prikaza.',
     ],
     shortcuts: {

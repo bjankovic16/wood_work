@@ -320,7 +320,29 @@ export async function workspaceObjectChecks(page, touch = false, three = true) {
   assert.equal((await design(page)).openings.at(-1).sill, 0);
   assert.equal(await dimension(elevation, 'sill').count(), 0);
 
-  await workspace.getByRole('button', { name: 'Back to room outline' }).click();
+  // Capture the first rendered position, before ResizeObserver delivers its first size.
+  const [initialWall] = await Promise.all([
+    workspace.evaluate((root) => new Promise((resolve) => {
+      const observer = new MutationObserver(sample);
+      function sample() {
+        const wall = root.querySelector('[data-wall-id="sloping"] line');
+        if (!wall) return;
+        observer.disconnect();
+        const { x, y } = wall.getBoundingClientRect();
+        resolve({ x, y });
+      }
+      observer.observe(root, { subtree: true, childList: true });
+      sample();
+    })),
+    workspace.getByRole('button', { name: 'Back to room outline' }).click(),
+  ]);
+  await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+  const fittedWall = await plan.locator('[data-wall-id="sloping"] line').evaluate((wall) => {
+    const { x, y } = wall.getBoundingClientRect();
+    return { x, y };
+  });
+  assert.ok(Math.hypot(initialWall.x - fittedWall.x, initialWall.y - fittedWall.y) < 1,
+    `Returning to the outline must not move the wall underneath the first click: ${JSON.stringify({ initialWall, fittedWall })}`);
   await faceWall(page, plan, 'sloping', touch, -12);
   await workspace.getByRole('region', { name: 'Inside wall view: Wall 1', exact: true }).waitFor();
   await add('Chimney');

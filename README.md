@@ -240,8 +240,10 @@ or a cutting-list export for the workshop; the customer view is neither.
   without scrolling through the other sections. Use the common-size buttons
   for exact dimensions; stacking is at the end of **Size**.
   **Add element** stays open so you can add several units in a row. On a phone,
-  **Resize** in the picker or the selected cabinet's toolbar opens its exact
-  size fields. Use the blue edge handles on the drawing for width and depth.
+  choose **Edit on plan** (**Na crtež**) after a pick to edit that cabinet without
+  opening a form. Drag its body to move it, a side edge for width or the front
+  edge for depth. On small footprints the square grips sit just outside the unit
+  so you can still grab its middle. For exact values use **Resize** instead.
   Switch to wall units to work on
   one row at a time. **View** groups snapping, grid size and dimensions;
   **Settings** contains materials and construction.

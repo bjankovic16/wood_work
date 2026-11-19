@@ -246,6 +246,8 @@ export const en = {
     startManual: 'Add cabinets yourself',
     startManualHint: 'Choose your first cabinet.',
     move: 'Move', editSize: 'Resize', sizeShort: 'Resize',
+    onDrawing: 'Edit on plan',
+    drawingHint: 'On the drawing, drag the cabinet to move it. Drag a side or front grip to resize it.',
     placeHint: (code: string) => `Choose where the centre of ${code} should go.`,
     placeBlocked: 'The cabinet won’t fit there. Choose another spot in the room.',
     startFromLayout: 'Choose a kitchen',
@@ -493,12 +495,12 @@ export const en = {
     threeEditTip: 'Select a cabinet to open it or resize it. Switch to Layout to move it.',
     touchTips: [
       'Tap “Add element” and pick a cabinet. It goes into the first free spot along the walls.',
-      'Drag a cabinet with one finger to move it. Near a wall it turns and snaps against it.',
+      'Drag the cabinet with one finger to move it. Drag a square grip to change its width or depth.',
       'Pinch to zoom, drag an empty area to pan.',
     ],
     desktopTips: [
       'Drag an element from the left onto the plan. Near a wall it turns and snaps against it.',
-      'Drag a placed element to move it; drag its blue handles to resize it.',
+      'Drag a cabinet to move it. Drag a side edge to change its width or the front edge to change its depth.',
       'Scroll to zoom, drag an empty area to pan.',
     ],
     shortcuts: {
