@@ -15,6 +15,7 @@ import { useCoarsePointer } from '../../hooks/useMediaQuery';
 import { useT } from '../../i18n';
 import { clearTextMetrics } from '../../lib/measureText';
 import { committedDesign, useDesignStore } from '../../store/designStore';
+import { placeCabinetAt } from '../../store/actions';
 import { useIssues } from '../../store/derived';
 import { useProjectsStore } from '../../store/projects';
 import { useUiStore, type ViewFilter } from '../../store/uiStore';
@@ -89,6 +90,7 @@ function blurActiveField() {
 }
 
 export function DesignCanvas({ compact = false, onAdd = () => useUiStore.getState().requestFocus('library-search') }: { compact?: boolean; onAdd?: () => void }) {
+  const t = useT();
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<KonvaStage>(null);
   const gestureRef = useRef<Gesture | null>(null);
@@ -103,12 +105,14 @@ export function DesignCanvas({ compact = false, onAdd = () => useUiStore.getStat
   const [movingItem, setMovingItem] = useState<KitchenItem | null>(null);
   const [fontVersion, setFontVersion] = useState(0);
   const [allDimensions, setAllDimensions] = useState(false);
+  const [placeBlocked, setPlaceBlocked] = useState(false);
 
   const room = useDesignStore((s) => s.design.room);
   const items = useDesignStore((s) => s.design.items);
   const zoom = useUiStore((s) => s.zoom);
   const pan = useUiStore((s) => s.pan);
   const selectedId = useUiStore((s) => s.selectedId);
+  const placing = useUiStore((s) => s.cabinetTool === 'place');
   const planForegroundId = useUiStore((s) => s.planForegroundId);
   const manualFilter = useUiStore((s) => s.viewFilter);
   const wallElevation = useUiStore((s) => s.wallElevation);
@@ -182,6 +186,10 @@ export function DesignCanvas({ compact = false, onAdd = () => useUiStore.getStat
   // A sheet snap is a viewport change, not a design edit. Never move the plan
   // underneath an active finger; finish the pick/drag first.
   const committedSelection = committedItems.find((item) => item.id === selectedId);
+  useEffect(() => {
+    if (placing && !committedSelection) useUiStore.getState().setCabinetTool(null);
+    if (!placing) setPlaceBlocked(false);
+  }, [placing, committedSelection]);
   const revealIfPending = useCallback(() => {
     if (!pendingReveal.current || gestureRef.current || touchesRef.current.size) return;
     pendingReveal.current = false;
@@ -190,7 +198,7 @@ export function DesignCanvas({ compact = false, onAdd = () => useUiStore.getStat
     if (item) revealPlanRect(itemRect(item));
   }, []);
   useLayoutEffect(() => {
-    if (!compact || !committedSelection) return;
+    if (!compact || !committedSelection || placing) return;
     const sheet = containerRef.current?.closest('main')?.querySelector('[data-testid="item-sheet"][data-plan-overlay]');
     if (!sheet) return;
     const reveal = () => { pendingReveal.current = true; revealIfPending(); };
@@ -198,7 +206,7 @@ export function DesignCanvas({ compact = false, onAdd = () => useUiStore.getStat
     const observer = new ResizeObserver(reveal);
     observer.observe(sheet, { box: 'border-box' });
     return () => { observer.disconnect(); pendingReveal.current = false; };
-  }, [compact, committedSelection, revealIfPending]);
+  }, [compact, committedSelection, placing, revealIfPending]);
 
   // Wheel zooms around the pointer. Registered by hand to be able to cancel browser zoom.
   useEffect(() => {
@@ -493,7 +501,7 @@ export function DesignCanvas({ compact = false, onAdd = () => useUiStore.getStat
   return (
     <div
       ref={containerRef}
-      className="relative h-full w-full touch-none overflow-hidden bg-studio-canvas"
+      className={cn('relative h-full w-full touch-none overflow-hidden bg-studio-canvas', placing && '[&_.konvajs-content]:cursor-crosshair')}
       onContextMenu={(e) => e.preventDefault()}
       onPointerDownCapture={(e) => { if (e.pointerType === 'touch') setHoveredId(null); }}
     >
@@ -508,23 +516,32 @@ export function DesignCanvas({ compact = false, onAdd = () => useUiStore.getStat
           y={pan.y}
           onPointerDown={(e) => {
             const { pointerType, clientX, clientY } = e.evt;
+            if (placing && selectedId) {
+              const destination = clientToPlan(clientX, clientY, true);
+              // Only a completed tap places the cabinet. A swipe pans; two fingers can still pinch.
+              onStagePointerDown(e, () => {
+                if (destination) setPlaceBlocked(placeCabinetAt(selectedId, destination) === 'blocked');
+              });
+              return;
+            }
             const point = compact && pointerType === 'touch' && e.target === stageRef.current && clientToPlan(clientX, clientY);
             const nearby = point && nearbyCabinet(detailed, point, px, upperTargets);
-            // A near miss can select on tap, never initiate a move instead of panning.
+            // Once picked, a tiny cabinet's 44px touch target also works for dragging.
+            if (nearby && nearby.id === selectedId) { onItemPointerDown(nearby, e); return; }
             onStagePointerDown(e, nearby ? () => useUiStore.getState().select(nearby.id, 'plan') : undefined);
           }}
         >
           <Layer name="plan-room" listening={false}>
             <PlanRoom key={fontVersion} room={room} zoom={zoom} openings={openings} compact={compact} />
           </Layer>
-          <Layer>
+          <Layer listening={!placing}>
             <PlanRoomTargets room={room} openings={openings} px={px} onPress={onStagePointerDown} />
             {dimmed.map((item) => drawItem(item, 'dimmed'))}
             {upperTargets.map((item) => drawItem(item, 'upper-target'))}
             {detailed.map((item) => drawItem(item, 'detail'))}
             {upperTargets.length > 0 && <UpperOutlines items={upperTargets} px={px} selectedId={activeId} />}
           </Layer>
-          <Layer>
+          <Layer listening={!placing}>
             {showDimensions && <DimensionChains key={`dimensions-${fontVersion}`} room={room} items={detailed} px={px} compact={compact} totalsOnly={compact && !allDimensions} />}
             <IssueOutlines items={detailed} issues={issues} px={px} />
             {annotated && (!compact || (allDimensions && showDimensions)) && (
@@ -534,7 +551,7 @@ export function DesignCanvas({ compact = false, onAdd = () => useUiStore.getStat
             {ghost && <Ghost item={ghost} px={px} compact={compact} />}
             {compact && <CompactPlanCodes key={`codes-${fontVersion}`} items={detailed} selected={annotated} px={px} measurements={showDimensions} />}
             {compact && showDimensions && annotated && <SelectedUnitDimensions item={annotated} room={room} px={px} />}
-            {selectedDetail && !ghost && (
+            {selectedDetail && !ghost && !placing && (
               <Selection
                 item={selectedDetail}
                 px={px}
@@ -546,9 +563,13 @@ export function DesignCanvas({ compact = false, onAdd = () => useUiStore.getStat
           </Layer>
         </Stage>
       )}
-      <PlanControls zoom={zoom} viewFilter={viewFilter} compact={compact}
+      {placing && activeSelection ? <div data-plan-controls="" className="studio-panel absolute inset-x-2 top-2 mx-auto flex w-fit max-w-[calc(100%-1rem)] items-center gap-2 rounded-xl border p-1.5 shadow-sm">
+        <p role="status" className="px-1 text-sm leading-tight">{placeBlocked ? t.canvas.placeBlocked : t.canvas.placeHint(activeSelection.label)}</p>
+        <Button aria-label={t.canvas.fit} title={t.canvas.fit} onClick={requestFit}><Maximize className="size-4" aria-hidden="true" /></Button>
+        <Button autoFocus variant="outline" onClick={() => useUiStore.getState().setCabinetTool(null)}>{t.common.cancel}</Button>
+      </div> : <PlanControls zoom={zoom} viewFilter={viewFilter} compact={compact}
         rows={rows} row={row} manualRow={manualRow} requestFit={requestFit} upperOutlines={upperTargets.length > 0} identified={identified}
-        allDimensions={allDimensions && showDimensions} setAllDimensions={setAllDimensions} />
+        allDimensions={allDimensions && showDimensions} setAllDimensions={setAllDimensions} />}
       {items.length === 0 && <StartGuide onAdd={onAdd} />}
       <KitchenPlanRoomReadout />
     </div>

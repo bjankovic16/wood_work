@@ -1,4 +1,4 @@
-import { ChevronRight, Copy, RotateCwSquare, Trash2, TriangleAlert, X } from 'lucide-react';
+import { ChevronRight, Copy, Move, RotateCwSquare, Trash2, TriangleAlert, X } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { BAR_MATERIAL_ID, ELEVATION_LIMITS, GLASS_MATERIAL_ID, sizeLimits, type SizeField } from '../../domain/catalog';
 import { aabbSize, attachedRoomSurface, attachedWall, backWall, isFlushWith, itemRect, mountingWalls, attachedSegment } from '../../domain/geometry';
@@ -16,7 +16,7 @@ import { useDesignStore } from '../../store/designStore';
 import { useBuildContext, useIssues } from '../../store/derived';
 import { useUiStore } from '../../store/uiStore';
 import { KindIcon } from '../library/KindIcon';
-import { PanelSection, Segmented, TooltipButton } from '../ui';
+import { Button, PanelSection, Segmented, TooltipButton } from '../ui';
 import { FrontPreview } from './FrontPreview';
 import { NumberField, PickerField, TextField } from './NumberField';
 import { commonSizes } from './commonSizes';
@@ -166,7 +166,7 @@ export function ItemFields({ item, section }: { item: KitchenItem; section: Item
       {show('size') && locked && <p role="status" className="border-b border-zinc-100 bg-blue-50 px-4 py-3 text-xs text-blue-800">{t.view3d.previewLocked}</p>}
 
       {show('size') && <fieldset disabled={locked} className="min-w-0">
-        <PanelSection title={t.item.size}>
+        <PanelSection title={t.item.size} aside={inPlan && <span className="lg:hidden"><PlanMoveButton /></span>}>
           {sizeField('width', corner ? t.item.widthWallA : t.item.width)}
           {corner && sizeField('width2', t.item.widthWallB)}
           {sizeField('depth', t.item.depth)}
@@ -389,6 +389,15 @@ function PartsSection({ item, ctx }: { item: KitchenItem; ctx: BuildContext }) {
       )}
     </PanelSection>
   );
+}
+
+export function PlanMoveButton({ onStart }: { onStart?: () => void }) {
+  const t = useT();
+  const active = useUiStore((s) => s.cabinetTool === 'place');
+  return <Button variant="outline" active={active} onClick={() => {
+    useUiStore.getState().setCabinetTool(active ? null : 'place');
+    if (!active) onStart?.();
+  }}><Move className="size-4" aria-hidden="true" />{t.canvas.move}</Button>;
 }
 
 export function RotateButton({ relative = false }: { relative?: boolean }) {

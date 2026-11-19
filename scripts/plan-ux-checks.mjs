@@ -40,6 +40,15 @@ async function canvasPoint(page, x, y) {
   }, { x, y });
 }
 
+async function swipePlan(page, x, y, dx, dy) {
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+    for (let n = 1; n <= 4; n++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x + n * dx / 4, y: y + n * dy / 4 }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  } finally { await cdp.detach(); }
+}
+
 async function dragPreset(page, id, destination) {
   const tile = page.locator(`[data-preset="${id}"]`);
   await tile.scrollIntoViewIfNeeded();
@@ -119,6 +128,7 @@ async function layers(page) {
   await page.mouse.click(...await canvasPoint(page, 1050, 160));
   assert.equal(await selected(), 'plan-hood', 'An accessory outside every cupboard row is still reachable above a floor unit.');
   await row.selectOption('2170');
+  await drawn(page);
   await page.mouse.click(...await canvasPoint(page, 1050, 160));
   assert.equal(await selected(), 'plan-upper', 'Row controls make the same point editable as an upper.');
   assert.match(await name.textContent(), /^Wall cabinet · /);
@@ -141,6 +151,18 @@ async function layers(page) {
   await pressed('Wall units');
   assert.equal(await row.inputValue(), '2170');
   assert.equal(await page.evaluate(() => window.__kitchen.design.getState().design.items.at(-1).id), added.id);
+
+  await button(page, 'Move').click();
+  await page.getByText(`Choose where the centre of ${added.label} should go.`).waitFor();
+  const spot = await canvasPoint(page, 1800, 1700);
+  await page.mouse.click(...spot);
+  const repositioned = await page.evaluate(() => window.__kitchen.design.getState().design.items.at(-1));
+  const box = await planGeometry(page, added.id);
+  assert.ok(Math.hypot(box.x + box.width / 2 - spot[0], box.y + box.height / 2 - spot[1]) < 2,
+    `The rendered centre should follow the click: ${JSON.stringify({ spot, box, repositioned })}`);
+  assert.deepEqual(repositioned, { ...added, x: repositioned.x, y: repositioned.y });
+  await button(page, 'Undo').click();
+  assert.deepEqual(await page.evaluate(() => window.__kitchen.design.getState().design.items.at(-1)), added);
 }
 
 async function assertInkFits(page, step, margin = 16) {
@@ -362,6 +384,10 @@ async function phoneFit(page) {
   const selected = await annotations(page);
   assert.deepEqual(selected.unit, ['600', '560']);
   assert.ok(selected.minFontPx >= 12 - 1e-6);
+  const before = await planGeometry(page);
+  await swipePlan(page, before.x, before.y + before.height / 2, -18, 0);
+  assert.ok(await page.evaluate(() => window.__kitchen.design.getState().design.items[0].width > 600), 'The width handle must work on a 50px-wide cabinet without zooming in.');
+  await button(page, 'Undo').tap();
   const snaps = [];
   for (const [name, key] of [['small', 'Home'], ['half', 'ArrowUp'], ['full', 'End'], ['small', 'Home']]) {
     await handle.press(key);
@@ -384,6 +410,13 @@ async function phoneFit(page) {
   // A tap in otherwise empty space inside its 44px aperture can still pick it.
   await page.touchscreen.tap(large.x + large.width / 2, large.y + large.height / 2 - 18);
   assert.equal(await unitId(), 'phone-base', 'Near-target assistance must be a real pick, not visual inflation.');
+  const tiny = await planGeometry(page);
+  const previous = await view(page);
+  await swipePlan(page, tiny.x + tiny.width / 2, tiny.y + tiny.height / 2 - 18, 32, 0);
+  assert.notEqual(await page.evaluate(() => window.__kitchen.design.getState().design.items[0].x), 2250,
+    'Grabbing within the selected tiny cabinet’s touch target moves the cabinet, not the paper.');
+  assert.deepEqual(await view(page), previous);
+  await button(page, 'Undo').tap();
   await button(page, 'Deselect').tap();
   const portraitZoom = await zoom(page);
   await page.setViewportSize({ width: 568, height: 320 });
@@ -424,6 +457,50 @@ async function cabinetActions(page) {
   assert.equal(await page.evaluate(() => window.__kitchen.design.getState().design.items[0].rotation), 180);
 }
 
+async function phonePlacement(page) {
+  await page.evaluate(() => window.__kitchen.ui.getState().setLanguage('sr'));
+  const sheet = page.getByTestId('item-sheet'), picker = page.getByRole('dialog', { name: 'Dodaj element' });
+  const last = () => page.evaluate(() => window.__kitchen.design.getState().design.items.at(-1));
+  const history = () => page.evaluate(() => window.__kitchen.design.getState().past.length);
+  await button(sheet, 'Dodaj element').tap();
+  await picker.locator('[data-preset="base-600"]').tap();
+  const added = await last();
+  await button(picker, 'Promeni mere').tap();
+  const width = sheet.getByLabel('Širina', { exact: true });
+  await width.fill('650'); await width.press('Enter');
+  assert.deepEqual(await last(), { ...added, width: 650 });
+  await button(sheet, 'Pomeri').tap();
+  await sheet.waitFor({ state: 'hidden' });
+  await button(page, 'Prikaži celu prostoriju').tap();
+  await drawn(page);
+  const prior = await history();
+  await page.touchscreen.tap(...await canvasPoint(page, 900, 280)); // The sink already occupies this spot.
+  await page.getByText('Element ne može da stane tu. Izaberite drugo mesto u prostoriji.').waitFor();
+  assert.equal(await history(), prior);
+  await page.touchscreen.tap(...await canvasPoint(page, 1800, 1500));
+  await sheet.waitFor();
+  const placed = await last();
+  assert.equal(placed.id, added.id);
+  assert.ok(Math.abs(placed.x + placed.width / 2 - 1800) < 15 && Math.abs(placed.y + placed.depth / 2 - 1500) < 15);
+  assert.equal(await history(), prior + 1);
+  await button(page, 'Korak unazad').tap();
+  assert.deepEqual(await last(), { ...added, width: 650 });
+  for (const control of [button(sheet, 'Pomeri'), button(sheet, 'Promeni mere'), button(sheet, 'Dodaj element')]) {
+    assert.ok(await control.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return r.height >= 44 && r.width >= 44 && r.right <= innerWidth && el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
+    }), 'Move, Resize and Add must fit the collapsed 320px toolbar.');
+  }
+  await button(sheet, 'Dodaj element').tap();
+  await picker.locator('[data-preset="wall-600"]').tap();
+  const upper = await last();
+  await button(picker, 'Pomeri').tap();
+  await button(page, 'Otkaži').tap();
+  assert.deepEqual(await last(), upper, 'Cancel keeps the newly added cabinet where it was.');
+  await button(sheet, 'Promeni mere').tap();
+  assert.equal(await width.inputValue(), '600');
+}
+
 /** Pass a fresh touch-enabled Playwright Page already on the Vite app. Owns the fixture,
  * preferences, language and viewport; close its isolated context after this returns. */
 export async function checkPlanUX(page) {
@@ -435,6 +512,7 @@ export async function checkPlanUX(page) {
   await phoneFit(page);
   await openPhonePlan(page);
   await cabinetActions(page);
+  await phonePlacement(page);
 }
 
 // Also runnable without the unrelated 3D/workshop suites.

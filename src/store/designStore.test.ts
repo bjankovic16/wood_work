@@ -18,6 +18,37 @@ beforeEach(() => {
   useUiStore.setState({ selectedId: null, view: 'plan', cabinetTool: null, previewLockedIds: [], layoutsOpen: false, fitRequest: null, language: 'en' });
 });
 
+describe('choose a spot in Layout', () => {
+  it('moves a rotated island by its centre without snapping, resizing or losing its Undo step', () => {
+    const item = createItem('drawer', [], { x: 1200, y: 1200, width: 900, depth: 600, rotation: 90 });
+    const original = { ...ops.createDesign(), items: [item] };
+    store().load(original);
+    const ui = useUiStore.getState();
+    ui.setView('plan'); ui.select(item.id); ui.setCabinetTool('place');
+    expect(actions.placeCabinetAt(item.id, { x: 1107, y: 593 })).toBe('placed');
+    expect(store().design.items).toEqual([{ ...item, x: 807, y: 143 }]);
+    expect(useUiStore.getState().cabinetTool).toBeNull();
+    expect(store().past).toEqual([original]);
+    actions.undo();
+    expect(store().design).toBe(original);
+  });
+
+  it('rejects blocked or outside destinations without editing, and never places in another workspace', () => {
+    const item = createItem('base', [], { x: 1400, y: 1200 });
+    const other = createItem('base', [item], { x: 400, y: 0 });
+    const original = { ...ops.createDesign(), items: [item, other] };
+    store().load(original);
+    const ui = useUiStore.getState();
+    ui.setView('plan'); ui.select(item.id); ui.setCabinetTool('place');
+    for (const point of [{ x: 700, y: 300 }, { x: 0, y: 0 }]) expect(actions.placeCabinetAt(item.id, point)).toBe('blocked');
+    expect(useUiStore.getState().cabinetTool).toBe('place');
+    ui.setView('3d'); ui.setCabinetTool('place');
+    expect(actions.placeCabinetAt(item.id, { x: 1900, y: 1500 })).toBe('inactive');
+    expect(store().design).toBe(original);
+    expect(store().past).toEqual([]);
+  });
+});
+
 describe('explicit 3D cabinet tools', () => {
   it('disarms tools on selection/view changes and preview locks, without rearming when a preview closes', () => {
     const ui = () => useUiStore.getState();

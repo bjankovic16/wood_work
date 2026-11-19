@@ -241,6 +241,9 @@ export const sr: Messages = {
     startIdeaHint: 'Pogledajte kako se uklapa u vašu prostoriju.',
     startManual: 'Samostalno dodaj elemente',
     startManualHint: 'Izaberite prvi element.',
+    move: 'Pomeri', editSize: 'Promeni mere', sizeShort: 'Mere',
+    placeHint: (code) => `Izaberite gde želite da bude sredina elementa ${code}.`,
+    placeBlocked: 'Element ne može da stane tu. Izaberite drugo mesto u prostoriji.',
     startFromLayout: 'Izaberite kuhinju',
     filterLabel: 'Prikaz elemenata',
     zoomControls: 'Uvećanje osnove',
@@ -253,7 +256,7 @@ export const sr: Messages = {
     room: 'Prostorija',
     edit: 'Izmeni',
     less: 'Manje',
-    addHint: 'Dodirnite element: biće postavljen na prvo slobodno mesto uz zidove.',
+    addHint: 'Dodirnite element da ga dodate. Možete dodati još elemenata ili izmeniti poslednji.',
   },
 
   sheet: {

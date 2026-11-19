@@ -7,12 +7,12 @@ import { createKitchenDesign, KITCHEN_DESIGNS, originalView, type KitchenDesignI
 import type { CameraView } from '../domain/camera';
 import { applyKitchenLook } from '../domain/kitchenLook';
 import type { IdeaReview } from './ideaReview';
-import { centreOfRoom, findFreeSpot, placeCopy } from '../domain/placement';
+import { canPlaceItem, centreOfRoom, findFreeSpot, placeCopy } from '../domain/placement';
 import { computeDragPlacement } from '../domain/snapping';
 import { planCabinetAbove, planThreeTier, type StackPlan, type ThreeTierOptions, type ThreeTierPlan } from '../domain/upperCabinets';
 import type { KitchenStyle } from '../domain/style';
 import { OPENING_DEFAULTS } from '../domain/openings';
-import type { ConstructionSettings, CustomPart, Design, EdgeBand, KitchenItem, Material, Opening, OpeningKind, PartEdit, Room, RoomCutout, RoomFeature, RoomFeatureKind } from '../domain/types';
+import type { ConstructionSettings, CustomPart, Design, EdgeBand, KitchenItem, Material, Opening, OpeningKind, PartEdit, Point, Room, RoomCutout, RoomFeature, RoomFeatureKind } from '../domain/types';
 import { MAX_ROOM_FEATURES, featureFitsRoom, roomFeaturePose } from '../domain/roomGeometry';
 import { attachFeature, featureDragPlacement, freeFeature } from '../domain/roomObjectPlacement';
 import { createRoomExample, type RoomExampleId } from '../domain/roomExamples';
@@ -60,6 +60,19 @@ export function editCabinetPositionInPlan(id: string): void {
   const ui = useUiStore.getState();
   ui.setView('plan');
   ui.select(id);
+}
+
+/** A deliberate pick of the cabinet centre, not a wall-snapping drag. */
+export function placeCabinetAt(id: string, point: Point): 'placed' | 'blocked' | 'inactive' {
+  const ui = useUiStore.getState(), { design, gestureBase } = useDesignStore.getState();
+  const item = design.items.find((i) => i.id === id);
+  if (!item || gestureBase || ui.cabinetTool !== 'place' || ui.selectedId !== id || ui.view !== 'plan' || ui.roomOpen) return 'inactive';
+  const { w, h } = aabbSize(item);
+  const moved = { ...item, x: Math.round(point.x - w / 2), y: Math.round(point.y - h / 2) };
+  if (!canPlaceItem(design.room, design.items, moved, design.openings)) return 'blocked';
+  apply((d) => ops.replaceItem(d, moved));
+  ui.setCabinetTool(null);
+  return 'placed';
 }
 
 function editItem(id: string, edit: (item: KitchenItem, room: Room) => KitchenItem): void {

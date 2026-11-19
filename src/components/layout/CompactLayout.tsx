@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react';
+import { Plus, Ruler } from 'lucide-react';
 import { useEffect, useId, useState } from 'react';
 import type { KitchenItem } from '../../domain/types';
 import { useT } from '../../i18n';
@@ -9,7 +9,7 @@ import { ConstructionDialog } from '../construction/ConstructionDialog';
 import { CuttingListView } from '../cutting/CuttingListView';
 import { LibrarySections } from '../library/LibraryPanel';
 import { CabinetEditor } from '../properties/CabinetEditor';
-import { DeleteButton, DuplicateButton, ItemHeader, RotateButton } from '../properties/ItemPanel';
+import { DeleteButton, DuplicateButton, ItemHeader, PlanMoveButton, RotateButton } from '../properties/ItemPanel';
 import { SheetHandle, type SheetSnap } from '../sheets/SheetHandle';
 import { RoomWorkspace } from '../room/RoomWorkspace';
 import { Button, Dialog } from '../ui';
@@ -26,6 +26,14 @@ function AddButton({ open, iconOnly = false }: { open: () => void; iconOnly?: bo
     className="pointer-events-auto h-11 shrink-0 rounded-full px-3 text-sm" onClick={open}>
     <Plus className="size-4" aria-hidden="true" /><span className={iconOnly ? 'sr-only' : undefined}>{t.phone.addElement}</span>
   </Button>;
+}
+
+function SizeButton({ onEdit, short = false }: { onEdit?: () => void; short?: boolean }) {
+  const t = useT();
+  return <Button variant="outline" aria-label={t.canvas.editSize} onClick={() => {
+    useUiStore.getState().requestFocus('width');
+    onEdit?.();
+  }}><Ruler className="size-4" aria-hidden="true" />{short ? t.canvas.sizeShort : t.canvas.editSize}</Button>;
 }
 
 /** Not a modal: the exposed drawing stays interactive at every snap. */
@@ -48,14 +56,15 @@ function ItemSheet({ item, onAdd, adding }: { item: KitchenItem; onAdd: () => vo
     >
       <ItemHeader item={item}
         handle={<SheetHandle snap={snap} onSnap={setSnap} onClose={() => useUiStore.getState().select(null)} controls={small ? undefined : id} />}
-        action={!small && <AddButton iconOnly open={onAdd} />} />
+        action={(!small || inPlan) && <AddButton iconOnly open={onAdd} />} />
       {small && <div className="flex shrink-0 items-center justify-between gap-0.5 px-1 pb-1">
+        {inPlan && <><PlanMoveButton /><SizeButton short /></>}
         <RotateButton />
         <DuplicateButton iconOnly />
         <DeleteButton iconOnly />
-        <AddButton open={onAdd} />
+        {!inPlan && <AddButton open={onAdd} />}
       </div>}
-      <CabinetEditor key={inPlan ? 'plan' : '3d'} item={item} expanded={!small} id={id} />
+      <CabinetEditor key={inPlan ? 'plan' : '3d'} item={item} expanded={!small && !adding} id={id} />
     </section>
   );
 }
@@ -63,7 +72,9 @@ function ItemSheet({ item, onAdd, adding }: { item: KitchenItem; onAdd: () => vo
 function AddSheet({ close }: { close: () => void }) {
   const t = useT();
   const [added, setAdded] = useState<KitchenItem | null>(null);
+  const selectedId = useUiStore((s) => s.selectedId), inPlan = useUiStore((s) => s.view === 'plan');
   return <Dialog open title={t.phone.addElement} sheet onClose={close}
+    footer={inPlan && added && added.id === selectedId && <><PlanMoveButton onStart={close} /><SizeButton onEdit={close} /></>}
     headerNote={<p role="status" aria-atomic="true" className="text-xs font-medium text-studio-accent">{added && t.sheet.added(t.kinds[added.kind], added.label)}</p>}>
     <p className="px-4 pt-3 text-xs text-zinc-500">{t.phone.addHint}</p>
     <div className="space-y-1 px-3 pb-[max(env(safe-area-inset-bottom),16px)] pt-1">
@@ -84,6 +95,7 @@ export function CompactLayout() {
   const layoutsOpen = useUiStore((s) => s.layoutsOpen);
   const roomOpen = useUiStore((s) => s.roomOpen);
   const selectedId = useUiStore((s) => s.selectedId);
+  const placing = useUiStore((s) => s.cabinetTool === 'place');
   const empty = useDesignStore((s) => s.design.items.length === 0);
   const item = useDesignStore((s) => (selectedId ? s.design.items.find((i) => i.id === selectedId) : undefined));
   const [sheet, setSheet] = useState<'add' | null>(null);
@@ -116,7 +128,7 @@ export function CompactLayout() {
             <AddButton open={openAdd} />
           </div>
         )}
-        {designing && item && <ItemSheet key={item.id} item={item} adding={sheet === 'add'} onAdd={openAdd} />}
+        {designing && item && !placing && <ItemSheet key={item.id} item={item} adding={sheet === 'add'} onAdd={openAdd} />}
       </main>}
       {(roomOpen || view !== 'list') && <div className="phone-flow-actions"><ChecksButton compact /><NextStep /></div>}
       <MobileNavigation />
