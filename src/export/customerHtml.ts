@@ -23,8 +23,9 @@ export function customerHtml(name: string, modelBase64: string, poster: string, 
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src data: blob:; base-uri 'none'; form-action 'none'">
 <title>${title}</title><style>
 *{box-sizing:border-box}body{margin:0;height:100dvh;background:#ebe8e3;color:#30352e;font:16px/1.4 system-ui,sans-serif;display:flex;flex-direction:column}header,footer{background:#fffefa;padding:.6rem 1rem}header{display:flex;justify-content:space-between;align-items:center;gap:1rem}h1{font-size:1.05rem;margin:0;overflow-wrap:anywhere}button{background:#fff;border:1px solid #9aab98;border-radius:.5rem;padding:.6rem;min-height:44px;color:inherit}main{position:relative;min-height:0;flex:1}img,canvas{width:100%;height:100%;display:block;position:absolute;inset:0}img{object-fit:contain}canvas{touch-action:none}footer{font-size:.875rem}#failure{color:#7d3424}[hidden]{display:none}
+.touch-hint{display:none}@media(pointer:coarse){.mouse-hint{display:none}.touch-hint{display:inline}}
 </style></head><body><header><h1>${title}</h1><button id="reset" type="button" disabled>${escapeText(words.reset)}</button></header>
-<main><img id="poster" src="${poster}" alt="${title}"></main><footer><span id="hint">${escapeText(words.controls)}</span><strong id="failure" role="status" hidden>${escapeText(words.fallback)}</strong><noscript> ${escapeText(words.fallback)}</noscript></footer>
+<main><img id="poster" src="${poster}" alt="${title}"></main><footer><span id="hint"><span class="mouse-hint">${escapeText(words.controls)}</span><span class="touch-hint">${escapeText(words.touchControls)}</span></span><strong id="failure" role="status" hidden>${escapeText(words.fallback)}</strong><noscript> ${escapeText(words.fallback)}</noscript></footer>
 <script type="application/json" id="pose">${JSON.stringify(camera).replace(/</g, '\\u003c')}</script>
 <script type="application/octet-stream" id="model">`, modelBase64, '</script><script>', script.replace(/<\/script/gi, '<\\/script'), '</script></body></html>'], { type: 'text/html;charset=utf-8' });
 }

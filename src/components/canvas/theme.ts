@@ -1,6 +1,7 @@
 export const CANVAS_BACKGROUND = '#f0ede6';
 export const ACCENT = '#52644d';
 export const GUIDE = '#b26c48';
+export const COMPACT_LABEL_PX = 12;
 
 export const ROOM_COLORS = {
   wall: '#d7d0c3',

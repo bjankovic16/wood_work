@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { pathToFileURL } from 'node:url';
 
 const button = (page, name) => page.getByRole('button', { name, exact: true });
 const drawn = (page) => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
@@ -117,12 +118,12 @@ async function layers(page) {
   assert.equal(await page.evaluate(() => window.__kitchen.design.getState().design.items.at(-1).id), added.id);
 }
 
-async function assertInkFits(page, step) {
+async function assertInkFits(page, step, margin = 16) {
   await drawn(page);
   const stats = await page.evaluate(() => {
     const stage = window.Konva.stages[0];
     const dims = stage.findOne('.plan-dimensions');
-    const shapes = [...stage.findOne('.plan-room').find('Shape'), ...dims.find('Shape')].filter((n) => n.isVisible());
+    const shapes = [stage.findOne('.room-perimeter'), ...dims.find('Shape')].filter((n) => n.isVisible());
     const bounds = shapes.map((n) => n.getClientRect());
     const left = Math.min(...bounds.map((b) => b.x)), right = Math.max(...bounds.map((b) => b.x + b.width));
     const top = Math.min(...bounds.map((b) => b.y)), bottom = Math.max(...bounds.map((b) => b.y + b.height));
@@ -130,13 +131,14 @@ async function assertInkFits(page, step) {
     const origin = stage.container().getBoundingClientRect();
     for (const control of document.querySelectorAll('main [data-plan-controls], main [data-plan-overlay]')) {
       const box = control.getBoundingClientRect();
+      if (!box.width || !box.height) continue;
       gaps.push(Math.max(box.left - origin.left - right, left - (box.right - origin.left),
         box.top - origin.top - bottom, top - (box.bottom - origin.top)));
     }
     return { clearance: Math.min(...gaps), labels: dims.find('Text').length, lines: dims.find('Line').length, gaps };
   });
   assert.ok(stats.labels > 0 && stats.lines > 4, `${step}: expected actual dimension labels and lines`);
-  assert.ok(stats.clearance >= 14 && stats.clearance <= 18, `${step}: expected a snug 16px fit, got ${JSON.stringify(stats)}`);
+  assert.ok(Math.abs(stats.clearance - margin) <= 2, `${step}: expected a snug ${margin}px fit, got ${JSON.stringify(stats)}`);
 }
 
 async function desktopFit(page) {
@@ -157,38 +159,207 @@ async function desktopFit(page) {
   await page.evaluate(async () => (await import('/src/store/actions.ts')).setRoomSize({ width: 4000, depth: 3200 }));
 }
 
-async function phoneFit(page) {
-  await page.evaluate(() => {
+async function openPhonePlan(page) {
+  await page.evaluate(async () => {
+    const { createDesign } = await import('/src/domain/designOps.ts');
+    const { createItem } = await import('/src/domain/catalog.ts');
+    const fixture = createDesign('3600 × 3000');
+    const add = (kind, id, fields) => fixture.items.push(createItem(kind, fixture.items, { id, ...fields }));
+    add('base', 'phone-base', { label: 'B1', x: 2250, y: 2440, rotation: 180 });
+    add('sink', 'phone-sink', { label: 'S1', x: 600, y: 0, width: 600 });
+    add('wall', 'phone-wall1', { label: 'W1', x: 600, y: 0, elevation: 1450 });
+    add('wall', 'phone-wall2', { label: 'W2', x: 600, y: 0, elevation: 2170, height: 400 });
     const ui = window.__kitchen.ui.getState();
     ui.select(null); ui.setViewFilter('all'); ui.setView('list');
+    window.__kitchen.design.getState().load(fixture);
   });
-  await page.setViewportSize({ width: 320, height: 568 });
+  await page.setViewportSize({ width: 360, height: 640 });
   await page.evaluate(() => window.__kitchen.ui.getState().setView('plan'));
   await page.locator('.konvajs-content').waitFor();
-  await assertInkFits(page, 'Phone open');
-  const initial = await zoom(page);
-  await button(page, 'Zoom out').tap();
-  assert.ok(await zoom(page) < initial);
-  await button(page, 'Zoom in').tap();
-  await button(page, 'Zoom in').tap();
-  assert.ok(await zoom(page) > initial);
+  await page.evaluate(() => document.fonts.ready);
+  await assertInkFits(page, '360px open', 8);
+}
+
+const view = (page) => page.evaluate(() => {
+  const { zoom, pan } = window.__kitchen.ui.getState();
+  return { zoom, pan };
+});
+
+async function planGeometry(page, id = 'phone-base') {
+  await drawn(page);
+  return page.evaluate((id) => {
+    const stage = window.Konva.stages[0];
+    const canvas = stage.content.getBoundingClientRect();
+    const node = stage.findOne(`#${id}`);
+    const box = node.findOne('Line').getClientRect({ skipStroke: true });
+    const x = canvas.x + box.x, y = canvas.y + box.y;
+    const sheet = document.querySelector('[data-testid="item-sheet"][data-plan-overlay]')?.getBoundingClientRect();
+    const screenRect = (r) => ({ x: r.x, y: r.y, width: r.width, height: r.height, bottom: r.bottom, right: r.right });
+    const targetAt = (dx, dy) => {
+      const p = { x: box.x + box.width / 2 + dx, y: box.y + box.height / 2 + dy };
+      return document.elementFromPoint(canvas.x + p.x, canvas.y + p.y)?.tagName === 'CANVAS'
+        && stage.getIntersection(p)?.findAncestor('.item')?.id() === id;
+    };
+    return {
+      x, y, width: box.width, height: box.height, bottom: y + box.height, right: x + box.width,
+      sheet: sheet && screenRect(sheet), canvas: screenRect(canvas), centreHit: targetAt(0, 0),
+      hit44: [-21.5, 21.5].every((dx) => [-21.5, 21.5].every((dy) => targetAt(dx, dy))),
+    };
+  }, id);
+}
+
+const annotations = (page) => page.evaluate(() => {
+  const stage = window.Konva.stages[0];
+  const texts = (name) => (stage.findOne(`.${name}`)?.find('Text') ?? []).map((text) => text.text());
+  const rects = stage.findOne('.plan-codes').find('Text').map((code) => code.getClientRect());
+  const overlap = rects.some((a, i) => rects.slice(i + 1).some((b) =>
+    a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height));
+  const minFontPx = Math.min(...stage.find('Text').filter((n) => n.isVisible()).map((n) => n.fontSize() * Math.abs(n.getAbsoluteScale().x)));
+  return { codes: texts('plan-codes'), overlap, room: texts('plan-dimensions'), unit: texts('selected-unit-dimensions'), minFontPx };
+});
+
+async function phoneLayers(page) {
+  const initial = await annotations(page);
+  assert.deepEqual(initial.room, ['3600', '3000']);
+  assert.deepEqual(initial.unit, []);
+  assert.ok(initial.minFontPx >= 12 - 1e-6, 'Draw room/cabinet labels at 12 CSS pixels or larger.');
+  assert.ok(!initial.overlap && !initial.codes.includes('W1') && initial.codes.includes('W2') && initial.codes.includes('S1'),
+    `Coincident upper tiers share one readable code; the exposed sink still has its own: ${JSON.stringify(initial)}`);
+  await button(page, 'Floor units').tap();
+  const floor = await annotations(page);
+  assert.ok(floor.codes.includes('S1') && !floor.codes.some((code) => code.startsWith('W')), 'Ghosted tiers have no labels.');
+  await button(page, 'All').tap();
+  const all = button(page, 'Show all plan dimensions');
+  await all.tap();
+  assert.equal(await all.getAttribute('aria-pressed'), 'true');
+  await assertInkFits(page, 'Opt-in dimension chains', 8);
+  const detailed = await annotations(page);
+  assert.ok(detailed.room.length > 2 && detailed.minFontPx >= 12 - 1e-6);
+  await all.tap();
+  await assertInkFits(page, 'Restored room totals', 8);
+  assert.deepEqual((await annotations(page)).room, initial.room);
+}
+
+async function pinchAndCancel(page) {
+  const cdp = await page.context().newCDPSession(page);
+  const touch = (type, points) => cdp.send('Input.dispatchTouchEvent', {
+    type, touchPoints: points.map(([x, y], id) => ({ x, y, id })),
+  });
+  const history = () => page.evaluate(() => {
+    const { design, past, future } = window.__kitchen.design.getState();
+    return JSON.stringify([design, past, future]);
+  });
+  // Keep a real redo branch: a viewport gesture must not clear either history stack.
+  await page.evaluate(() => {
+    const store = window.__kitchen.design.getState();
+    store.apply((d) => ({ ...d, name: 'Undo me' })); store.undo();
+  });
+  const before = await history();
   const fit = button(page, 'Fit the room in view');
-  assert.match(await fit.innerText(), /^\d+%$/);
+  const initial = await view(page);
+  const [x, y] = (await canvasPoint(page, 1200, 1500)).map(Math.round);
+  // The midpoint translates as well as spreads, deliberately off centre.
+  await touch('touchStart', [[x - 30, y], [x + 30, y]]);
+  await touch('touchMove', [[x - 38, y - 16], [x + 82, y - 16]]);
+  await touch('touchEnd', []);
+  const pinched = await view(page), canvas = await page.locator('.konvajs-content').boundingBox();
+  const anchored = (axis, original) => canvas[axis] + pinched.pan[axis]
+    + ((original - canvas[axis] - initial.pan[axis]) / initial.zoom) * pinched.zoom;
+  assert.ok(Math.abs(pinched.zoom / initial.zoom - 2) < 0.03);
+  assert.ok(Math.abs(anchored('x', x) - (x + 22)) < 1 && Math.abs(anchored('y', y) - (y - 16)) < 1, 'Pinch follows its midpoint, not the canvas centre.');
+  assert.equal(await history(), before);
   await fit.tap();
-  await assertInkFits(page, 'Tap percentage');
-  assert.ok(Math.abs((await zoom(page)) - initial) < 0.0001);
-  await button(page, 'Zoom in').tap();
-  await page.evaluate(async () => (await import('/src/store/actions.ts')).setRoomSize({ width: 14000 }));
-  await assertInkFits(page, 'Changed room');
+  await assertInkFits(page, 'Fit after pinch', 8);
+  assert.ok(Math.abs((await zoom(page)) - initial.zoom) < 0.0001);
+
+  // Take over a live unit drag (not just a press) and then interrupt the pinch.
+  const [ux, uy] = (await canvasPoint(page, 2550, 2720)).map(Math.round);
+  await touch('touchStart', [[ux, uy]]);
+  await touch('touchMove', [[ux - 32, uy - 10]]);
+  await page.waitForFunction(() => window.__kitchen.design.getState().gestureBase !== null);
+  assert.notEqual(await history(), before, 'The first finger really moved the cabinet.');
+  const beforeCancel = await view(page);
+  await touch('touchStart', [[ux - 32, uy - 10], [ux - 82, uy - 45]]);
+  await touch('touchMove', [[ux - 12, uy - 10], [ux - 106, uy - 55]]);
+  await drawn(page);
+  assert.ok((await zoom(page)) > beforeCancel.zoom * 1.4);
+  assert.equal(await history(), before, 'The second finger rolled back the live edit without recording it.');
+  await touch('touchCancel', []);
+  await drawn(page);
+  assert.deepEqual(await view(page), beforeCancel, 'Pointer cancellation restores the pre-pinch viewport.');
+  assert.equal(await history(), before, 'Cancel must preserve design, Undo and Redo.');
+  // A wall's tap action must not fire just because a pinch finishes on that wall.
+  const [wx, wy] = (await canvasPoint(page, 1800, 0)).map(Math.round);
+  await touch('touchStart', [[wx, wy], [wx + 35, wy + 24]]);
+  await touch('touchEnd', []);
+  assert.equal(await page.getByTestId('room-workspace').count(), 0);
+  await cdp.detach();
+}
+
+async function phoneFit(page) {
+  await openPhonePlan(page);
+  assert.equal(await button(page, 'Zoom out').count() + await button(page, 'Zoom in').count(), 0);
+  assert.equal(await button(page, 'Fit the room in view').innerText(), 'Fit');
+  await phoneLayers(page);
+  const cabinet = await planGeometry(page);
+  assert.ok(cabinet.width >= 44 && cabinet.height >= 44 && cabinet.hit44, `3600mm room: the 600mm base needs a usable 44px target: ${JSON.stringify(cabinet)}`);
+
+  await pinchAndCancel(page);
+  await button(page, 'Deselect').tap();
+  await button(page, 'Fit the room in view').tap();
+  const target = await planGeometry(page);
+  await page.touchscreen.tap(target.x + target.width / 2 + 21, target.y + target.height / 2 + 21);
+  const sheet = page.getByTestId('item-sheet');
+  const handle = sheet.getByTestId('sheet-handle');
+  const unitId = () => page.evaluate(() => window.__kitchen.ui.getState().selectedId);
+  assert.equal(await unitId(), 'phone-base');
+  const selected = await annotations(page);
+  assert.deepEqual(selected.unit, ['600', '560']);
+  assert.ok(selected.minFontPx >= 12 - 1e-6);
+  const snaps = [];
+  for (const [name, key] of [['small', 'Home'], ['half', 'ArrowUp'], ['full', 'End'], ['small', 'Home']]) {
+    await handle.press(key);
+    await sheet.locator(`:scope[data-snap="${name}"]`).waitFor();
+    const r = await planGeometry(page);
+    assert.ok(r.sheet && r.centreHit && r.bottom <= r.sheet.y - 4 && r.y >= r.canvas.y && r.x >= r.canvas.x && r.right <= r.canvas.right,
+      `${name}: selected footprint must be on the exposed drawing, not behind the actual sheet: ${JSON.stringify(r)}`);
+    snaps.push(r);
+  }
+  assert.ok(snaps[0].sheet.y > snaps[1].sheet.y && snaps[1].sheet.y > snaps[2].sheet.y);
+  assert.ok(snaps[0].bottom > snaps[1].sheet.y && snaps[1].bottom > snaps[2].sheet.y, 'Each taller snap really would have covered the old cabinet location.');
+  assert.equal(snaps[3].y, snaps[2].y, 'Making room again must not yank a visible cabinet.');
+  console.log(`  360px: 600mm base ${cabinet.width.toFixed(1)} × ${cabinet.height.toFixed(1)} CSS px; cabinet bottom / sheet top: ${
+    snaps.slice(0, 3).map((r) => `${r.bottom.toFixed(1)} / ${r.sheet.y.toFixed(1)}`).join(', ')}`);
+  await button(page, 'Deselect').tap();
+  await page.evaluate(async () => (await import('/src/store/actions.ts')).setRoomSize({ width: 20000, depth: 20000 }));
+  await assertInkFits(page, '20000mm phone room', 8);
+  const large = await planGeometry(page);
+  assert.ok(large.width < 12 && large.width < cabinet.width / 4, 'A large room scales honestly; the cabinet itself is not enlarged.');
+  // A tap in otherwise empty space inside its 44px aperture can still pick it.
+  await page.touchscreen.tap(large.x + large.width / 2, large.y + large.height / 2 - 18);
+  assert.equal(await unitId(), 'phone-base', 'Near-target assistance must be a real pick, not visual inflation.');
+  await button(page, 'Deselect').tap();
   const portraitZoom = await zoom(page);
   await page.setViewportSize({ width: 568, height: 320 });
-  await assertInkFits(page, 'Landscape');
+  await assertInkFits(page, 'Phone landscape', 8);
   assert.notEqual(await zoom(page), portraitZoom);
+
+  // An inset outline does not fill the nominal box (the clipped grid still does).
+  await page.setViewportSize({ width: 360, height: 640 });
+  await page.evaluate(() => {
+    const store = window.__kitchen.design.getState();
+    const vertices = [[6000, 3000], [9600, 3100], [9500, 6000], [6000, 6000]].map(([x, y], i) => ({ id: `wall-${i}`, x, y }));
+    store.load({ ...store.design, items: [], room: { ...store.design.room, vertices } });
+  });
+  await page.getByTestId('empty-plan-hint').waitFor();
+  await assertInkFits(page, 'Actual polygon + empty-plan hint', 8);
+  assert.deepEqual((await annotations(page)).room, ['3600', '3000']);
+  assert.ok((await zoom(page)) * 600 >= 44, 'Fit the drawn outline, not the invisible 20m grid.');
 }
 
 async function cabinetActions(page) {
   await page.setViewportSize({ width: 320, height: 740 });
-  await page.evaluate(() => window.__kitchen.ui.getState().select('plan-base'));
+  await page.evaluate(() => window.__kitchen.ui.getState().select('phone-base'));
   const sheet = page.getByTestId('item-sheet');
   const turn = button(sheet, 'Rotate cabinet 90° clockwise');
   assert.equal(await turn.innerText(), '90°', 'Rotation needs a visible cue that Undo does not have.');
@@ -202,9 +373,9 @@ async function cabinetActions(page) {
     await tooltip.waitFor({ state: 'detached' });
   }
   await turn.tap();
-  assert.equal(await page.evaluate(() => window.__kitchen.design.getState().design.items[0].rotation), 90);
+  assert.equal(await page.evaluate(() => window.__kitchen.design.getState().design.items[0].rotation), 270);
   await button(page, 'Undo').tap();
-  assert.equal(await page.evaluate(() => window.__kitchen.design.getState().design.items[0].rotation), 0);
+  assert.equal(await page.evaluate(() => window.__kitchen.design.getState().design.items[0].rotation), 180);
 }
 
 /** Pass a fresh touch-enabled Playwright Page already on the Vite app. Owns the fixture,
@@ -216,5 +387,27 @@ export async function checkPlanUX(page) {
   await layers(page);
   await desktopFit(page);
   await phoneFit(page);
+  await openPhonePlan(page);
   await cabinetActions(page);
+}
+
+// Also runnable without the unrelated 3D/workshop suites.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const { createServer } = await import('vite');
+  const { chromium } = await import('playwright-core');
+  const server = await createServer({ logLevel: 'error', cacheDir: 'test-results/plan-ux/.vite',
+    optimizeDeps: { entries: ['index.html'] }, server: { host: '127.0.0.1', port: 0, watch: null, hmr: false } });
+  let browser;
+  try {
+    await server.listen();
+    browser = await chromium.launch({ channel: 'chrome' });
+    const page = await browser.newPage({ locale: 'en-US', hasTouch: true, isMobile: true, reducedMotion: 'reduce' });
+    const errors = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
+    await page.goto(server.resolvedUrls.local[0]);
+    await checkPlanUX(page);
+    assert.deepEqual(errors, []);
+    console.log('  PASS desktop and touch plan drawing checks');
+  } finally { await browser?.close(); await server.close(); }
 }

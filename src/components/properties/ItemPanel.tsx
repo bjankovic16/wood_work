@@ -16,7 +16,8 @@ import { useUiStore } from '../../store/uiStore';
 import { KindIcon } from '../library/KindIcon';
 import { PanelSection, Segmented, TooltipButton } from '../ui';
 import { FrontPreview } from './FrontPreview';
-import { NumberField, SelectField, TextField } from './NumberField';
+import { NumberField, PickerField, TextField } from './NumberField';
+import { commonSizes } from './commonSizes';
 import { Stepper } from './Stepper';
 import { canStackCabinet } from '../../domain/upperCabinets';
 import { StackAboveButton } from './StackAboveButton';
@@ -36,14 +37,14 @@ function placementText(item: KitchenItem, room: Room, t: Messages): string {
   return wall ? t.item.backAgainst(wall) : t.item.freeStanding(backWall(item.rotation));
 }
 
-export function ItemHeader({ item, compact = false }: { item: KitchenItem; compact?: boolean }) {
+export function ItemHeader({ item, handle, action }: { item: KitchenItem; handle?: ReactNode; action?: ReactNode }) {
   const t = useT();
   const room = useDesignStore((s) => s.design.room);
   return (
-    <div className={cn('flex items-start gap-3 px-4', compact ? 'pb-2 pt-3' : 'border-b border-zinc-100 py-4')}>
-      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-zinc-600">
+    <div className={cn('flex shrink-0 gap-2', handle ? 'items-center px-2 py-1' : 'items-start gap-3 border-b border-zinc-100 px-4 py-4')}>
+      {handle ?? <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-zinc-600">
         <KindIcon kind={item.kind} width={item.width} className="size-7" />
-      </div>
+      </div>}
       <div className="min-w-0 flex-1 pt-0.5">
         <div className="truncate text-sm font-semibold text-zinc-900">
           {t.kinds[item.kind]}
@@ -51,7 +52,8 @@ export function ItemHeader({ item, compact = false }: { item: KitchenItem; compa
         </div>
         <div className="truncate text-xs text-zinc-500">{placementText(item, room, t)}</div>
       </div>
-      <TooltipButton tooltip={t.item.deselectTitle} aria-label={t.item.deselect} onClick={() => useUiStore.getState().select(null)} className="-mr-2 -mt-1">
+      {action}
+      <TooltipButton tooltip={t.item.deselectTitle} aria-label={t.item.deselect} onClick={() => useUiStore.getState().select(null)} className={handle ? undefined : '-mr-2 -mt-1'}>
         <X className="size-4" />
       </TooltipButton>
     </div>
@@ -101,7 +103,7 @@ function MaterialField({
     ...materials.filter((m) => m.id !== kitchenWide).map((m) => ({ value: m.id, label: materialLabel(m) })),
   ];
   return (
-    <SelectField
+    <PickerField
       label={label}
       value={item[field] && item[field] !== kitchenWide ? item[field] : ''}
       options={options}
@@ -111,7 +113,9 @@ function MaterialField({
 }
 
 /** Everything editable about one unit. Shared by the desktop panel and the phone sheet. */
-export function ItemFields({ item }: { item: KitchenItem }) {
+export type ItemSection = 'size' | 'fronts' | 'materials' | 'parts';
+
+export function ItemFields({ item, section }: { item: KitchenItem; section?: ItemSection }) {
   const t = useT();
   const inPlan = useUiStore((s) => s.view === 'plan');
   const locked = useUiStore((s) => s.view === '3d' && s.previewLockedIds.includes(item.id));
@@ -127,8 +131,8 @@ export function ItemFields({ item }: { item: KitchenItem }) {
 
   // The request is consumed once the width field has had the chance to focus itself.
   useEffect(() => {
-    if (focusRequest) useUiStore.getState().requestFocus(null);
-  }, [focusRequest]);
+    if (focusRequest === 'width' && (!section || section === 'size')) useUiStore.getState().requestFocus(null);
+  }, [focusRequest, section]);
 
   const sizeField = (field: SizeField, label: string) => {
     const limits = sizeLimits(item, field);
@@ -139,6 +143,7 @@ export function ItemFields({ item }: { item: KitchenItem }) {
         value={field === 'width2' ? (item.width2 ?? item.width) : item[field]}
         min={limits.min}
         max={limits.max}
+        picks={section ? commonSizes(item, field, room, inPlan) : undefined}
         autoFocus={field === 'width' && focusRequest === 'width'}
         onCommit={(value) => {
           const result = actions.setItemSize(item.id, field, value);
@@ -151,25 +156,26 @@ export function ItemFields({ item }: { item: KitchenItem }) {
 
   const hasCounts = Boolean(options.doors || options.drawers || options.shelves);
   const drawersOnly = config.doors === 0 && config.drawers > 0;
+  const show = (tab: ItemSection) => !section || section === tab;
 
   return (
     <>
-      <UnitIssues item={item} />
-      {locked && <p role="status" className="border-b border-zinc-100 bg-blue-50 px-4 py-3 text-xs text-blue-800">{t.view3d.previewLocked}</p>}
+      {show('size') && <UnitIssues item={item} />}
+      {show('size') && locked && <p role="status" className="border-b border-zinc-100 bg-blue-50 px-4 py-3 text-xs text-blue-800">{t.view3d.previewLocked}</p>}
 
-      <fieldset disabled={locked} className="min-w-0">
+      {show('size') && <fieldset disabled={locked} className="min-w-0">
         <PanelSection title={t.item.size}>
           {sizeField('width', corner ? t.item.widthWallA : t.item.width)}
           {corner && sizeField('width2', t.item.widthWallB)}
           {sizeField('depth', t.item.depth)}
           {sizeField('height', t.item.height)}
-          {inPlan && <NumberField label={t.advancedRoom.angle} value={item.rotation} min={0} max={360} suffix="deg" precision={1} onCommit={(angle) => actions.setItemAngle(item.id, angle)} />}
+          {!section && inPlan && <NumberField label={t.advancedRoom.angle} value={item.rotation} min={0} max={360} suffix="°" precision={1} onCommit={(angle) => actions.setItemAngle(item.id, angle)} />}
           {!inPlan && sizeBlocked && <p role="status" className="text-xs text-amber-800">{t.view3d.resizeBlocked}</p>}
         </PanelSection>
-      </fieldset>
-      <ThreeTierSetup key={item.id} item={item} />
+      </fieldset>}
+      {show('size') && <ThreeTierSetup key={item.id} item={item} />}
 
-      {canStackCabinet(item) && (
+      {show('size') && canStackCabinet(item) && (
         <PanelSection title={t.stacking.title}>
           <StackAboveButton item={item} />
           <p className="text-xs leading-relaxed text-zinc-600">{t.stacking.hint}</p>
@@ -180,7 +186,7 @@ export function ItemFields({ item }: { item: KitchenItem }) {
         </PanelSection>
       )}
 
-      <PanelSection title={hasCounts ? t.item.frontsAndShelves : t.item.frontView}>
+      {show('fronts') && <PanelSection title={hasCounts ? t.item.frontsAndShelves : t.item.frontView}>
         <FrontPreview item={item} ctx={ctx} />
         {item.kind === 'shelf' && <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox"
           checked={item.shelfForm === 'floating'} onChange={(e) => actions.setItemOption(item.id, 'shelfForm', e.target.checked ? 'floating' : undefined)} />{t.item.floatingShelves}</label>}
@@ -256,23 +262,24 @@ export function ItemFields({ item }: { item: KitchenItem }) {
             />
           </OptionRow>
         )}
-      </PanelSection>
+      </PanelSection>}
 
-      {(options.carcass || options.fronts) && (
+      {section === 'materials' && !options.carcass && !options.fronts && <p className="p-4 text-sm text-studio-muted">{t.sheet.noMaterials}</p>}
+      {show('materials') && (options.carcass || options.fronts) && (
         <PanelSection title={t.item.materials}>
           {options.carcass && <MaterialField item={item} field="carcassMaterial" label={item.kind === 'bar' ? t.item.barTop : t.item.carcass} kitchenWide={item.kind === 'bar' ? BAR_MATERIAL_ID : construction.carcassMaterial} />}
           {options.back && item.shelfForm !== 'floating' && <MaterialField item={item} field="backMaterial" label={t.item.backPanel} kitchenWide={construction.backMaterial} />}
           {options.fronts && <MaterialField item={item} field="frontMaterial" label={item.kind === 'glassWall' ? t.item.glass : t.item.fronts} kitchenWide={item.kind === 'glassWall' ? GLASS_MATERIAL_ID : construction.frontMaterial} />}
         </PanelSection>
       )}
-      {(options.carcass || options.fronts) && (
+      {show('materials') && (options.carcass || options.fronts) && (
         <PanelSection title={t.item.appearance}>
-          <SelectField<FrontFinish | ''>
+          <PickerField<FrontFinish | ''>
             label={t.item.frontFinish} value={item.frontFinish ?? ''}
             options={[{ value: '', label: t.item.inheritFinish }, ...(Object.keys(FRONT_FINISHES) as FrontFinish[]).map((value) => ({ value, label: t.style.frontFinishes[value] }))]}
             onChange={(value) => actions.setItemOption(item.id, 'frontFinish', value || undefined)}
           />
-          <SelectField<FrontFinish | ''>
+          <PickerField<FrontFinish | ''>
             label={t.item.carcassFinish} value={item.carcassFinish ?? ''}
             options={[{ value: '', label: t.item.inheritFinish }, ...(Object.keys(FRONT_FINISHES) as FrontFinish[]).map((value) => ({ value, label: t.style.frontFinishes[value] }))]}
             onChange={(value) => actions.setItemOption(item.id, 'carcassFinish', value || undefined)}
@@ -281,8 +288,14 @@ export function ItemFields({ item }: { item: KitchenItem }) {
         </PanelSection>
       )}
 
-      {inPlan && <fieldset className="min-w-0">
+      {show('size') && inPlan && <fieldset className="min-w-0">
         <PanelSection title={t.item.position}>
+          {section && <div className="flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <NumberField label={t.sheet.customAngle} value={item.rotation} min={0} max={360} suffix="°" precision={1} onCommit={(angle) => actions.setItemAngle(item.id, angle)} />
+            </div>
+            <RotateButton relative />
+          </div>}
           <NumberField
             label={t.item.fromLeftWall}
             value={item.x}
@@ -309,11 +322,11 @@ export function ItemFields({ item }: { item: KitchenItem }) {
         </PanelSection>
       </fieldset>}
 
-      <PanelSection title={t.item.element}>
+      {show('size') && <PanelSection title={t.item.element}>
         <TextField label={t.item.code} value={item.label} maxLength={12} onCommit={(v) => actions.setItemLabel(item.id, v)} />
-      </PanelSection>
+      </PanelSection>}
 
-      <PartsSection item={item} ctx={ctx} />
+      {show('parts') && <PartsSection item={item} ctx={ctx} />}
     </>
   );
 }
@@ -379,13 +392,13 @@ function PartsSection({ item, ctx }: { item: KitchenItem; ctx: BuildContext }) {
   );
 }
 
-export function RotateButton() {
+export function RotateButton({ relative = false }: { relative?: boolean }) {
   const t = useT();
   const inPlan = useUiStore((s) => s.view === 'plan');
   if (!inPlan) return null;
   return (
     <TooltipButton variant="outline" tooltip={t.item.turn90Hint} aria-label={t.item.turn90} onClick={() => actions.rotateSelected(1)}>
-      <RotateCwSquare className="size-4" aria-hidden="true" />90°
+      <RotateCwSquare className="size-4" aria-hidden="true" />{relative ? '+90°' : '90°'}
     </TooltipButton>
   );
 }

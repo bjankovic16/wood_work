@@ -15,6 +15,13 @@ if (import.meta.env.DEV) {
 // Open the last project before the first render, so nothing flashes.
 initProjects();
 
+if (import.meta.env.PROD && 'serviceWorker' in navigator && window.isSecureContext && window.top === window.self) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' })
+      .catch((error: unknown) => console.warn('Offline mode unavailable:', error));
+  }, { once: true });
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

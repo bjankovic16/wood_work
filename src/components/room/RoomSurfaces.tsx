@@ -19,7 +19,7 @@ function RoomColorPicker({ label, value, onChange }: { label: string; value: str
       {colours.map((key) => <button key={key} type="button" aria-pressed={key === current}
         aria-label={`${label}: ${t.style.roomColors[key]}`} title={t.style.roomColors[key]}
         onClick={() => onChange(ROOM_COLORS[key].color)}>
-        <span style={{ backgroundColor: ROOM_COLORS[key].color }} />
+        <span style={{ backgroundColor: ROOM_COLORS[key].color }} /><small>{t.style.roomColors[key]}</small>
       </button>)}
     </div>
   </fieldset>;

@@ -22,7 +22,7 @@ const move = (page) => page.getByRole('button', { name: 'Move cabinet', exact: t
 const resize = (page) => page.getByRole('button', { name: 'Resize cabinet', exact: true });
 const done = (page) => page.getByTestId('cabinet-tools').getByRole('button', { name: 'Done', exact: true });
 const resizeLabel = (page, field) => page.locator(`[data-resize-field="${field}"]`);
-const undo = (page) => page.getByRole('button', { name: 'Undo', exact: true }).click();
+const undo = (page) => page.getByRole('banner').getByRole('button', { name: 'Undo', exact: true }).click();
 
 // Ignore only the transferred finishes: room colours, floor settings and fabrication must survive.
 const lookFields = new Set(['front', 'frontProfile', 'worktop', 'handles', 'backsplash', 'appliances', 'windowFrame', 'doorFrame', 'doorLeaf']);
@@ -124,10 +124,12 @@ async function assertLocked(page, original) {
   assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().cabinetTool), null);
   await page.getByRole('radio', { name: '3D', exact: true }).click();
   assert.equal(await resize(page).isDisabled(), true, 'Clicking the current view must not clear preview locks.');
+  // Arrows on the workspace radio group intentionally navigate; exercise scene shortcuts here instead.
+  await page.getByTestId('three-viewport').evaluate((el) => { el.tabIndex = -1; el.focus(); });
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('r');
   assert.deepEqual(await design(page), original, 'Preview shortcuts must not change the cabinet.');
-  if (page.viewportSize().width < 1024) await page.getByTestId('item-sheet').getByRole('button', { name: 'Edit', exact: true }).click();
+  if (page.viewportSize().width < 1024) await page.getByTestId('item-sheet').getByRole('slider').press('End');
   else await open3DTools(page);
   assert.equal(await page.getByLabel('Width', { exact: true }).isDisabled(), true);
   assert.equal(await page.getByLabel('From left wall', { exact: true }).count(), 0);
@@ -325,17 +327,27 @@ try {
     store.load({ ...store.design, style: { ...store.design.style, wallColor: '#334455', floorPattern: 'tiles', floorTileSize: 450 } });
   });
   original = await design(page);
-  const shuffle = (target) => target.getByRole('button', { name: 'Next kitchen', exact: true });
-  await shuffle(page).click();
-  await page.getByTestId('shuffle-feedback').getByText(/^Applied /).waitFor();
+  const shuffle = (target) => target.getByRole('button', { name: 'Try another style', exact: true });
+  const chooseStyle = async () => {
+    await page.getByRole('button', { name: 'Ideas', exact: true }).click();
+    await shuffle(page.getByRole('dialog', { name: 'Ideas', exact: true })).click();
+  };
+  const expectStyleLocked = async () => {
+    await page.getByRole('button', { name: 'Ideas', exact: true }).click();
+    const gallery = page.getByRole('dialog', { name: 'Ideas', exact: true });
+    assert.ok(await shuffle(gallery).isDisabled());
+    await gallery.getByRole('button', { name: 'Close', exact: true }).click();
+  };
+  await chooseStyle();
+  await page.getByTestId('feedback-toast').getByText(/^Applied /).waitFor();
   after = await design(page);
   assert.deepEqual(withoutLook(after), withoutLook(original));
   assert.notDeepEqual(after.style, original.style);
   assert.equal(await history(page), 1);
   assert.equal(after.galleryPresetId, 'walnut-frame');
-  await shuffle(page).click();
+  await chooseStyle();
   const secondLook = await design(page);
-  assert.equal(secondLook.galleryPresetId, 'oak-frame', 'Next kitchen must advance to the next gallery look.');
+  assert.equal(secondLook.galleryPresetId, 'oak-frame', 'Try another style must advance to the next gallery look.');
   assert.notDeepEqual(secondLook.style, after.style);
   assert.deepEqual(withoutLook(secondLook), withoutLook(original));
   assert.equal(await history(page), 2);
@@ -343,28 +355,28 @@ try {
   assert.deepEqual(await design(page), after);
   await undo(page);
   assert.deepEqual(await design(page), original);
-  await page.getByRole('status').getByRole('button', { name: 'Close', exact: true }).click();
+  assert.equal(await page.getByTestId('feedback-toast').count(), 0);
   await fixture(page);
   await page.getByRole('button', { name: 'Open cabinet', exact: true }).click();
-  assert.equal(await shuffle(page).isDisabled(), true);
+  await expectStyleLocked();
   await page.getByRole('button', { name: 'Close cabinet', exact: true }).click();
   await armResize(page);
-  assert.equal(await shuffle(page).isDisabled(), true);
+  await expectStyleLocked();
   await done(page).click();
   await page.evaluate(() => {
     const store = window.__kitchen.design.getState();
     store.load({ ...store.design, items: [{ ...store.design.items[0], width: 5000 }] });
   });
   original = await design(page);
-  await shuffle(page).click();
+  await chooseStyle();
   after = await design(page);
   assert.equal(after.galleryPresetId, 'walnut-frame', 'Applying a look does not require the gallery geometry to fit.');
   assert.deepEqual(withoutLook(after), withoutLook(original), 'Even an oversized existing cabinet must not be resized, dropped or replaced.');
   assert.equal(await history(page), 1);
   await undo(page);
   assert.deepEqual(await design(page), original);
-  await page.getByTestId('shuffle-feedback').getByRole('button', { name: 'Close', exact: true }).click();
-  console.log('  PASS Next kitchen applies successive looks without replacing the room or cabinets, in one Undo step per look, and respects preview/tool locks');
+  assert.equal(await page.getByTestId('feedback-toast').count(), 0);
+  console.log('  PASS Try another style applies successive looks without replacing the room or cabinets, in one Undo step per look, and respects preview/tool locks');
 
   const phoneContext = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
   const phone = await phoneContext.newPage();
@@ -408,9 +420,9 @@ try {
   assert.ok(await phone.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
   await phone.screenshot({ path: path.join(output, 'phone-arrows-sr.png') });
   await phone.evaluate(() => window.__kitchen.ui.getState().setLanguage('en'));
-  await phone.getByTestId('item-sheet').getByRole('button', { name: 'Edit', exact: true }).tap();
+  await phone.getByTestId('item-sheet').getByRole('slider').tap();
   for (const field of ['width', 'height', 'depth']) await resizeArrowDrag(phone, field);
-  await phone.getByTestId('item-sheet').getByRole('button', { name: 'Less', exact: true }).tap();
+  await phone.getByTestId('item-sheet').getByRole('slider').press('Home');
   await phone.getByRole('button', { name: 'Open cabinet', exact: true }).tap();
   await assertLocked(phone, original);
   // Wait for the cabinet preview to settle before using its floating controls.
@@ -418,7 +430,7 @@ try {
   await phone.getByRole('button', { name: 'Close cabinet', exact: true }).tap();
   await phone.getByRole('button', { name: 'Open cabinet', exact: true }).waitFor();
   assert.equal(await resize(phone).isEnabled(), true);
-  await phone.getByTestId('item-sheet').getByRole('button', { name: 'Less', exact: true }).tap();
+  await phone.getByTestId('item-sheet').getByRole('slider').press('Home');
   await armResize(phone);
   await waitForIdleRendering(phone);
   const idle = await phone.evaluate(() => window.__kitchen3D.renderer.info.render.frame);
@@ -426,11 +438,14 @@ try {
   assert.ok(await phone.evaluate(() => window.__kitchen3D.renderer.info.render.frame) - idle <= 1);
   await done(phone).tap();
   await open3DTools(phone);
-  assert.equal(await shuffle(phone).isEnabled(), true);
+  assert.equal(await shuffle(phone.getByTestId('phone-view-sheet')).count(), 0);
   assert.ok(await phone.getByTestId('phone-view-sheet').getByRole('button', { name: 'Open all', exact: true }).isEnabled());
+  await close3DTools(phone);
+  await phone.getByRole('banner').getByRole('button', { name: 'More', exact: true }).tap();
+  await phone.getByRole('banner').getByRole('button', { name: 'Ideas', exact: true }).tap();
   original = await design(phone);
   await shuffle(phone).tap();
-  await phone.getByTestId('shuffle-feedback').getByText(/^Applied /).waitFor();
+  await phone.getByTestId('feedback-toast').getByText(/^Applied /).waitFor();
   after = await design(phone);
   assert.equal(after.galleryPresetId, 'walnut-frame');
   assert.deepEqual(withoutLook(after), withoutLook(original));
@@ -440,7 +455,7 @@ try {
   assert.deepEqual(await design(phone), original);
   assert.ok(await phone.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
   await phone.screenshot({ path: path.join(output, 'phone-gallery-kitchen.png') });
-  await phone.getByRole('status').getByRole('button', { name: 'Close', exact: true }).tap();
+  assert.equal(await phone.getByTestId('feedback-toast').count(), 0);
   await phoneContext.close();
   console.log('  PASS touch orbits without moving cabinets; Resize, cancellation, preview locks and Shuffle/Undo work at 320px and rendering stops at idle');
 

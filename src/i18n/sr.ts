@@ -81,6 +81,7 @@ export const sr: Messages = {
     busy: 'Priprema 3D prikaza za rad bez interneta…',
     failed: 'Nije uspelo pravljenje 3D fajla. Projekat nije promenjen.',
     controls: 'Povucite da okrenete kuhinju. Uvećajte točkićem miša ili sa dva prsta.',
+    touchControls: 'Prevucite da okrenete kuhinju. Razmaknite ili skupite dva prsta za zum.',
     reset: 'Početni pogled',
     fallback: 'Interaktivni 3D nije dostupan. Na slici je sačuvana kuhinja.',
   },
@@ -103,12 +104,42 @@ export const sr: Messages = {
   },
 
   shuffle: {
-    title: 'Sledeća kuhinja',
+    title: 'Isprobaj drugi stil',
     hint: 'Primenite sledeću ideju na svoju prostoriju. Postavljeni elementi ostaju na mestu, a za praznu prostoriju dobijate predlog rasporeda.',
     success: (name) => `Izgled kuhinje „${name}“ primenjen je na vaše elemente. Prostorija i njihov položaj nisu promenjeni.`,
     review: 'Pogledajte kako ova ideja staje u vašu prostoriju.',
-    preview: 'Zatvorite sve elemente i isključite prikaz unutrašnjosti pre učitavanja druge kuhinje.',
+    preview: 'Zatvorite sve elemente i isključite prikaz unutrašnjosti pre nego što isprobate drugi stil.',
     busy: 'Završite trenutnu izmenu pre primene druge ideje.',
+  },
+
+  feedback: {
+    undoAvailable: 'Radnju možete poništiti u narednih pet sekundi.',
+    deleted: (label) => `Obrisan je element ${label}.`,
+    fresh: (name) => `Otvorena je prazna kuhinja. „${name}“ je i dalje u Projektima.`,
+    localTitle: 'Projekti ostaju u ovom pregledaču',
+    localWarning: 'Nema kopije u oblaku. Brisanje podataka sajta, privatno pregledanje ili gubitak uređaja mogu dovesti do gubitka projekta.',
+    sessionWarning: 'Pregledač nije uspeo da sačuva sve podatke. Poslednje izmene mogu biti izgubljene kada zatvorite stranicu.',
+    backupHint: 'Sačuvajte .kitchen.json fajl za uređivanje na drugom mestu. Vraćate ga opcijom „Otvori fajl“.',
+    requestRetention: 'Zatraži zaštitu podataka u pregledaču',
+    retained: 'Pregledač je odobrio trajno čuvanje podataka. I dalje vam treba rezervna kopija u fajlu.',
+    notRetained: 'Zaštita podataka nije odobrena. Napravite rezervnu kopiju u fajlu.',
+    backUp: 'Sačuvaj kopiju',
+    noBackup: 'Još nema potvrđene kopije u fajlu.',
+    lastBackup: (date) => `Poslednja kopija u fajlu: ${date}.`,
+    changedBackup: 'Sačuvajte novu kopiju: poslednje izmene nisu u tom fajlu.',
+    oldBackup: 'Sačuvajte novu kopiju: ova je stara najmanje nedelju dana.',
+    backupSaved: 'Zabeležena je rezervna kopija u fajlu.',
+    confirmDownload: 'Preuzimanje je pokrenuto. Proverite da li je fajl sačuvan pre nego što potvrdite rezervnu kopiju.',
+    fileKept: 'Fajl je sačuvan',
+    share: 'Podeli',
+    shareFile: 'Podeli fajl',
+    downloadHtml: 'Preuzmi HTML',
+    shareReady: 'Prikaz za kupca je spreman i radi bez interneta. Podelite fajl ili preuzmite kopiju.',
+    shareFailed: 'Deljenje fajla nije uspelo. Pokušajte ponovo ili preuzmite HTML za rad bez interneta.',
+    shared: (name) => `Fajl „${name}“ je prosleđen aplikaciji za deljenje.`,
+    shareCancelled: 'Fajl nije podeljen. Preuzimanje nije pokrenuto.',
+    downloading: (name) => `Pokrenuto je preuzimanje fajla ${name}.`,
+    touchHint: 'Dodirnite objekat da ga izaberete. Prevucite da okrenete prikaz; razmaknite ili skupite dva prsta za zum. Objekte pomerate na 2D planu.',
   },
 
   topBar: {
@@ -146,6 +177,7 @@ export const sr: Messages = {
   },
 
   checks: {
+    chip: (n) => n ? `${n} ${n % 10 === 1 && n % 100 !== 11 ? 'problem' : 'problema'}` : 'Bez problema',
     precut: 'Pre sečenja: provera sa dobavljačem',
     precutHint: 'Potvrdite ove detalje sa dobavljačem ili monterom. Ovo su podsetnici, a ne greške u projektu.',
     checks: 'Provere',
@@ -226,10 +258,18 @@ export const sr: Messages = {
     addHint: 'Dodirnite element: biće postavljen na prvo slobodno mesto uz zidove.',
   },
 
+  sheet: {
+    height: 'Visina panela', small: 'Mali', half: 'Pola', full: 'Pun',
+    hint: 'Povucite ručicu ili koristite strelice za promenu visine. Dodir menja visinu. Za zatvaranje povucite nadole ili pritisnite Escape.',
+    tabs: 'Podešavanja elementa', commonSizes: (field) => `Uobičajene mere: ${field}`,
+    customAngle: 'Tačan ugao', noMaterials: 'Za ovaj uređaj se ne koriste ploče.',
+    added: (name, code) => `Dodato: ${name} · ${code}`,
+  },
+
   item: {
     room: 'Prostorija',
     roomHint: 'Kliknite element na osnovi da ga izmenite',
-    roomHint3d: 'Kliknite element da ga izmenite',
+    roomHint3d: 'Izaberite element da ga izmenite',
     inCorner: (corner) => `U ${CORNERS[corner]} uglu`,
     notInCorner: 'Nije u uglu',
     backAgainst: (wall) => `Leđima uz ${UZ_ZID[wall]} zid`,
@@ -382,8 +422,11 @@ export const sr: Messages = {
       front: 'Pogledajte naspramni zid spreda.',
       top: 'Pogledajte osnovu prostorije i otvore odozgo.',
     },
-    plan: 'Osnova',
-    measureHint: 'Povucite ugao da promenite oblik. Dodirnite 2D za pogled na zid, a meru da je izmenite.',
+    plan: 'Obris prostorije',
+    wallView: 'Pogled na zid',
+    areaShort: 'Površina',
+    model: 'Model prostorije',
+    measureHint: 'Povucite ugao da promenite oblik. Otvorite pogled na zid ili dodirnite meru da je izmenite.',
     cornerHandle: (n) => `Pomeri ugao ${n}`,
     cornerKeys: 'Povucite ugao ili ga pomerite strelicama. Držite Shift za veći korak.',
     cornerBlocked: {
@@ -395,7 +438,7 @@ export const sr: Messages = {
     drawingView: 'Izaberi pogled',
     fromAbove: 'Pogled odozgo',
     facingWall: 'Pogled iznutra',
-    openWall: (n) => `Otvori zid ${n} u 2D`,
+    openWall: (n) => `Pogled na zid ${n}`,
     adjoiningWalls: 'Susedni zidovi',
     wallEnd: { left: 'Levo', right: 'Desno' },
     freeEnd: 'Slobodan kraj',
@@ -701,8 +744,8 @@ export const sr: Messages = {
     perspectiveName: 'Perspektiva',
     cabinetPreview: 'Pregled elemenata',
     cameraMenuHint: 'Izaberite ugao gledanja ili vratite početni pogled.',
-    kitchenMenuHint: 'Pregledajte elemente, isprobajte sledeću kuhinju ili izvezite svoj projekat.',
-    kitchenActions: 'Gotove kuhinje i pregled elemenata',
+    kitchenMenuHint: 'Pogledajte fronte i unutrašnjost elemenata.',
+    kitchenActions: 'Pregled elemenata',
     appearanceHint: 'Promenite fronte, radnu ploču i ručice bez promene rasporeda.',
     cameraHints: {
       perspective: 'Pogledajte celu kuhinju u prostoru. Prevucite pozadinu da okrenete pogled.',
@@ -722,7 +765,7 @@ export const sr: Messages = {
     toolbar: '3D prikaz',
     toolsShort: 'Dodatni alati',
     tipMouse: 'Prevucite da okrenete pogled. Dvoklik otvara element. Položaj menjate na 2D planu.',
-    tipTouch: 'Prevucite da okrenete pogled. Dodirnite prikaz da vratite komande. Položaj menjate na 2D planu.',
+    tipTouch: 'Prevucite da okrenete pogled. Zumirajte sa dva prsta. Dodirnite prikaz da vratite komande. Položaj menjate u 2D.',
     interior: 'Unutrašnjost elemenata',
     interiorHint: 'Fronte su skrivene da vidite police i fioke. Prikaz je šematski, bez detalja aparata i okova; projekat i krojna lista ostaju nepromenjeni.',
     camera: '3D kamera',
@@ -894,6 +937,7 @@ export const sr: Messages = {
   },
 
   planner: {
+    step: (n) => `Korak ${n} od 4`, see3d: 'Vidi u 3D',
     guide: 'Vodič za planiranje', intro: 'Izaberite šta želite da uradite. Svaki korak otvara istu kuhinju.', here: 'Trenutni korak',
     steps: {
       room: ['Izmeri prostoriju', 'Nacrtajte zidove i postavite prozore i vrata. U 3D pregledu vidite samo prostoriju.'],

@@ -167,6 +167,7 @@ try {
     window.__kitchen.design.getState().load(empty);
     window.__kitchen.ui.getState().setRoomOpen(true);
   }, initial);
+  await page.getByRole('button', { name: 'More', exact: true }).tap();
   await page.getByTestId('room-ideas').tap();
   await gallery.locator('[data-kitchen-design] img').first().tap();
   const sketch = gallery.getByRole('group', { name: 'Proposed layout in your room' });
@@ -185,6 +186,7 @@ try {
   await page.reload();
   await page.getByTestId('empty-plan-hint').waitFor();
   assert.equal(await page.getByRole('dialog').count(), 0);
+  await page.getByRole('banner').getByRole('button', { name: 'More', exact: true }).tap();
   assert.equal(await ideas.count(), 1);
   await ideas.tap();
   await gallery.locator('[data-kitchen-design="basil-studio"]').tap();

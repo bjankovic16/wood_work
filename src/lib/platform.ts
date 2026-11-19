@@ -62,8 +62,9 @@ export async function saveFile(filename: string, data: Blob, mimeType: string): 
     await downloads.save({ filename, data });
     return 'saved';
   } catch (error) {
-    const code = (error as { code?: string } | null)?.code;
-    if (code === 'declined') return 'declined';
+    const result = error as { name?: string; code?: string } | null;
+    const code = result?.code;
+    if (code === 'declined' || result?.name === 'AbortError') return 'declined';
     if (code === 'rate_limited') return 'busy';
     if (code === 'rejected_extension' || code === 'extension_not_enabled') return 'format';
     return 'unavailable';

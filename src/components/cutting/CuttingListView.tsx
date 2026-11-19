@@ -20,6 +20,7 @@ import { buildCuttingList, cuttingListCsv, edgeText, type CuttingList, type Cutt
 import type { Part } from '../../engine/parts';
 import { planSvg } from '../../export/planSvg';
 import { useCanSaveFiles } from '../../hooks/useCanSaveFiles';
+import { useIsCompact } from '../../hooks/useMediaQuery';
 import { useT, type Messages } from '../../i18n';
 import { cn } from '../../lib/cn';
 import { embedded, safeFileName, saveFile } from '../../lib/platform';
@@ -31,7 +32,7 @@ import { NumberField, SelectField, TextField } from '../properties/NumberField';
 import { FrontPreview } from '../properties/FrontPreview';
 import { Button, Menu, Segmented } from '../ui';
 
-const th = 'px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-400';
+const th = 'px-3 py-2 text-left text-xs font-semibold text-zinc-600';
 const td = 'px-3 py-2 align-top';
 
 type TableRow = Part & { materialName: string; bandName?: string | null; units?: string[] };
@@ -158,7 +159,7 @@ function PartsTable({
   const [editing, setEditing] = useState<string | null>(null);
   const columns = 8 + (showUnits ? 1 : 0) + (editFor ? 1 : 0);
   return (
-    <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white print:overflow-visible print:rounded-none print:border-zinc-400">
+    <div className="workshop-cards overflow-x-auto rounded-xl border border-zinc-200 bg-white print:overflow-visible print:rounded-none print:border-zinc-400">
       <table className="w-full min-w-180 border-collapse text-[13px] print:min-w-0 print:text-[11px]">
         <thead className="border-b border-zinc-200 bg-zinc-50">
           <tr>
@@ -186,7 +187,7 @@ function PartsTable({
             const changed = (key: 'quantity' | 'length' | 'width' | 'thickness' | 'materialId') =>
               row.calculated !== undefined && row.calculated[key] !== row[key] && 'font-semibold text-blue-700';
             return (
-              <tr key={`${row.key}-${i}`} className={cn('break-inside-avoid hover:bg-zinc-50/60', row.quantity <= 0 && 'text-zinc-400 [&_td]:text-zinc-400')}>
+              <tr key={`${row.key}-${i}`} data-part-card="" className={cn('break-inside-avoid hover:bg-zinc-50/60', row.quantity <= 0 && 'text-zinc-400 [&_td]:text-zinc-400')}>
                 <td className={cn(td, 'font-medium text-zinc-900')}>
                   {row.name}
                   {row.edited && (
@@ -202,15 +203,15 @@ function PartsTable({
                     </span>
                   )}
                 </td>
-                <td className={cn(td, 'text-right font-semibold text-zinc-900', changed('quantity'))}>{row.quantity}</td>
-                <td className={cn(td, 'text-right', changed('length'))}>{t.mm(row.length)}</td>
-                <td className={cn(td, 'text-right', changed('width'))}>{t.mm(row.width)}</td>
-                <td className={cn(td, 'text-right', changed('thickness'))}>{t.mm(row.thickness)}</td>
-                <td className={cn(td, 'text-zinc-600', changed('materialId'))}>
+                <td data-label={c.qty} className={cn(td, 'text-right font-semibold text-zinc-900', changed('quantity'))}>{row.quantity}</td>
+                <td data-label={c.length} className={cn(td, 'text-right', changed('length'))}>{t.mm(row.length)}</td>
+                <td data-label={c.width} className={cn(td, 'text-right', changed('width'))}>{t.mm(row.width)}</td>
+                <td data-label={c.thick} className={cn(td, 'text-right', changed('thickness'))}>{t.mm(row.thickness)}</td>
+                <td data-label={c.material} data-wide="" className={cn(td, 'text-zinc-600', changed('materialId'))}>
                   {row.materialName}
                   {row.grain && <span className="ml-1 text-[11px] text-zinc-400">{c.grain}</span>}
                 </td>
-                <td className={cn(td, 'whitespace-nowrap text-zinc-600')}>
+                <td data-label={c.edges} data-wide="" className={cn(td, 'whitespace-nowrap text-zinc-600')}>
                   {row.edgeBandId ? (
                     <>
                       {edgeText(row, t.engine)}
@@ -220,8 +221,8 @@ function PartsTable({
                     <span className="text-zinc-300">—</span>
                   )}
                 </td>
-                {showUnits && <td className={cn(td, 'text-zinc-600')}>{row.units?.join(', ')}</td>}
-                <td className={cn(td, 'text-xs text-zinc-500')}>{row.note}</td>
+                {showUnits && <td data-label={c.units} data-wide="" className={cn(td, 'text-zinc-600')}>{row.units?.join(', ')}</td>}
+                <td data-label={c.note} data-wide="" data-empty={!row.note || undefined} className={cn(td, 'text-xs text-zinc-500')}>{row.note}</td>
                 {editFor && (
                   <td className={cn(td, 'whitespace-nowrap py-1 text-right print:hidden')}>
                     {row.edited && (
@@ -329,6 +330,7 @@ export function CuttingListView() {
   const [showEstimate, setShowEstimate] = useState(false);
   const estimateId = useId();
   const canSave = useCanSaveFiles();
+  const compact = useIsCompact();
   const unitsWithParts = list.units.filter((u) => u.parts.length > 0);
   const preview = unitsWithParts.find(({ item }) => item.id === previewId) ?? unitsWithParts[0];
   const bandThickness = (id: string | null) => (id ? (design.edgeBands.find((b) => b.id === id)?.thickness ?? null) : null);
@@ -376,12 +378,7 @@ export function CuttingListView() {
     flash(outcome === 'saved' ? t.files.saved(name) : t.files[outcome] + (outcome === 'unavailable' ? c.useCopy : ''));
   };
 
-  return (
-    <div className="flex h-full select-text flex-col bg-[#f5f2eb] print:block print:h-auto print:bg-white">
-      <header className="relative z-10 shrink-0 border-b border-studio-line bg-studio-paper print:border-0 print:bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-3 py-2 sm:px-4 lg:px-8 print:max-w-none print:p-0">
-          <h1 className="text-lg font-semibold text-zinc-900">{c.title}</h1>
-          <div className="flex shrink-0 items-center gap-1.5 print:hidden">
+  const exportTools = <div className="flex shrink-0 items-center justify-end gap-2 print:hidden">
             {!embedded && !empty && (
               <Button variant="outline" onClick={() => window.print()}>
                 <Printer className="size-4" />
@@ -414,7 +411,13 @@ export function CuttingListView() {
                 </div>
               </Menu>
             )}
-          </div>
+          </div>;
+  return (
+    <div className="flex h-full select-text flex-col bg-[#f5f2eb] print:block print:h-auto print:bg-white">
+      <header className="relative z-10 shrink-0 border-b border-studio-line bg-studio-paper print:border-0 print:bg-white">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-3 py-2 sm:px-4 lg:px-8 print:max-w-none print:p-0">
+          <h1 className="text-lg font-semibold text-zinc-900">{c.title}</h1>
+          {!compact && exportTools}
         </div>
         {status && (
           <p role="status" className="mx-auto max-w-7xl px-4 pb-2 text-[13px] font-medium text-blue-700 lg:px-8 print:hidden">
@@ -577,7 +580,7 @@ export function CuttingListView() {
                         {unitsWithParts.map(({ item }) => <option key={item.id} value={item.id}>{item.label} · {t.kinds[item.kind]}</option>)}
                       </select>
                     </label>
-                    <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex flex-wrap items-center gap-4 max-[449px]:flex-col max-[449px]:items-stretch">
                       <FrontPreview item={preview.item} ctx={ctx} />
                       <div className="min-w-0 flex-1 text-[13px] text-zinc-600">
                         <p className="font-semibold text-zinc-900">{preview.item.label} · {t.kinds[preview.item.kind]}</p>
@@ -595,7 +598,7 @@ export function CuttingListView() {
             {list.hardware.length > 0 && (
               <section className="mt-8 break-inside-avoid">
                 <h2 className="mb-2 text-sm font-semibold text-zinc-900">{c.hardware}</h2>
-                <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white print:rounded-none print:border-zinc-400">
+                <div className="workshop-cards overflow-x-auto rounded-xl border border-zinc-200 bg-white print:rounded-none print:border-zinc-400">
                   <table className="w-full min-w-120 border-collapse text-[13px] print:text-[11px]">
                     <thead className="border-b border-zinc-200 bg-zinc-50">
                       <tr>
@@ -606,10 +609,10 @@ export function CuttingListView() {
                     </thead>
                     <tbody className="divide-y divide-zinc-100 tabular-nums">
                       {list.hardware.map((h) => (
-                        <tr key={h.name}>
+                        <tr key={h.name} data-hardware-card="">
                           <td className={cn(td, 'font-medium text-zinc-900')}>{h.name}</td>
-                          <td className={cn(td, 'text-right font-semibold text-zinc-900')}>{h.quantity}</td>
-                          <td className={cn(td, 'text-zinc-600')}>{h.units.join(', ')}</td>
+                          <td data-label={c.qty} className={cn(td, 'text-right font-semibold text-zinc-900')}>{h.quantity}</td>
+                          <td data-label={c.units} data-wide="" className={cn(td, 'text-zinc-600')}>{h.units.join(', ')}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -622,6 +625,7 @@ export function CuttingListView() {
           {(!empty || design.customParts.length > 0) && <ExtraPieces design={design} />}
         </div>
       </div>
+      {compact && !empty && <footer className="workshop-actions studio-panel shrink-0 border-t px-3 py-1 print:hidden">{exportTools}</footer>}
     </div>
   );
 }

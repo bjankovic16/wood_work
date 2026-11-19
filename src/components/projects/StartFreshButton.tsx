@@ -2,7 +2,7 @@ import { FilePlus2 } from 'lucide-react';
 import { useId } from 'react';
 import { useT } from '../../i18n';
 import { storageWorks } from '../../lib/platform';
-import { createProject } from '../../store/projects';
+import { startFresh, useProjectsStore } from '../../store/projects';
 import { Button, TooltipButton } from '../ui';
 
 export function StartFreshButton({ placement, onCreated }: {
@@ -10,10 +10,11 @@ export function StartFreshButton({ placement, onCreated }: {
   onCreated?: () => void;
 }) {
   const { projects: p } = useT();
-  const hint = storageWorks ? p.startFreshHint : p.startFreshSessionHint;
+  const failed = useProjectsStore((s) => s.writeFailed);
+  const hint = storageWorks && !failed ? p.startFreshHint : p.startFreshSessionHint;
   const hintId = useId();
   const start = () => {
-    createProject();
+    startFresh();
     onCreated?.();
   };
   const icon = <FilePlus2 className="size-4 shrink-0" aria-hidden="true" />;

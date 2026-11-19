@@ -112,18 +112,18 @@ export function ChecksButton({ compact = false }: { compact?: boolean }) {
         onClick={() => setMode((m) => m === 'pinned' ? 'closed' : 'pinned')}
         className={cn(
           'inline-flex h-8 min-w-8 touch-manipulation items-center justify-center rounded-md text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40',
-          compact ? 'relative w-8 shrink-0' : 'gap-1.5 px-2',
+          compact ? 'gap-1 px-1 text-xs' : 'gap-1.5 px-2',
           errors > 0 ? 'text-red-700 hover:bg-red-50' : warnings > 0 ? 'text-amber-700 hover:bg-amber-50' : 'text-emerald-700 hover:bg-emerald-50',
         )}
       >
         {issues.length === 0 ? <CircleCheck className="size-4" /> : <TriangleAlert className="size-4" />}
-        {!compact && <span>{t.checks.checks}</span>}
-        {issues.length > 0 && (
+        <span>{compact ? t.checks.chip(issues.length) : t.checks.checks}</span>
+        {!compact && issues.length > 0 && (
           <span
             aria-hidden
             className={cn(
               'pointer-events-none rounded-full font-semibold text-white',
-              compact ? 'absolute right-0 top-0 min-w-3.5 px-0.5 text-[9px] leading-[14px]' : 'min-w-5 px-1.5 text-[11px] leading-5',
+              'min-w-5 px-1.5 text-xs leading-5',
               errors > 0 ? 'bg-red-600' : 'bg-amber-700',
             )}
           >

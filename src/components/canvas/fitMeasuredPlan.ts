@@ -4,12 +4,12 @@ import { useUiStore } from '../../store/uiStore';
 import { clearPlanAreas, MAX_ZOOM, MIN_ZOOM } from '../../store/viewport';
 
 type Box = { left: number; top: number; right: number; bottom: number };
-const MARGIN = 16;
 
 /** Measures the drawing, not the Stage (which would include pan, selection and hit targets).
  * A changed zoom needs a second measurement because dimension offsets and lettering stay in CSS pixels. */
-export function fitMeasuredPlan(stage: Stage): boolean {
-  const room = stage.findOne('.plan-room')?.getClientRect({ relativeTo: stage });
+export function fitMeasuredPlan(stage: Stage, compact: boolean): boolean {
+  // The clipped grid can cover the entire nominal room box, even outside a custom polygon.
+  const room = stage.findOne('.room-perimeter')?.getClientRect({ relativeTo: stage });
   if (!room?.width || !room.height) return false;
   const dimensions = stage.findOne('.plan-dimensions')?.getClientRect({ relativeTo: stage });
   const ink = dimensions?.width && dimensions.height ? dimensions : room;
@@ -19,12 +19,13 @@ export function fitMeasuredPlan(stage: Stage): boolean {
   const right = Math.max(0, ink.x + ink.width - room.x - room.width) * current;
   const bottom = Math.max(0, ink.y + ink.height - room.y - room.height) * current;
 
+  const margin = compact ? 8 : 16;
   const scale = (b: Box) => Math.min(
-    (b.right - b.left - 2 * MARGIN - left - right) / room.width,
-    (b.bottom - b.top - 2 * MARGIN - top - bottom) / room.height,
+    (b.right - b.left - 2 * margin - left - right) / room.width,
+    (b.bottom - b.top - 2 * margin - top - bottom) / room.height,
   );
   const canvas = { left: 0, top: 0, right: stage.width(), bottom: stage.height() };
-  const areas = clearPlanAreas(stage.container(), stage.width(), stage.height(), MARGIN).filter((area) => scale(area) > 0);
+  const areas = clearPlanAreas(stage.container(), stage.width(), stage.height(), margin).filter((area) => scale(area) > 0);
   const area = areas.sort((a, b) => scale(b) - scale(a))[0] ?? canvas;
   const zoom = clamp(scale(area), MIN_ZOOM, MAX_ZOOM);
   const pan = {

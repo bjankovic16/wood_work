@@ -40,6 +40,7 @@ export function clientToPlan(clientX: number, clientY: number, insideOnly = fals
 }
 
 type PlanArea = { left: number; top: number; right: number; bottom: number };
+type Viewport = { zoom: number; pan: Point };
 
 /** Unobstructed regions in canvas coordinates, including space between floating controls in landscape. */
 export function clearPlanAreas(element: HTMLElement, width: number, height: number, margin: number): PlanArea[] {
@@ -47,6 +48,7 @@ export function clearPlanAreas(element: HTMLElement, width: number, height: numb
   let areas = [{ left: 0, top: 0, right: width, bottom: height }];
   for (const control of element.closest('main')?.querySelectorAll('[data-plan-controls], [data-plan-overlay]') ?? []) {
     const r = control.getBoundingClientRect();
+    if (!r.width || !r.height) continue;
     const left = r.left - origin.left, right = r.right - origin.left;
     const top = r.top - origin.top, bottom = r.bottom - origin.top;
     areas = areas.flatMap((area) => {
@@ -58,24 +60,33 @@ export function clearPlanAreas(element: HTMLElement, width: number, height: numb
   return areas;
 }
 
-/** Reveal a reported cabinet, retaining the current zoom/pan if it is already fully visible. */
-export function revealPlanRect(rect: Rect): void {
+/** Keep the scale, then move the cabinet the shortest distance into unobstructed space. */
+export function viewportRevealing(rect: Rect, view: Viewport, areas: PlanArea[], margin: number): Viewport {
+  const centre = { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
+  const x = view.pan.x + centre.x * view.zoom, y = view.pan.y + centre.y * view.zoom;
+  let best = view, bestZoom = 0, leastTravel = Infinity;
+  for (const a of areas) {
+    const zoom = Math.min(view.zoom, (a.right - a.left - 2 * margin) / rect.w, (a.bottom - a.top - 2 * margin) / rect.h);
+    if (zoom < MIN_ZOOM || zoom < bestZoom) continue;
+    const halfW = rect.w * zoom / 2 + margin, halfH = rect.h * zoom / 2 + margin;
+    const cx = clamp(x, a.left + halfW, a.right - halfW), cy = clamp(y, a.top + halfH, a.bottom - halfH);
+    const travel = Math.hypot(cx - x, cy - y);
+    if (zoom === view.zoom && travel < 0.01) return view;
+    if (zoom > bestZoom || travel < leastTravel) {
+      best = { zoom, pan: { x: cx - centre.x * zoom, y: cy - centre.y * zoom } };
+      bestZoom = zoom;
+      leastTravel = travel;
+    }
+  }
+  return best;
+}
+
+export function revealPlanRect(rect: Rect, margin = 12): void {
   if (!canvasElement) return;
   const canvas = canvasElement.getBoundingClientRect();
-  const margin = 12;
-  const areas = clearPlanAreas(canvasElement, canvas.width, canvas.height, margin);
-  const ui = useUiStore.getState();
-  const x = ui.pan.x + rect.x * ui.zoom, y = ui.pan.y + rect.y * ui.zoom;
-  if (areas.some((a) => x >= a.left + margin && x + rect.w * ui.zoom <= a.right - margin
-    && y >= a.top + margin && y + rect.h * ui.zoom <= a.bottom - margin)) return;
-  const scale = (a: PlanArea) => Math.min((a.right - a.left - 2 * margin) / rect.w, (a.bottom - a.top - 2 * margin) / rect.h);
-  const area = areas.sort((a, b) => scale(b) - scale(a))[0];
-  if (!area) return;
-  const zoom = Math.max(MIN_ZOOM, Math.min(ui.zoom, scale(area)));
-  ui.setViewport(zoom, {
-    x: (area.left + area.right) / 2 - (rect.x + rect.w / 2) * zoom,
-    y: (area.top + area.bottom) / 2 - (rect.y + rect.h / 2) * zoom,
-  });
+  const view = useUiStore.getState();
+  const next = viewportRevealing(rect, view, clearPlanAreas(canvasElement, canvas.width, canvas.height, margin), margin);
+  if (next !== view) view.setViewport(next.zoom, next.pan);
 }
 
 /** Zooms by `factor`, keeping the plan point under `anchor` (canvas pixels) still. Defaults to the canvas centre. */

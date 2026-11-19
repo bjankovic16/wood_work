@@ -15,15 +15,18 @@ interface Props {
   pickerRef: Ref<HTMLSelectElement>;
   show: (wallId: string) => void;
   back: () => void;
+  roomModel?: { active: boolean; open: () => void };
 }
 
-export function RoomDrawingTools({ room, walls, facing, selectedWall, pickerRef, show, back }: Props) {
+export function RoomDrawingTools({ room, walls, facing, selectedWall, pickerRef, show, back, roomModel }: Props) {
   const t = useT();
   const number = facing ? walls.indexOf(facing) + 1 : 0;
+  let modelOption = ':room-model';
+  while (walls.some((s) => s.id === modelOption)) modelOption += ':';
   const margin = Math.max(room.width, room.depth) * 0.1;
   return <div className="room-drawing-tools">
-    {facing && <button type="button" className="room-plan-back" onClick={back} aria-label={t.room.backToPlan} title={t.room.backToPlan}>
-      <ArrowLeft size={16} aria-hidden="true" /><span>{t.room.plan}</span>
+    {facing && !roomModel?.active && <button type="button" className="room-plan-back" onClick={back} aria-label={t.room.backToPlan} title={t.room.backToPlan}>
+      <ArrowLeft size={16} aria-hidden="true" />
     </button>}
     <label className="room-view-picker">
       <svg className="room-mini-plan" aria-hidden="true" viewBox={`${-margin} ${-margin} ${room.width + 2 * margin} ${room.depth + 2 * margin}`}>
@@ -32,16 +35,18 @@ export function RoomDrawingTools({ room, walls, facing, selectedWall, pickerRef,
         {facing && <line x1={facing.start.x} y1={facing.start.y} x2={facing.end.x} y2={facing.end.y}
           stroke="#246748" strokeWidth="3" strokeLinecap="round" vectorEffect="non-scaling-stroke" />}
       </svg>
-      <span aria-hidden="true"><small>{facing ? t.room.facingWall : t.room.fromAbove}</small><strong>{facing ? t.advancedRoom.wall(number) : t.room.plan}</strong></span>
+      <span aria-hidden="true"><strong>{roomModel?.active ? t.room.model : facing ? `${t.room.wallView} · ${number}` : t.room.plan}</strong></span>
       <ChevronDown size={15} aria-hidden="true" />
-      <select aria-label={t.room.drawingView} ref={pickerRef} value={facing?.id ?? ''} onChange={(e) => show(e.target.value)}>
-        <option value="">{t.room.plan} · {t.room.fromAbove}</option>
-        <optgroup label={t.room.elevation}>{walls.map((s, i) => <option key={s.id} value={s.id}>
+      <select aria-label={t.room.drawingView} ref={pickerRef} value={roomModel?.active ? modelOption : facing?.id ?? ''}
+        onChange={(e) => e.target.value === modelOption ? roomModel?.open() : show(e.target.value)}>
+        <option value="">{t.room.plan}</option>
+        {roomModel && <option value={modelOption}>{t.room.model}</option>}
+        <optgroup label={t.room.wallView}>{walls.map((s, i) => <option key={s.id} value={s.id}>
           {t.advancedRoom.wall(i + 1)} · {Math.round(s.length)} mm
         </option>)}</optgroup>
       </select>
     </label>
-    <div className="room-add-menu" onKeyDown={(e) => {
+    {!roomModel?.active && <div className="room-add-menu" onKeyDown={(e) => {
       if (!['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
       // Arrows must never nudge the selected chimney through an open picker.
       e.preventDefault(); e.stopPropagation();
@@ -57,6 +62,6 @@ export function RoomDrawingTools({ room, walls, facing, selectedWall, pickerRef,
         text={<>{t.room.addShort}<ChevronDown size={14} aria-hidden="true" /></>}>
         <RoomObjectButtons menu wallId={selectedWall?.id} facing={!!facing} />
       </Menu>
-    </div>
+    </div>}
   </div>;
 }

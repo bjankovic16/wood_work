@@ -1,6 +1,6 @@
 import type { KonvaEventObject } from 'konva/lib/Node';
 import type { Stage as KonvaStage } from 'konva/lib/Stage';
-import { Maximize, Minus, Plus } from 'lucide-react';
+import { Maximize, Minus, Plus, Ruler } from 'lucide-react';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Layer, Stage } from 'react-konva';
 import { replaceItem, updateItem } from '../../domain/designOps';
@@ -24,16 +24,19 @@ import {
   MIN_ZOOM,
   REFERENCE_ZOOM,
   registerCanvasElement,
+  revealPlanRect,
   snapSettings,
   zoomBy,
 } from '../../store/viewport';
 import { Button } from '../ui';
 import { fitMeasuredPlan } from './fitMeasuredPlan';
-import { ItemShape } from './ItemShape';
-import { Clearances, Ghost, Guides, IssueOutlines, Selection, WallDimensions } from './Overlays';
+import { CompactPlanCodes, ItemShape } from './ItemShape';
+import { Clearances, Ghost, Guides, IssueOutlines, SelectedUnitDimensions, Selection, WallDimensions } from './Overlays';
+import { usePlanMessages } from './planMessages';
 import { RoomPickTargets, RoomShape } from './RoomShape';
 import { KitchenPlanRoomReadout } from '../room/RoomReadout';
 import { StartGuide } from './StartGuide';
+import { nearbyCabinet } from './touchPick';
 
 /** Pointer travel (px) before a press turns into a drag; fingers wobble more than mice. */
 const DRAG_START_PX = { mouse: 3, touch: 8 };
@@ -50,7 +53,7 @@ interface GestureBase {
 }
 
 type Gesture =
-  | (GestureBase & { kind: 'pan'; startPan: Point; moved: boolean })
+  | (GestureBase & { kind: 'pan'; startPan: Point; moved: boolean; pick?: () => void })
   | (GestureBase & {
       kind: 'move';
       base: Design;
@@ -64,6 +67,7 @@ type Gesture =
 
 /** Two fingers on the plan: zoom and pan together. */
 interface Pinch {
+  ids: [number, number];
   startDistance: number;
   /** Plan point under the fingers' midpoint when the pinch started. */
   anchor: Point;
@@ -91,12 +95,14 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
   /** Fingers currently on the plan, for pinch zoom. */
   const touchesRef = useRef(new Map<number, Point>());
   const pinchRef = useRef<Pinch | null>(null);
+  const pendingReveal = useRef(false);
   const coarse = useCoarsePointer();
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [guides, setGuides] = useState<Guide[]>([]);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [movingItem, setMovingItem] = useState<KitchenItem | null>(null);
   const [fontVersion, setFontVersion] = useState(0);
+  const [allDimensions, setAllDimensions] = useState(false);
 
   const room = useDesignStore((s) => s.design.room);
   const items = useDesignStore((s) => s.design.items);
@@ -163,15 +169,36 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
   const fitPasses = useRef(0);
   useLayoutEffect(() => {
     if (size.w > 0 && size.h > 0) fitPasses.current = 6;
-  }, [size.w, size.h, room.width, room.depth, room.height, fitRequest, projectId]);
+  }, [size.w, size.h, room.width, room.depth, room.height, room.vertices, room.cutout, fitRequest, projectId]);
   // Text and ticks keep their *screen* size. Recheck their actual ink bounds after
   // zooming (a previously hidden label can now fit), but never chase manual zoom/pan.
   useLayoutEffect(() => {
     if (fitPasses.current > 0 && stageRef.current) {
       fitPasses.current--;
-      if (!fitMeasuredPlan(stageRef.current)) fitPasses.current = 0;
+      if (!fitMeasuredPlan(stageRef.current, compact)) fitPasses.current = 0;
     }
   });
+
+  // A sheet snap is a viewport change, not a design edit. Never move the plan
+  // underneath an active finger; finish the pick/drag first.
+  const committedSelection = committedItems.find((item) => item.id === selectedId);
+  const revealIfPending = useCallback(() => {
+    if (!pendingReveal.current || gestureRef.current || touchesRef.current.size) return;
+    pendingReveal.current = false;
+    const id = useUiStore.getState().selectedId;
+    const item = useDesignStore.getState().design.items.find((entry) => entry.id === id);
+    if (item) revealPlanRect(itemRect(item));
+  }, []);
+  useLayoutEffect(() => {
+    if (!compact || !committedSelection) return;
+    const sheet = containerRef.current?.closest('main')?.querySelector('[data-testid="item-sheet"][data-plan-overlay]');
+    if (!sheet) return;
+    const reveal = () => { pendingReveal.current = true; revealIfPending(); };
+    reveal();
+    const observer = new ResizeObserver(reveal);
+    observer.observe(sheet, { box: 'border-box' });
+    return () => { observer.disconnect(); pendingReveal.current = false; };
+  }, [compact, committedSelection, revealIfPending]);
 
   // Wheel zooms around the pointer. Registered by hand to be able to cancel browser zoom.
   useEffect(() => {
@@ -179,6 +206,7 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
     if (!element) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
+      if (gestureRef.current || pinchRef.current) return;
       const r = element.getBoundingClientRect();
       const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? r.height : 1;
       zoomBy(Math.exp(-e.deltaY * unit * 0.0015), { x: e.clientX - r.left, y: e.clientY - r.top });
@@ -187,44 +215,17 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
     return () => element.removeEventListener('wheel', onWheel);
   }, []);
 
-  // A second finger on the plan starts a pinch, which replaces whatever the first finger was doing.
-  // Registered in the capture phase so it runs before the plan's own handlers.
+  // Moving, resizing and panning follow the pointer anywhere on the page until it is released.
   useEffect(() => {
     const element = containerRef.current;
     if (!element) return;
     const touches = touchesRef.current;
-    const onDown = (e: PointerEvent) => {
-      if (e.pointerType !== 'touch') return;
-      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (touches.size !== 2) return;
-      const g = gestureRef.current;
-      if (g && g.kind !== 'pan' && g.started && useDesignStore.getState().gestureBase === g.base) useDesignStore.getState().cancelGesture();
-      gestureRef.current = null;
-      setMovingItem(null);
-      setGuides([]);
-      const [a, b] = [...touches.values()];
-      const rect = element.getBoundingClientRect();
-      const { zoom, pan } = useUiStore.getState();
-      const mid = { x: (a.x + b.x) / 2 - rect.left, y: (a.y + b.y) / 2 - rect.top };
-      pinchRef.current = {
-        startDistance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
-        anchor: { x: (mid.x - pan.x) / zoom, y: (mid.y - pan.y) / zoom },
-        startZoom: zoom,
-        startPan: pan,
-      };
-    };
-    element.addEventListener('pointerdown', onDown, true);
-    return () => element.removeEventListener('pointerdown', onDown, true);
-  }, []);
-
-  // Moving, resizing and panning follow the pointer anywhere on the page until it is released.
-  useEffect(() => {
-    const touches = touchesRef.current;
     const frame = pointerFrame((e) => {
       const pinch = pinchRef.current;
-      if (pinch && touches.size >= 2 && containerRef.current) {
-        const [a, b] = [...touches.values()];
-        const rect = containerRef.current.getBoundingClientRect();
+      if (pinch) {
+        const [a, b] = pinch.ids.map((id) => touches.get(id));
+        if (!a || !b) return;
+        const rect = element.getBoundingClientRect();
         const zoom = clamp((pinch.startZoom * Math.hypot(a.x - b.x, a.y - b.y)) / pinch.startDistance, MIN_ZOOM, MAX_ZOOM);
         const mid = { x: (a.x + b.x) / 2 - rect.left, y: (a.y + b.y) / 2 - rect.top };
         useUiStore.getState().setViewport(zoom, { x: mid.x - pinch.anchor.x * zoom, y: mid.y - pinch.anchor.y * zoom });
@@ -290,6 +291,30 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
     function showGuides(next: Guide[]) {
       setGuides((last) => last.length === next.length && last.every((guide, i) => guide.axis === next[i].axis && guide.value === next[i].value) ? last : next);
     }
+    // Capture the second contact before Konva can pick a cabinet, handle or wall.
+    const onDown = (e: PointerEvent) => {
+      if (e.pointerType !== 'touch' || !stageRef.current?.content.contains(e.target as Node)) return;
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touches.size !== 2 || pinchRef.current) return;
+      const g = gestureRef.current;
+      frame.cancel();
+      if (g && g.kind !== 'pan' && g.started && useDesignStore.getState().gestureBase === g.base) useDesignStore.getState().cancelGesture();
+      gestureRef.current = null;
+      setMovingItem(null);
+      setGuides([]);
+      setCursor('');
+      const [[idA, a], [idB, b]] = [...touches];
+      const rect = element.getBoundingClientRect();
+      const { zoom, pan } = useUiStore.getState();
+      const mid = { x: (a.x + b.x) / 2 - rect.left, y: (a.y + b.y) / 2 - rect.top };
+      pinchRef.current = {
+        ids: [idA, idB],
+        startDistance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
+        anchor: { x: (mid.x - pan.x) / zoom, y: (mid.y - pan.y) / zoom },
+        startZoom: zoom,
+        startPan: g?.kind === 'pan' ? g.startPan : pan,
+      };
+    };
     const onMove = (e: PointerEvent) => {
       if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (gestureRef.current?.pointerId !== e.pointerId && !(pinchRef.current && touches.has(e.pointerId))) return;
@@ -298,23 +323,30 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
     };
 
     const onUp = (e: PointerEvent) => {
-      const pinching = pinchRef.current && touches.has(e.pointerId);
+      const pinching = pinchRef.current?.ids.includes(e.pointerId);
       if (pinching) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (pinching || gestureRef.current?.pointerId === e.pointerId) frame.release(e);
       touches.delete(e.pointerId);
-      if (pinchRef.current && touches.size < 2) pinchRef.current = null;
+      if (pinching) {
+        pinchRef.current = null;
+        pendingReveal.current = false; // The manual viewport takes precedence over a deferred initial reveal.
+      }
       const g = gestureRef.current;
       if (!g || e.pointerId !== g.pointerId) return;
       gestureRef.current = null;
       setMovingItem(null);
       setGuides([]);
       if (g.kind === 'pan') {
-        if (!g.moved) useUiStore.getState().select(null);
+        if (!g.moved) {
+          if (g.pick) g.pick();
+          else useUiStore.getState().select(null);
+        }
         setCursor('');
       } else {
         if (g.started && useDesignStore.getState().gestureBase === g.base) useDesignStore.getState().endGesture();
         if (g.kind === 'move') setCursor('move');
       }
+      revealIfPending();
     };
 
     function cancel() {
@@ -333,7 +365,11 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
       setCursor('');
     }
     const onPointerCancel = (e: PointerEvent) => {
-      if (gestureRef.current?.pointerId === e.pointerId || touches.has(e.pointerId)) cancel();
+      if (gestureRef.current?.pointerId === e.pointerId || touches.has(e.pointerId)) {
+        if (pinchRef.current) pendingReveal.current = false;
+        cancel();
+        revealIfPending();
+      }
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || (!gestureRef.current && !pinchRef.current)) return;
@@ -341,6 +377,7 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
       cancel();
     };
     const visibility = () => { if (document.visibilityState === 'hidden') cancel(); };
+    element.addEventListener('pointerdown', onDown, true);
     window.addEventListener('pointermove', onMove, true);
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onPointerCancel);
@@ -348,6 +385,7 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
     document.addEventListener('visibilitychange', visibility);
     window.addEventListener('keydown', onKeyDown, true);
     return () => {
+      element.removeEventListener('pointerdown', onDown, true);
       window.removeEventListener('pointermove', onMove, true);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onPointerCancel);
@@ -356,9 +394,10 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
       window.removeEventListener('keydown', onKeyDown, true);
       cancel();
     };
-  }, [setCursor]);
+  }, [setCursor, revealIfPending]);
 
-  const onStagePointerDown = (e: KonvaEventObject<PointerEvent>) => {
+  const onStagePointerDown = useCallback((e: KonvaEventObject<PointerEvent>, pick?: () => void) => {
+    e.cancelBubble = true;
     if (pinchRef.current || gestureRef.current || useDesignStore.getState().gestureBase) return;
     blurActiveField();
     const { button, pointerId, pointerType, clientX, clientY } = e.evt;
@@ -370,8 +409,9 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
       start: { x: clientX, y: clientY },
       startPan: useUiStore.getState().pan,
       moved: false,
+      pick: button === 0 ? pick : undefined,
     };
-  };
+  }, []);
 
   const onItemPointerDown = useCallback((item: KitchenItem, e: KonvaEventObject<PointerEvent>) => {
     const { button, pointerId, pointerType, clientX, clientY } = e.evt;
@@ -437,6 +477,7 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
     || Number(a.id === foregroundId) - Number(b.id === foregroundId)
     || Number(isWallMounted(a)) - Number(isWallMounted(b)) || a.elevation - b.elevation), [items, dimmed, foregroundId]);
   const visibleItems = useMemo(() => ordered.filter((item) => !dimmed(item)), [ordered, dimmed]);
+  const annotated = ghost ?? activeSelection;
 
   return (
     <div
@@ -453,18 +494,25 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
           scaleY={zoom}
           x={pan.x}
           y={pan.y}
-          onPointerDown={onStagePointerDown}
+          onPointerDown={(e) => {
+            const { pointerType, clientX, clientY } = e.evt;
+            const point = compact && pointerType === 'touch' && e.target === stageRef.current && clientToPlan(clientX, clientY);
+            const nearby = point && nearbyCabinet(visibleItems, point, px);
+            // A near miss can select on tap, never initiate a move instead of panning.
+            onStagePointerDown(e, nearby ? () => useUiStore.getState().select(nearby.id, 'plan') : undefined);
+          }}
         >
           <Layer name="plan-room" listening={false}>
-            <PlanRoom key={fontVersion} room={room} zoom={zoom} openings={openings} />
+            <PlanRoom key={fontVersion} room={room} zoom={zoom} openings={openings} compact={compact} />
           </Layer>
           <Layer>
-            <PlanRoomTargets room={room} openings={openings} px={px} />
+            <PlanRoomTargets room={room} openings={openings} px={px} onPress={onStagePointerDown} />
             {ordered.map((item) => (
               <ItemShape
                 key={item.id}
                 item={item}
                 px={px}
+                compact={compact}
                 dimmed={dimmed(item)}
                 hovered={hoveredId === item.id}
                 onPointerDown={onItemPointerDown}
@@ -473,13 +521,15 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
             ))}
           </Layer>
           <Layer>
-            {showDimensions && <DimensionChains key={fontVersion} room={room} items={visibleItems} px={px} />}
+            {showDimensions && <DimensionChains key={`dimensions-${fontVersion}`} room={room} items={visibleItems} px={px} compact={compact} totalsOnly={compact && !allDimensions} />}
             <IssueOutlines items={visibleItems} issues={issues} px={px} />
-            {(ghost ?? activeSelection) && (
-              <Clearances room={room} items={items} item={(ghost ?? activeSelection)!} px={px} />
+            {annotated && (!compact || (allDimensions && showDimensions)) && (
+              <Clearances room={room} items={items} item={annotated} px={px} compact={compact} />
             )}
             <Guides guides={ghost ? libraryDrag!.guides : guides} room={room} px={px} />
-            {ghost && <Ghost item={ghost} px={px} />}
+            {ghost && <Ghost item={ghost} px={px} compact={compact} />}
+            {compact && <CompactPlanCodes key={`codes-${fontVersion}`} items={visibleItems} selected={annotated} px={px} measurements={showDimensions} />}
+            {compact && showDimensions && annotated && <SelectedUnitDimensions item={annotated} room={room} px={px} />}
             {activeSelection && !ghost && (
               <Selection
                 item={activeSelection}
@@ -493,7 +543,8 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
         </Stage>
       )}
       <PlanControls zoom={zoom} viewFilter={viewFilter} isEmpty={items.length === 0} compact={compact}
-        rows={rows} row={row} manualRow={manualRow} requestFit={requestFit} />
+        rows={rows} row={row} manualRow={manualRow} requestFit={requestFit}
+        allDimensions={allDimensions && showDimensions} setAllDimensions={setAllDimensions} />
       <KitchenPlanRoomReadout />
     </div>
   );
@@ -510,10 +561,13 @@ interface CanvasControlsProps {
   row?: UpperRow;
   manualRow?: UpperRow;
   requestFit: () => void;
+  allDimensions: boolean;
+  setAllDimensions: (show: boolean) => void;
 }
 
-function CanvasControls({ zoom, viewFilter, isEmpty, compact, rows, row, manualRow, requestFit }: CanvasControlsProps) {
+function CanvasControls({ zoom, viewFilter, isEmpty, compact, rows, row, manualRow, requestFit, allDimensions, setAllDimensions }: CanvasControlsProps) {
   const t = useT();
+  const labels = usePlanMessages();
   const projectId = useProjectsStore((state) => state.activeId);
   const chooseLayer = (filter: ViewFilter, upper = manualRow) => {
     const ui = useUiStore.getState();
@@ -525,7 +579,7 @@ function CanvasControls({ zoom, viewFilter, isEmpty, compact, rows, row, manualR
   return (
     <>
       <div data-plan-controls className="pointer-events-none absolute left-3 top-3 flex max-w-[calc(100%-24px)] flex-col items-start gap-1">
-        <div role="group" aria-label={t.canvas.filterLabel} className="studio-panel pointer-events-auto flex rounded-lg border p-0.5 shadow-sm">
+        <div role="group" data-plan-filters="" aria-label={t.canvas.filterLabel} className="studio-panel pointer-events-auto flex rounded-lg border p-0.5 shadow-sm">
           {FILTERS.map((id) => {
             const filter = t.canvas.filters[id];
             return (
@@ -558,7 +612,7 @@ function CanvasControls({ zoom, viewFilter, isEmpty, compact, rows, row, manualR
             {rows.map((entry, index) => <option key={entry.elevation} value={entry.elevation}>{t.stacking.row(index + 1, t.mm(entry.elevation))}</option>)}
           </select>
         )}
-        {viewFilter !== 'all' && <p role="status" className="rounded-md bg-studio-paper/95 px-2 py-1 text-[11px] leading-tight text-studio-muted">
+        {viewFilter !== 'all' && <p role="status" className="rounded-md bg-studio-paper/95 px-2 py-1 text-xs leading-tight text-studio-muted">
           {t.canvas.dimmed[viewFilter === 'wall' && rows.length > 1 ? 'row' : viewFilter]}
         </p>}
       </div>
@@ -572,22 +626,34 @@ function CanvasControls({ zoom, viewFilter, isEmpty, compact, rows, row, manualR
           compact ? 'phone-plan-zoom top-3' : 'bottom-3',
         )}
       >
-        <Button title={t.canvas.zoomOut} aria-label={t.canvas.zoomOut} className="h-7 min-w-7 px-1.5" onClick={() => zoomBy(1 / 1.25)}>
-          <Minus className="size-4" />
-        </Button>
-        <button
-          type="button"
-          title={t.canvas.fit}
-          aria-label={compact ? t.canvas.fit : undefined}
-          onClick={requestFit}
-          className={cn('h-7 rounded-md text-xs font-medium tabular-nums text-studio-muted hover:bg-[#ece8df] hover:text-studio-ink', compact ? 'w-10' : 'w-12')}
-        >
-          {Math.round((zoom / REFERENCE_ZOOM) * 100)}%
-        </button>
-        <Button title={t.canvas.zoomIn} aria-label={t.canvas.zoomIn} className="h-7 min-w-7 px-1.5" onClick={() => zoomBy(1.25)}>
-          <Plus className="size-4" />
-        </Button>
-        {!compact && <>
+        {compact ? <>
+          <Button title={labels.allDimensions} aria-label={labels.allDimensions} active={allDimensions}
+            className="h-11 min-w-11 px-2" onClick={() => {
+              if (!allDimensions) useUiStore.getState().setShowDimensions(true);
+              setAllDimensions(!allDimensions);
+              requestFit();
+            }}>
+            <Ruler className="size-4" />
+          </Button>
+          <Button title={t.canvas.fit} aria-label={t.canvas.fit} aria-description={labels.pinch}
+            className="h-11 min-w-11 px-2 text-xs" onClick={requestFit}>
+            <Maximize className="size-4" />{labels.fit}
+          </Button>
+        </> : <>
+          <Button title={t.canvas.zoomOut} aria-label={t.canvas.zoomOut} className="h-7 min-w-7 px-1.5" onClick={() => zoomBy(1 / 1.25)}>
+            <Minus className="size-4" />
+          </Button>
+          <button
+            type="button"
+            title={t.canvas.fit}
+            onClick={requestFit}
+            className="h-7 w-12 rounded-md text-xs font-medium tabular-nums text-studio-muted hover:bg-[#ece8df] hover:text-studio-ink"
+          >
+            {Math.round((zoom / REFERENCE_ZOOM) * 100)}%
+          </button>
+          <Button title={t.canvas.zoomIn} aria-label={t.canvas.zoomIn} className="h-7 min-w-7 px-1.5" onClick={() => zoomBy(1.25)}>
+            <Plus className="size-4" />
+          </Button>
           <div className="mx-0.5 h-4 w-px bg-zinc-200" />
           <Button title={t.canvas.fit} aria-label={t.canvas.fit} className="h-7 min-w-7 px-1.5" onClick={requestFit}>
             <Maximize className="size-4" />

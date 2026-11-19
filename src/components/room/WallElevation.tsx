@@ -85,7 +85,7 @@ export function WallElevation({ wall, number, reference }: { wall: WallSegment; 
         <g transform={`translate(0 ${height}) scale(${px})`} pointerEvents="none">
           <title>{t.room.originHint}</title>
           <circle r="4" fill="#287250" stroke="white" strokeWidth="1.5" />
-          <text x="-7" y="3" textAnchor="end" fontSize="10" fill="#3c634f">0</text>
+          <text x="-7" y="3" textAnchor="end" fontSize="12" fill="#3c634f">0</text>
         </g>
       </svg>
       {measure && <WallMeasureDialog wall={wall} number={number} focus={measure} close={() => setMeasure(null)} />}

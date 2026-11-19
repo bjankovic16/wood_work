@@ -3,6 +3,7 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { CameraView } from '../../domain/camera';
 import { useT } from '../../i18n';
 import { Button, TooltipButton } from '../ui';
+import { SheetHandle, type SheetSnap } from '../sheets/SheetHandle';
 
 const views = [{ key: 'perspective', Icon: Box }, { key: 'studio', Icon: Camera }, { key: 'front', Icon: PanelsTopLeft }, { key: 'top', Icon: LayoutGrid }] as const;
 
@@ -15,6 +16,7 @@ export function PhoneViewSheet({ id, onClose, view, onView, stylePanel, children
   const ref = useRef<HTMLDialogElement>(null);
   const previousStyle = useRef(false);
   const [style, setStyle] = useState(false);
+  const [snap, setSnap] = useState<SheetSnap>('full');
   useLayoutEffect(() => {
     const dialog = ref.current!;
     dialog.showModal();
@@ -27,17 +29,18 @@ export function PhoneViewSheet({ id, onClose, view, onView, stylePanel, children
   useLayoutEffect(() => {
     if (style || previousStyle.current) ref.current?.querySelector<HTMLButtonElement>('[data-style-nav]')?.focus({ preventScroll: true });
     previousStyle.current = style;
-    ref.current?.scrollTo(0, 0);
+    ref.current?.querySelector('[data-sheet-body]')?.scrollTo(0, 0);
   }, [style]);
-  return <dialog id={id} ref={ref} className="room-sheet max-w-full overscroll-contain" data-testid="phone-view-sheet"
+  return <dialog id={id} ref={ref} className="room-sheet max-w-full open:flex open:flex-col" data-testid="phone-view-sheet" data-sheet-panel="modal" data-snap={snap}
     aria-labelledby={`${id}-title`} onCancel={(event) => { event.preventDefault(); onClose(); }}
     onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <header className="sticky top-0 z-10 flex items-center gap-2 border-b border-studio-line bg-studio-paper py-1 pl-4 pr-2">
+    <header className="flex shrink-0 items-center gap-2 border-b border-studio-line bg-studio-paper px-2 py-1">
+      <SheetHandle snap={snap} onSnap={setSnap} onClose={onClose} controls={`${id}-body`} />
       {style && <Button data-style-nav="" aria-label={t.topBar.view} onClick={() => setStyle(false)}><ArrowLeft size={18} /></Button>}
       <h2 id={`${id}-title`} className="mr-auto font-semibold">{style ? t.style.style : t.topBar.view}</h2>
       <Button aria-label={t.common.close} onClick={onClose}><X size={18} /></Button>
     </header>
-    <div className="space-y-3 p-4">
+    <div id={`${id}-body`} data-sheet-body="" className="min-h-0 space-y-3 overflow-y-auto overscroll-contain p-4">
       {style ? stylePanel : <>
         <section>
           <div className="mb-1 flex items-center justify-between">
@@ -62,7 +65,7 @@ export function PhoneViewSheet({ id, onClose, view, onView, stylePanel, children
         {children}
         <div className="border-t border-studio-line pt-1">
           {help}
-          <p className="px-2 text-xs leading-relaxed text-studio-muted">{hint ?? t.view3d.selectHint}</p>
+          <p className="px-2 text-xs leading-relaxed text-studio-muted">{hint ?? t.feedback.touchHint}</p>
         </div>
       </>}
     </div>

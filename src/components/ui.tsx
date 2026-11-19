@@ -3,6 +3,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type ButtonHTMLAtt
 import { createPortal } from 'react-dom';
 import { useT } from '../i18n';
 import { cn } from '../lib/cn';
+import { SheetHandle, type SheetSnap } from './sheets/SheetHandle';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   /** Highlights the button as a switched-on toggle. */
@@ -138,15 +139,25 @@ interface SegmentedProps<T extends string> {
 export function Segmented<T extends string>({ value, options, onChange, className, size = 'md', ariaLabel }: SegmentedProps<T>) {
   return (
     <div role="radiogroup" aria-label={ariaLabel} className={cn('flex rounded-xl border border-studio-line/60 bg-[#efede5] p-1', className)}>
-      {options.map((option) => (
+      {options.map((option, i) => (
         <button
           key={option.value}
           type="button"
           role="radio"
           aria-checked={value === option.value}
+          tabIndex={value === option.value ? 0 : -1}
           aria-label={option.ariaLabel}
           title={option.title}
           onClick={() => onChange(option.value)}
+          onKeyDown={(e) => {
+            const next = e.key === 'Home' ? 0 : e.key === 'End' ? options.length - 1
+              : ['ArrowRight', 'ArrowDown'].includes(e.key) ? (i + 1) % options.length
+              : ['ArrowLeft', 'ArrowUp'].includes(e.key) ? (i + options.length - 1) % options.length : -1;
+            if (next === -1) return;
+            e.preventDefault(); e.stopPropagation();
+            e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus();
+            onChange(options[next].value);
+          }}
           className={cn(
             'flex flex-1 touch-manipulation items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-studio-accent',
             size === 'sm' ? 'h-7 text-xs' : 'h-8 text-[13px]',
@@ -166,6 +177,7 @@ interface DialogProps {
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  headerNote?: ReactNode;
   /** Slides up from the bottom (phones) instead of opening in the middle. */
   sheet?: boolean;
   wide?: boolean;
@@ -175,13 +187,15 @@ interface DialogProps {
 const openDialogs: object[] = [];
 
 /** Modal dialog, or a bottom sheet on small screens. Escape and the backdrop close it. */
-export function Dialog({ open, title, onClose, children, footer, sheet = false, wide = false }: DialogProps) {
+export function Dialog({ open, title, onClose, children, footer, headerNote, sheet = false, wide = false }: DialogProps) {
   const t = useT();
+  const [snap, setSnap] = useState<SheetSnap>('full');
+  const contentId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   useEffect(() => {
-    if (!open) return;
+    if (!open) { setSnap('full'); return; }
     const token = {};
     openDialogs.push(token);
     const panel = panelRef.current!;
@@ -222,18 +236,24 @@ export function Dialog({ open, title, onClose, children, footer, sheet = false, 
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
+        data-sheet-panel={sheet ? 'modal' : undefined}
+        data-snap={sheet ? snap : undefined}
         className={cn(
           'flex flex-col border border-studio-line bg-studio-paper shadow-2xl outline-none',
-          sheet ? 'max-h-[90dvh] w-full rounded-t-3xl' : cn('max-h-full w-full rounded-2xl', wide ? 'max-w-5xl' : 'max-w-md'),
+          sheet ? 'w-full rounded-t-3xl' : cn('max-h-full w-full rounded-2xl', wide ? 'max-w-5xl' : 'max-w-md'),
         )}
       >
-        <div className="flex items-center justify-between border-b border-studio-line py-3 pl-5 pr-3">
-          <h2 className="text-sm font-semibold text-zinc-900">{title}</h2>
+        <div className={cn('flex shrink-0 items-center justify-between gap-2 border-b border-studio-line', sheet ? 'px-2 py-1' : 'py-3 pl-5 pr-3')}>
+          {sheet && <SheetHandle snap={snap} onSnap={setSnap} onClose={onClose} controls={contentId} />}
+          <div className="mr-auto min-w-0">
+            <h2 className="text-sm font-semibold text-zinc-900">{title}</h2>
+            {headerNote}
+          </div>
           <Button aria-label={t.common.close} title={t.common.closeTitle} onClick={onClose}>
             <X className="size-4" />
           </Button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+        <div id={contentId} className="min-h-0 flex-auto overflow-y-auto overscroll-contain">{children}</div>
         {footer && (
           <div className="flex items-center justify-end gap-2 border-t border-zinc-100 px-5 py-3 pb-[max(env(safe-area-inset-bottom),12px)]">
             {footer}

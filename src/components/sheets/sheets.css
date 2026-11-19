@@ -1,0 +1,51 @@
+.sheet-handle {
+  display: inline-flex; min-width: 48px; height: 44px; flex: none; flex-direction: column;
+  align-items: center; justify-content: center; gap: .3rem; padding: 0 .35rem; border-radius: .6rem;
+  color: var(--color-studio-muted); cursor: ns-resize; touch-action: none; user-select: none;
+  font-size: .75rem; font-weight: 600; line-height: 1;
+}
+.sheet-grip { width: 1.8rem; height: 4px; background: #928b7d; border-radius: 1rem; }
+.sheet-handle:hover, .sheet-handle:focus-visible { background: #f0eee7; }
+.sheet-handle:focus-visible { outline: 2px solid var(--color-studio-accent); outline-offset: -2px; }
+
+[data-sheet-panel] {
+  --sheet-small: min(13.5rem, 50dvh);
+  --sheet-half: 58dvh;
+  --sheet-full: 90dvh;
+  --sheet-rest: var(--sheet-small);
+  overflow: hidden;
+}
+[data-sheet-panel][data-snap="half"] { --sheet-rest: var(--sheet-half); }
+[data-sheet-panel][data-snap="full"] { --sheet-rest: var(--sheet-full); }
+/* A brief confirmation need not stretch to the height of a long settings form. */
+[data-sheet-panel="modal"], .room-sheet[data-sheet-panel="modal"] {
+  max-height: min(var(--sheet-full), var(--sheet-drag-height, var(--sheet-rest)));
+  overflow: hidden;
+}
+[data-sheet-panel="cabinet"] {
+  --sheet-small: 104px;
+  --sheet-half: max(47%, min(13.5rem, 61%));
+  --sheet-full: 76%;
+  max-height: var(--sheet-full);
+  height: var(--sheet-drag-height, var(--sheet-rest));
+}
+[data-sheet-panel="cabinet"][data-manipulating] { --sheet-half: 33%; --sheet-full: 42%; }
+[data-sheet-panel="modal"][data-snap="small"] [data-sheet-sticky] { position: static; }
+@media (max-width: 1023px) {
+  .edge-band-card label { width: auto; }
+  .edge-band-card div:has(> label) { flex-direction: column; align-items: stretch; gap: .25rem; }
+  .edge-band-card input { width: 100%; flex: none; }
+}
+@media (max-height: 480px) {
+  [data-sheet-panel="modal"] [data-sheet-sticky] { position: static; }
+  /* Let the section tabs scroll away instead of leaving a sliver of editable content. */
+  .sheet-editor { overflow-y: auto; overscroll-behavior: contain; }
+  .sheet-editor > [role="tabpanel"] { flex: none; overflow: visible; }
+}
+@media (orientation: landscape) and (max-height: 440px) and (max-width: 1023px) {
+  /* The narrow landscape dock leaves the drawing on its right available for the full height. */
+  .phone-plan-dock[data-sheet-panel="cabinet"] { --sheet-half: 75%; --sheet-full: 100%; }
+  [data-sheet-panel="cabinet"][data-manipulating] {
+    --sheet-half: min(72%, max(8rem, 33%)); --sheet-full: min(83%, max(10rem, 42%));
+  }
+}

@@ -30,6 +30,12 @@ jobs:
           - name: Usability
             id: usability
             script: e2e:ux
+          - name: Cabinet sheets and repeated adds
+            id: sheets
+            script: e2e:sheets
+          - name: Undo, project backups and sharing
+            id: feedback
+            script: e2e:feedback
           - name: Stacked cabinets and premium kitchens
             id: stacked
             script: e2e:stacked
@@ -45,6 +51,9 @@ jobs:
           - name: Offline customer preview
             id: customer
             script: e2e:customer
+          - name: Installed planner offline
+            id: offline
+            script: e2e:offline
           - name: Ideas in the measured kitchen
             id: ideas
             script: e2e:ideas

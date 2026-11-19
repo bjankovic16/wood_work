@@ -246,7 +246,7 @@ try {
   await phone.getByLabel('Upper cabinet row', { exact: true }).selectOption(String(phoneLower.elevation));
   await clickPlanUnit(phone, phoneLower, true);
   await shot(phone, '06-phone-row-selection.png');
-  await phone.getByRole('button', { name: 'Edit', exact: true }).tap();
+  await phone.getByTestId('item-sheet').getByRole('slider').press('End');
   await phone.getByRole('button', { name: 'Add cabinet above', exact: true }).scrollIntoViewIfNeeded();
   assert.equal(await phone.getByRole('button', { name: 'Add cabinet above', exact: true }).isDisabled(), true);
   await shot(phone, '07-phone-stacking-settings.png');
@@ -262,8 +262,7 @@ try {
     window.__kitchen.design.getState().load(fixture);
   });
   await clickPlanUnit(phone, (await design(phone)).items[0], true);
-  const expand = phone.getByRole('button', { name: 'Edit', exact: true });
-  if (await expand.isVisible()) await expand.tap();
+  await phone.getByTestId('item-sheet').getByRole('slider').press('End');
   await phone.getByRole('button', { name: 'Add cabinet above', exact: true }).tap();
   assert.equal((await design(phone)).items.length, 2);
   await phone.setViewportSize({ width: 320, height: 740 });
@@ -294,8 +293,7 @@ try {
   await phone.getByRole('group', { name: '3D camera' }).getByRole('button', { name: 'Top', exact: true }).tap();
   assert.equal(await phone.getByRole('group', { name: 'Selected cabinet actions' }).count(), 0);
   await phone.getByTestId('phone-view-sheet').waitFor({ state: 'detached' });
-  const less = phone.getByRole('button', { name: 'Less', exact: true });
-  if (await less.isVisible()) await less.tap();
+  await phone.getByTestId('item-sheet').getByRole('slider').press('Home');
   await phone.waitForTimeout(300);
   await assertBodyOrbits(phone, (await design(phone)).items[1].id, true);
   pass('dragging the selected upper on touch orbits the camera while the model and history remain unchanged');

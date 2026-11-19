@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { waitForIdleRendering } from './three-test-helpers.mjs';
+import { showRoomModel, waitForIdleRendering } from './three-test-helpers.mjs';
 
 const design = (page) => page.evaluate(() => window.__kitchen.design.getState().design);
 const history = (page) => page.evaluate(() => window.__kitchen.design.getState().past.length);
@@ -152,7 +152,7 @@ async function setField(root, name, value) {
 /** Uses only public controls, so the same 320px regression can run against the production build. */
 export async function draftedWindowCheck(page) {
   const room = page.getByTestId('room-workspace'), paper = room.getByTestId('wall-elevation');
-  await room.getByRole('button', { name: 'Otvori zid 1 u 2D' }).tap();
+  await room.getByRole('button', { name: 'Pogled na zid 1' }).tap();
   const add = async (name) => {
     await room.getByRole('button', { name: 'Dodaj objekat' }).tap();
     await room.getByRole('button', { name, exact: true }).tap();
@@ -350,7 +350,7 @@ export async function workspaceObjectChecks(page, touch = false, three = true) {
       await page.waitForFunction((id) => document.activeElement?.getAttribute('data-plan-feature') === id, f.id);
       await workspace.getByRole('button', { name: '3D preview' }).click();
     }
-    await workspace.getByRole('radio', { name: '3D review', exact: true }).click();
+    await showRoomModel(page);
     await assert3DIsReadOnly(page, f.id, 'feature', touch);
     assert.equal(await inspector.locator('input,select').count(), 0);
     assert.equal(await inspector.getByRole('button', { name: 'Chimney', exact: true }).count(), 0);
@@ -374,7 +374,7 @@ export async function workspaceObjectChecks(page, touch = false, three = true) {
   }
   assert.equal((await design(page)).openings[0].wallId, undefined, 'inspecting the legacy opening does not rewrite it');
   if (three) {
-    await workspace.getByRole('radio', { name: '3D review', exact: true }).click();
+    await showRoomModel(page);
     assert.match(await workspace.locator('[data-measure="opening:legacy-door"]').innerText(), /From wall start: 1500 mm/);
     assert.match(await workspace.locator('[data-measure="opening:legacy-window"]').innerText(), /From wall start: 2800 mm/);
     await assert3DIsReadOnly(page, 'legacy-door', 'opening', touch);
@@ -401,9 +401,9 @@ export async function furnishedWallChecks(page, compact, output) {
   });
   const workspace = page.getByTestId('room-workspace'), plan = workspace.getByTestId('room-plan');
   const picker = workspace.getByRole('combobox', { name: 'Izaberi pogled' }), elevation = workspace.getByTestId('wall-elevation');
-  await workspace.getByRole('tab', { name: 'Boje i pločice' }).click();
+  await workspace.getByRole(compact ? 'button' : 'tab', { name: 'Boje i pločice' }).click();
   await workspace.getByRole('button', { name: 'Boja zidova: Maslina' }).click();
-  await workspace.getByRole('tab', { name: 'Mere' }).click();
+  await workspace.getByRole(compact ? 'button' : 'tab', { name: 'Mere', exact: true }).click();
   assert.equal(await plan.locator('[data-plan-cabinet]').count(), 0, 'The room drawing starts without kitchen outlines.');
   await workspace.getByLabel('Prikaži obrise kuhinje kao orijentir').check();
   if (compact) await page.screenshot({ path: path.join(output, 'phone-floor-plan-sr.png') });
@@ -435,7 +435,7 @@ export async function furnishedWallChecks(page, compact, output) {
     store.load({ ...store.design, room: { ...store.design.room, partitions: [partition] }, openings: [opening] });
   });
   await picker.selectOption('');
-  await tapOrClick(plan.getByRole('button', { name: 'Otvori zid 6 u 2D', exact: true }), compact);
+  await tapOrClick(plan.getByRole('button', { name: 'Pogled na zid 6', exact: true }), compact);
   assert.equal(await picker.inputValue(), 'divider:-1');
   const ends = workspace.getByRole('navigation', { name: 'Susedni zidovi' });
   assert.equal(await ends.getByText('Slobodan kraj', { exact: true }).count(), 2);

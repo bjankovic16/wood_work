@@ -1,14 +1,16 @@
 import type { KonvaEventObject } from 'konva/lib/Node';
-import { Group, Line, Rect, Text } from 'react-konva';
+import { Group, Line, Rect } from 'react-konva';
 import { computeClearances, computeWallChains, computeSegmentChains, type WallChain } from '../../domain/dimensions';
-import { footprintPolygon, itemRect } from '../../domain/geometry';
+import { footprintPolygon, itemRect, localDepthExtent, localToRoom, roomToLocal } from '../../domain/geometry';
+import { polygonBounds } from '../../domain/polygons';
+import { roomOutline } from '../../domain/roomGeometry';
 import { itemHandles, type Guide, type HandleId } from '../../domain/snapping';
 import type { KitchenItem, Room } from '../../domain/types';
 import type { Issue } from '../../engine/checks';
 import { WALL_THICKNESS } from '../../store/viewport';
 import { DimensionLine } from './DimensionLine';
 import { ItemShape } from './ItemShape';
-import { ACCENT, CANVAS_BACKGROUND, DIMENSION_COLORS, GUIDE } from './theme';
+import { ACCENT, CANVAS_BACKGROUND, COMPACT_LABEL_PX, DIMENSION_COLORS, GUIDE } from './theme';
 
 /** Distance of each dimension row from the outside face of the wall, in screen pixels. */
 const ROW_OFFSET_PX = { floor: 20, wall: 42, room: 64 };
@@ -54,7 +56,7 @@ function ExtensionLines({ ticks, horizontal, face, at, color, px }: {
   );
 }
 
-function ChainDimensions({ chain, room, px }: { chain: WallChain; room: Room; px: number }) {
+function ChainDimensions({ chain, room, px, fontPx }: { chain: WallChain; room: Room; px: number; fontPx: number }) {
   const horizontal = chain.wall === 'top' || chain.wall === 'bottom';
   const { at, face } = outsideWall(chain.wall, room, ROW_OFFSET_PX[chain.level], px);
   const color = chain.level === 'wall' ? DIMENSION_COLORS.wall : DIMENSION_COLORS.floor;
@@ -72,43 +74,66 @@ function ChainDimensions({ chain, room, px }: { chain: WallChain; room: Room; px
           color={segment.occupied ? color : DIMENSION_COLORS.gap}
           background={CANVAS_BACKGROUND}
           px={px}
+          fontPx={fontPx}
         />
       ))}
     </Group>
   );
 }
 
-/** Chained dimensions along every wall that has units against it, plus the overall room size. */
-export function WallDimensions({ room, items, px }: { room: Room; items: KitchenItem[]; px: number }) {
+function RoomTotals({ room, px, offset, fontPx }: { room: Room; px: number; offset: number; fontPx: number }) {
+  const { x, y, w, h } = polygonBounds(roomOutline(room));
+  const top = y - WALL_THICKNESS, left = x - WALL_THICKNESS;
+  const props = { color: DIMENSION_COLORS.room, px };
+  return <>
+    <ExtensionLines ticks={[x, x + w]} horizontal face={top} at={top - offset * px} {...props} />
+    <DimensionLine axis="x" from={x} to={x + w} at={top - offset * px} fontPx={fontPx} background={CANVAS_BACKGROUND} {...props} />
+    <ExtensionLines ticks={[y, y + h]} horizontal={false} face={left} at={left - offset * px} {...props} />
+    <DimensionLine axis="y" from={y} to={y + h} at={left - offset * px} fontPx={fontPx} background={CANVAS_BACKGROUND} {...props} />
+  </>;
+}
+
+export function WallDimensions({ room, items, px, compact, totalsOnly }: {
+  room: Room; items: KitchenItem[]; px: number; compact: boolean; totalsOnly: boolean;
+}) {
+  const fontPx = compact ? COMPACT_LABEL_PX : 11;
+  if (totalsOnly) return <Group name="plan-dimensions" listening={false}><RoomTotals room={room} px={px} offset={12} fontPx={fontPx} /></Group>;
   if (room.vertices || room.partitions?.length) return <Group name="plan-dimensions" listening={false}>
     {computeSegmentChains(room, items).map(({ segment, level, segments }) =>
       <Group key={`${segment.id}-${level}`} x={segment.start.x} y={segment.start.y} rotation={segment.angle}>
-        {segments.map((span) => <Group key={span.from}>
-          <Line points={[span.from, -WALL_THICKNESS - (level === 'wall' ? 45 : 20) * px, span.to, -WALL_THICKNESS - (level === 'wall' ? 45 : 20) * px]}
-            stroke={span.occupied ? DIMENSION_COLORS.floor : DIMENSION_COLORS.gap} strokeWidth={px} />
-          <Text x={span.from} y={-WALL_THICKNESS - (level === 'wall' ? 58 : 33) * px} width={span.to - span.from} text={String(Math.round(span.to - span.from))}
-            fontSize={10 * px} align="center" fill={span.occupied ? DIMENSION_COLORS.floor : DIMENSION_COLORS.gap} />
-        </Group>)}
+        {segments.map((span) => <DimensionLine key={span.from} axis="x" from={span.from} to={span.to}
+          at={-WALL_THICKNESS - ROW_OFFSET_PX[level] * px} angle={segment.angle} fontPx={fontPx} px={px}
+          color={span.occupied ? DIMENSION_COLORS[level] : DIMENSION_COLORS.gap} background={CANVAS_BACKGROUND} />)}
       </Group>)}
+    {compact && <RoomTotals room={room} px={px} offset={ROW_OFFSET_PX.room} fontPx={fontPx} />}
   </Group>;
   const chains = computeWallChains(room, items);
-  const top = outsideWall('top', room, ROW_OFFSET_PX.room, px);
-  const left = outsideWall('left', room, ROW_OFFSET_PX.room, px);
   return (
     <Group name="plan-dimensions" listening={false}>
       {chains.map((chain) => (
-        <ChainDimensions key={`${chain.wall}-${chain.level}`} chain={chain} room={room} px={px} />
+        <ChainDimensions key={`${chain.wall}-${chain.level}`} chain={chain} room={room} px={px} fontPx={fontPx} />
       ))}
-      <ExtensionLines ticks={[0, room.width]} horizontal face={top.face} at={top.at} color={DIMENSION_COLORS.room} px={px} />
-      <DimensionLine axis="x" from={0} to={room.width} at={top.at} color={DIMENSION_COLORS.room} background={CANVAS_BACKGROUND} px={px} />
-      <ExtensionLines ticks={[0, room.depth]} horizontal={false} face={left.face} at={left.at} color={DIMENSION_COLORS.room} px={px} />
-      <DimensionLine axis="y" from={0} to={room.depth} at={left.at} color={DIMENSION_COLORS.room} background={CANVAS_BACKGROUND} px={px} />
+      <RoomTotals room={room} px={px} offset={ROW_OFFSET_PX.room} fontPx={fontPx} />
     </Group>
   );
 }
 
+/** Dimension the actual footprint axes (including a corner's second arm), not its rotated bounding box. */
+export function SelectedUnitDimensions({ item, room, px }: { item: KitchenItem; room: Room; px: number }) {
+  const origin = localToRoom(item, 0, 0), depth = localDepthExtent(item);
+  const bounds = polygonBounds(roomOutline(room));
+  const centre = roomToLocal(item, { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2 });
+  // Place rulers towards the room, not underneath the overall dimensions or off the plan.
+  const offset = Math.max(14 * px, 25 * px - Math.min(item.width, depth) / 2);
+  const props = { px, angle: item.rotation, alwaysLabel: true, fontPx: COMPACT_LABEL_PX, color: ACCENT, background: '#fffefa' };
+  return <Group name="selected-unit-dimensions" x={origin.x} y={origin.y} rotation={item.rotation} listening={false}>
+    <DimensionLine axis="x" from={0} to={item.width} at={centre.y >= depth / 2 ? depth + offset : -offset} {...props} />
+    <DimensionLine axis="y" from={0} to={depth} at={centre.x >= item.width / 2 ? item.width + offset : -offset} {...props} />
+  </Group>;
+}
+
 /** Free space between the active item and the nearest wall or unit in each direction. */
-export function Clearances({ room, items, item, px }: { room: Room; items: KitchenItem[]; item: KitchenItem; px: number }) {
+export function Clearances({ room, items, item, px, compact }: { room: Room; items: KitchenItem[]; item: KitchenItem; px: number; compact: boolean }) {
   return (
     <Group listening={false}>
       {computeClearances(room, items, item).map((c) => (
@@ -120,6 +145,7 @@ export function Clearances({ room, items, item, px }: { room: Room; items: Kitch
           at={c.at}
           color={ACCENT}
           background="rgba(255, 255, 255, 0.92)"
+          fontPx={compact ? COMPACT_LABEL_PX : undefined}
           px={px}
         />
       ))}
@@ -191,11 +217,11 @@ export function Selection({ item, px, touch = false, onHandlePointerDown, onCurs
 }
 
 /** Preview of a library element while it is dragged over the plan. */
-export function Ghost({ item, px }: { item: KitchenItem; px: number }) {
+export function Ghost({ item, px, compact }: { item: KitchenItem; px: number; compact: boolean }) {
   return (
     <Group listening={false}>
       <Group opacity={0.75}>
-        <ItemShape item={item} px={px} />
+        <ItemShape item={item} px={px} compact={compact} />
       </Group>
       <Line points={footprintPolygon(item)} closed stroke={ACCENT} strokeWidth={2 * px} dash={[6 * px, 4 * px]} />
     </Group>

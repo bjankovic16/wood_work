@@ -15,6 +15,7 @@ import { useUiStore } from '../../store/uiStore';
 import { Button, Dialog, Menu, Segmented } from '../ui';
 import { PhotoReferenceGallery } from '../references/PhotoReferences';
 import { IdeaFitReview } from './IdeaFitReview';
+import { TryAnotherStyle } from './TryAnotherStyle';
 
 /** Small top views of each layout: grey runs of floor units against the walls. */
 function LayoutSketch({ id }: { id: LayoutId }) {
@@ -199,18 +200,21 @@ function LayoutChoices({ onClose }: { onClose: () => void }) {
         <div className="space-y-4 bg-[#f7f5ef] p-4 pb-[max(env(safe-area-inset-bottom),16px)] sm:p-6">
           <div className="space-y-3">
             <label htmlFor="kitchen-design-search" className="sr-only">{t.kitchens.search}</label>
-            <div className="relative">
-              <Search aria-hidden className="pointer-events-none absolute left-3 top-3 size-4 text-[#797364]" />
-              <input
-                ref={searchRef}
-                id="kitchen-design-search"
-                type="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder={t.kitchens.searchPlaceholder}
-                className="h-11 w-full min-w-0 rounded-xl border border-[#d6d0c3] bg-[#fffefa] pl-10 pr-12 text-sm text-[#332f28] outline-none focus:border-[#637362] focus:ring-2 focus:ring-[#637362]/20"
-              />
-              {query && <Button aria-label={t.kitchens.clearSearch} className="absolute right-0 top-0 h-11 w-11" onClick={() => { setQuery(''); searchRef.current?.focus(); }}><X className="size-4" /></Button>}
+            <div className="grid items-center gap-2 sm:grid-cols-[minmax(12rem,1fr)_minmax(0,1.3fr)] sm:gap-4">
+              <div className="relative">
+                <Search aria-hidden className="pointer-events-none absolute left-3 top-3 size-4 text-[#797364]" />
+                <input
+                  ref={searchRef}
+                  id="kitchen-design-search"
+                  type="search"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder={t.kitchens.searchPlaceholder}
+                  className="h-11 w-full min-w-0 rounded-xl border border-[#d6d0c3] bg-[#fffefa] pl-10 pr-12 text-sm text-[#332f28] outline-none focus:border-[#637362] focus:ring-2 focus:ring-[#637362]/20"
+                />
+                {query && <Button aria-label={t.kitchens.clearSearch} className="absolute right-0 top-0 h-11 w-11" onClick={() => { setQuery(''); searchRef.current?.focus(); }}><X className="size-4" /></Button>}
+              </div>
+              <TryAnotherStyle />
             </div>
             <Button variant="outline" aria-expanded={filtersOpen} aria-controls="kitchen-design-filters" className="h-11 w-full justify-between sm:hidden" onClick={() => setFiltersOpen(!filtersOpen)}>
               <span className="flex items-center gap-2"><SlidersHorizontal aria-hidden className="size-4" />{t.kitchens.refine}</span>

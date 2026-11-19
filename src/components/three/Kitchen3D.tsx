@@ -1,9 +1,9 @@
 import { OrbitControls } from '@react-three/drei';
-import { CircleHelp, Copy, DoorClosed, DoorOpen, Download, LayoutGrid, Palette, PanelsTopLeft, Pencil, RotateCcw, Ruler, Scan, Shuffle, SlidersHorizontal, Trash2, X } from 'lucide-react';
-import { lazy, memo, Suspense, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
+import { CircleHelp, Copy, DoorClosed, DoorOpen, LayoutGrid, Palette, PanelsTopLeft, Pencil, RotateCcw, Ruler, Scan, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
+import { createPortal } from 'react-dom';
 import { KIND_OPTIONS } from '../../engine/config';
-import type { Design, KitchenItem } from '../../domain/types';
-import { useCanSaveFiles } from '../../hooks/useCanSaveFiles';
+import type { KitchenItem } from '../../domain/types';
 import { useCoarsePointer } from '../../hooks/useMediaQuery';
 import type { RoomObjectSelection } from '../../domain/roomObjectPlacement';
 import { openingOnWall } from '../../domain/walls';
@@ -11,11 +11,12 @@ import { useT } from '../../i18n';
 import { cn } from '../../lib/cn';
 import { committedDesign, useDesignStore } from '../../store/designStore';
 import { useBuildContext, useIssues } from '../../store/derived';
-import { deleteSelected, duplicateSelected, editCabinetPositionInPlan, shuffleKitchen, type ShuffleResult } from '../../store/actions';
+import { deleteSelected, duplicateSelected, editCabinetPositionInPlan } from '../../store/actions';
 import { useUiStore } from '../../store/uiStore';
 import { Button, Dialog, TooltipButton } from '../ui';
 import { usePhoneThreeChrome } from '../layout/PhoneThreeChrome';
 import { PhoneViewSheet } from './PhoneViewSheet';
+import { useCustomerFile } from './useCustomerFile';
 import { SceneCanvas, type CameraRequest } from './SceneCanvas';
 import { useThreeNavigation } from './useThreeNavigation';
 import { createMaterials, disposeMaterials } from './materials';
@@ -30,7 +31,6 @@ import { ItemFields } from '../properties/ItemPanel';
 import { StackAboveButton } from '../properties/StackAboveButton';
 
 const SceneRoom = memo(Room3D);
-const CustomerExport = lazy(() => import('./CustomerExport'));
 
 const canOpen = (item: KitchenItem) => KIND_OPTIONS[item.kind].carcass && KIND_OPTIONS[item.kind].fronts;
 
@@ -40,10 +40,6 @@ const canOpen = (item: KitchenItem) => KIND_OPTIONS[item.kind].carcass && KIND_O
 export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
   const text = useT();
   const toolsId = useId();
-  const canSave = useCanSaveFiles();
-  const [exportDesign, setExportDesign] = useState<{ design: Design; studio: boolean } | null>(null);
-  const [exportNotice, setExportNotice] = useState('');
-  const exportFinished = useCallback((message: string) => { setExportDesign(null); setExportNotice(message); }, []);
   const room = useDesignStore((s) => s.design.room);
   const items = useDesignStore((s) => s.design.items);
   const committedItems = useDesignStore((s) => committedDesign(s).items);
@@ -53,8 +49,6 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
   const selectedId = useUiStore((s) => s.selectedId);
   const cabinetTool = useUiStore((s) => s.cabinetTool);
   const previewLockedIds = useUiStore((s) => s.previewLockedIds);
-  const editing = useDesignStore((s) => s.gestureBase !== null);
-  const [shuffleResult, setShuffleResult] = useState<ShuffleResult | null>(null);
   const chrome = usePhoneThreeChrome();
   const touch = useCoarsePointer();
   const [sceneReady, setSceneReady] = useState(false);
@@ -143,6 +137,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
   const navigation = useThreeNavigation(sceneReady && !selected && !activeRoomSelection, Boolean(chrome?.open || toolsOpen || styleOpen));
 
   const studio = cameraView === 'studio';
+  const customer = useCustomerFile(studio, sceneReady, compact);
   const materials = useMemo(() => createMaterials(style, studio), [style, studio]);
   useEffect(() => () => disposeMaterials(materials), [materials]);
   useLayoutEffect(() => {
@@ -192,29 +187,11 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
       <PanelsTopLeft className="size-4" />{text.view3d.interior}
     </TooltipButton>
   );
-  const shuffleDisabled = previewLockedIds.length > 0 || Boolean(cabinetTool) || editing;
-  const shuffleTitle = previewLockedIds.length > 0 ? text.shuffle.preview : cabinetTool || editing ? text.shuffle.busy : text.shuffle.hint;
-  const kitchenName = shuffleResult?.ok ? text.kitchens.names[shuffleResult.presetId] : '';
   const openAllButton = <TooltipButton tooltip={allOpen ? text.view3d.closeAllHint : text.view3d.openAllHint} className="h-10 flex-1 whitespace-nowrap lg:flex-none"
     variant="outline" active={allOpen} disabled={interior || openable.length === 0} onClick={() => { toggleAll(); chrome?.setOpen(false); }}>
     {allOpen ? <DoorClosed className="size-4" /> : <DoorOpen className="size-4" />}
     {allOpen ? text.view3d.closeAll : text.view3d.openAll}
   </TooltipButton>;
-  const nextKitchenButton = <TooltipButton tooltip={shuffleTitle} className="h-10 flex-1 whitespace-nowrap lg:flex-none" variant="outline" disabled={shuffleDisabled} onClick={() => {
-    chrome?.setOpen(false);
-    const result = shuffleKitchen();
-    setShuffleResult(!result.ok && result.reason === 'review' ? null : result);
-    if (result.ok) { selectRoomObject(null); setOpenedCabinets(new Set()); }
-  }}>
-    <Shuffle className="size-4" />{text.shuffle.title}
-  </TooltipButton>;
-  const customerExport = <div className="flex flex-wrap items-center gap-2">
-    <Button variant="outline" disabled={!canSave || Boolean(exportDesign) || editing} title={!canSave ? text.files.unavailable : undefined} data-testid="customer-export"
-      onClick={() => { setExportNotice(''); setExportDesign({ design: useDesignStore.getState().design, studio }); }}>
-      {chrome && <Download className="size-4" />}{text.customerView.export}
-    </Button>
-    {(exportDesign || exportNotice) && <span role="status" className="text-xs text-studio-muted">{exportDesign ? text.customerView.busy : exportNotice}</span>}
-  </div>;
   const toolsButton = <TooltipButton tooltip={text.view3d.toolsHint} data-testid="three-tools-toggle" aria-expanded={toolsOpen} aria-controls={toolsId} aria-label={text.view3d.tools}
     className="h-10 min-w-10" active={toolsOpen} onClick={() => setToolsOpen(!toolsOpen)}>
     <SlidersHorizontal className="size-4" />
@@ -236,14 +213,14 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
 
   return (
     <div className="three-scene flex h-full min-h-0 w-full flex-col bg-[#ebe8e3] lg:flex-row">
+      {chrome?.shareSlot && createPortal(customer.share, chrome.shareSlot)}
+      {customer.dialog}
       {referenceOpen && <PhotoReferencePanel />}
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
       {chrome?.open && <PhoneViewSheet id={chrome.id} onClose={() => chrome.setOpen(false)} view={request.focusId ? null : request.view} onView={useUiStore.getState().requestCamera}
         stylePanel={<StylePicker />} help={helpButton}>
         <section className="room-preview-actions"><h3>{text.view3d.cabinetPreview}</h3>
           <div className="flex flex-wrap gap-2">{openAllButton}{interiorButton}</div></section>
-        <section className="room-preview-actions border-t border-studio-line pt-3"><h3>{text.topBar.project}</h3>
-          {nextKitchenButton}{shuffleDisabled && <p className="text-xs text-studio-muted">{shuffleTitle}</p>}{customerExport}</section>
         {roomObjects}
       </PhoneViewSheet>}
       {!chrome && <div role="toolbar" aria-label={text.view3d.toolbar} data-testid="three-toolbar" className="studio-panel flex shrink-0 flex-col gap-2 border-b px-3 py-2 lg:flex-row lg:flex-wrap lg:items-center lg:gap-3">
@@ -263,16 +240,9 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
         </TooltipButton>
         <div role="group" aria-label={text.view3d.kitchenActions} className="flex items-center gap-2 lg:border-l lg:border-studio-line lg:pl-3">
         {openAllButton}
-        {nextKitchenButton}
         </div>
         {interiorButton}
-        <div className="min-w-0 flex-1" />{toolsButton}
-      </div>}
-
-      {shuffleResult && <div role={shuffleResult.ok ? 'status' : 'alert'} data-testid="shuffle-feedback"
-        className="three-feedback studio-panel flex shrink-0 items-center gap-3 border-b px-3 py-2 text-xs text-studio-ink">
-        <span className="flex-1">{shuffleResult.ok ? text.shuffle.success(kitchenName) : text.shuffle[shuffleResult.reason]}</span>
-        <Button aria-label={text.common.close} onClick={() => setShuffleResult(null)}><X className="size-4" /></Button>
+        <div className="min-w-0 flex-1" />{customer.share}{toolsButton}
       </div>}
 
       {activeRoomSelection && <div data-three-object-tools="" className="studio-panel shrink-0 border-b px-3 py-2">
@@ -280,7 +250,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
       </div>}
 
       {toolsOpen && <div id={toolsId} data-testid="three-tools" className="flex max-h-[35dvh] shrink-0 flex-col items-start gap-2 overflow-y-auto overscroll-contain border-b border-studio-line bg-[#f7f5f0] px-3 py-3">
-        {customerExport}
+        {customer.desktop}
         {roomObjects}
         {!compact && selected && <SelectedCabinetTools key={selected.id} item={selected}
           invalid={invalid.has(selected.id)} onFocus={() => useUiStore.getState().focusCamera(selected.id)} />}
@@ -288,7 +258,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
         {/* Closed by default: its text changes with the tool in use, and an open paragraph would resize the kitchen each time. */}
         <details className="text-xs text-zinc-600">
           <summary className="cursor-pointer py-1">{text.view3d.help}</summary>
-          <p className="max-w-xl py-2 leading-relaxed">{text.view3d.selectHint}</p>
+          <p className="max-w-xl py-2 leading-relaxed">{touch ? text.feedback.touchHint : text.view3d.selectHint}</p>
         </details>
       </div>}
 
@@ -322,7 +292,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
         {canResize && selected && <CabinetResizeTool key={selected.id} item={selected} overlay={resizeLabelsRef} onStart={stopCamera}
           onLoading={loadingResize} onError={failedResize} onReady={readyResize} onCancel={cancelResize} onBlocked={setResizeBlocked} />}
         {activeRoomSelection && <RoomObjectAnchor overlay={roomLabelRef} />}
-        {exportDesign && <Suspense fallback={null}><CustomerExport {...exportDesign} t={text} finish={exportFinished} /></Suspense>}
+        {customer.model}
       </SceneCanvas>
       {activeRoomSelection && <RoomObjectAnnotation overlay={roomLabelRef} />}
 

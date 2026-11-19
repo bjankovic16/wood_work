@@ -11,7 +11,7 @@ export function StartGuide({ compact, isEmpty }: { compact: boolean; isEmpty: bo
   if (!isEmpty || dragging) return null;
   const hint = compact ? t.canvas.emptyTouch : t.canvas.emptyDesktop;
   return <>
-    <p data-testid="empty-plan-hint" className="pointer-events-none absolute inset-x-3 bottom-24 mx-auto w-fit max-w-sm rounded-lg bg-studio-paper/95 px-3 py-2 text-center text-xs text-studio-muted lg:bottom-4">{hint}</p>
+    <p data-testid="empty-plan-hint" data-plan-overlay={compact ? '' : undefined} className="pointer-events-none absolute inset-x-3 bottom-16 mx-auto w-fit max-w-sm rounded-lg bg-studio-paper/95 px-3 py-2 text-center text-xs text-studio-muted lg:bottom-4">{hint}</p>
     <Dialog open={welcome} title={t.canvas.startTitle} sheet={compact} onClose={() => setWelcome(false)}>
       <div className="space-y-4 p-4 text-sm">
         <p>{hint}</p>

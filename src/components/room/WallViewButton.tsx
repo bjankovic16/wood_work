@@ -1,4 +1,4 @@
-import { Eye } from 'lucide-react';
+import { PanelsTopLeft } from 'lucide-react';
 import { useRef } from 'react';
 import { useT } from '../../i18n';
 
@@ -14,6 +14,6 @@ export function WallViewButton({ face, numbered = false, open }: {
     }}
     onPointerCancel={() => { start.current = null; }}
     onClick={(e) => { if (!e.detail || start.current) open(face.id); start.current = null; }}>
-    <span><Eye size={14} aria-hidden="true" />{numbered ? `2D · ${face.number}` : '2D'}</span>
+    <span><PanelsTopLeft size={18} aria-hidden="true" />{numbered && face.number}</span>
   </button>;
 }
