@@ -7,6 +7,7 @@ import { checkDesign } from '../engine/checks';
 import { buildContext } from '../engine/config';
 import { buildCuttingList, cuttingListCsv } from '../engine/cuttingList';
 import { EN_LABELS } from '../engine/labels';
+import { boardLabel } from '../engine/materialLabel';
 import { unitParts } from '../engine/parts';
 import { cuttingListWorkbook } from '../export/excel';
 import { en } from './en';
@@ -18,9 +19,12 @@ describe('browser language', () => {
   it.each([en, sr])('distinguishes room drawings from kitchen destinations in both languages', (t) => {
     expect(t.room.plan).not.toBe(t.topBar.plan);
     expect(t.room.model).not.toBe(t.topBar.view3d);
-    expect(t.topBar.listShort).toBe(t.topBar.list);
     expect(t.cutting.title).toBe(t.topBar.list);
     expect(t.room.ideasShort).toBe(t.layouts.title);
+  });
+  it.each([en, sr])('only mentions layout adjustments if there were any', (t) => {
+    expect(t.fit.applied(0)).not.toMatch(/\d/);
+    expect(t.fit.applied(2)).toContain('2');
   });
   it('uses Serbian only when it is the primary browser language', () => {
     expect(['sr', 'sr-Latn-RS', 'SR-rs', 'sr_Cyrl'].map((language) => browserLanguage([language, 'en']))).toEqual(['sr', 'sr', 'sr', 'sr']);
@@ -67,7 +71,7 @@ describe('Serbian', () => {
     const list = buildCuttingList(kitchen(), sr.engine);
     expect(list.rows.find((r) => r.name === 'Bok' && r.length === 720)).toMatchObject({
       quantity: 2,
-      materialName: 'Bela oplemenjena iverica',
+      materialName: 'Bela oplemenjena iverica 18 mm',
       bandName: 'ABS kant traka 1 mm',
       units: ['D1'],
     });
@@ -86,13 +90,26 @@ describe('Serbian', () => {
     design.edgeBands = design.edgeBands.map((b) => (b.id === 'abs-1' ? { ...b, thickness: 0.5 } : b));
     const csv = cuttingListCsv(buildCuttingList(design, sr.engine), ';', sr.engine).split('\r\n');
     expect(csv[0]).toBe('Deo;Količina;Dužina (mm);Širina (mm);Debljina (mm);Materijal;Kant;Kant traka;Elementi;Napomena');
-    expect(csv.find((line) => line.startsWith('Bok;') && line.includes(';720;'))).toBe('Bok;2;720;559,5;18;Bela oplemenjena iverica;D1 Š0;ABS kant traka 1 mm;D1;');
+    expect(csv.find((line) => line.startsWith('Bok;') && line.includes(';720;'))).toBe('Bok;2;720;559,5;18;Bela oplemenjena iverica 18 mm;D1 Š0;ABS kant traka 1 mm;D1;');
   });
 
   it('keeps a renamed built-in board under its new name', () => {
     const design = kitchen();
     design.materials = design.materials.map((m) => (m.id === 'particleboard-white-18' ? { ...m, name: 'Egger W1000' } : m));
-    expect(buildCuttingList(design, sr.engine).materials.map((m) => m.materialName)).toContain('Egger W1000');
+    expect(buildCuttingList(design, sr.engine).materials.map((m) => m.materialName)).toContain('Egger W1000 18 mm');
+  });
+
+  it('distinguishes board gauges without renaming stock or repeating a supplier’s own gauge', () => {
+    const boards = kitchen().materials;
+    const stock = boards.filter((m) => m.id.startsWith('particleboard-white-'));
+    expect(stock.map((m) => boardLabel(m, sr.engine))).toEqual(['Bela oplemenjena iverica 18 mm', 'Bela oplemenjena iverica 16 mm']);
+    expect(stock.map((m) => m.name)).toEqual(['White melamine particleboard', 'White melamine particleboard']);
+    const fractional = { ...stock[0], name: 'Birch', thickness: 18.5 };
+    expect(boardLabel(fractional, sr.engine)).toBe('Birch 18,5 mm');
+    for (const name of ['Birch (18,5 mm)', '18.50mm birch', 'Birch 18.5 MM']) {
+      expect(boardLabel({ ...fractional, name }, en.engine)).toBe(name);
+    }
+    expect(boardLabel({ ...stock[0], name: 'Oak 118 mm strips' }, en.engine)).toBe('Oak 118 mm strips 18 mm');
   });
 
   it('keeps changes made by hand when the language changes', () => {

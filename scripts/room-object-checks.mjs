@@ -71,7 +71,7 @@ export async function planCornerChecks(page, touch) {
     await dragDrawing(page, plan.getByRole('button', { name: 'Pomeri ugao 2' }), 660, 0, true, false, async () => {
       await page.waitForFunction(() => document.querySelector('.room-area').innerText !== '9 m²');
       assert.deepEqual(await plan.boundingBox(), initial, 'A longer live area must not resize the drawing under a finger.');
-      assert.deepEqual(await caption.boundingBox(), captionBox, 'Moja prostorija must stay still as its area gains digits.');
+      assert.deepEqual(await caption.boundingBox(), captionBox, 'Prostorija must stay still as its area gains digits.');
     });
     await page.setViewportSize(viewport);
   }
@@ -320,7 +320,7 @@ export async function workspaceObjectChecks(page, touch = false, three = true) {
   assert.equal((await design(page)).openings.at(-1).sill, 0);
   assert.equal(await dimension(elevation, 'sill').count(), 0);
 
-  await workspace.getByRole('button', { name: 'Back to plan' }).click();
+  await workspace.getByRole('button', { name: 'Back to room outline' }).click();
   await faceWall(page, plan, 'sloping', touch, -12);
   await workspace.getByRole('region', { name: 'Inside wall view: Wall 1', exact: true }).waitFor();
   await add('Chimney');
@@ -332,7 +332,7 @@ export async function workspaceObjectChecks(page, touch = false, three = true) {
   await setField(card, 'From wall start', 1100);
   await elevation.locator(`[data-elevation-feature="${f.id}"]`).waitFor();
   assert.equal(await dimension(elevation, 'width').textContent(), '550');
-  await workspace.getByRole('button', { name: 'Back to plan' }).click();
+  await workspace.getByRole('button', { name: 'Back to room outline' }).click();
   const featureShape = plan.locator(`[data-plan-feature="${f.id}"]`);
   await featureShape.focus();
   await page.keyboard.press('ArrowRight');

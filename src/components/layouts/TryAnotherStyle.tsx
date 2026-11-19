@@ -1,4 +1,4 @@
-import { Shuffle } from 'lucide-react';
+import { Paintbrush } from 'lucide-react';
 import { useId } from 'react';
 import { useT } from '../../i18n';
 import { shuffleKitchen } from '../../store/actions';
@@ -14,10 +14,10 @@ export function TryAnotherStyle() {
   const tool = useUiStore((s) => !!s.cabinetTool);
   const gesture = useDesignStore((s) => !!s.gestureBase);
   const reason = preview ? t.shuffle.preview : tool || gesture ? t.shuffle.busy : null;
-  return <div className="flex items-center gap-2">
-    <Button variant="outline" aria-describedby={id} disabled={!!reason} className="min-h-11 shrink-0 whitespace-nowrap" onClick={shuffleKitchen}>
-      <Shuffle aria-hidden="true" size={16} />{t.shuffle.title}
+  return <aside className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl bg-[#edf1e8] p-2 text-left">
+    <Button variant="outline" aria-describedby={id} disabled={!!reason} className="min-h-11" onClick={shuffleKitchen}>
+      <Paintbrush aria-hidden="true" size={16} />{t.shuffle.title}
     </Button>
-    <p id={id} className="min-w-0 text-xs leading-snug text-studio-muted">{reason ?? t.shuffle.hint}</p>
-  </div>;
+    <p id={id} className="min-w-[7rem] flex-1 text-xs leading-snug text-studio-muted">{reason ?? t.shuffle.hint}</p>
+  </aside>;
 }

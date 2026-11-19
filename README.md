@@ -56,13 +56,11 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
 
 ## Quick start
 
-1. On your first visit or in a new project, **My room** (**Moja prostorija**)
+1. On your first visit or in a new project, **Room** (**Prostorija**)
    opens in 2D. Enter inside measurements in millimetres (3 metres = 3000 mm).
    Returning to a saved project resumes it. To measure a different room, choose
-   **Start fresh** in the desktop toolbar, in the phone's **⋯** menu, or in
-   **Projects**. It opens a new empty kitchen; your previous kitchen stays in
-   **Projects**. To remeasure the *same* kitchen, choose **Room design**
-   (**Dizajn prostorije**; **Room / Prostorija** on a phone).
+   **Projects → Start fresh**. It opens a new empty kitchen; your previous kitchen stays in
+   **Projects**. To remeasure the *same* kitchen, choose **1 Room**.
 2. Tap the **Wall view** icon beside a wall to open its inside elevation, or tap its
    **number** to edit the measurement. The wall line also opens the inside view.
    The dropdown with the little floor plan lets you switch directly
@@ -70,16 +68,17 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
    measure from the green start point. Add a chimney if needed. The
    selected object's measurements appear just below the room measurements.
    See [Measuring the room](#measuring-the-room) for diagonals and keyboard input.
-3. In Room design, choose **Room model / Model prostorije** to see just the room,
+3. In Room, choose **Room model / Model prostorije** to see just the room,
    with dimension labels and a scrollable **Room measurements** list. It covers
    floor area, ceiling height, every wall (including diagonals), openings,
    fixed structures, partitions and wall finishes. The same **Wall view** icon
    opens a wall from its 3D label or its row in the list. On desktop, **3D preview**
    also shows the room beside the drawing. The top-level **3D** tab always
    shows the furnished kitchen in the same project. Choose
-   **Continue to kitchen** to open the plan directly, or open **Ideas**
+   **Layout →** to open the drawing, then choose **Start from an idea**
    to [try an idea in your room](#trying-an-idea-in-your-room). A measured
-   empty project reopens on the plan; a new project still starts with measurements.
+   empty project reopens in Layout. **Add cabinets yourself** opens the phone picker
+   or focuses the laptop's cabinet library. A new project still starts with measurements.
 4. **Position objects in 2D only:** move cabinets and structures on the plan
    and slide openings in their wall elevation. In **3D**, drag to orbit and
    scroll or pinch to zoom. You can select, preview, change finishes and
@@ -88,16 +87,16 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
    desktop Undo keeps its text label. A completed edit or applied idea is one
    step. Camera gestures add no step.
 5. For a customer, [export the 3D view as one HTML file](#sending-a-customer-the-3d-view).
-   For the workshop, use **Cutting list**: review checks and material totals,
+   For the workshop, use **Cut list**: review checks and material totals,
    then export the cutting list. The plan and cabinet drawings are below it.
 
 The interface follows the browser's primary language: Serbian for Serbian
 browsers, English otherwise. A language chosen manually is remembered.
 
-**Find your next step:** on a phone the bottom bar goes **Room → Plan → 3D →
-Cutting list**. Tap **Step 1 of 4** (**Korak 1 od 4**) to open the Planning
-guide, or use the arrow in the header to continue. On desktop choose **Planning
-guide** in the top bar. Neither action creates a new kitchen.
+**Find your next step:** the numbered destinations are **1 Room → 2 Layout → 3 3D →
+4 Cut list**. On a phone, choose a bottom tab or use the arrow above it to continue.
+The last step offers **Export**, not a project switch. For a guide to all four steps,
+choose **Help** on a laptop or **⋯ → Planning guide** on a phone.
 
 **Keep a copy:** Projects are stored in this browser, not in an account. In
 **Projects**, save a project file you can import on another device. Each project
@@ -117,7 +116,7 @@ does not switch projects or change either design.
 
 ## Measuring the room
 
-- In **My room**, use **Dimensions** for room size and wall geometry, **Objects**
+- In **Room**, use **Dimensions** for room size and wall geometry, **Objects**
   to find an existing opening or structure, or **Paint & tiles** to change walls and floors
   right on the plan. On phones these are expandable sections below the drawing.
   Use the drawing picker to switch between the room outline, a wall and the room model.
@@ -127,8 +126,7 @@ does not switch projects or change either design.
   activate it with Enter or Space. You can type the same value in the panel.
   **Height to ceiling** is measured from the floor. Entering an exact wall
   length keeps a rectangular room rectangular.
-- **Drag a corner:** in **My room → 2D → Floor plan** (**Moja prostorija → 2D
-  → Osnova**), grab the dot where two exterior walls meet. Only that corner
+- **Drag a corner:** in **Room → Room outline** (**Prostorija → Obris prostorije**), grab the dot where two exterior walls meet. Only that corner
   moves, even in a rectangle. Watch the two wall lengths and floor area as
   you drag. A corner stops before the outline crosses itself, cuts through a
   cabinet, or leaves too little wall for a door or window. One **Undo** restores
@@ -161,10 +159,12 @@ does not switch projects or change either design.
 
 ## Trying an idea in your room
 
-Open **Ideas** in the desktop top bar or the phone's **⋯** menu. The size filter
+Choose **Start from an idea** in an empty Layout. You can also open **Ideas** in
+the desktop top bar or the phone's **⋯** menu. **Starter layouts** contains the
+straight, L-shaped and U-shaped arrangements, not a second copy of your room. The size filter
 starts on; clear it to browse larger originals as well. Click any card or
 photo to review it in **your** room. Open the pictured original in a separate
-project via **⋯**. In Ideas, **Try another style** cycles looks on installed cabinets,
+project via **⋯**. **Reorder ideas** only reorders the gallery. **Apply a style to my kitchen** cycles looks on installed cabinets,
 or opens a layout review if the room is empty.
 
 | What's already in the room? | What happens when you apply an idea? |
@@ -184,7 +184,7 @@ confirmation with your actual boards and custom pieces. A remaining issue is
 listed, not counted as a clean fit. If the arrangement cannot fit, you get a reason and nothing is
 placed. Confirm utility connections and supplier clearances before building.
 
-**Shuffle look** uses the same finish transfer as an idea: fronts and their
+**Randomize finishes** uses the same finish transfer as an idea: fronts and their
 profile, carcasses, handles, worktop, window frames, door frames and leaves.
 Base units, towers, upper rows, islands and side panels take the corresponding
 finishes, so a two-tone design can stay two-tone. Plinths follow their cabinet
@@ -218,7 +218,7 @@ or a cutting-list export for the workshop; the customer view is neither.
 
 ## Planning and cabinet features
 
-- **Plan**: drag or click cabinets from the library; they turn and snap
+- **Layout**: drag or click cabinets from the library; they turn and snap
   against walls and neighbours. Start with the eight **Most used** parts,
   choose **Browse all parts**, or search the catalogue by name or width
   (e.g. `drawers 900`). Serbian search works without accents. On the plan, drag a
@@ -226,12 +226,17 @@ or a cutting-list export for the workshop; the customer view is neither.
   in its properties. You can also resize, rotate, duplicate or delete a unit.
   Release to commit a changed drag in one Undo step; Escape or an interrupted
   touch restores the starting position without a step. **All** is the initial
-  layer. A drag isolates its layer until release or cancellation. On a phone,
+  layer: upper units are dashed outlines, and a click or tap on stacked units
+  picks the floor cabinet. Hover or tap to see its full name. Choose **Wall units**
+  and, if needed, **Upper cabinet row** to edit an upper tier and see its measurements.
+  A drag isolates its layer until release or cancellation. On a phone,
   pinch to zoom or tap **Fit** to see the whole room again. The drawing shows
   totals and the selected unit by default; turn on all measurements for more detail.
   Drag the cabinet sheet's handle or focus it and use the arrow keys to change its height.
-  Home/End choose small/full; swipe down from small or press Escape to close. Edit **Size**, **Fronts**,
-  **Materials** or **Parts** without scrolling through the other sections.
+  Home/End choose small/full; swipe down from small or press Escape to close.
+  On desktop and phone, edit **Size**, **Fronts**, **Materials** or **Parts**
+  without scrolling through the other sections. Use the common-size buttons
+  for exact dimensions; stacking is at the end of **Size**.
   **Add element** stays open so you can add several units in a row.
   Switch to wall units to work on
   one row at a time. **View** groups snapping, grid size and dimensions;
@@ -240,7 +245,7 @@ or a cutting-list export for the workshop; the customer view is neither.
   kitchens. The thumbnails show the **original models**, not a prediction of
   the fit in your room and not photographs. Eighteen premium originals form
   **Warm contemporary**, **Dark luxury** and **Japandi** collections.
-  **Try another style** cycles through the gallery without repeating an idea until
+  **Apply a style to my kitchen** cycles through the gallery without repeating an idea until
   the collection has been visited. Close cabinet previews and finish resizing
   before using it.
   - **Basil & graphite / Bosiljak i grafit** is a green U-shaped kitchen with an
@@ -284,7 +289,7 @@ or a cutting-list export for the workshop; the customer view is neither.
     the generated gallery images in `public/kitchens/` ship with the app. Pass
     preset IDs to render only changed previews, for example
     `npm run render:kitchens -- chimney-frame sage-oak-frame`.
-- **Wall and floor colours**: in **Room design → Paint & tiles** (**Dizajn prostorije → Boje i pločice**),
+- **Wall and floor colours**: in **Room → Paint & tiles** (**Prostorija → Boje i pločice**),
   pick a swatch or a
   custom colour for all painted walls, and another for the floor. Changes appear
   in 3D, persist with the project and support Undo. Backsplashes and wall cladding
@@ -303,7 +308,7 @@ or a cutting-list export for the workshop; the customer view is neither.
     inserting overlapping cabinets. Each tier's size and 2D placement remain
     editable and are checked as usual. Wall fixings, opening systems, load
     ratings and appliance ventilation still require an installer specification.
-  - In **Plan**, **Upper cabinet row** makes overlapping rows individually
+  - In **Layout**, **Upper cabinet row** makes overlapping rows individually
     selectable. Full-height display cupboards remain visible across their
     height bands; selecting one in 3D preserves the active row when returning
     to the plan. Two, three or more rows are possible when the room allows.
@@ -379,18 +384,21 @@ or a cutting-list export for the workshop; the customer view is neither.
 - **Units**: doors, drawers and shelves; full-overlay or inset fronts; hinge side;
   equal drawers or a shallow top drawer; a front-view preview; the unit's own
   parts list; a different board for any one unit.
-- **Kitchen settings**:
+- **Settings**:
   - *Materials and edges*: a library of boards (thickness, sheet size, grain,
     price) and edge bands; which ones the carcass, backs and fronts use; which
     edges are banded; optionally cut parts smaller by the band thickness.
     Boards start collapsed. Expand one row to edit it. Boards needed for
     actual cut pieces, including overrides and extra pieces, are marked and
-    listed first. Sheet and edge-band prices are in RSD in either language.
+    listed first. Board labels include their thickness. Sheet and edge-band
+    prices are in RSD in either language. Leave an unknown price blank.
   - *Construction*: bottom/top joints, rails or full top, nailed or grooved
     backs, door type, front gaps, shelf setback, wooden or metal drawers.
-- **Cutting list**: every piece, identical pieces grouped, banded edges per
+- **Cut list**: every piece, identical pieces grouped, banded edges per
   piece; per board the area, sheets needed and cost; edge banding in metres;
   the hardware list (hinges, slides, handles, legs, shelf pins, hangers).
+  Priced lines remain visible individually. A material total appears only when
+  all required sheets and edging have prices and every cut piece fits its sheet.
   - *Visual overview*: the current kitchen plan and a selectable, dimensioned
     front-view diagram of each cabinet. **By unit** pairs every cabinet's
     diagram with its cut parts; extra pieces remain listed in both groupings.
@@ -411,8 +419,8 @@ or a cutting-list export for the workshop; the customer view is neither.
 - **Projects**: several kitchens, each saved in the browser as you work; open,
   copy, delete, save one to a file and open it again (also on another
   device).
-- **Languages**: choose Serbian (Latin script) or English in the top bar or
-  the **More** menu on phones. The language applies to
+- **Languages**: choose Serbian (Latin script) or English in **Settings**
+  (**⋯ → Settings** on phones). The language applies to
   part names, hardware, checks, the PDF, the Excel file and the CSV (with a
   decimal comma in Serbian). New unit codes follow the chosen language (in
   Serbian: D1 donji, G1 gornji, V1 visoki, …). Built-in boards are shown in

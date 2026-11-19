@@ -2,6 +2,7 @@ import type { Design, KitchenItem } from '../domain/types';
 import { buildContext } from './config';
 import { unitHardware, type Hardware } from './hardware';
 import { EN_LABELS, type EngineLabels } from './labels';
+import { boardLabel } from './materialLabel';
 import { nest, SAW_KERF, SHEET_TRIM } from './nesting';
 import { customPart, unitParts, type Part } from './parts';
 
@@ -30,7 +31,7 @@ export interface MaterialTotal {
   used: number;
   /** Pieces too large for the sheet. */
   oversize: number;
-  /** Sheets × price; null when the material has no price. */
+  /** Sheets × price; null without a price or when some pieces don't fit. */
   cost: number | null;
 }
 
@@ -49,7 +50,7 @@ export interface HardwareRow extends Hardware {
 
 export interface UnitParts {
   item: KitchenItem;
-  parts: Part[];
+  parts: Named[];
 }
 
 export interface CuttingList {
@@ -61,7 +62,9 @@ export interface CuttingList {
   edges: EdgeTotal[];
   hardware: HardwareRow[];
   pieceCount: number;
-  /** Sum of all priced materials and edge bands; null when nothing is priced. */
+  /** At least one line has a cost that can be shown, even if the total is unknown. */
+  hasCosts: boolean;
+  /** Total for all required sheets and edging; null for an incomplete or empty estimate. */
   cost: number | null;
 }
 
@@ -71,10 +74,10 @@ export const EDGE_TRIM_ALLOWANCE = 30;
 type Named = Part & { materialName: string };
 
 /** Board, then thickness, name, size and note, in the language's alphabetical order. */
-function partOrder(locale: string): (a: Named, b: Named) => number {
+function partOrder(locale: string, boardName: (id: string) => string): (a: Named, b: Named) => number {
   const collator = new Intl.Collator(locale);
   return (a, b) =>
-    collator.compare(a.materialName, b.materialName) ||
+    collator.compare(boardName(a.materialId), boardName(b.materialId)) ||
     b.thickness - a.thickness ||
     collator.compare(a.name, b.name) ||
     b.length - a.length ||
@@ -85,11 +88,10 @@ function partOrder(locale: string): (a: Named, b: Named) => number {
 /** Every piece of every unit, identical pieces grouped, with board, edging and hardware totals, in the labels' language. */
 export function buildCuttingList(design: Design, labels: EngineLabels = EN_LABELS): CuttingList {
   const ctx = buildContext(design, labels);
-  const compareParts = partOrder(labels.locale);
-  const materialName = (id: string) => {
-    const material = ctx.materials.get(id);
-    return material ? labels.material(material) : labels.unknownBoard;
-  };
+  const sortNames = new Map(design.materials.map((m) => [m.id, labels.material(m)]));
+  const compareParts = partOrder(labels.locale, (id) => sortNames.get(id) ?? labels.unknownBoard);
+  const boardLabels = new Map(design.materials.map((m) => [m.id, boardLabel(m, labels)]));
+  const materialName = (id: string) => boardLabels.get(id) ?? labels.unknownBoard;
   const bandName = (id: string | null) => {
     const band = id ? ctx.edgeBands.get(id) : undefined;
     return band ? labels.edgeBand(band) : null;
@@ -149,7 +151,7 @@ export function buildCuttingList(design: Design, labels: EngineLabels = EN_LABEL
       sheets: layout.sheets,
       used: layout.used,
       oversize: layout.oversize,
-      cost: material && material.price > 0 ? layout.sheets * material.price : null,
+      cost: material && material.price > 0 && layout.oversize === 0 ? layout.sheets * material.price : null,
     };
   });
 
@@ -185,7 +187,7 @@ export function buildCuttingList(design: Design, labels: EngineLabels = EN_LABEL
     }
   }
 
-  const prices = [...materials.map((m) => m.cost), ...edges.map((e) => e.cost)].filter((c): c is number => c !== null);
+  const costs = [...materials, ...edges].map((line) => line.cost);
   return {
     rows: sortedRows,
     extra,
@@ -199,7 +201,8 @@ export function buildCuttingList(design: Design, labels: EngineLabels = EN_LABEL
     edges,
     hardware: [...hardware.values()].sort((a, b) => a.name.localeCompare(b.name, labels.locale)),
     pieceCount: sortedRows.reduce((sum, row) => sum + row.quantity, 0),
-    cost: prices.length > 0 ? prices.reduce((sum, c) => sum + c, 0) : null,
+    hasCosts: costs.some((cost) => cost !== null),
+    cost: costs.length > 0 && costs.every((cost) => cost !== null) ? costs.reduce((sum, c) => sum + c, 0) : null,
   };
 }
 

@@ -15,9 +15,10 @@ async function seed(page) {
     fixture.room = { width: 4000, depth: 3200, height: 2700 };
     const add = (kind, id, fields) => fixture.items.push({ ...createItem(kind, fixture.items, fields), id });
     add('base', 'plan-base', { x: 700, y: 1200 });
-    add('base', 'plan-under', { x: 750, y: 0 });
+    add('base', 'plan-under', { label: 'B2', x: 750, y: 0 });
     add('wall', 'plan-lower', { x: 750, y: 0, elevation: 1450, height: 720 });
-    add('wall', 'plan-upper', { x: 750, y: 0, elevation: 2170, height: 400 });
+    add('wall', 'plan-upper', { x: 750, y: 0, elevation: 2170, height: 400, width: 900 });
+    add('hood', 'plan-hood', { x: 750, y: 0, elevation: 1200, height: 200 });
     // Both near and far sides have real dimension chains, not just the two room labels.
     add('wall', 'plan-right', { rotation: 90, depth: 320, x: 3680, y: 1000 });
     add('wall', 'plan-bottom', { rotation: 180, depth: 320, x: 1200, y: 2880 });
@@ -56,18 +57,35 @@ async function layers(page) {
     const node = window.Konva.stages[0].findOne(`#${id}`);
     return { full: node.opacity() === 1, interactive: node.isListening() };
   }, id);
+  const name = page.locator('[data-plan-cabinet-name]');
+  const selected = () => page.evaluate(() => window.__kitchen.ui.getState().selectedId);
   await pressed('Sve');
   assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().gridSize), 100, 'Migration must keep other preferences.');
+  const stack = await canvasPoint(page, 1050, 160);
+  await page.mouse.move(...stack);
+  assert.equal(await name.textContent(), 'Donji element · B2');
+  assert.equal(await selected(), null, 'Hover identifies without selecting.');
   await page.evaluate(() => window.__kitchen.ui.getState().setLanguage('en'));
   await pressed('All');
-  for (const id of ['plan-base', 'plan-lower', 'plan-upper']) {
-    assert.deepEqual(await nodeState(id), { full: true, interactive: true });
-  }
-  // Picking the exposed front of a base must not then cover the upper cabinet.
-  await page.mouse.click(...await canvasPoint(page, 1050, 480));
-  assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().selectedId), 'plan-under');
-  await page.mouse.click(...await canvasPoint(page, 1050, 160));
-  assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().selectedId), 'plan-upper');
+  assert.equal(await name.textContent(), 'Base cabinet · B2');
+  const ink = await page.evaluate(() => {
+    const stage = window.Konva.stages[0], outlines = stage.findOne('.upper-outlines');
+    const floor = stage.findOne('#plan-under');
+    return {
+      outlines: outlines.find('Line').filter((n) => n.isVisible() && n.stroke() && !n.hasFill() && n.getAbsoluteOpacity() < 1
+        && !n.isListening() && n.getAbsoluteZIndex() > floor.getAbsoluteZIndex()).length,
+      upperLabels: stage.findOne('#plan-upper').find('Text').length,
+      floorLabels: floor.find('Text').map((n) => n.text()),
+    };
+  });
+  assert.equal(ink.outlines, 5, 'All five overhead footprints have faint, unfilled ink above the floor.');
+  assert.equal(ink.upperLabels, 0);
+  assert.ok(ink.floorLabels.includes('B2'));
+  // An explicit add/3D edit selection must never steal the floor unit's hit in All.
+  await page.evaluate(() => window.__kitchen.ui.getState().select('plan-upper'));
+  await drawn(page);
+  await page.mouse.click(...stack);
+  assert.equal(await selected(), 'plan-under');
 
   const base = await canvasPoint(page, 1000, 1440);
   await page.mouse.move(...base);
@@ -85,7 +103,8 @@ async function layers(page) {
     return [state.design.items[0].x, state.design.items[0].y, state.past.length, window.__kitchen.ui.getState().selectedId];
   }), [700, 1200, 0, 'plan-base']);
 
-  const upper = await canvasPoint(page, 1050, 160);
+  // Its uncovered overhang still has the real upper footprint as a drag target.
+  const upper = await canvasPoint(page, 1500, 160);
   await page.mouse.move(...upper);
   await page.mouse.down();
   await page.mouse.move(upper[0] + 40, upper[1], { steps: 4 });
@@ -96,7 +115,13 @@ async function layers(page) {
   assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().selectedId), 'plan-upper');
 
   await button(page, 'Wall units').click();
+  await row.selectOption('1200');
+  await page.mouse.click(...await canvasPoint(page, 1050, 160));
+  assert.equal(await selected(), 'plan-hood', 'An accessory outside every cupboard row is still reachable above a floor unit.');
   await row.selectOption('2170');
+  await page.mouse.click(...await canvasPoint(page, 1050, 160));
+  assert.equal(await selected(), 'plan-upper', 'Row controls make the same point editable as an upper.');
+  assert.match(await name.textContent(), /^Wall cabinet · /);
   const destination = await canvasPoint(page, 2400, 1800);
   await dragPreset(page, 'base-600', destination);
   await pressed('Floor units');
@@ -168,7 +193,7 @@ async function openPhonePlan(page) {
     add('base', 'phone-base', { label: 'B1', x: 2250, y: 2440, rotation: 180 });
     add('sink', 'phone-sink', { label: 'S1', x: 600, y: 0, width: 600 });
     add('wall', 'phone-wall1', { label: 'W1', x: 600, y: 0, elevation: 1450 });
-    add('wall', 'phone-wall2', { label: 'W2', x: 600, y: 0, elevation: 2170, height: 400 });
+    add('wall', 'phone-wall2', { label: 'W2', x: 600, y: 0, elevation: 2170, height: 400, depth: 560 });
     const ui = window.__kitchen.ui.getState();
     ui.select(null); ui.setViewFilter('all'); ui.setView('list');
     window.__kitchen.design.getState().load(fixture);
@@ -223,8 +248,26 @@ async function phoneLayers(page) {
   assert.deepEqual(initial.room, ['3600', '3000']);
   assert.deepEqual(initial.unit, []);
   assert.ok(initial.minFontPx >= 12 - 1e-6, 'Draw room/cabinet labels at 12 CSS pixels or larger.');
-  assert.ok(!initial.overlap && !initial.codes.includes('W1') && initial.codes.includes('W2') && initial.codes.includes('S1'),
-    `Coincident upper tiers share one readable code; the exposed sink still has its own: ${JSON.stringify(initial)}`);
+  assert.ok(!initial.overlap && initial.codes.includes('S1') && !initial.codes.some((code) => code.startsWith('W')),
+    `Only floor codes should be shown even when an upper completely covers the sink: ${JSON.stringify(initial)}`);
+  const sink = await planGeometry(page, 'phone-sink');
+  assert.ok(sink.hit44, 'The covered sink keeps its 44px target.');
+  await button(page, 'Wall units').tap();
+  await page.getByLabel('Upper cabinet row', { exact: true }).selectOption('2170');
+  await page.touchscreen.tap(...await canvasPoint(page, 900, 160));
+  assert.deepEqual((await annotations(page)).unit, ['600', '560'], 'The chosen upper has editable dimensions in its row.');
+  assert.equal(await page.locator('[data-plan-cabinet-name]').textContent(), 'Wall cabinet · W2');
+  await button(page, 'All').tap();
+  const returned = await annotations(page);
+  assert.ok(returned.codes.includes('S1') && !returned.codes.includes('W2'));
+  assert.deepEqual(returned.unit, [], 'A selected upper must not leave rulers over the sink in All.');
+  await page.touchscreen.tap(...await canvasPoint(page, 900, 160));
+  assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().selectedId), 'phone-sink');
+  assert.equal(await page.locator('[data-plan-cabinet-name]').textContent(), 'Sink cabinet · S1');
+  await page.evaluate(() => window.__kitchen.ui.getState().setLanguage('sr'));
+  assert.equal(await page.locator('[data-plan-cabinet-name]').textContent(), 'Element za sudoperu · S1');
+  await page.evaluate(() => window.__kitchen.ui.getState().setLanguage('en'));
+  await button(page, 'Deselect').tap();
   await button(page, 'Floor units').tap();
   const floor = await annotations(page);
   assert.ok(floor.codes.includes('S1') && !floor.codes.some((code) => code.startsWith('W')), 'Ghosted tiers have no labels.');
@@ -235,6 +278,9 @@ async function phoneLayers(page) {
   await assertInkFits(page, 'Opt-in dimension chains', 8);
   const detailed = await annotations(page);
   assert.ok(detailed.room.length > 2 && detailed.minFontPx >= 12 - 1e-6);
+  await button(page, 'Floor units').tap();
+  assert.deepEqual((await annotations(page)).room, detailed.room, 'Even opt-in All measurements exclude upper chains.');
+  await button(page, 'All').tap();
   await all.tap();
   await assertInkFits(page, 'Restored room totals', 8);
   assert.deepEqual((await annotations(page)).room, initial.room);

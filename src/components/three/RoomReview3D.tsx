@@ -44,7 +44,7 @@ export default function RoomReview3D({ rows, split, onOpenWall }: { rows: RoomMe
   };
   const toggle = <Button variant="outline" aria-pressed={showLabels} active={showLabels} onClick={() => setShowLabels(!showLabels)}>
     <Ruler size={16} />{t.room.showMeasures}</Button>;
-  const help = <Button aria-label={t.view3d.showTip} title={t.view3d.showTip} onClick={nav.showHelp}><CircleHelp size={17} />{chrome && t.view3d.showTip}</Button>;
+  const help = <Button aria-label={t.view3d.showTip} title={t.view3d.showTip} onClick={nav.showHelp}><CircleHelp size={17} />{chrome ? t.view3d.showTip : t.topBar.help}</Button>;
   return <div className="three-scene relative flex h-full min-h-0 flex-col">
     {chrome?.open && <PhoneViewSheet id={chrome.id} onClose={() => chrome.setOpen(false)} view={request.view} onView={choose}
       hint={t.room.reviewHint} cameraHints={t.room.cameraHints} help={help}>{toggle}</PhoneViewSheet>}

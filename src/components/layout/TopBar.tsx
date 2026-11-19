@@ -1,13 +1,13 @@
-import { ArrowRight, Box, CircleHelp, Ellipsis, FolderOpen, Hammer, Images, Languages, LayoutGrid, List, Magnet, Redo2, Route, RulerDimensionLine } from 'lucide-react';
+import { ArrowRight, Box, CircleHelp, Ellipsis, FolderOpen, Hammer, Images, LayoutGrid, List, Magnet, Redo2, RulerDimensionLine, SlidersHorizontal } from 'lucide-react';
 import { useRef, useState } from 'react';
-import { LANGUAGE_LABEL, LANGUAGES, useT, type Language } from '../../i18n';
+import { useT } from '../../i18n';
+import { shortcutKeys } from '../../lib/shortcutKeys';
 import { cn } from '../../lib/cn';
 import { redo, setProjectName } from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
 import { openWorkspace } from '../../store/projects';
 import { GRID_SIZES, useUiStore, type MainView } from '../../store/uiStore';
 import { ChecksButton } from '../checks/ChecksButton';
-import { StartFreshButton } from '../projects/StartFreshButton';
 import { Button, Divider, Menu, Segmented, TooltipButton } from '../ui';
 import { UndoButton } from './UndoButton';
 
@@ -67,12 +67,13 @@ function ViewTabs({ compact }: { compact: boolean }) {
       value={roomOpen ? 'room' : view}
       onChange={openWorkspace}
       className={compact ? 'mobile-destinations' : 'max-2xl:[&_svg]:hidden max-xl:[&_button]:px-1.5'}
-      options={[
-        { value: 'room', label: <><RulerDimensionLine className="size-3.5" />{compact ? t.room.tabShort : <><span className="xl:hidden">{t.room.tabShort}</span><span className="hidden xl:inline">{t.room.tab}</span></>}</>, ariaLabel: t.room.tab, title: t.room.tabHint },
-        { value: 'plan', label: <><LayoutGrid className="size-3.5" /><span>{t.topBar.plan}</span></>, ariaLabel: t.topBar.plan, title: t.topBar.planTitle },
-        { value: '3d', label: <><Box className="size-3.5" /><span>{t.topBar.view3d}</span></>, ariaLabel: t.topBar.view3d, title: t.topBar.view3dTitle },
-        { value: 'list', label: <><List className="size-3.5" /><span>{compact ? t.topBar.listShort : t.topBar.list}</span></>, ariaLabel: t.topBar.list, title: t.topBar.listTitle },
-      ]}
+      options={([
+        ['room', t.room.tab, t.room.tabHint, RulerDimensionLine], ['plan', t.topBar.plan, t.topBar.planTitle, LayoutGrid],
+        ['3d', t.topBar.view3d, t.topBar.view3dTitle, Box], ['list', t.topBar.list, t.topBar.listTitle, List],
+      ] as const).map(([value, name, title, Icon], i) => ({
+        value, title, ariaLabel: `${i + 1}. ${name}`,
+        label: <><span className="inline-flex items-center gap-1"><Icon className="size-3.5" aria-hidden="true" /><b>{i + 1}</b></span><span>{name}</span></>,
+      }))}
     />
   );
 }
@@ -81,22 +82,15 @@ export function MobileNavigation() {
   return <nav className="mobile-bottom-nav print:hidden" aria-label={useT().topBar.workspace}><ViewTabs compact /></nav>;
 }
 
-function StepBar() {
+export function NextStep() {
   const t = useT();
   const step = useUiStore((s) => s.roomOpen ? 1 : s.view === 'plan' ? 2 : s.view === '3d' ? 3 : 4);
-  const ui = useUiStore.getState();
-  const next = [t.room.kitchenShort, t.planner.see3d, t.topBar.listShort, t.topBar.projects][step - 1];
-  return <div className="phone-step-bar">
-    <Button aria-haspopup="dialog" aria-label={`${t.planner.guide}: ${t.planner.step(step)}`} onClick={() => ui.setProjectPage('guide')}>
-      <Route size={16} aria-hidden="true" />{t.planner.step(step)}
-    </Button>
-    <ChecksButton compact />
-    <Button variant={step === 4 ? 'outline' : 'primary'} data-testid={step === 1 ? 'room-done' : 'step-next'}
-      aria-label={step === 1 ? t.room.continue : next}
-      onClick={() => { if (step === 4) ui.setProjectPage('projects'); else openWorkspace(step === 1 ? 'plan' : step === 2 ? '3d' : 'list'); }}>
-      {next}{step !== 4 && <ArrowRight size={15} aria-hidden="true" />}
-    </Button>
-  </div>;
+  if (step === 4) return null; // The cut list owns the real Export menu.
+  const label = step === 1 ? t.topBar.plan : step === 2 ? t.topBar.view3d : t.topBar.list;
+  return <Button variant="primary" data-testid={step === 1 ? 'room-done' : 'step-next'}
+    aria-label={t.planner.next(label)} onClick={() => openWorkspace(step === 1 ? 'plan' : step === 2 ? '3d' : 'list')}>
+    {label}<ArrowRight size={16} aria-hidden="true" />
+  </Button>;
 }
 
 function UndoRedo({ compact = false }: { compact?: boolean }) {
@@ -105,7 +99,7 @@ function UndoRedo({ compact = false }: { compact?: boolean }) {
   return (
     <div role="group" aria-label={`${t.topBar.undo} / ${t.topBar.redo}`} className="flex items-center">
       <UndoButton iconOnly={compact} />
-      <TooltipButton tooltip={t.topBar.redoTitle} className={compact ? 'size-11 p-0' : undefined} aria-label={t.topBar.redo} disabled={!canRedo} onClick={redo}>
+      <TooltipButton tooltip={`${t.topBar.redo} (${shortcutKeys().redo.join('+')})`} className={compact ? 'size-11 p-0' : undefined} aria-label={t.topBar.redo} disabled={!canRedo} onClick={redo}>
         <Redo2 className="size-4" aria-hidden="true" />
       </TooltipButton>
     </div>
@@ -137,28 +131,6 @@ function GridSelect({ className }: { className?: string }) {
   );
 }
 
-/** Interface language. Each language is named in itself, and the control in both, so it can always be found. */
-function LanguageSelect() {
-  const language = useUiStore((s) => s.language);
-  return (
-    <label className="relative flex items-center" title={LANGUAGE_LABEL}>
-      <Languages className="pointer-events-none absolute left-2 size-4 text-zinc-500" />
-      <select
-        aria-label={LANGUAGE_LABEL}
-        value={language}
-        onChange={(e) => useUiStore.getState().setLanguage(e.target.value as Language)}
-        className="h-8 appearance-none rounded-md border border-transparent bg-transparent pl-8 pr-2 text-[13px] font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-      >
-        {LANGUAGES.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
 function ViewOptions() {
   const t = useT();
   const snapEnabled = useUiStore((s) => s.snapEnabled);
@@ -178,7 +150,7 @@ function ViewOptions() {
 export function TopBar({ compact = false }: { compact?: boolean }) {
   const t = useT();
   const view = useUiStore((s) => s.view);
-  const language = useUiStore((s) => s.language);
+  const roomOpen = useUiStore((s) => s.roomOpen);
   const ui = useUiStore.getState();
 
   if (compact) {
@@ -198,8 +170,10 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
               {view !== 'list' && <Button className="w-full justify-start" data-close-menu data-testid="room-ideas" onClick={() => ui.setLayoutsOpen(true)}>
                 <Images size={16} />{t.layouts.title}
               </Button>}
-              <StartFreshButton placement="menu" />
-              {view !== '3d' && <details>
+              <Button className="w-full justify-start" data-close-menu onClick={() => ui.setProjectPage('guide')}>
+                <CircleHelp className="size-4" />{t.planner.guide}
+              </Button>
+              {!roomOpen && view === 'plan' && <details>
                 <summary className="cursor-pointer rounded-lg px-2 py-3 text-[13px] font-medium text-studio-muted">{t.topBar.view}</summary>
                 <ViewOptions />
               </details>}
@@ -207,23 +181,10 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
                 <Hammer className="size-4" />
                 {t.topBar.settings}
               </Button>
-              <div className="px-1 pt-1">
-                <div className="flex items-center gap-1.5 px-1 pb-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-                  <Languages className="size-3.5" />
-                  {LANGUAGE_LABEL}
-                </div>
-                <Segmented<Language>
-                  ariaLabel={LANGUAGE_LABEL}
-                  value={language}
-                  onChange={(next) => ui.setLanguage(next)}
-                  options={LANGUAGES.map((option) => ({ value: option.value, label: option.label }))}
-                />
-              </div>
             </div>
           </div>
         </Menu>
         </div>
-        <StepBar />
       </header>
     );
   }
@@ -239,7 +200,6 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
         <FolderOpen className="hidden size-4 xl:block" />
         {t.topBar.projects}
       </Button>
-      <StartFreshButton placement="toolbar" />
       <Button variant="outline" title={t.layouts.title} aria-label={t.layouts.title} onClick={() => ui.setLayoutsOpen(true)}>
         <Images className="hidden size-4 xl:block" />
         <span>{t.layouts.title}</span>
@@ -252,20 +212,19 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
 
       <UndoRedo />
       <ChecksButton />
-      <Button aria-label={t.planner.guide} title={t.planner.guide} aria-haspopup="dialog" onClick={() => ui.setProjectPage('guide')}>
-        <CircleHelp className="size-4" aria-hidden="true" />
+      <Button title={t.planner.guide} aria-haspopup="dialog" onClick={() => ui.setProjectPage('guide')}>
+        <CircleHelp className="size-4" aria-hidden="true" />{t.topBar.help}
       </Button>
       <Divider />
-      {view === 'plan' && (
-        <Menu label={t.topBar.view} text={<span className="hidden 2xl:inline">{t.topBar.view}</span>} icon={<LayoutGrid className="size-4" />}>
+      {!roomOpen && view === 'plan' && (
+        <Menu label={t.topBar.view} text={t.topBar.view} icon={<SlidersHorizontal className="size-4" />}>
           <ViewOptions />
         </Menu>
       )}
       <Button title={t.topBar.settingsTitle} aria-label={t.topBar.settings} onClick={() => ui.setSettingsTab('materials')}>
         <Hammer className="size-4" />
-        <span className="hidden xl:inline">{t.topBar.settings}</span>
+        <span>{t.topBar.settings}</span>
       </Button>
-      <LanguageSelect />
     </header>
   );
 }

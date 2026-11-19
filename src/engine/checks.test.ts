@@ -84,7 +84,7 @@ describe('checkDesign', () => {
   it('reports parts larger than their sheet', () => {
     const d = design([unit('tall', 'T1')]);
     d.materials = d.materials.map((m) => (m.id === 'particleboard-white-18' ? { ...m, sheetLength: 1800, grain: true } : m));
-    expect(messages(d)).toContain('error: Side of T1 (2070 × 560) does not fit on a 1800 × 2070 sheet of White melamine particleboard.');
+    expect(messages(d)).toContain('error: Side of T1 (2070 × 560) does not fit on a 1800 × 2070 sheet of White melamine particleboard 18 mm.');
   });
 
   it('checks pieces changed or added by hand against their sheet', () => {
@@ -95,8 +95,8 @@ describe('checkDesign', () => {
       { id: 'c1', name: 'Worktop support', quantity: 1, length: 2900, width: 100, materialId: 'particleboard-white-18', edgesLength: 0, edgesWidth: 0, edgeBandId: null, note: '' },
     ];
     expect(messages(d)).toEqual([
-      'error: Shelf of B1 (3000 × 540) does not fit on a 2800 × 2070 sheet of White melamine particleboard.',
-      'error: The extra piece “Worktop support” (2900 × 100) does not fit on a 2800 × 2070 sheet of White melamine particleboard.',
+      'error: Shelf of B1 (3000 × 540) does not fit on a 2800 × 2070 sheet of White melamine particleboard 18 mm.',
+      'error: The extra piece “Worktop support” (2900 × 100) does not fit on a 2800 × 2070 sheet of White melamine particleboard 18 mm.',
     ]);
     // Left out, the shelf no longer matters.
     d.partEdits = { [d.items[0].id]: { [shelf.key]: { length: 3000, quantity: 0 } } };

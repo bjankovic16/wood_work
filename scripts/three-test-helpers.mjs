@@ -2,8 +2,7 @@ import assert from 'node:assert/strict';
 
 export async function showRoomModel(page) {
   const room = page.getByTestId('room-workspace');
-  if (page.viewportSize().width < 1024) await room.locator('.room-view-picker select').selectOption({ label: 'Room model' });
-  else await room.getByRole('radio', { name: 'Room model', exact: true }).click();
+  await room.locator('.room-view-picker select').selectOption({ label: 'Room model' });
 }
 
 /** A real canvas tap restores the overlaid phone bars; it must not change the selection. */

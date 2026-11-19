@@ -1,7 +1,8 @@
 import { useT } from '../../i18n';
 import { useDesignStore } from '../../store/designStore';
 import { useUiStore } from '../../store/uiStore';
-import { DeleteButton, DuplicateButton, ItemFields, ItemHeader, RotateButton } from './ItemPanel';
+import { CabinetEditor } from './CabinetEditor';
+import { DeleteButton, DuplicateButton, ItemHeader } from './ItemPanel';
 import { RoomPanel } from './RoomPanel';
 
 /** Right-hand sidebar on large screens: the selected unit, or the room when nothing is selected. */
@@ -15,15 +16,11 @@ export function PropertiesPanel() {
       {item ? (
         <>
           <ItemHeader item={item} />
-          <div className="flex items-center gap-1.5 border-b border-studio-line bg-[#f6f3ec] px-4 py-3">
-            <RotateButton />
-            <div className="flex-1" />
+          <div className="flex items-center justify-end gap-1.5 px-4 py-2">
             <DuplicateButton />
             <DeleteButton />
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <ItemFields key={item.id} item={item} />
-          </div>
+          <CabinetEditor key={`${item.id}-${view}`} item={item} />
         </>
       ) : (
         <>

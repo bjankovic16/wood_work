@@ -7,7 +7,7 @@ import { replaceItem, updateItem } from '../../domain/designOps';
 import { attachedWall, isWallMounted, itemRect } from '../../domain/geometry';
 import { computeDragPlacement, computeHandleResize, type Guide, type HandleId } from '../../domain/snapping';
 import type { Design, KitchenItem, Point, Wall } from '../../domain/types';
-import { inUpperRow, upperCabinetRows, type UpperRow } from '../../domain/upperCabinets';
+import { editableUpperRows, inUpperRow, type UpperRow } from '../../domain/upperCabinets';
 import { cn } from '../../lib/cn';
 import { pointerFrame } from '../../lib/pointerFrame';
 import { clamp } from '../../domain/math';
@@ -30,7 +30,7 @@ import {
 } from '../../store/viewport';
 import { Button } from '../ui';
 import { fitMeasuredPlan } from './fitMeasuredPlan';
-import { CompactPlanCodes, ItemShape } from './ItemShape';
+import { CompactPlanCodes, ItemShape, UpperOutlines, type PlanItemMode } from './ItemShape';
 import { Clearances, Ghost, Guides, IssueOutlines, SelectedUnitDimensions, Selection, WallDimensions } from './Overlays';
 import { usePlanMessages } from './planMessages';
 import { RoomPickTargets, RoomShape } from './RoomShape';
@@ -88,7 +88,7 @@ function blurActiveField() {
   if (active instanceof HTMLElement && active !== document.body) active.blur();
 }
 
-export function DesignCanvas({ compact = false }: { compact?: boolean }) {
+export function DesignCanvas({ compact = false, onAdd = () => useUiStore.getState().requestFocus('library-search') }: { compact?: boolean; onAdd?: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<KonvaStage>(null);
   const gestureRef = useRef<Gesture | null>(null);
@@ -113,7 +113,7 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
   const manualFilter = useUiStore((s) => s.viewFilter);
   const wallElevation = useUiStore((s) => s.wallElevation);
   const committedItems = useDesignStore((s) => committedDesign(s).items);
-  const rows = useMemo(() => upperCabinetRows(committedItems), [committedItems]);
+  const rows = useMemo(() => editableUpperRows(committedItems), [committedItems]);
   const showDimensions = useUiStore((s) => s.showDimensions);
   const libraryDrag = useUiStore((s) => s.libraryDrag);
   const ghost = libraryDrag?.ghost ?? null;
@@ -468,22 +468,34 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
     [setCursor],
   );
 
-  // Reveal an added unit or 3D edit target, even under another tier. Ordinary
-  // plan clicks keep the natural stacking (upper at the back, base front exposed).
   const activeSelection = libraryDrag ? undefined : items.find((i) => i.id === selectedId);
+  const activeId = activeSelection?.id;
   const foregroundId = activeSelection?.id === planForegroundId ? planForegroundId : null;
-  const dimmed = useCallback((item: KitchenItem) => item.id !== activeSelection?.id && isDimmed(item, viewFilter, row), [activeSelection?.id, viewFilter, row]);
-  const ordered = useMemo(() => [...items].sort((a, b) => Number(dimmed(b)) - Number(dimmed(a))
-    || Number(a.id === foregroundId) - Number(b.id === foregroundId)
-    || Number(isWallMounted(a)) - Number(isWallMounted(b)) || a.elevation - b.elevation), [items, dimmed, foregroundId]);
-  const visibleItems = useMemo(() => ordered.filter((item) => !dimmed(item)), [ordered, dimmed]);
-  const annotated = ghost ?? activeSelection;
+  const { dimmed, upperTargets, detailed } = useMemo(() => {
+    const dimmed: KitchenItem[] = [], upperTargets: KitchenItem[] = [], detailed: KitchenItem[] = [];
+    const ordered = [...items].sort((a, b) => Number(a.id === foregroundId) - Number(b.id === foregroundId)
+      || Number(isWallMounted(a)) - Number(isWallMounted(b)) || a.elevation - b.elevation);
+    for (const item of ordered) {
+      if (viewFilter === 'all' && isWallMounted(item)) upperTargets.push(item);
+      else if (item.id !== activeId && isDimmed(item, viewFilter, row)) dimmed.push(item);
+      else detailed.push(item);
+    }
+    return { dimmed, upperTargets, detailed };
+  }, [items, viewFilter, row, activeId, foregroundId]);
+  // Neither upper rulers nor resize handles may cover the floor target in All,
+  // even when an add, row edit or 3D selection left the upper selected.
+  const selectedDetail = activeSelection && detailed.includes(activeSelection) ? activeSelection : undefined;
+  const annotated = ghost ?? selectedDetail;
+  const identified = dragging ? undefined : items.find((i) => i.id === hoveredId && !dimmed.includes(i)) ?? activeSelection;
+  const drawItem = (item: KitchenItem, mode: PlanItemMode) => <ItemShape key={item.id} item={item} px={px}
+    compact={compact} mode={mode} hovered={hoveredId === item.id} onPointerDown={onItemPointerDown} onHoverChange={onHoverChange} />;
 
   return (
     <div
       ref={containerRef}
       className="relative h-full w-full touch-none overflow-hidden bg-studio-canvas"
       onContextMenu={(e) => e.preventDefault()}
+      onPointerDownCapture={(e) => { if (e.pointerType === 'touch') setHoveredId(null); }}
     >
       {size.w > 0 && size.h > 0 && (
         <Stage
@@ -497,7 +509,7 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
           onPointerDown={(e) => {
             const { pointerType, clientX, clientY } = e.evt;
             const point = compact && pointerType === 'touch' && e.target === stageRef.current && clientToPlan(clientX, clientY);
-            const nearby = point && nearbyCabinet(visibleItems, point, px);
+            const nearby = point && nearbyCabinet(detailed, point, px, upperTargets);
             // A near miss can select on tap, never initiate a move instead of panning.
             onStagePointerDown(e, nearby ? () => useUiStore.getState().select(nearby.id, 'plan') : undefined);
           }}
@@ -507,32 +519,24 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
           </Layer>
           <Layer>
             <PlanRoomTargets room={room} openings={openings} px={px} onPress={onStagePointerDown} />
-            {ordered.map((item) => (
-              <ItemShape
-                key={item.id}
-                item={item}
-                px={px}
-                compact={compact}
-                dimmed={dimmed(item)}
-                hovered={hoveredId === item.id}
-                onPointerDown={onItemPointerDown}
-                onHoverChange={onHoverChange}
-              />
-            ))}
+            {dimmed.map((item) => drawItem(item, 'dimmed'))}
+            {upperTargets.map((item) => drawItem(item, 'upper-target'))}
+            {detailed.map((item) => drawItem(item, 'detail'))}
+            {upperTargets.length > 0 && <UpperOutlines items={upperTargets} px={px} selectedId={activeId} />}
           </Layer>
           <Layer>
-            {showDimensions && <DimensionChains key={`dimensions-${fontVersion}`} room={room} items={visibleItems} px={px} compact={compact} totalsOnly={compact && !allDimensions} />}
-            <IssueOutlines items={visibleItems} issues={issues} px={px} />
+            {showDimensions && <DimensionChains key={`dimensions-${fontVersion}`} room={room} items={detailed} px={px} compact={compact} totalsOnly={compact && !allDimensions} />}
+            <IssueOutlines items={detailed} issues={issues} px={px} />
             {annotated && (!compact || (allDimensions && showDimensions)) && (
               <Clearances room={room} items={items} item={annotated} px={px} compact={compact} />
             )}
             <Guides guides={ghost ? libraryDrag!.guides : guides} room={room} px={px} />
             {ghost && <Ghost item={ghost} px={px} compact={compact} />}
-            {compact && <CompactPlanCodes key={`codes-${fontVersion}`} items={visibleItems} selected={annotated} px={px} measurements={showDimensions} />}
+            {compact && <CompactPlanCodes key={`codes-${fontVersion}`} items={detailed} selected={annotated} px={px} measurements={showDimensions} />}
             {compact && showDimensions && annotated && <SelectedUnitDimensions item={annotated} room={room} px={px} />}
-            {activeSelection && !ghost && (
+            {selectedDetail && !ghost && (
               <Selection
-                item={activeSelection}
+                item={selectedDetail}
                 px={px}
                 touch={coarse}
                 onHandlePointerDown={onHandlePointerDown}
@@ -542,9 +546,10 @@ export function DesignCanvas({ compact = false }: { compact?: boolean }) {
           </Layer>
         </Stage>
       )}
-      <PlanControls zoom={zoom} viewFilter={viewFilter} isEmpty={items.length === 0} compact={compact}
-        rows={rows} row={row} manualRow={manualRow} requestFit={requestFit}
+      <PlanControls zoom={zoom} viewFilter={viewFilter} compact={compact}
+        rows={rows} row={row} manualRow={manualRow} requestFit={requestFit} upperOutlines={upperTargets.length > 0} identified={identified}
         allDimensions={allDimensions && showDimensions} setAllDimensions={setAllDimensions} />
+      {items.length === 0 && <StartGuide onAdd={onAdd} />}
       <KitchenPlanRoomReadout />
     </div>
   );
@@ -555,20 +560,20 @@ const FILTERS: ViewFilter[] = ['all', 'floor', 'wall'];
 interface CanvasControlsProps {
   zoom: number;
   viewFilter: ViewFilter;
-  isEmpty: boolean;
   compact: boolean;
   rows: UpperRow[];
   row?: UpperRow;
   manualRow?: UpperRow;
+  upperOutlines: boolean;
+  identified?: KitchenItem;
   requestFit: () => void;
   allDimensions: boolean;
   setAllDimensions: (show: boolean) => void;
 }
 
-function CanvasControls({ zoom, viewFilter, isEmpty, compact, rows, row, manualRow, requestFit, allDimensions, setAllDimensions }: CanvasControlsProps) {
+function CanvasControls({ zoom, viewFilter, compact, rows, row, manualRow, upperOutlines, identified, requestFit, allDimensions, setAllDimensions }: CanvasControlsProps) {
   const t = useT();
   const labels = usePlanMessages();
-  const projectId = useProjectsStore((state) => state.activeId);
   const chooseLayer = (filter: ViewFilter, upper = manualRow) => {
     const ui = useUiStore.getState();
     const selected = useDesignStore.getState().design.items.find((item) => item.id === ui.selectedId);
@@ -612,8 +617,12 @@ function CanvasControls({ zoom, viewFilter, isEmpty, compact, rows, row, manualR
             {rows.map((entry, index) => <option key={entry.elevation} value={entry.elevation}>{t.stacking.row(index + 1, t.mm(entry.elevation))}</option>)}
           </select>
         )}
-        {viewFilter !== 'all' && <p role="status" className="rounded-md bg-studio-paper/95 px-2 py-1 text-xs leading-tight text-studio-muted">
-          {t.canvas.dimmed[viewFilter === 'wall' && rows.length > 1 ? 'row' : viewFilter]}
+        {(upperOutlines || viewFilter !== 'all') && <p role="status" className="rounded-md bg-studio-paper/95 px-2 py-1 text-xs leading-tight text-studio-muted">
+          {viewFilter === 'all' ? t.canvas.upperOutlines(compact ? t.canvas.filters.wall.short : t.canvas.filters.wall.label)
+            : t.canvas.dimmed[viewFilter === 'wall' && rows.length > 1 ? 'row' : viewFilter]}
+        </p>}
+        {identified && <p data-plan-cabinet-name="" role="status" className="max-w-full break-words rounded-md bg-studio-paper/95 px-2 py-1 text-xs font-medium leading-tight text-studio-ink">
+          {t.kinds[identified.kind]} · {identified.label}
         </p>}
       </div>
 
@@ -661,7 +670,6 @@ function CanvasControls({ zoom, viewFilter, isEmpty, compact, rows, row, manualR
         </>}
       </div>
 
-      <StartGuide key={projectId} compact={compact} isEmpty={isEmpty} />
     </>
   );
 }

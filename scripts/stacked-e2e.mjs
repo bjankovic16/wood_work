@@ -1,3 +1,4 @@
+import { chooseLanguage } from './settings-language.mjs';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
@@ -5,7 +6,9 @@ import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
 import { assertBodyOrbits, open3DTools, waitForIdleRendering } from './three-test-helpers.mjs';
 
-const output = process.argv[2] ?? path.join('test-results', 'stacked');
+const args = process.argv.slice(2);
+const planOnly = args.includes('--plan-only');
+const output = args.find((arg) => arg !== '--plan-only') ?? path.join('test-results', planOnly ? 'stacked-plan' : 'stacked');
 await mkdir(output, { recursive: true });
 const server = await createServer({ logLevel: 'error', cacheDir: path.resolve(output, '.vite'), optimizeDeps: { entries: ['index.html'] }, server: { host: '127.0.0.1', port: 0, watch: null, hmr: false } });
 let browser;
@@ -20,6 +23,14 @@ const design = (page) => page.evaluate(() => window.__kitchen.design.getState().
 const pass = (message) => console.log(`  PASS ${message}`);
 const shot = (page, name) => page.screenshot({ path: path.join(output, name) });
 const snapshot = (value) => ({ ...value, name: '', items: value.items.map(({ id, ...item }) => item) });
+
+async function stackingAction(page) {
+  const size = page.getByRole('tabpanel', { name: 'Size', exact: true });
+  const button = size.getByRole('button', { name: 'Add cabinet above', exact: true });
+  const code = await size.getByRole('textbox', { name: 'Code', exact: true }).boundingBox();
+  assert.ok((await button.boundingBox()).y >= code.y + code.height, 'Put stacking below the everyday cabinet fields.');
+  return button;
+}
 
 async function clickPlanUnit(page, item, touch = false) {
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
@@ -60,7 +71,7 @@ async function clickSceneUnit(page, item) {
   await page.waitForFunction((id) => window.__kitchen.ui.getState().selectedId === id, item.id);
 }
 
-try {
+async function run() {
   await server.listen();
   const url = server.resolvedUrls.local[0];
   browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -70,7 +81,7 @@ try {
   observe(page);
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   await page.getByTestId('room-done').click();
-  await page.getByLabel('Jezik / Language').selectOption('en');
+  await chooseLanguage(page, 'en');
 
   console.log('Guided three-tier base run');
   await page.locator('[data-preset="base-600"]').click();
@@ -84,6 +95,8 @@ try {
   assert.equal(guided.items.length, 3);
   assert.equal(guided.items[1].height, 650);
   assert.equal(guided.items[2].elevation + guided.items[2].height, guided.room.height - 30);
+  // The newly added, selected top tier covers the base, but cannot take its click in All.
+  await clickPlanUnit(page, guided.items[0]);
   assert.equal(await page.evaluate(() => window.__kitchen.design.getState().past.length), guidedHistory + 1);
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   assert.deepEqual(await design(page), guidedBefore);
@@ -101,7 +114,7 @@ try {
   console.log('Stacking and individual row selection');
   await page.locator('[data-preset="wall-600"]').click();
   const lower = (await design(page)).items[0];
-  await page.getByRole('button', { name: 'Add cabinet above', exact: true }).click();
+  await (await stackingAction(page)).click();
   let state = await design(page);
   assert.equal(state.items.length, 2);
   const upper = state.items[1];
@@ -125,9 +138,13 @@ try {
   await clickPlanUnit(page, upper);
   await shot(page, '02-upper-row-selected.png');
   pass('real clicks can select each cabinet at the same footprint; occupied stack space is explained');
+  if (planOnly) {
+    assert.deepEqual(problems, []);
+    return;
+  }
 
   await page.evaluate(async () => (await import('/src/store/actions.ts')).setRoomSize({ height: 3100 }));
-  await page.getByRole('radio', { name: '3D', exact: true }).click();
+  await page.getByRole('radio', { name: '3. 3D', exact: true }).click();
   await ready3D(page);
   const tools = page.getByRole('group', { name: 'Selected cabinet actions' });
   await tools.getByRole('button', { name: 'Add cabinet above', exact: true }).click();
@@ -204,20 +221,20 @@ try {
     if (index === 0) {
       const display = (await design(page)).items.find((item) => item.kind === 'glassWall');
       assert.ok(display);
-      await page.getByRole('radio', { name: 'Plan', exact: true }).click();
+      await page.getByRole('radio', { name: '2. Layout', exact: true }).click();
       await page.getByRole('button', { name: 'Wall units', exact: true }).click();
       const rowSelect = page.getByLabel('Upper cabinet row', { exact: true });
       const upperElevation = await rowSelect.locator('option').last().getAttribute('value');
       await rowSelect.selectOption(upperElevation);
-      await page.getByRole('radio', { name: '3D', exact: true }).click();
+      await page.getByRole('radio', { name: '3. 3D', exact: true }).click();
       await ready3D(page);
       await camera.getByRole('button', { name: 'Front', exact: true }).click();
       await clickSceneUnit(page, display);
       assert.equal(String(await page.evaluate(() => window.__kitchen.ui.getState().wallElevation)), upperElevation,
         'Selecting a display cupboard spanning both rows must preserve the active upper row.');
-      await page.getByRole('radio', { name: 'Plan', exact: true }).click();
+      await page.getByRole('radio', { name: '2. Layout', exact: true }).click();
       assert.equal(await rowSelect.inputValue(), upperElevation);
-      await page.getByRole('radio', { name: '3D', exact: true }).click();
+      await page.getByRole('radio', { name: '3. 3D', exact: true }).click();
       await ready3D(page);
       pass('3D selection preserves the active upper row for a full-height display cupboard');
     }
@@ -238,9 +255,10 @@ try {
   await phone.goto(url, { waitUntil: 'domcontentloaded' });
   await phone.waitForSelector('.konvajs-content');
   await phone.getByRole('button', { name: 'Wall units', exact: true }).tap();
-  const phoneRows = await phone.getByLabel('Upper cabinet row', { exact: true }).locator('option').count();
-  assert.equal(phoneRows, 2);
   const current = await design(phone);
+  const phoneRows = await phone.getByLabel('Upper cabinet row', { exact: true }).locator('option').evaluateAll((opts) => opts.map((o) => Number(o.value)));
+  const tiers = current.items.filter((item) => item.kind === 'wall' || item.kind === 'hood').map((item) => item.elevation);
+  assert.deepEqual(phoneRows, [...new Set(tiers)].sort((a, b) => a - b), 'Both cupboard tiers and the separate hood in this layout must be selectable.');
   const phoneLower = current.items.find((item) => item.kind === 'wall' && item.rotation === 0);
   assert.ok(phoneLower);
   await phone.getByLabel('Upper cabinet row', { exact: true }).selectOption(String(phoneLower.elevation));
@@ -263,7 +281,7 @@ try {
   });
   await clickPlanUnit(phone, (await design(phone)).items[0], true);
   await phone.getByTestId('item-sheet').getByRole('slider').press('End');
-  await phone.getByRole('button', { name: 'Add cabinet above', exact: true }).tap();
+  await (await stackingAction(phone)).tap();
   assert.equal((await design(phone)).items.length, 2);
   await phone.setViewportSize({ width: 320, height: 740 });
   assert.equal(await phone.getByRole('button', { name: 'All', exact: true }).getAttribute('aria-pressed'), 'true');
@@ -288,7 +306,7 @@ try {
   console.log('Touch orbit over a selected stacked cabinet');
   await phone.evaluate(() => window.__kitchen.ui.getState().setLanguage('en'));
   await phone.setViewportSize({ width: 390, height: 844 });
-  await phone.getByRole('radio', { name: '3D', exact: true }).tap();
+  await phone.getByRole('radio', { name: '3. 3D', exact: true }).tap();
   await ready3D(phone);
   await phone.getByRole('group', { name: '3D camera' }).getByRole('button', { name: 'Top', exact: true }).tap();
   assert.equal(await phone.getByRole('group', { name: 'Selected cabinet actions' }).count(), 0);
@@ -300,6 +318,10 @@ try {
   await phoneContext.close();
   assert.deepEqual(problems, []);
   console.log('All stacked-cabinet and premium-kitchen browser checks passed.');
+}
+
+try {
+  await run();
 } finally {
   await browser?.close();
   await server.close();

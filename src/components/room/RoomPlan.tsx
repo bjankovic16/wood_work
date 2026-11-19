@@ -101,9 +101,10 @@ export function RoomPlan({ onFaceWall, reference }: { onFaceWall: (id: string, k
           <g data-wall-view={s.id} {...planButton(label, (keyboard) => onFaceWall(s.id, keyboard))}
             transform={`translate(${icon.x} ${icon.y}) scale(${px})`}>
             <title>{label}</title>
-            <rect x="-22" y="-22" width="44" height="44" fill="transparent" />
-            <rect className="room-wall-view-chip" x="-20" y="-12" width="40" height="24" rx="7" />
-            <PanelsTopLeft x="-10" y="-9" size={20} aria-hidden="true" color="#315a44" />
+            <rect x="-39" y="-22" width="78" height="44" fill="transparent" />
+            <rect className="room-wall-view-chip" x="-38" y="-17" width="76" height="34" rx="7" />
+            <PanelsTopLeft x="-7" y="-15" size={14} aria-hidden="true" color="#315a44" />
+            <text textAnchor="middle" y="12" fontSize="12" fontWeight="600" fill="#315a44">{t.room.wallView}</text>
           </g>
         </g>;
       })}

@@ -34,6 +34,8 @@ async function phoneRoomTools(page, workspace) {
     await workspace.getByRole('button', { name: 'Nazad na osnovu' }).tap();
     await page.waitForFunction(() => document.activeElement?.getAttribute('data-wall-view') === 'bottom');
     const panel = workspace.getByTestId('room-inspector');
+    const dimensions = panel.getByRole('button', { name: 'Mere', exact: true });
+    if (await dimensions.getAttribute('aria-expanded') === 'false') await dimensions.tap();
     for (const control of [panel.getByRole('button', { name: 'Boje i pločice' }), panel.getByLabel('Visina do plafona')]) {
       await control.scrollIntoViewIfNeeded();
       const box = await control.boundingBox();
@@ -125,7 +127,7 @@ async function phoneRoomPreview(page, workspace) {
   assert.ok(await view.evaluate((el) => el === document.activeElement));
 
   assert.deepEqual(await state(), before, 'Room review is read-only.');
-  await page.getByRole('radio', { name: '3D', exact: true }).tap();
+  await page.getByRole('radio', { name: '3. 3D', exact: true }).tap();
   await page.waitForFunction((id) => window.__kitchen3D?.scene.getObjectByName(id), original.items[0].id);
   const kitchen = sheet('Prikaz');
   const openIdeas = async () => {
@@ -134,10 +136,10 @@ async function phoneRoomPreview(page, workspace) {
     await header.getByRole('button', { name: 'Ideje', exact: true }).tap();
   };
   const gallery = page.getByRole('dialog', { name: 'Ideje' });
-  const next = gallery.getByRole('button', { name: 'Isprobaj drugi stil' });
+  const next = gallery.getByRole('button', { name: 'Primeni stil na moju kuhinju' });
   assert.ok(await page.getByTestId('three-toolbar').getByRole('button', { name: 'Podeli', exact: true }).isEnabled());
   await view.tap();
-  assert.equal(await kitchen.getByRole('button', { name: /Podeli|Isprobaj drugi stil/ }).count(), 0);
+  assert.equal(await kitchen.getByRole('button', { name: /Podeli|Primeni stil na moju kuhinju/ }).count(), 0);
   await page.touchscreen.tap(8, 8);
   await kitchen.waitFor({ state: 'hidden' });
   for (const [on, off] of [['Otvori sve', 'Zatvori sve'], ['Unutrašnjost elemenata', 'Unutrašnjost elemenata']]) {
@@ -162,8 +164,8 @@ async function phoneRoomPreview(page, workspace) {
 
 async function separatedRoomChecks(page) {
   const nav = page.getByRole('radiogroup', { name: 'Design workspace' });
-  const roomTab = nav.getByRole('radio', { name: 'Room design' });
-  const kitchen3D = nav.getByRole('radio', { name: '3D', exact: true });
+  const roomTab = nav.getByRole('radio', { name: '1. Room' });
+  const kitchen3D = nav.getByRole('radio', { name: '3. 3D', exact: true });
   const room = page.getByTestId('room-workspace');
   await page.evaluate(async () => {
     const { createDesign } = await import('/src/domain/designOps.ts');
@@ -240,7 +242,7 @@ try {
     page.on('pageerror', (error) => { errors.push(error.message); console.error(error); });
     await page.goto(url);
     const workspace = page.getByTestId('room-workspace');
-    await workspace.getByRole('heading', { name: 'My room' }).waitFor();
+    await workspace.getByRole('heading', { name: 'Room', exact: true }).waitFor();
     assert.equal(await page.getByTestId('room-plan').count(), 1);
     assert.equal(await page.locator('[data-kitchen-idea]').count(), 0);
     if (compact) await phoneRoomTools(page, workspace);
@@ -269,11 +271,11 @@ try {
     if (!planOnly) {
       await showRoomModel(page);
       await workspace.getByTestId('three-viewport').locator('canvas').waitFor();
-      if (compact) await workspace.locator('.room-view-picker select').selectOption('');
-      else await page.getByRole('radio', { name: '2D', exact: true }).click();
+      await workspace.locator('.room-view-picker select').selectOption('');
     }
     await workspace.getByTestId('room-plan').waitFor();
     assert.equal(await workspace.locator('[data-wall-id="right"]').getAttribute('aria-pressed'), 'true');
+    if (compact) await workspace.getByRole('button', { name: 'Dimensions', exact: true }).tap();
     await workspace.getByText('Advanced room', { exact: true }).click();
     await workspace.getByLabel('Floor shape').selectOption('diagonal');
     await page.evaluate(() => window.__kitchen.ui.getState().setLanguage('sr'));

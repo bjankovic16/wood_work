@@ -1,4 +1,4 @@
-import { ArrowRight, Box, ChevronLeft, ChevronRight, MousePointer2 } from 'lucide-react';
+import { Box, ChevronLeft, ChevronRight, MousePointer2 } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { polygonArea } from '../../domain/polygons';
 import { roomOutline } from '../../domain/roomGeometry';
@@ -6,7 +6,7 @@ import { useT } from '../../i18n';
 import { useUiStore } from '../../store/uiStore';
 import { roomMeasurements } from './roomMeasurements';
 import { View3D } from '../three/View3D';
-import { Button, Segmented } from '../ui';
+import { Button } from '../ui';
 import { RoomPlan } from './RoomPlan';
 import { RoomDrawingTools } from './RoomDrawingTools';
 import { RoomInspector } from './RoomInspector';
@@ -15,7 +15,8 @@ import { WallViewButton } from './WallViewButton';
 import { roomSegments } from '../../domain/walls';
 import { adjoiningWalls } from '../../domain/adjoiningWalls';
 import { useDesignStore } from '../../store/designStore';
-import { finishRoom, useProjectsStore } from '../../store/projects';
+import { useProjectsStore } from '../../store/projects';
+import { NextStep } from '../layout/TopBar';
 import { PhoneViewButton } from '../layout/PhoneThreeChrome';
 
 export function RoomWorkspace({ compact = false }: { compact?: boolean }) {
@@ -50,13 +51,8 @@ function ProjectRoom({ compact }: { compact: boolean }) {
     ui.setRoomView('plan'); showDrawing(id);
     requestAnimationFrame(() => viewPicker.current?.focus({ preventScroll: true }));
   };
-  const actions = <>
-    <Button variant="primary" data-testid="room-done" aria-label={t.room.continue} onClick={finishRoom}>
-      <span className="max-[459px]:hidden">{t.room.continue}</span><span className="min-[460px]:hidden">{t.room.kitchenShort}</span><ArrowRight className="size-4" />
-    </Button>
-  </>;
   const title = <div className="mr-auto flex min-w-0 items-center gap-2">
-    <h1>{t.room.setupTitle}</h1>
+    <h1>{t.room.tab}</h1>
     <span className="room-area" data-prefix={t.room.areaShort} aria-label={`${t.room.area}: ${area} m²`}>{area} m²</span>
   </div>;
   const wallEnd = (side: 'left' | 'right') => {
@@ -68,28 +64,23 @@ function ProjectRoom({ compact }: { compact: boolean }) {
       {side === 'left' && <ChevronLeft size={16} aria-hidden="true" />}{wording}{side === 'right' && <ChevronRight size={16} aria-hidden="true" />}
     </button> : <span className={`room-wall-end ${side}`}>{wording}</span>;
   };
-  const views = <Segmented<'plan' | '3d'> ariaLabel={t.room.view} size="sm" value={reviewing ? '3d' : 'plan'}
-        options={[{ value: 'plan', label: '2D', title: t.room.plan }, { value: '3d', label: t.room.model }]}
-        onChange={(v) => { setPreview(false); ui.setRoomView(v); }} />;
-  const heading = <header className="room-heading">
-      {title}{views}
-      {!compact && view === 'plan' && <Button variant="outline" active={preview} onClick={() => setPreview(!preview)}><Box className="size-4" />{t.room.preview}</Button>}
-      {!compact && actions}
-    </header>;
   const tools = <RoomDrawingTools room={room} walls={segments} facing={facing} selectedWall={wall} pickerRef={viewPicker}
-    roomModel={compact ? { active: reviewing, open: () => ui.setRoomView('3d') } : undefined}
+    roomModel={{ active: reviewing, open: () => { setPreview(false); ui.setRoomView('3d'); } }}
     show={(id) => { ui.setRoomView('plan'); showDrawing(id); }}
     back={() => {
       showDrawing('');
       if (facing) requestAnimationFrame(() => document.querySelector<SVGElement>(`[data-wall-view="${CSS.escape(facing.id)}"]`)?.focus({ preventScroll: true }));
     }} />;
   return <main data-testid="room-workspace" aria-label={t.room.tab} className="flex h-full min-h-0 flex-1 flex-col bg-studio-canvas">
-    {!compact && heading}
+    {!compact && <header className="room-heading">
+      {title}{tools}
+      {!reviewing && <Button variant="outline" active={preview} onClick={() => setPreview(!preview)}><Box size={16} />{t.room.preview}</Button>}
+      <NextStep />
+    </header>}
     {compact && !reviewing && tools}
     <div className="room-work-area" data-view={view} data-elevation={view === 'plan' && !!facing || undefined}>
       <div className="room-drawing-area">
         {view === 'plan' && <div className="room-drawing-pane">
-          {!compact && tools}
           {facing ? <WallElevation key={facing.id} wall={facing} number={segments.indexOf(facing) + 1} reference={reference} />
             : <RoomPlan reference={reference} onFaceWall={(id, keyboard) => { showDrawing(id); if (keyboard) viewPicker.current?.focus({ preventScroll: true }); }} />}
           {facing ? <nav className="room-wall-ends" aria-label={t.room.adjoiningWalls}>

@@ -20,6 +20,7 @@ import type { Design, KitchenItem, Material } from '../domain/types';
 import { KIND_OPTIONS, buildContext, resolveConfig } from './config';
 import { frontLayout } from './fronts';
 import { EN_LABELS, type EngineLabels } from './labels';
+import { boardLabel } from './materialLabel';
 import { SHEET_TRIM } from './nesting';
 import { customPart, innerDepth, MIN_DRAWER_BOX_HEIGHT, unitParts, type Part } from './parts';
 
@@ -247,7 +248,7 @@ export function checkDesign(design: Design, labels: EngineLabels = EN_LABELS): I
         add(
           'error',
           `sheet-${item.id}-${part.key}`,
-          say.partTooLarge(part.name, item.label, part.length, part.width, material, labels.material(material)),
+          say.partTooLarge(part.name, item.label, part.length, part.width, material, boardLabel(material, labels)),
           [item.id],
         );
       }
@@ -258,7 +259,7 @@ export function checkDesign(design: Design, labels: EngineLabels = EN_LABELS): I
     const part = customPart(custom, ctx);
     const material = ctx.materials.get(part.materialId);
     if (!material || fitsOnSheet(part, material)) continue;
-    add('error', `sheet-custom-${custom.id}`, say.extraTooLarge(part.name, part.length, part.width, material, labels.material(material)));
+    add('error', `sheet-custom-${custom.id}`, say.extraTooLarge(part.name, part.length, part.width, material, boardLabel(material, labels)));
   }
 
   // A fridge right next to an oven gets warm.

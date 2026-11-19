@@ -70,7 +70,6 @@ export function SheetHandle({ snap, onSnap, onClose, controls }: {
         e.stopPropagation();
       }}>
       <span aria-hidden="true" className="sheet-grip" />
-      <span aria-hidden="true">{t[snap]}</span>
     </button>
     <span id={hint} className="sr-only">{t.hint}</span>
   </>;

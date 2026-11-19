@@ -79,7 +79,12 @@ try {
       await camera.getByRole('button', { name: 'Studio', exact: true }).click();
       assert.deepEqual(await design(), staged, 'Changing presentation must not change any project data.');
     }
-    assert.match(await notice.innerText(), new RegExp(`\\b${changeCount} layout adjustment`), id);
+    const message = await notice.innerText();
+    if (changeCount) assert.match(message, new RegExp(`\\b${changeCount} layout adjustment`), id);
+    else {
+      assert.match(message, /^Idea applied\./, id);
+      assert.doesNotMatch(message, /layout adjustment/, id);
+    }
     await notice.getByRole('button', { name: 'Undo' }).click();
     assert.deepEqual(await design(), initial, `Undo ${id}`);
   }
@@ -186,9 +191,7 @@ try {
   await page.reload();
   await page.getByTestId('empty-plan-hint').waitFor();
   assert.equal(await page.getByRole('dialog').count(), 0);
-  await page.getByRole('banner').getByRole('button', { name: 'More', exact: true }).tap();
-  assert.equal(await ideas.count(), 1);
-  await ideas.tap();
+  await page.getByRole('button', { name: 'Start from an idea', exact: true }).tap();
   await gallery.locator('[data-kitchen-design="basil-studio"]').tap();
   await gallery.getByRole('checkbox', { name: /pictured wall paint/ }).uncheck();
   await confirm.tap();

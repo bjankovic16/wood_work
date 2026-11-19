@@ -16,15 +16,15 @@ file for a customer. The customer does not need the editor or the cutting list.
 
 ## 2. Main interface
 
-### My room: first screen, walls and openings
+### Room: first screen, walls and openings
 
-- On a first visit and for a new project, open **My room** (**Moja prostorija**)
+- On a first visit and for a new project, open **Room** (**Prostorija**)
   on the 2D plan. Show room measurements before suggesting kitchen ideas. On
-  return, resume the saved project. **Room design** is a peer of kitchen **3D**
+  return, resume the saved project. **Room** is a peer of kitchen **3D**
   on desktop and phone; selecting it always lands on the editable 2D floor
   plan. Both workspaces use the same project, without copying data or adding
   an undo step on navigation.
-  **Start fresh** in the desktop toolbar, the phone's **⋯** menu or **Projects**
+  **Start fresh** inside **Projects**
   saves the current kitchen and opens a separate empty project at the first
   measurement step. It does not erase projects or reset preferences. Offer
   five seconds to Undo Start fresh, deleting a cabinet, or trying another
@@ -36,10 +36,14 @@ file for a customer. The customer does not need the editor or the cutting list.
   with another saved kitchen at the same scale. Use actual floor area and
   cutting-list quantities. Explicitly choosing **Edit a copy** opens a separate
   numbered variant; preserve the original, including just-committed edits.
-- On phones, keep four equal, labeled bottom destinations: **Room → Plan → 3D →
-  Cutting list**. Keep the project header stable across them. Put the current
-  step, next-step action and issue count above the workspace.
-- In Room design, **Room model** switches between geometry editing and a
+- Use the same numbered destinations and names in the guide, on laptops and in
+  the four equal phone tabs: **1 Room → 2 Layout → 3 3D → 4 Cut list**. Keep
+  the phone project header stable. Show the next action above the bottom tabs;
+  the last action opens the real Export menu. Put language selection in Settings.
+- An empty Layout offers two large actions: preview **Ideas** in the measured room,
+  or add cabinets manually using the existing library. Browsing and reordering
+  ideas do not change the kitchen. Keep applying a style distinct from reordering.
+- In Room, **Room model** switches between geometry editing and a
   read-only architectural scene. On desktop, also offer a preview beside the
   plan. Omit kitchen meshes and automatic backsplashes, but retain manual
   wall finishes. Project dimension labels into the scene and show a complete,
@@ -96,7 +100,7 @@ file for a customer. The customer does not need the editor or the cutting list.
 - Select each new object immediately. Put its card **directly below the room
   measurements** in the right inspector or the same section on a phone. Show
   dimensions and clearances at the selected object in both 2D and 3D.
-  Position fields are edited in Room design's 2D view. Fixed structures
+  Position fields are edited in Room's 2D view. Fixed structures
   reserve space but are not cabinet parts; chimney geometry is not a fire/heat
   clearance calculation.
 
@@ -157,7 +161,11 @@ Requirements:
 - Undo and redo.
 - Support straight kitchens, L-shaped kitchens, and U-shaped kitchens.
 
-The plan opens on **All**. On phones fit to the usable drawing area, show total
+The plan opens on **All**. Show upper footprints as faint dashed outlines without
+their codes or dimensions; a stacked floor cabinet owns the shared hit area.
+Identify a cabinet by its full localized name on hover or tap. Use **Wall units**
+and the upper-row selector to label, measure and edit a specific upper tier.
+On phones fit to the usable drawing area, show total
 and selected dimensions by default, allow all dimensions on demand, and use
 pinch and a single **Fit** button. Keep the selected cabinet above its sheet. During a
 drag, isolate its layer and restore the user's filter on release or cancellation.
@@ -165,8 +173,11 @@ Filtered rows are faint, noninteractive outlines. Wall-unit mode defaults to one
 upper height band and allows selecting another band. **View** groups snapping,
 grid size and dimensions. One **Settings** dialog contains materials and
 construction. On phones keep the selected cabinet's plan controls in a bottom
-sheet with small, half and full detents and keyboard alternatives. Group changes
-under Size, Fronts, Materials and Parts; opening Add allows repeated picks.
+sheet with small, half and full detents. The grip has no visible height caption;
+its accessible value and help, tap, drag and keyboard controls remain available.
+Both editor widths use Size, Fronts, Materials and Parts tabs and common-size
+picks. Put stacking after the everyday size, position and code fields.
+On phones, opening Add allows repeated picks.
 
 - Interior partitions have independent endpoints, thickness and height.
   Both faces are usable; collisions take the cabinet's vertical range into
@@ -206,7 +217,10 @@ With no cabinet selected, show a read-only room summary and a path to Room
 design rather than a second set of wall and opening editors.
 
 Board settings expand one row at a time; mark boards used by actual cut pieces
-and list those first. Show the priced sheet's currency in the row and editor.
+and list those first. Include the board's thickness in its display label in
+pickers, checks and workshop outputs, without changing its editable name or ID.
+Show currency for priced stock; leave unknown prices blank. A total requires
+prices for every used board and edge band and a sheet estimate that fits all pieces.
 The cutting-list screen leads with piece and sheet counts and material totals;
 an info button explains the sheet estimate. Keep Export and Print accessible
 while the list scrolls. The plan and cabinet drawings sit in a collapsed overview
@@ -245,7 +259,7 @@ with the original room-size filter on. The decision depends on the number of
      the blocking constraint. Do not insert overlapping units, partially apply
      a rejected proposal or substitute the example room.
 2. **At least one kitchen element:** review and transfer only the visual finishes;
-   **Try another style** in Ideas can cycle these directly. Preserve
+   **Apply a style to my kitchen** in Ideas can cycle these directly. Preserve
    every item's identity, kind, position, dimensions, rotation and elevation.
    Do not add a missing upper row or island, reorient an existing L, remove
    furniture or recalculate its layout.
@@ -255,7 +269,7 @@ fabrication rules. A fitted layout generates parts for the **new** cabinets.
 Changing only the appearance must leave the **existing** cutting list unchanged.
 
 Apply the look by role: base cabinets, towers, upper rows, island and visible
-side panels. Both **Apply this look** and **Try another style** set fronts, profile,
+side panels. Both **Apply this look** and **Apply a style to my kitchen** set fronts, profile,
 carcasses, handles, worktop and visible room joinery (window frames, door frames
 and door leaves). Update existing per-unit finishes as well as common defaults;
 do not flatten a two-tone design into one finish or leave the old per-unit

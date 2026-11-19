@@ -28,7 +28,7 @@ try {
   page.on('console', (m) => { if (m.type() === 'error') console.error(m.text()); });
   await page.addInitScript((design) => localStorage.setItem('kitchen-designer:design', JSON.stringify({ state: { design }, version: 1 })), fixture);
   await page.goto(editor.resolvedUrls.local[0], { waitUntil: 'domcontentloaded' });
-  await page.getByRole('radio', { name: '3D', exact: true }).click();
+  await page.getByRole('radio', { name: '3. 3D', exact: true }).click();
   await page.getByRole('group', { name: '3D camera' }).getByRole('button', { name: 'Studio', exact: true }).click();
   await page.getByTestId('three-tools-toggle').click();
   const [download] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }), page.getByTestId('customer-export').click()]);

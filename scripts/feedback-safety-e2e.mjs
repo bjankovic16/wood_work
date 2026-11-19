@@ -59,7 +59,7 @@ try {
   await toast.getByRole('status').filter({ hasText: /Deleted cabinet/ }).waitFor();
   assert.equal((await design()).items.length, 0);
   const bounds = await toast.boundingBox();
-  const nav = await page.getByRole('navigation').filter({ has: page.getByRole('radio', { name: '3D', exact: true }) }).boundingBox();
+  const nav = await page.getByRole('navigation').filter({ has: page.getByRole('radio', { name: '3. 3D', exact: true }) }).boundingBox();
   assert.ok(bounds && nav && bounds.y + bounds.height <= nav.y, 'Undo must be reachable above the bottom navigation.');
   await button(toast, 'Undo').press('Enter');
   assert.deepEqual(await design(), original);
@@ -97,7 +97,7 @@ try {
   await button(dialog, 'Close').tap();
   console.log('  PASS keyboard Delete/Undo, safe-area toast, Start fresh, intentional storage request and confirmed/stale per-project backups');
 
-  await page.getByRole('radio', { name: '3D', exact: true }).tap();
+  await page.getByRole('radio', { name: '3. 3D', exact: true }).tap();
   const share = button(page.getByTestId('three-toolbar'), 'Share');
   await share.tap();
   await toast.getByText(/Not shared/).waitFor({ timeout: 60000 });
@@ -127,7 +127,7 @@ try {
   await button(page.getByRole('banner'), 'Više').tap();
   await button(page.getByRole('banner'), 'Ideje').tap();
   const gallery = page.getByRole('dialog', { name: 'Ideje' });
-  const tryStyle = button(gallery, 'Isprobaj drugi stil');
+  const tryStyle = button(gallery, 'Primeni stil na moju kuhinju');
   assert.ok(await tryStyle.isVisible() && await gallery.getByText(/elementi ostaju na mestu/).isVisible());
   assert.ok(await gallery.evaluate((el) => el.scrollWidth <= el.clientWidth && el.getBoundingClientRect().bottom <= innerHeight));
   const firstPhoto = await gallery.locator('[data-kitchen-design] img').first().boundingBox();
