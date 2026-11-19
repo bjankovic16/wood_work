@@ -122,7 +122,7 @@ async function assertLocked(page, original) {
   assert.equal(await page.getByTestId('cabinet-mode-hint').innerText(), 'Close this cabinet and exit Interior view to resize it.');
   assert.equal(await page.locator('[data-resize-field]').count(), 0);
   assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().cabinetTool), null);
-  await page.getByRole('radio', { name: '3D', exact: true }).click();
+  await page.getByRole('radio', { name: '3. 3D', exact: true }).click();
   assert.equal(await resize(page).isDisabled(), true, 'Clicking the current view must not clear preview locks.');
   // Arrows on the workspace radio group intentionally navigate; exercise scene shortcuts here instead.
   await page.getByTestId('three-viewport').evaluate((el) => { el.tabIndex = -1; el.focus(); });
@@ -327,7 +327,7 @@ try {
     store.load({ ...store.design, style: { ...store.design.style, wallColor: '#334455', floorPattern: 'tiles', floorTileSize: 450 } });
   });
   original = await design(page);
-  const shuffle = (target) => target.getByRole('button', { name: 'Try another style', exact: true });
+  const shuffle = (target) => target.getByRole('button', { name: 'Apply a style to my kitchen', exact: true });
   const chooseStyle = async () => {
     await page.getByRole('button', { name: 'Ideas', exact: true }).click();
     await shuffle(page.getByRole('dialog', { name: 'Ideas', exact: true })).click();
@@ -347,7 +347,7 @@ try {
   assert.equal(after.galleryPresetId, 'walnut-frame');
   await chooseStyle();
   const secondLook = await design(page);
-  assert.equal(secondLook.galleryPresetId, 'oak-frame', 'Try another style must advance to the next gallery look.');
+  assert.equal(secondLook.galleryPresetId, 'oak-frame', 'Apply a style to my kitchen must advance to the next gallery look.');
   assert.notDeepEqual(secondLook.style, after.style);
   assert.deepEqual(withoutLook(secondLook), withoutLook(original));
   assert.equal(await history(page), 2);
@@ -376,7 +376,7 @@ try {
   await undo(page);
   assert.deepEqual(await design(page), original);
   assert.equal(await page.getByTestId('feedback-toast').count(), 0);
-  console.log('  PASS Try another style applies successive looks without replacing the room or cabinets, in one Undo step per look, and respects preview/tool locks');
+  console.log('  PASS Apply a style to my kitchen applies successive looks without replacing the room or cabinets, in one Undo step per look, and respects preview/tool locks');
 
   const phoneContext = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
   const phone = await phoneContext.newPage();
@@ -513,7 +513,7 @@ try {
         localStorage.setItem('kitchen-designer:preferences', JSON.stringify({ version: 2, state: { language: 'en', moveHintSeen: true } }));
       }, value);
       await productionPage.goto(production.resolvedUrls.local[0], { waitUntil: 'domcontentloaded' });
-      await productionPage.getByRole('radio', { name: '3D', exact: true }).click();
+      await productionPage.getByRole('radio', { name: '3. 3D', exact: true }).click();
       await productionPage.getByRole('group', { name: '3D camera' }).getByRole('button', { name: 'Top', exact: true }).click();
       await open3DTools(productionPage);
       await productionPage.mouse.click(click.from.x, click.from.y);

@@ -57,7 +57,6 @@ interface UiState {
   layoutsOpen: boolean;
   fitRequest: FitRequest | null;
   fitNotice: { design: Design; changes: number } | null;
-  welcomeSeen: boolean;
   projectPage: 'projects' | 'guide' | 'compare' | null;
   roomOpen: boolean;
   roomSelection: RoomObjectSelection | null;
@@ -83,7 +82,6 @@ interface UiState {
   setLayoutsOpen: (open: boolean) => void;
   reviewFit: (request: FitRequest | null) => void;
   finishRoom: () => void;
-  rememberWelcome: () => void;
   setProjectPage: (page: UiState['projectPage']) => void;
   setRoomOpen: (open: boolean) => void;
   openRoomPlan: () => void;
@@ -128,7 +126,6 @@ export const useUiStore = create<UiState>()(
       layoutsOpen: false,
       fitRequest: null,
       fitNotice: null,
-      welcomeSeen: false,
       projectPage: null,
       roomOpen: false,
       roomSelection: null,
@@ -158,9 +155,8 @@ export const useUiStore = create<UiState>()(
       setSettingsTab: (settingsTab) => set({ settingsTab }),
       setLayoutsOpen: (layoutsOpen) => set({ layoutsOpen, fitRequest: null }),
       reviewFit: (fitRequest) => set({ layoutsOpen: true, fitRequest }),
-      finishRoom: () => set({ roomOpen: false, view: 'plan', welcomeSeen: true, selectedId: null, cabinetTool: null,
+      finishRoom: () => set({ roomOpen: false, view: 'plan', selectedId: null, cabinetTool: null,
         selectedWallId: null, roomElevationOpen: false, roomSelection: null }),
-      rememberWelcome: () => set({ welcomeSeen: true }),
       setProjectPage: (projectPage) => set({ projectPage }),
       setRoomOpen: (roomOpen) => set(roomOpen
         ? { roomOpen, view: 'plan', selectedId: null, cabinetTool: null }
@@ -195,7 +191,6 @@ export const useUiStore = create<UiState>()(
         gridSize: s.gridSize,
         showDimensions: s.showDimensions,
         language: s.language,
-        welcomeSeen: s.welcomeSeen,
         moveHintSeen: s.moveHintSeen,
       }),
       // A stored language this version does not know falls back to the default.

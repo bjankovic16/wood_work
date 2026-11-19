@@ -2,10 +2,11 @@ import { Check, Copy, Plus, Trash2 } from 'lucide-react';
 import { useId, useMemo, type ReactNode } from 'react';
 import { materialInUse } from '../../domain/designOps';
 import type { ConstructionSettings, EdgeBand, Material } from '../../domain/types';
+import { boardLabel, withThickness } from '../../engine/materialLabel';
 import { unitParts } from '../../engine/parts';
 import { EDGE_LIMITS, MATERIAL_LIMITS, SETTING_LIMITS, type NumericSetting } from '../../engine/settings';
 import { useIsCompact } from '../../hooks/useMediaQuery';
-import { useT, type Messages } from '../../i18n';
+import { LANGUAGES, LANGUAGE_LABEL, useT } from '../../i18n';
 import { CURRENCY } from '../../i18n/money';
 import * as actions from '../../store/actions';
 import { useBuildContext } from '../../store/derived';
@@ -36,24 +37,22 @@ function SettingField({ settings, field, label, title }: { settings: Constructio
   );
 }
 
-/** A board as listed: its name in the interface language and its thickness. */
-const boardLabel = (m: Material, t: Messages) => `${t.engine.material(m)} ${t.mm(m.thickness)} mm`;
-
 function MaterialCard({ material, used, locked, group }: { material: Material; used: boolean; locked: boolean; group: string }) {
   const t = useT();
   const s = t.settings;
   const name = t.engine.material(material);
+  const label = boardLabel(material, t.engine);
   return (
     <details name={group} className="min-w-0 rounded-lg border border-zinc-200 bg-white" data-testid="material-card" data-material-id={material.id}>
       <summary className="board-summary rounded-lg">
-        <span className="board-name min-w-0 flex-1 truncate" title={name}>{name}</span>
+        <span className="board-name min-w-0 flex-1 [overflow-wrap:anywhere]">{label}</span>
         {used && <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-800" title={s.usedBoard}>
           <Check className="size-3" aria-hidden="true" /><span className="max-[400px]:sr-only">{s.usedBoard}</span>
         </span>}
         <span className="board-size shrink-0 whitespace-nowrap text-xs font-normal tabular-nums text-studio-muted">
-          {t.mm(material.sheetLength)}×{t.mm(material.sheetWidth)}×{t.mm(material.thickness)} mm
+          {t.mm(material.sheetLength)}×{t.mm(material.sheetWidth)} mm
         </span>
-        <span className="board-price shrink-0 whitespace-nowrap text-xs tabular-nums">{material.price > 0 ? t.money(material.price) : `— ${CURRENCY}`}</span>
+        {material.price > 0 && <span className="board-price shrink-0 whitespace-nowrap text-xs tabular-nums">{t.money(material.price)}</span>}
       </summary>
       <div className="grid gap-2 border-t border-zinc-100 p-3 sm:grid-cols-2">
         <TextField label={s.name} value={name} maxLength={60} onCommit={(name) => actions.updateMaterial(material.id, { name: name.trim() })} />
@@ -65,6 +64,7 @@ function MaterialCard({ material, used, locked, group }: { material: Material; u
           shortLabel={s.pricePerSheet}
           suffix={CURRENCY}
           title={s.priceTitle}
+          zeroPlaceholder={s.enterPrice}
           value={material.price}
           precision={2}
           {...MATERIAL_LIMITS.price}
@@ -73,12 +73,12 @@ function MaterialCard({ material, used, locked, group }: { material: Material; u
         <div className="flex items-center justify-between gap-2">
           <CheckboxField label={s.hasGrain} hint={s.grainHint} checked={material.grain} onChange={(grain) => actions.updateMaterial(material.id, { grain })} />
           <div className="flex gap-1">
-            <Button title={s.duplicateBoard} aria-label={s.duplicateNamed(boardLabel(material, t))} onClick={() => actions.addMaterial(material)}>
+            <Button title={s.duplicateBoard} aria-label={s.duplicateNamed(label)} onClick={() => actions.addMaterial(material)}>
               <Copy className="size-4" />
             </Button>
             <Button
               title={locked ? s.inUse : s.removeBoard}
-              aria-label={s.removeNamed(boardLabel(material, t))}
+              aria-label={s.removeNamed(label)}
               disabled={locked}
               onClick={() => actions.removeMaterial(material.id)}
             >
@@ -101,7 +101,7 @@ function EdgeBandCard({ band }: { band: EdgeBand }) {
       <NumberField label={s.thickness} value={band.thickness} precision={1} {...EDGE_LIMITS.thickness} onCommit={(thickness) => actions.updateEdgeBand(band.id, { thickness })} />
       <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
         <div className="min-w-0 flex-1">
-          <NumberField label={`${s.pricePerMetre} (${CURRENCY})`} shortLabel={s.pricePerMetre} suffix={CURRENCY} value={band.price} precision={2} {...EDGE_LIMITS.price} onCommit={(price) => actions.updateEdgeBand(band.id, { price })} />
+          <NumberField label={`${s.pricePerMetre} (${CURRENCY})`} shortLabel={s.pricePerMetre} suffix={CURRENCY} title={s.priceTitle} zeroPlaceholder={s.enterPrice} value={band.price} precision={2} {...EDGE_LIMITS.price} onCommit={(price) => actions.updateEdgeBand(band.id, { price })} />
         </div>
         <Button className="self-end" title={s.removeBand} aria-label={s.removeNamed(name)} onClick={() => actions.removeEdgeBand(band.id)}>
           <Trash2 className="size-4" /><span className="lg:hidden">{s.removeBand}</span>
@@ -129,17 +129,16 @@ function MaterialsTab() {
     return ids;
   }, [ctx, design.customParts, design.items, design.partEdits]);
   const { construction: c, materials, edgeBands } = design;
-  const materialOptions = materials.map((m) => ({ value: m.id, label: boardLabel(m, t) }));
-  const bandOptions = [{ value: '', label: s.noBand }, ...edgeBands.map((b) => {
-    const name = t.engine.edgeBand(b), thickness = `${t.mm(b.thickness)} mm`;
-    return { value: b.id, label: name.endsWith(` ${thickness}`) ? name : `${name} · ${thickness}` };
-  })];
+  const materialOptions = materials.map((m) => ({ value: m.id, label: boardLabel(m, t.engine) }));
+  const bandOptions = [{ value: '', label: s.noBand }, ...edgeBands.map((b) => ({
+    value: b.id, label: withThickness(t.engine.edgeBand(b), b.thickness, t.engine),
+  }))];
   return (
     <>
       <PanelSection title={s.usedInKitchen}>
-        <PickerField label={s.carcass} value={c.carcassMaterial} options={materialOptions} onChange={(carcassMaterial) => actions.setConstruction({ carcassMaterial })} />
-        <PickerField label={s.backPanels} value={c.backMaterial} options={materialOptions} onChange={(backMaterial) => actions.setConstruction({ backMaterial })} />
-        <PickerField label={s.fronts} value={c.frontMaterial} options={materialOptions} onChange={(frontMaterial) => actions.setConstruction({ frontMaterial })} />
+        <PickerField wrapValue label={s.carcass} value={c.carcassMaterial} options={materialOptions} onChange={(carcassMaterial) => actions.setConstruction({ carcassMaterial })} />
+        <PickerField wrapValue label={s.backPanels} value={c.backMaterial} options={materialOptions} onChange={(backMaterial) => actions.setConstruction({ backMaterial })} />
+        <PickerField wrapValue label={s.fronts} value={c.frontMaterial} options={materialOptions} onChange={(frontMaterial) => actions.setConstruction({ frontMaterial })} />
         <p className="text-[11px] leading-snug text-zinc-400">{s.unitOverrideHint}</p>
       </PanelSection>
 
@@ -315,13 +314,14 @@ function ConstructionTab() {
 /** Kitchen-wide settings: the materials library and edge bands, and the construction rules. */
 export function ConstructionDialog() {
   const t = useT();
+  const language = useUiStore((s) => s.language);
   const tab = useUiStore((s) => s.settingsTab);
   const compact = useIsCompact();
   const close = () => useUiStore.getState().setSettingsTab(null);
   return (
     <Dialog
       open={tab !== null}
-      title={t.settings.title}
+      title={t.topBar.settings}
       onClose={close}
       sheet={compact}
       wide
@@ -339,6 +339,13 @@ export function ConstructionDialog() {
       }
     >
       <div data-sheet-sticky="" className="sticky top-0 z-10 border-b border-zinc-100 bg-white px-5 py-3">
+        <label className="mb-2 flex items-center justify-between gap-2 text-sm text-studio-muted">
+          {LANGUAGE_LABEL}
+          <select aria-label={LANGUAGE_LABEL} value={language} className="rounded-lg border border-studio-line px-2 py-1"
+            onChange={(e) => { const chosen = LANGUAGES.find((l) => l.value === e.target.value); if (chosen) useUiStore.getState().setLanguage(chosen.value); }}>
+            {LANGUAGES.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
+          </select>
+        </label>
         <Segmented<SettingsTab>
           ariaLabel={t.settings.tabs}
           value={tab ?? 'materials'}

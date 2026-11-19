@@ -186,9 +186,7 @@ try {
   await page.reload();
   await page.getByTestId('empty-plan-hint').waitFor();
   assert.equal(await page.getByRole('dialog').count(), 0);
-  await page.getByRole('banner').getByRole('button', { name: 'More', exact: true }).tap();
-  assert.equal(await ideas.count(), 1);
-  await ideas.tap();
+  await page.getByRole('button', { name: 'Start from an idea', exact: true }).tap();
   await gallery.locator('[data-kitchen-design="basil-studio"]').tap();
   await gallery.getByRole('checkbox', { name: /pictured wall paint/ }).uncheck();
   await confirm.tap();

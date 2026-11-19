@@ -8,17 +8,21 @@ export async function plannerChecks(browser, url) {
     const errors = [];
     page.on('pageerror', (err) => errors.push(err.message));
     try {
+      if (!phone) await page.addInitScript(() => Object.defineProperty(navigator, 'platform', { value: 'MacIntel' }));
       await page.goto(url);
       const bar = page.getByRole('banner'), name = bar.getByRole('textbox');
       const room = page.getByTestId('room-workspace');
       await room.getByTestId('room-plan').waitFor();
+      if (phone) {
+        const drawing = await room.getByTestId('room-plan').boundingBox();
+        assert.ok(drawing.height >= page.viewportSize().height / 2, `The room drawing should use at least half the phone screen; got ${drawing.height}px.`);
+      }
       const guide = phone ? 'Vodič za planiranje' : 'Planning guide', projects = phone ? 'Projekti' : 'Projects';
       const compare = phone ? 'Uporedi rasporede' : 'Compare layouts';
       const dialog = page.getByRole('dialog'), button = (root, name) => root.getByRole('button', { name, exact: true });
       const open = async (label) => {
-        const lastStep = phone && label === projects && await button(bar, projects).and(bar.getByTestId('step-next')).isVisible();
-        if (phone && label === projects && !lastStep) await button(bar, 'Više').tap();
-        await (lastStep ? bar.getByTestId('step-next') : phone && label === guide ? bar.getByRole('button', { name: /^Vodič za planiranje:/ }) : button(bar, label)).click();
+        if (phone) await button(bar, 'Više').tap();
+        await button(bar, !phone && label === guide ? 'Help' : label).click();
         await page.getByRole('dialog', { name: label, exact: true }).waitFor();
       };
       const step = async (n) => {
@@ -26,7 +30,7 @@ export async function plannerChecks(browser, url) {
         await dialog.getByRole('button', { name: new RegExp(`${n}\\. `) }).click();
       };
       const addBase = async () => {
-        if (phone) await button(page, 'Dodaj element').and(page.locator('[data-plan-controls]')).tap();
+        if (phone) await page.locator('[data-add-trigger]').tap();
         await page.locator('[data-preset="base-600"]').click();
         if (phone) await page.keyboard.press('Escape');
       };
@@ -42,19 +46,45 @@ export async function plannerChecks(browser, url) {
       assert.equal(await dialog.getByRole('table').count(), 0, 'One project alone is not a comparison.');
       await button(dialog, guide).click();
       await dialog.getByRole('button', { name: /2\. / }).click();
+      const empty = page.getByTestId('empty-plan-hint');
+      await button(empty, phone ? 'Počni od ideje' : 'Start from an idea').click();
+      assert.ok(await dialog.getByRole('radio', { name: phone ? 'Početni rasporedi' : 'Starter layouts', exact: true }).isVisible());
+      await page.keyboard.press('Escape');
+      if (!phone) {
+        await button(empty, 'Add cabinets yourself').click();
+        assert.ok(await page.getByRole('searchbox', { name: 'Search kitchen parts' }).evaluate(el => el === document.activeElement));
+      }
       await addBase();
       await open(projects);
       await button(dialog, compare).click();
       await button(dialog, phone ? 'Uredi kopiju ove kuhinje' : 'Edit a copy of this kitchen').click();
       assert.match(await name.inputValue(), /Kitchen A · (Variant|Varijanta) 1/);
+      if (phone) {
+        const checks = page.getByRole('button', { name: /^Provere:/ });
+        await checks.focus();
+        assert.equal(await checks.getAttribute('aria-expanded'), 'false', 'Restoring focus must not open a popup over Add.');
+        await checks.press('Enter');
+        await page.getByRole('dialog', { name: 'Provere', exact: true }).waitFor();
+        await page.keyboard.press('Escape');
+        await checks.tap();
+        assert.equal(await checks.getAttribute('aria-expanded'), 'true');
+        await checks.tap();
+      }
       await addBase();
       await step(1);
+      if (phone) await button(room, 'Mere').tap();
       const width = room.getByLabel(phone ? 'Širina' : 'Width', { exact: true });
       await width.fill('4800'); await width.press('Enter');
       await step(3);
-      assert.equal(await page.getByRole('radio', { name: '3D', exact: true }).getAttribute('aria-checked'), 'true');
+      assert.equal(await page.getByRole('radio', { name: '3. 3D', exact: true }).getAttribute('aria-checked'), 'true');
+      if (!phone) {
+        const help = page.locator('aside section').filter({ has: page.getByRole('heading', { name: 'How it works' }) });
+        assert.match(await help.innerText(), /orbit/i);
+        assert.doesNotMatch(await help.innerText(), /blue handles|from the left|Ctrl/);
+        assert.ok(await help.locator('kbd').filter({ hasText: '⌘' }).count() >= 3);
+      }
       await step(4);
-      assert.equal(await page.getByRole('radio', { name: phone ? 'Krojna lista' : 'Cutting list', exact: true }).getAttribute('aria-checked'), 'true');
+      assert.equal(await page.getByRole('radio', { name: phone ? '4. Krojna lista' : '4. Cut list', exact: true }).getAttribute('aria-checked'), 'true');
       const snapshot = () => page.evaluate(() => JSON.stringify(Object.fromEntries(Object.entries(localStorage).filter(([k]) => k.startsWith('kitchen-designer:project')))));
       await page.waitForFunction(() => {
         const index = JSON.parse(localStorage.getItem('kitchen-designer:projects'));

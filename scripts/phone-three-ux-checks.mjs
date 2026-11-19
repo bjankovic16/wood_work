@@ -120,7 +120,7 @@ export async function checkPhoneThreeUX(browser, url) {
         } finally { release(); }
         await page.getByTestId('phone-view-sheet').getByRole('button', { name: 'Close', exact: true }).tap();
       } else {
-        await page.getByRole('radio', { name: '3D', exact: true }).tap();
+        await page.getByRole('radio', { name: '3. 3D', exact: true }).tap();
       }
       await ready(page);
       await checkChrome(page, mode);
@@ -137,9 +137,9 @@ export async function checkPhoneThreeUX(browser, url) {
       }
       await checkOrbit(page);
       await page.reload();
-      if (mode === 'room') await page.getByRole('radio', { name: 'Room design', exact: true }).tap();
+      if (mode === 'room') await page.getByRole('radio', { name: '1. Room', exact: true }).tap();
       if (mode === 'room') await showRoomModel(page);
-      else await page.getByRole('radio', { name: '3D', exact: true }).tap();
+      else await page.getByRole('radio', { name: '3. 3D', exact: true }).tap();
       await ready(page);
       assert.equal(await tip.count(), 0, 'Reloading must not resurrect the first-visit tip.');
       await open3DTools(page);

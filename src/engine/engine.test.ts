@@ -208,14 +208,22 @@ describe('sheet estimate', () => {
     expect(carcass.sheets).toBe(2);
   });
 
-  it('prices sheets and edge bands when prices are given', () => {
+  it('keeps priced lines, but totals only fully priced stock that the project actually uses', () => {
     const design = createDesign();
     design.items = [unit('base', { label: 'B1' })];
+    expect(buildCuttingList(design)).toMatchObject({ hasCosts: false, cost: null });
     design.materials = design.materials.map((m) => (m.id === 'particleboard-white-18' ? { ...m, price: 60 } : m));
     design.edgeBands = design.edgeBands.map((b) => (b.id === 'abs-1' ? { ...b, price: 0.5 } : b));
-    const list = buildCuttingList(design);
-    expect(list.materials.find((m) => m.materialId === 'particleboard-white-18')!.cost).toBe(60);
-    expect(list.cost).toBe(60 + 3.3 * 0.5);
+    const partial = buildCuttingList(design);
+    expect(partial.materials.find((m) => m.materialId === 'particleboard-white-18')!.cost).toBe(60);
+    expect(partial.edges[0].cost).toBe(3.3 * 0.5);
+    expect(partial).toMatchObject({ hasCosts: true, cost: null });
+
+    design.materials = design.materials.map((m) => ['hdf-white-3', 'mdf-18'].includes(m.id) ? { ...m, price: 20 } : m);
+    expect(buildCuttingList(design).cost).toBe(60 + 20 + 20 + 3.3 * 0.5);
+    expect(buildCuttingList({ ...design, edgeBands: base.edgeBands }).cost).toBeNull();
+    design.materials = design.materials.map((m) => ({ ...m, sheetLength: 300, sheetWidth: 300 }));
+    expect(buildCuttingList(design).cost).toBeNull(); // Oversized pieces have no complete sheet estimate either.
   });
 });
 
@@ -227,7 +235,7 @@ describe('cutting list', () => {
     expect(list.rows.find((r) => r.name === 'Side' && r.length === 720 && r.width === 560)).toMatchObject({
       quantity: 4,
       units: ['B1', 'B2'],
-      materialName: 'White melamine particleboard',
+      materialName: 'White melamine particleboard 18 mm',
     });
   });
 
@@ -238,7 +246,7 @@ describe('cutting list', () => {
   it('exports the grouped list as CSV with the edges', () => {
     const csv = cuttingListCsv(list).split('\r\n');
     expect(csv[0]).toBe('Piece;Quantity;Length (mm);Width (mm);Thickness (mm);Material;Edges;Edge band;Units;Note');
-    expect(csv).toContain('Side;4;720;560;18;White melamine particleboard;L1 W0;ABS edge 1 mm;B1, B2;');
+    expect(csv).toContain('Side;4;720;560;18;White melamine particleboard 18 mm;L1 W0;ABS edge 1 mm;B1, B2;');
   });
 });
 
@@ -331,7 +339,7 @@ describe('changes by hand', () => {
     expect(list.pieceCount).toBe(before.pieceCount - bottom.quantity);
 
     const csv = cuttingListCsv(list).split('\r\n');
-    expect(csv.find((line) => line.startsWith('Shelf;'))).toBe('Shelf;1;564;700;18;White melamine particleboard;L1 W0;ABS edge 1 mm;B1;changed by hand');
+    expect(csv.find((line) => line.startsWith('Shelf;'))).toBe('Shelf;1;564;700;18;White melamine particleboard 18 mm;L1 W0;ABS edge 1 mm;B1;changed by hand');
   });
 
   it('cuts one piece from another board, and forgets that board once it is removed', () => {

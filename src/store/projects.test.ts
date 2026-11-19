@@ -239,7 +239,7 @@ describe('projects', () => {
     resetProjectsForTests();
     initProjects();
     expect(design().room.width).toBe(4100);
-    expect(useUiStore.getState()).toMatchObject({ roomOpen: false, view: 'plan', welcomeSeen: true });
+    expect(useUiStore.getState()).toMatchObject({ roomOpen: false, view: 'plan' });
     createProject('Another room');
     expect(useUiStore.getState().roomOpen).toBe(true);
     openProject(measured);

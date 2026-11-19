@@ -15,6 +15,8 @@ interface NumberFieldProps {
   suffix?: string;
   autoFocus?: boolean;
   title?: string;
+  /** Optional price fields store an unknown price as zero; show an empty editor instead. */
+  zeroPlaceholder?: string;
   /** Decimal places kept (whole numbers by default). */
   precision?: number;
   picks?: { value: number; disabled: boolean }[];
@@ -35,12 +37,14 @@ export function NumberField({
   suffix = 'mm',
   autoFocus,
   title,
+  zeroPlaceholder,
   precision = 0,
   picks,
 }: NumberFieldProps) {
   const id = useId();
   const t = useT();
   const show = t.number;
+  const display = (n: number) => zeroPlaceholder && n === 0 ? '' : show(n);
   const inputRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState<string | null>(null);
   const skipBlurCommit = useRef(false);
@@ -52,7 +56,7 @@ export function NumberField({
   }, [autoFocus]);
 
   const commit = (text: string): number | null => {
-    const parsed = evaluateExpression(text);
+    const parsed = zeroPlaceholder && !text.trim() ? 0 : evaluateExpression(text);
     if (parsed === null) return null;
     const factor = 10 ** precision;
     const next = Math.round(clamp(parsed, min, max) * factor) / factor;
@@ -73,9 +77,10 @@ export function NumberField({
           enterKeyHint="done"
           autoComplete="off"
           spellCheck={false}
-          value={draft ?? show(value)}
+          placeholder={zeroPlaceholder}
+          value={draft ?? display(value)}
           onFocus={(e) => {
-            setDraft(show(value));
+            setDraft(display(value));
             e.currentTarget.select();
           }}
           onChange={(e) => setDraft(e.target.value)}
@@ -89,7 +94,7 @@ export function NumberField({
               e.preventDefault();
               if (window.matchMedia(COMPACT_QUERY).matches) { e.currentTarget.blur(); return; }
               const next = commit(e.currentTarget.value);
-              setDraft(show(next ?? value));
+              setDraft(display(next ?? value));
               e.currentTarget.select();
             } else if (e.key === 'Escape') {
               skipBlurCommit.current = true;
@@ -99,7 +104,7 @@ export function NumberField({
               const step = (e.shiftKey ? 100 : 10) * (e.key === 'ArrowUp' ? 1 : -1);
               const base = evaluateExpression(e.currentTarget.value) ?? value;
               const next = commit(String(base + step));
-              if (next !== null) setDraft(show(next));
+              if (next !== null) setDraft(display(next));
             }
           }}
           className="h-9 w-full rounded-md border border-zinc-200 bg-white pl-2.5 pr-9 text-base tabular-nums lg:h-8 lg:text-[13px] text-zinc-900 shadow-xs transition-colors hover:border-zinc-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
@@ -112,7 +117,7 @@ export function NumberField({
     {picks && picks.length > 0 && <div role="group" aria-label={t.sheet.commonSizes(label)} className="flex flex-wrap gap-1">
       {picks.map((pick) => <button key={pick.value} type="button" data-pick-for={id}
         aria-label={`${label}: ${show(pick.value)} ${suffix}`} aria-pressed={pick.value === value} disabled={pick.disabled}
-        className="min-w-11 rounded-lg border border-studio-line px-2 text-xs font-medium tabular-nums text-studio-muted aria-pressed:border-studio-accent aria-pressed:bg-[#ecf1e8] aria-pressed:text-studio-accent disabled:opacity-40"
+        className="min-h-8 min-w-11 rounded-lg border border-studio-line px-2 text-xs font-medium tabular-nums text-studio-muted aria-pressed:border-studio-accent aria-pressed:bg-[#ecf1e8] aria-pressed:text-studio-accent disabled:opacity-40"
         onClick={() => { if (pick.value !== value) onCommit(pick.value); setDraft(null); }}>{show(pick.value)}</button>)}
     </div>}
   </>;
@@ -171,27 +176,26 @@ interface SelectFieldProps<T extends string> {
   options: Array<{ value: T; label: string }>;
   onChange: (value: T) => void;
   title?: string;
+  /** Show the whole selected stock label, even when a native select would clip its gauge. */
+  wrapValue?: boolean;
 }
 
-export function SelectField<T extends string>({ label, value, options, onChange, title }: SelectFieldProps<T>) {
+export function SelectField<T extends string>({ label, value, options, onChange, title, wrapValue }: SelectFieldProps<T>) {
   const id = useId();
+  const select = <select id={id} value={value} onChange={(e) => onChange(e.target.value as T)}
+    className={wrapValue ? 'absolute inset-0 h-full w-full cursor-pointer opacity-0' : 'h-9 min-w-0 flex-1 rounded-md border border-zinc-200 bg-white px-2 text-base text-zinc-900 shadow-xs hover:border-zinc-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 lg:h-8 lg:text-[13px]'}>
+    {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+  </select>;
   return (
-    <div className="flex items-center gap-2" title={title}>
-      <label htmlFor={id} className="w-[104px] shrink-0 text-xs text-zinc-500">
+    <div className={wrapValue ? 'min-w-0 space-y-1' : 'flex items-center gap-2'} title={title}>
+      <label htmlFor={id} className={wrapValue ? 'block text-xs text-zinc-500' : 'w-[104px] shrink-0 text-xs text-zinc-500'}>
         {label}
       </label>
-      <select
-        id={id}
-        value={value}
-        onChange={(e) => onChange(e.target.value as T)}
-        className="h-9 min-w-0 flex-1 rounded-md border border-zinc-200 bg-white px-2 text-base text-zinc-900 shadow-xs hover:border-zinc-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 lg:h-8 lg:text-[13px]"
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
+      {wrapValue ? <div className="relative flex min-h-8 items-center gap-2 rounded-md border border-zinc-200 bg-white px-2 py-1 text-[13px] text-zinc-900 shadow-xs focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20">
+        <span aria-hidden="true" className="min-w-0 flex-1 [overflow-wrap:anywhere]">{options.find((o) => o.value === value)?.label}</span>
+        <ChevronDown aria-hidden="true" size={14} className="shrink-0" />
+        {select}
+      </div> : select}
     </div>
   );
 }

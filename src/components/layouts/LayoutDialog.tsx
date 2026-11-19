@@ -189,10 +189,11 @@ function LayoutChoices({ onClose }: { onClose: () => void }) {
           value={tab}
           onChange={setTab}
           ariaLabel={t.layouts.title}
+          className="grid grid-cols-3 [&_button]:min-w-0 [&_button]:whitespace-normal [&_button]:px-1 [&_button]:leading-tight"
           options={[
             { value: 'designs', label: t.kitchens.browse, title: t.kitchens.gallery },
             { value: 'photos', label: t.references.tab },
-            { value: 'layouts', label: t.kitchens.roomTab, ariaLabel: t.kitchens.roomLayouts },
+            { value: 'layouts', label: t.kitchens.roomLayouts },
           ]}
         />
       </div>
@@ -200,7 +201,7 @@ function LayoutChoices({ onClose }: { onClose: () => void }) {
         <div className="space-y-4 bg-[#f7f5ef] p-4 pb-[max(env(safe-area-inset-bottom),16px)] sm:p-6">
           <div className="space-y-3">
             <label htmlFor="kitchen-design-search" className="sr-only">{t.kitchens.search}</label>
-            <div className="grid items-center gap-2 sm:grid-cols-[minmax(12rem,1fr)_minmax(0,1.3fr)] sm:gap-4">
+            <div className="grid items-center gap-2 sm:grid-cols-[minmax(12rem,1fr)_minmax(0,1.4fr)]">
               <div className="relative">
                 <Search aria-hidden className="pointer-events-none absolute left-3 top-3 size-4 text-[#797364]" />
                 <input

@@ -1,4 +1,4 @@
-import { Shuffle } from 'lucide-react';
+import { SwatchBook } from 'lucide-react';
 import { useRef } from 'react';
 import { applyKitchenLook, KITCHEN_LOOK_PRESETS, type KitchenPreset } from '../../domain/kitchens';
 import { randomSeed, shuffled } from '../../domain/shuffle';
@@ -77,7 +77,7 @@ export function StylePicker() {
     <div className="space-y-4">
       <div>
         <Button variant="outline" className="h-10 w-full" title={t.style.shuffleTitle} onClick={shuffleLook}>
-          <Shuffle className="size-4" />{t.style.shuffle}
+          <SwatchBook className="size-4" />{t.style.shuffle}
         </Button>
         <p className="mt-1.5 text-[11px] leading-relaxed text-zinc-600">{t.style.shuffleNote}</p>
       </div>

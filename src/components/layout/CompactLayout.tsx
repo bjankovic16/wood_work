@@ -8,14 +8,16 @@ import { DesignCanvas } from '../canvas/DesignCanvas';
 import { ConstructionDialog } from '../construction/ConstructionDialog';
 import { CuttingListView } from '../cutting/CuttingListView';
 import { LibrarySections } from '../library/LibraryPanel';
-import { DeleteButton, DuplicateButton, ItemFields, ItemHeader, RotateButton, type ItemSection } from '../properties/ItemPanel';
+import { CabinetEditor } from '../properties/CabinetEditor';
+import { DeleteButton, DuplicateButton, ItemHeader, RotateButton } from '../properties/ItemPanel';
 import { SheetHandle, type SheetSnap } from '../sheets/SheetHandle';
 import { RoomWorkspace } from '../room/RoomWorkspace';
 import { Button, Dialog } from '../ui';
 import { View3D } from '../three/View3D';
 import { LayoutDialog } from '../layouts/LayoutDialog';
 import { ProjectsDialog } from '../projects/ProjectsDialog';
-import { MobileNavigation, TopBar } from './TopBar';
+import { MobileNavigation, NextStep, TopBar } from './TopBar';
+import { ChecksButton } from '../checks/ChecksButton';
 import { PhoneThreeChrome, PhoneViewButton } from './PhoneThreeChrome';
 
 function AddButton({ open, iconOnly = false }: { open: () => void; iconOnly?: boolean }) {
@@ -26,19 +28,16 @@ function AddButton({ open, iconOnly = false }: { open: () => void; iconOnly?: bo
   </Button>;
 }
 
-const sections: ItemSection[] = ['size', 'fronts', 'materials', 'parts'];
-
 /** Not a modal: the exposed drawing stays interactive at every snap. */
 function ItemSheet({ item, onAdd, adding }: { item: KitchenItem; onAdd: () => void; adding: boolean }) {
   const t = useT();
   const [snap, setSnap] = useState<SheetSnap>('small');
-  const [section, setSection] = useState<ItemSection>('size');
   const id = useId();
   const focusWidth = useUiStore((s) => s.focusRequest === 'width');
   const manipulating = useUiStore((s) => s.view === '3d' && s.cabinetTool !== null);
   const inPlan = useUiStore((s) => s.view === 'plan');
   useEffect(() => {
-    if (!adding && focusWidth) { setSection('size'); setSnap('half'); }
+    if (!adding && focusWidth) setSnap('half');
   }, [adding, focusWidth]);
   const small = snap === 'small';
   return (
@@ -50,28 +49,13 @@ function ItemSheet({ item, onAdd, adding }: { item: KitchenItem; onAdd: () => vo
       <ItemHeader item={item}
         handle={<SheetHandle snap={snap} onSnap={setSnap} onClose={() => useUiStore.getState().select(null)} controls={small ? undefined : id} />}
         action={!small && <AddButton iconOnly open={onAdd} />} />
-      {small ? <div className="flex shrink-0 items-center justify-between gap-0.5 px-1 pb-1">
+      {small && <div className="flex shrink-0 items-center justify-between gap-0.5 px-1 pb-1">
         <RotateButton />
         <DuplicateButton iconOnly />
         <DeleteButton iconOnly />
         <AddButton open={onAdd} />
-      </div> : <div className="sheet-editor flex min-h-0 flex-1 flex-col">
-        <div role="tablist" aria-label={t.sheet.tabs} className="grid shrink-0 grid-cols-4 border-y border-studio-line bg-[#f6f3ec] px-1">
-          {sections.map((key, index) => <button key={key} type="button" role="tab" id={`${id}-${key}`} aria-controls={id}
-            aria-selected={key === section} tabIndex={key === section ? 0 : -1} onClick={() => setSection(key)}
-            className="min-w-0 border-b-2 border-transparent px-1 text-xs font-medium text-studio-muted aria-selected:border-studio-accent aria-selected:text-studio-accent"
-            onKeyDown={(e) => {
-              const next = e.key === 'Home' ? 0 : e.key === 'End' ? 3 : e.key === 'ArrowRight' ? (index + 1) % 4 : e.key === 'ArrowLeft' ? (index + 3) % 4 : null;
-              if (next === null) return;
-              e.preventDefault(); e.stopPropagation();
-              setSection(sections[next]);
-              document.getElementById(`${id}-${sections[next]}`)?.focus({ preventScroll: true });
-            }}>{key === 'parts' ? t.report.parts : t.item[key]}</button>)}
-        </div>
-        <div key={section} role="tabpanel" id={id} aria-labelledby={`${id}-${section}`} tabIndex={0} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-          <ItemFields item={item} section={section} />
-        </div>
       </div>}
+      <CabinetEditor key={inPlan ? 'plan' : '3d'} item={item} expanded={!small} id={id} />
     </section>
   );
 }
@@ -100,6 +84,7 @@ export function CompactLayout() {
   const layoutsOpen = useUiStore((s) => s.layoutsOpen);
   const roomOpen = useUiStore((s) => s.roomOpen);
   const selectedId = useUiStore((s) => s.selectedId);
+  const empty = useDesignStore((s) => s.design.items.length === 0);
   const item = useDesignStore((s) => (selectedId ? s.design.items.find((i) => i.id === selectedId) : undefined));
   const [sheet, setSheet] = useState<'add' | null>(null);
 
@@ -122,17 +107,18 @@ export function CompactLayout() {
     <PhoneThreeChrome mode={view === '3d' ? (roomOpen ? 'room' : 'editor') : null}>
       <TopBar compact />
       {roomOpen ? <RoomWorkspace compact /> : <main className="relative min-h-0 flex-1">
-        {view === 'plan' && <DesignCanvas compact />}
+        {view === 'plan' && <DesignCanvas compact onAdd={openAdd} />}
         {view === '3d' && <View3D compact />}
         {view === '3d' && <div className="mobile-scene-tools"><PhoneViewButton /></div>}
         {view === 'list' && <CuttingListView />}
-        {designing && !item && (
+        {designing && !item && !(view === 'plan' && empty) && (
           <div className={`pointer-events-none absolute inset-x-0 bottom-0 flex justify-center gap-2 bg-gradient-to-t from-studio-canvas/90 to-transparent px-3 pb-[max(env(safe-area-inset-bottom),14px)] pt-6 ${view === 'plan' ? 'phone-plan-dock' : ''}`}>
             <AddButton open={openAdd} />
           </div>
         )}
         {designing && item && <ItemSheet key={item.id} item={item} adding={sheet === 'add'} onAdd={openAdd} />}
       </main>}
+      {(roomOpen || view !== 'list') && <div className="phone-flow-actions"><ChecksButton compact /><NextStep /></div>}
       <MobileNavigation />
 
       {sheet === 'add' && <AddSheet close={closeAdd} />}

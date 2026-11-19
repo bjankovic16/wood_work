@@ -13,7 +13,7 @@ import { createDesign, parseDesign } from './designOps';
 import { localToRoom, verticalOverlap } from './geometry';
 import { createKitchenDesign, KITCHEN_DESIGNS } from './kitchens';
 import type { Opening } from './types';
-import { backsplashTop, canStackCabinet, inUpperRow, planCabinetAbove, upperCabinetRows, planThreeTier, DEFAULT_THREE_TIER } from './upperCabinets';
+import { backsplashTop, canStackCabinet, editableUpperRows, inUpperRow, planCabinetAbove, upperCabinetRows, planThreeTier, DEFAULT_THREE_TIER } from './upperCabinets';
 
 const room = { width: 4000, depth: 3200, height: 2600 };
 
@@ -207,6 +207,14 @@ describe('upper row visibility and backsplashes', () => {
     expect(inUpperRow(lower, rows[1])).toBe(false);
     expect(inUpperRow(upper, rows[0])).toBe(false);
     expect(rows.every((row) => inUpperRow(display, row))).toBe(true);
+  });
+
+  it('lets the layout select a hood below a ceiling-only run without inventing a report row', () => {
+    const hood = createItem('hood', [], { elevation: 1500, height: 300 });
+    const items = [upper, hood];
+    expect(upperCabinetRows(items)).toEqual([{ elevation: 2200, top: 2600 }]);
+    expect(editableUpperRows(items)).toEqual([{ elevation: 1500, top: 1800 }, { elevation: 2200, top: 2600 }]);
+    expect(editableUpperRows([lower, upper, { ...hood, elevation: 1700 }])).toEqual(upperCabinetRows([lower, upper]));
   });
 
   it('extends the backsplash to the real lowest cupboard rather than the hood or top tier', () => {

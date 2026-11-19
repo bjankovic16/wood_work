@@ -16,3 +16,14 @@ it('leaves the empty inside of an L-shaped cabinet available for panning', () =>
   const corner = createItem('corner', []);
   expect(nearbyCabinet([corner], { x: 800, y: 800 }, 12.5)).toBeUndefined();
 });
+
+it('preserves a sink’s 44px near-hit under upper outlines, without stealing an unstacked outline or guessing between neighbours', () => {
+  const sink = createItem('sink', [], { x: 0, y: 0, width: 600 });
+  const wall = createItem('wall', [], { x: 0, y: 0, width: 600 });
+  const top = { ...wall, id: 'top', elevation: 2170 };
+  const near = { x: 650, y: 160 }, px = 20;
+  expect(nearbyCabinet([sink], near, px, [wall, top])).toBe(sink);
+  expect(nearbyCabinet([], near, px, [wall])).toBe(wall);
+  const adjacent = { ...wall, x: 700 };
+  expect(nearbyCabinet([sink], near, px, [adjacent])).toBeUndefined();
+});

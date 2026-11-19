@@ -1,3 +1,4 @@
+import { chooseLanguage } from './settings-language.mjs';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
@@ -63,7 +64,7 @@ async function advancedRoomChecks(page) {
     const value = window.__kitchen.design.getState().design;
     return attachedSegment(value.items[0], value.room)?.id;
   }), 'diagonal');
-  await page.getByRole('radio', { name: '3D', exact: true }).click();
+  await page.getByRole('radio', { name: '3. 3D', exact: true }).click();
   await ready3D(page);
   await assertScenePlacement(page, placed.id);
   await shot(page, '11-diagonal-cabinet.png');
@@ -124,7 +125,7 @@ async function advancedRoomChecks(page) {
   await page.reload();
   await page.getByTestId('room-plan').waitFor();
   assert.deepEqual(await design(page), finished);
-  await page.getByRole('radio', { name: '3D', exact: true }).click();
+  await page.getByRole('radio', { name: '3. 3D', exact: true }).click();
   await page.waitForFunction(() => window.__kitchen3D?.scene.getObjectByName('room-floor'));
   await page.waitForFunction(() => {
     let found = false;
@@ -144,7 +145,7 @@ async function ready3D(page) {
 
 async function openAdvancedRoom(root) {
   const summary = root.getByText('Advanced room', { exact: true });
-  if (!await summary.count()) await root.getByRole('radio', { name: 'Room design', exact: true }).click();
+  if (!await summary.count()) await root.getByRole('radio', { name: '1. Room', exact: true }).click();
   if (!await summary.locator('..').evaluate((element) => element.open)) await summary.click();
 }
 
@@ -204,7 +205,7 @@ try {
   observe(page);
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   await page.getByTestId('room-workspace').waitFor();
-  await page.getByLabel('Jezik / Language').selectOption('en');
+  await chooseLanguage(page, 'en');
   await roomObjectChecks(page, output, observe);
   await advancedRoomChecks(page);
   await page.evaluate(async () => {
@@ -215,7 +216,7 @@ try {
   });
 
   console.log('Room geometry and structures');
-  await page.getByRole('radio', { name: 'Room design', exact: true }).click();
+  await page.getByRole('radio', { name: '1. Room', exact: true }).click();
   const setup = page.getByTestId('room-workspace');
   await openAdvancedRoom(setup);
   await setup.getByLabel('Floor shape').selectOption('notch');
@@ -263,7 +264,7 @@ try {
   pass('examples create separate projects without overwriting the existing kitchen');
 
   console.log('Direct 3D editing');
-  await page.getByRole('radio', { name: '3D', exact: true }).click();
+  await page.getByRole('radio', { name: '3. 3D', exact: true }).click();
   await ready3D(page);
   const camera = page.getByRole('group', { name: '3D camera' });
   await camera.getByRole('button', { name: 'Top', exact: true }).click();
@@ -282,15 +283,22 @@ try {
   pass('dragging a cabinet face orbits the shaped room without moving the cabinet or adding history');
 
   await actions.getByRole('button', { name: 'Focus selected cabinet', exact: true }).click();
+  await actions.getByRole('button', { name: 'Edit cabinet measurements', exact: true }).click();
+  const editor = page.getByRole('dialog').filter({ has: page.getByRole('tablist', { name: 'Cabinet settings' }) });
+  await editor.getByRole('tab', { name: 'Size', exact: true }).press('End');
+  assert.ok(await editor.getByRole('tabpanel', { name: 'Parts' }).getByRole('listitem').count() > 0);
+  await editor.getByRole('button', { name: 'Done', exact: true }).click();
+  await page.getByRole('tab', { name: 'Materials', exact: true }).click();
   assert.equal(await page.getByLabel('From left wall', { exact: true }).count(), 0);
   const positionInPlan = page.getByTestId('cabinet-tools').getByRole('button', { name: 'Edit position in 2D', exact: true });
   await positionInPlan.click();
   await page.locator('.konvajs-content').waitFor();
+  assert.equal(await page.getByRole('tab', { name: 'Size', exact: true }).getAttribute('aria-selected'), 'true');
   await page.getByLabel('From left wall', { exact: true }).fill(String(state.room.features[0].x));
   await page.getByLabel('From left wall', { exact: true }).press('Enter');
   await page.getByLabel('From top wall', { exact: true }).fill('0');
   await page.getByLabel('From top wall', { exact: true }).press('Enter');
-  await page.getByRole('radio', { name: '3D', exact: true }).click();
+  await page.getByRole('radio', { name: '3. 3D', exact: true }).click();
   await ready3D(page);
   await page.getByText('This cabinet has errors. Check its position and the design checks before cutting.', { exact: true }).waitFor();
   const redOutline = await page.evaluate((id) => {
@@ -309,14 +317,14 @@ try {
   assert.equal((await design(page)).items.find((item) => item.id === cabinet.id).rotation, (cabinet.rotation + 90) % 360);
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
 
-  await page.getByRole('radio', { name: 'Plan', exact: true }).click();
+  await page.getByRole('radio', { name: '2. Layout', exact: true }).click();
   await page.getByRole('button', { name: 'Deselect', exact: true }).click();
   await openAdvancedRoom(page);
   await page.getByText('Try an example room', { exact: true }).click();
   await page.getByRole('button', { name: 'Diagonal corner + column', exact: true }).click();
   assert.equal((await design(page)).room.cutout.kind, 'diagonal');
   await shot(page, '04-diagonal-example-plan.png');
-  await page.getByRole('radio', { name: '3D', exact: true }).click();
+  await page.getByRole('radio', { name: '3. 3D', exact: true }).click();
   await ready3D(page);
   await camera.getByRole('button', { name: 'Top', exact: true }).click();
   await page.waitForTimeout(150);
@@ -383,7 +391,7 @@ try {
   await page.reload();
   await page.waitForSelector('canvas');
   assert.deepEqual(await design(page), withPhoto);
-  await page.getByRole('radio', { name: '3D', exact: true }).click();
+  await page.getByRole('radio', { name: '3. 3D', exact: true }).click();
   await ready3D(page);
   await original.waitFor();
   pass('original photos, upload resizing and source credit survive project save/reload');

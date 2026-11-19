@@ -7,6 +7,7 @@ import type { Opening } from '../../domain/types';
 import { MAX_ROOM_FEATURES } from '../../domain/roomGeometry';
 import { useIsCompact } from '../../hooks/useMediaQuery';
 import { useT } from '../../i18n';
+import { shortcutKeys } from '../../lib/shortcutKeys';
 import * as actions from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
 import { useUiStore } from '../../store/uiStore';
@@ -232,6 +233,8 @@ export function RoomPanel({ touch = false }: { touch?: boolean }) {
   const [confirming, setConfirming] = useState(false);
   const compact = useIsCompact();
   const keys = t.room.shortcuts;
+  const in3D = useUiStore((s) => s.view === '3d');
+  const shortcuts = shortcutKeys();
 
   return (
     <>
@@ -249,7 +252,7 @@ export function RoomPanel({ touch = false }: { touch?: boolean }) {
         </div>
         <Button variant="outline" className="w-full" onClick={() => useUiStore.getState().setSettingsTab('construction')}>
           <Hammer className="size-4" />
-          {t.room.constructionSettings}
+          {t.topBar.settings}
         </Button>
         {items.length > 0 && (
           <Button variant="danger" className="w-full" onClick={() => setConfirming(true)}>
@@ -286,18 +289,18 @@ export function RoomPanel({ touch = false }: { touch?: boolean }) {
 
       <PanelSection title={t.room.howItWorks}>
         <ul className="list-disc space-y-1.5 pl-4 text-xs leading-relaxed text-zinc-600">
-          {(touch ? t.room.touchTips : t.room.desktopTips).map((tip) => (
+          {(in3D ? [touch ? t.feedback.touchHint : t.view3d.hint, t.room.threeEditTip] : touch ? t.room.touchTips : t.room.desktopTips).map((tip) => (
             <li key={tip}>{tip}</li>
           ))}
         </ul>
         {!touch && (
           <div className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1.5 pt-2 text-xs text-zinc-600">
-            <Shortcut keys={['R']}>{keys.rotate}</Shortcut>
-            <Shortcut keys={['Del']}>{keys.delete}</Shortcut>
-            <Shortcut keys={['Ctrl', 'D']}>{keys.duplicate}</Shortcut>
-            <Shortcut keys={['←', '→', '↑', '↓']}>{keys.move}</Shortcut>
-            <Shortcut keys={['Ctrl', 'Z']}>{keys.undo}</Shortcut>
-            <Shortcut keys={['Ctrl', 'Y']}>{keys.redo}</Shortcut>
+            {!in3D && <Shortcut keys={['R']}>{keys.rotate}</Shortcut>}
+            <Shortcut keys={[shortcuts.delete]}>{keys.delete}</Shortcut>
+            <Shortcut keys={shortcuts.duplicate}>{keys.duplicate}</Shortcut>
+            {!in3D && <Shortcut keys={['←', '→', '↑', '↓']}>{keys.move}</Shortcut>}
+            <Shortcut keys={shortcuts.undo}>{keys.undo}</Shortcut>
+            <Shortcut keys={shortcuts.redo}>{keys.redo}</Shortcut>
             <Shortcut keys={['Esc']}>{keys.deselect}</Shortcut>
           </div>
         )}

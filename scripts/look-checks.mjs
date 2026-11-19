@@ -36,7 +36,7 @@ export async function assertShuffledLook(page) {
     assert.ok(matches, 'Window frames, jambs and door leaves must render their own finishes while the pane stays glass.');
   }
   await checkJoinery();
-  await page.getByRole('button', { name: 'Shuffle look', exact: true }).click();
+  await page.getByRole('button', { name: 'Randomize finishes', exact: true }).click();
   await checkJoinery();
   const after = await page.evaluate(() => window.__kitchen.design.getState().design);
   assert.deepEqual(after.items.map(({ id }) => id), before.items.map(({ id }) => id));

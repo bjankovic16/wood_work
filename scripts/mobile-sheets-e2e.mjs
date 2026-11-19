@@ -30,6 +30,16 @@ try {
   const handle = (sheet) => sheet.getByRole('slider');
   const tab = (name) => cabinet.getByRole('tab', { name, exact: true });
   const selected = () => page.evaluate(() => window.__kitchen.design.getState().design.items.find((i) => i.id === window.__kitchen.ui.getState().selectedId));
+  const checkGrip = async (sheet, valueText) => {
+    const grip = handle(sheet);
+    assert.equal((await grip.innerText()).trim(), '', 'The visible grip has no snap caption.');
+    assert.equal(await grip.getAttribute('aria-valuetext'), valueText);
+    assert.ok(await grip.evaluate((el) => {
+      const { width, height } = el.getBoundingClientRect();
+      const hint = document.getElementById(el.getAttribute('aria-describedby'))?.textContent;
+      return width >= 44 && height >= 44 && hint?.includes('Escape');
+    }), 'The grip remains a full-size target with screen-reader instructions.');
+  };
   const swipe = async (sheet, distance, cancel = false) => {
     const box = await handle(sheet).boundingBox();
     const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
@@ -41,9 +51,10 @@ try {
       await cdp.send('Input.dispatchTouchEvent', { type: cancel ? 'touchCancel' : 'touchEnd', touchPoints: [] });
     } finally { await cdp.detach(); }
   };
-  await button(page, 'Add element').tap();
+  await button(page, 'Add cabinets yourself').tap();
   const add = dialog('Add element');
   const tile = add.locator('[data-preset="base-600"]');
+  await checkGrip(add, 'Full');
   await tile.tap();
   await tile.press('Enter');
   assert.equal((await selected()).label, 'B2');
@@ -55,14 +66,17 @@ try {
   await handle(add).press('Home'); await swipe(add, 82);
   await add.waitFor({ state: 'detached' });
   const small = await cabinet.boundingBox();
+  await checkGrip(cabinet, 'Small');
   await swipe(cabinet, -74, true);
   assert.deepEqual(await cabinet.boundingBox(), small, 'Interrupted resizing restores the last snap.');
   await swipe(cabinet, -80);
   const half = await cabinet.boundingBox();
+  await checkGrip(cabinet, 'Half');
   assert.ok(half.height > small.height && (await cabinet.getAttribute('data-snap')) === 'half');
   const before = await selected();
   await handle(cabinet).press('End');
   const full = await cabinet.boundingBox(), main = await page.locator('main').boundingBox();
+  await checkGrip(cabinet, 'Full');
   assert.ok(full.height > half.height && full.y >= main.y + 75, 'Even the full cabinet editor must leave drawing space.');
   assert.deepEqual(await selected(), before, 'Sizing the sheet must not nudge the cabinet.');
   assert.deepEqual(await cabinet.getByRole('tab').allInnerTexts(), ['Size', 'Fronts', 'Materials', 'Parts']);
@@ -106,10 +120,11 @@ try {
   const bar = page.getByRole('banner');
   await button(bar, 'Više').press('Enter');
   await button(bar, 'Podešavanja').press('Enter');
-  const settings = dialog('Podešavanja kuhinje');
+  const settings = dialog('Podešavanja');
   const field = button(settings, 'Korpus');
   await field.press('Enter');
   const inner = dialog('Korpus');
+  await checkGrip(inner, 'Pun');
   await button(inner, `${longName} 19 mm`).press('Enter');
   assert.equal(await page.evaluate(() => window.__kitchen.design.getState().design.construction.carcassMaterial), 'long-board');
   await field.press('Space'); await inner.waitFor(); await page.keyboard.press('Escape');
@@ -134,6 +149,8 @@ try {
   });
   await page.waitForFunction(() => !!window.__kitchen3D?.scene.getObjectByName(window.__kitchen.ui.getState().selectedId));
   await handle(cabinet).press('End');
+  const picks = (root) => root.getByRole('group', { name: 'Common sizes: Width', exact: true }).getByRole('button').allInnerTexts();
+  const phonePicks = await picks(cabinet);
   assert.ok(await button(cabinet, 'Width: 800 mm').isDisabled(), '3D shortcuts must respect the fixed back-left anchor.');
   assert.ok(await button(cabinet, 'Height: 720 mm').isDisabled(), 'Never offer a shortcut that crosses the ceiling.');
   assert.equal(await cabinet.getByRole('textbox', { name: 'Exact angle' }).count(), 0);
@@ -147,13 +164,34 @@ try {
   await view.waitFor({ state: 'detached' });
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.evaluate(() => window.__kitchen.ui.getState().setView('plan'));
-  await page.getByRole('combobox', { name: 'Carcass', exact: true }).waitFor();
+  const tabs = page.getByRole('tablist', { name: 'Cabinet settings' });
+  const desktopTab = (name) => tabs.getByRole('tab', { name, exact: true });
+  await tabs.waitFor();
+  assert.deepEqual(await tabs.getByRole('tab').allInnerTexts(), ['Size', 'Fronts', 'Materials', 'Parts']);
+  const sizePanel = page.getByRole('tabpanel', { name: 'Size' });
+  assert.deepEqual(await picks(sizePanel), phonePicks);
+  await button(sizePanel, 'Width: 300 mm').press('Enter');
+  assert.equal((await selected()).width, 300);
+  await button(page.getByRole('banner'), 'Undo').click();
+  assert.equal((await selected()).width, 450);
+  const beforeTabs = await selected();
+  await desktopTab('Size').press('ArrowLeft'); // wrap to Parts
+  assert.ok(await page.getByRole('tabpanel', { name: 'Parts' }).getByRole('listitem').count() > 0);
+  await desktopTab('Parts').press('Home'); await desktopTab('Size').press('End');
+  assert.ok(await desktopTab('Parts').evaluate((el) => el === document.activeElement && el.tabIndex === 0));
+  await desktopTab('Parts').press('ArrowLeft'); await desktopTab('Materials').press('ArrowUp');
+  await page.getByRole('tabpanel', { name: 'Materials', exact: true }).press('ArrowDown');
+  assert.deepEqual(await selected(), beforeTabs, 'Navigating editor tabs never nudges the selected cabinet.');
+  const stock = page.getByRole('combobox', { name: 'Carcass', exact: true });
+  assert.ok(await stock.getByRole('option', { name: 'White melamine particleboard 16 mm', exact: true }).count());
+  assert.ok(await stock.getByRole('option', { name: 'White melamine particleboard 18 mm', exact: true }).count());
+  await desktopTab('Materials').press('ArrowLeft');
   const doors = page.getByLabel('Doors', { exact: true });
   assert.equal(await doors.textContent(), '1', 'Desktop keeps one labelled count and native material selects.');
   await doors.press('ArrowUp');
   assert.equal((await selected()).doors, 2);
   assert.deepEqual(errors, []);
-  console.log('PASS mobile sheets: touch and keyboard snaps/close, repeat Add, cabinet tabs, guarded sizes, material pickers and narrow forms.');
+  console.log('PASS cabinet editors: captionless touch/keyboard sheets, shared desktop/phone tabs and size picks, material pickers and narrow forms.');
 } finally {
   await browser?.close();
   await server.close();

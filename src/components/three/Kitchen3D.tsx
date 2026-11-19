@@ -27,7 +27,7 @@ import { SelectionOverlay } from './SelectionOverlay';
 import { StylePicker } from './StylePicker';
 import { Unit3D } from './Unit3D';
 import { PhotoReferencePanel } from '../references/PhotoReferences';
-import { ItemFields } from '../properties/ItemPanel';
+import { CabinetEditor } from '../properties/CabinetEditor';
 import { StackAboveButton } from '../properties/StackAboveButton';
 
 const SceneRoom = memo(Room3D);
@@ -209,7 +209,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
   </select>;
   const helpButton = <TooltipButton tooltip={text.view3d.showTip} aria-label={text.view3d.showTip} variant={chrome ? 'ghost' : 'outline'} onClick={() => {
     setToolsOpen(false); setStyleOpen(false); navigation.showHelp();
-  }}><CircleHelp size={17} aria-hidden="true" />{chrome && text.view3d.showTip}</TooltipButton>;
+  }}><CircleHelp size={17} aria-hidden="true" />{chrome ? text.view3d.showTip : text.topBar.help}</TooltipButton>;
 
   return (
     <div className="three-scene flex h-full min-h-0 w-full flex-col bg-[#ebe8e3] lg:flex-row">
@@ -374,7 +374,7 @@ function SelectedCabinetTools({ item, invalid, onFocus }: {
       </div>
       {invalid && <p role="status" className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-800">{t.view3d.invalidSelection}</p>}
       <Dialog open={editing} title={`${t.kinds[item.kind]} ${item.label}`} onClose={() => setEditing(false)} footer={<Button variant="primary" onClick={() => setEditing(false)}>{t.common.done}</Button>}>
-        <ItemFields item={item} />
+        <CabinetEditor item={item} />
       </Dialog>
     </div>
   );

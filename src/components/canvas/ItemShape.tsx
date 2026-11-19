@@ -13,7 +13,7 @@ import {
 } from '../../domain/geometry';
 import type { KitchenItem, Point, Rect as PlanRect } from '../../domain/types';
 import { FONT_FAMILY, measureText } from '../../lib/measureText';
-import { COMPACT_LABEL_PX } from './theme';
+import { ACCENT, COMPACT_LABEL_PX } from './theme';
 
 interface ItemStyle {
   fill: string;
@@ -258,12 +258,13 @@ function ItemLabel({ item, px, color }: { item: KitchenItem; px: number; color: 
   );
 }
 
+export type PlanItemMode = 'detail' | 'dimmed' | 'upper-target';
+
 interface ItemShapeProps {
   item: KitchenItem;
   /** Plan millimetres per screen pixel. */
   px: number;
-  /** Shown faded and not clickable (hidden by the view filter). */
-  dimmed?: boolean;
+  mode?: PlanItemMode;
   /** Compact labels are laid out together, after all cabinet footprints. */
   compact?: boolean;
   hovered?: boolean;
@@ -274,13 +275,15 @@ interface ItemShapeProps {
 export const ItemShape = memo(function ItemShape({
   item,
   px,
-  dimmed = false,
+  mode = 'detail',
   compact = false,
   hovered = false,
   onPointerDown,
   onHoverChange,
 }: ItemShapeProps) {
   const style = itemStyle(item);
+  const dimmed = mode === 'dimmed';
+  const targetOnly = mode === 'upper-target';
   const interactive = !dimmed && Boolean(onPointerDown);
   return (
     <Group
@@ -289,24 +292,32 @@ export const ItemShape = memo(function ItemShape({
       opacity={dimmed ? 0.2 : 1}
       listening={interactive}
       onPointerDown={(e) => onPointerDown?.(item, e)}
-      onMouseEnter={() => onHoverChange?.(item.id)}
-      onMouseLeave={() => onHoverChange?.(null)}
+      onPointerEnter={(e) => { if (e.evt.pointerType !== 'touch') onHoverChange?.(item.id); }}
+      onPointerLeave={(e) => { if (e.evt.pointerType !== 'touch') onHoverChange?.(null); }}
     >
       <Line
         points={footprintPolygon(item)}
         closed
-        fill={dimmed ? undefined : style.fill}
-        stroke={dimmed ? '#71717a' : hovered ? style.hoverStroke : style.stroke}
+        fill={targetOnly ? 'transparent' : dimmed ? undefined : style.fill}
+        stroke={targetOnly ? 'transparent' : dimmed ? '#71717a' : hovered ? style.hoverStroke : style.stroke}
         strokeWidth={(hovered ? 1.5 : 1) * px}
         dash={style.dashed ? [5 * px, 3 * px] : undefined}
         hitStrokeWidth={(compact ? 1 : 10) * px}
         perfectDrawEnabled={false}
       />
-      {!dimmed && <ItemSymbol item={item} px={px} color={style.symbol} />}
-      {!dimmed && frontEdges(item).map(([a, b], i) => (
+      {mode === 'detail' && <ItemSymbol item={item} px={px} color={style.symbol} />}
+      {mode === 'detail' && frontEdges(item).map(([a, b], i) => (
         <Line key={i} points={line(a, b)} stroke={style.front} strokeWidth={2 * px} listening={false} />
       ))}
-      {!dimmed && !compact && <ItemLabel item={item} px={px} color={style.text} />}
+      {mode === 'detail' && !compact && <ItemLabel item={item} px={px} color={style.text} />}
     </Group>
   );
+});
+
+/** All: draw the overhead ink above floor fills, independently of the pick order below them. */
+export const UpperOutlines = memo(function UpperOutlines({ items, px, selectedId }: { items: KitchenItem[]; px: number; selectedId?: string }) {
+  return <Group name="upper-outlines" listening={false}>
+    {items.map((item) => <Line key={item.id} points={footprintPolygon(item)} closed
+      stroke={item.id === selectedId ? ACCENT : '#8ba1b7'} opacity={0.55} strokeWidth={px} dash={[4 * px, 4 * px]} />)}
+  </Group>;
 });

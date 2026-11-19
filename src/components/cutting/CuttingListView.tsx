@@ -14,21 +14,23 @@ import {
   X,
 } from 'lucide-react';
 import { useId, useMemo, useState } from 'react';
+import { ChecksButton } from '../checks/ChecksButton';
 import { evaluateExpression } from '../../domain/math';
-import type { CustomPart, Design, Material, PartEdit } from '../../domain/types';
-import { buildCuttingList, cuttingListCsv, edgeText, type CuttingList, type CuttingRow } from '../../engine/cuttingList';
+import type { CustomPart, Design, PartEdit } from '../../domain/types';
+import { buildCuttingList, cuttingListCsv, edgeText, type CuttingList } from '../../engine/cuttingList';
+import { boardLabel } from '../../engine/materialLabel';
 import type { Part } from '../../engine/parts';
 import { planSvg } from '../../export/planSvg';
 import { useCanSaveFiles } from '../../hooks/useCanSaveFiles';
 import { useIsCompact } from '../../hooks/useMediaQuery';
-import { useT, type Messages } from '../../i18n';
+import { useT } from '../../i18n';
 import { cn } from '../../lib/cn';
 import { embedded, safeFileName, saveFile } from '../../lib/platform';
 import * as actions from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
 import { useBuildContext, useIssues, usePrecutChecklist } from '../../store/derived';
 import { useUiStore } from '../../store/uiStore';
-import { NumberField, SelectField, TextField } from '../properties/NumberField';
+import { NumberField, PickerField, SelectField, TextField } from '../properties/NumberField';
 import { FrontPreview } from '../properties/FrontPreview';
 import { Button, Menu, Segmented } from '../ui';
 
@@ -36,9 +38,6 @@ const th = 'px-3 py-2 text-left text-xs font-semibold text-zinc-600';
 const td = 'px-3 py-2 align-top';
 
 type TableRow = Part & { materialName: string; bandName?: string | null; units?: string[] };
-
-/** A board as listed: its name in the interface language and its thickness. */
-const boardLabel = (m: Material, t: Messages) => `${t.engine.material(m)} ${t.mm(m.thickness)} mm`;
 
 /** Quantity, size and board of one piece, changed in place. */
 function PartEditor({ part, itemId, colSpan, onDone }: { part: TableRow; itemId: string; colSpan: number; onDone: () => void }) {
@@ -106,21 +105,10 @@ function PartEditor({ part, itemId, colSpan, onDone }: { part: TableRow; itemId:
           {input(e.qty, quantity, setQuantity, 'w-14', true)}
           {input(e.length, length, setLength, 'w-20')}
           {input(e.width, width, setWidth, 'w-20')}
-          <label className="flex items-center gap-1 text-xs text-zinc-500">
-            {e.board}
-            <select
-              aria-label={e.board}
-              value={materialId}
-              onChange={(ev) => setMaterialId(ev.target.value)}
-              className="h-8 max-w-76 rounded-md border border-zinc-300 bg-white px-1.5 text-base text-zinc-900 focus:border-blue-500 focus:outline-none sm:text-sm"
-            >
-              {materials.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {boardLabel(m, t)}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="min-w-0 max-w-full sm:w-76">
+            <PickerField wrapValue label={e.board} value={materialId} onChange={setMaterialId}
+              options={materials.map((m) => ({ value: m.id, label: boardLabel(m, t.engine) }))} />
+          </div>
           <Button variant="primary" className="h-8" onClick={save}>
             <Check className="size-4" />
             {e.save}
@@ -132,7 +120,7 @@ function PartEditor({ part, itemId, colSpan, onDone }: { part: TableRow; itemId:
         <p className={cn('mt-1.5 text-xs', invalid ? 'font-medium text-red-700' : 'text-zinc-500')}>
           {invalid
             ? e.invalid
-            : e.calculated(calculated.quantity, t.mm(calculated.length), t.mm(calculated.width), calculatedBoard ? boardLabel(calculatedBoard, t) : null)}
+            : e.calculated(calculated.quantity, t.mm(calculated.length), t.mm(calculated.width), calculatedBoard ? boardLabel(calculatedBoard, t.engine) : null)}
           {!invalid && chosen && chosen.thickness !== calculated.thickness && (
             <span className="font-medium text-amber-700">{e.thicker(t.mm(calculated.thickness))}</span>
           )}
@@ -255,10 +243,10 @@ function CustomPartCard({ part, design }: { part: CustomPart; design: Design }) 
       <NumberField label={x.quantity} suffix={x.pcs} value={part.quantity} min={1} max={999} onCommit={(quantity) => update({ quantity })} />
       <NumberField label={x.length} title={x.lengthTitle} value={part.length} min={1} max={6000} precision={1} onCommit={(length) => update({ length })} />
       <NumberField label={x.width} value={part.width} min={1} max={6000} precision={1} onCommit={(width) => update({ width })} />
-      <SelectField
+      <PickerField wrapValue
         label={x.material}
         value={part.materialId}
-        options={design.materials.map((m) => ({ value: m.id, label: boardLabel(m, t) }))}
+        options={design.materials.map((m) => ({ value: m.id, label: boardLabel(m, t.engine) }))}
         onChange={(materialId) => update({ materialId })}
       />
       <SelectField
@@ -334,10 +322,6 @@ export function CuttingListView() {
   const unitsWithParts = list.units.filter((u) => u.parts.length > 0);
   const preview = unitsWithParts.find(({ item }) => item.id === previewId) ?? unitsWithParts[0];
   const bandThickness = (id: string | null) => (id ? (design.edgeBands.find((b) => b.id === id)?.thickness ?? null) : null);
-  const materialName = (id: string) => {
-    const material = design.materials.find((m) => m.id === id);
-    return material ? t.engine.material(material) : t.engine.unknownBoard;
-  };
   const ui = useUiStore.getState();
   const empty = list.rows.length === 0;
 
@@ -386,7 +370,7 @@ export function CuttingListView() {
               </Button>
             )}
             {!empty && (
-              <Menu label={c.exportLabel} text={c.export} icon={<Download className="size-4" />} variant="outline">
+              <Menu label={c.exportLabel} text={c.export} icon={<Download className="size-4" />} variant="primary">
                 <div className="space-y-1">
                   {canSave && (
                     <>
@@ -436,7 +420,8 @@ export function CuttingListView() {
                   className="rounded-full print:hidden" onClick={() => setShowEstimate(!showEstimate)}>
                   <Info className="size-4" />
                 </Button>
-                {list.cost !== null && <span className="text-sm font-medium text-studio-muted">{c.materialCost(t.money(list.cost))}</span>}
+                {list.cost !== null ? <span className="text-sm font-medium text-studio-muted">{c.materialCost(t.money(list.cost))}</span>
+                  : !list.materials.some((m) => m.oversize > 0) && <Button className="text-studio-accent underline print:hidden" onClick={() => ui.setSettingsTab('materials')}>{c.addPrices}</Button>}
               </div>
               <p id={estimateId} className={cn('max-w-prose text-xs text-studio-muted', !showEstimate && 'hidden print:block')}>{c.estimateNote}</p>
             </>}
@@ -445,7 +430,7 @@ export function CuttingListView() {
               {list.materials.map((total) => (
                 <div key={`${total.materialId}-${total.thickness}`} className="rounded-xl border border-zinc-200 bg-white px-4 py-3 print:rounded-none">
                   <div className="text-[13px] font-medium text-zinc-900">
-                    {total.materialName} <span className="text-zinc-400">{t.mm(total.thickness)} mm</span>
+                    {total.materialName}
                   </div>
                   <div className="mt-1 flex items-baseline gap-3 tabular-nums">
                     <span className="text-xl font-semibold text-zinc-900">{t.decimal(total.area, 2)} m²</span>
@@ -521,7 +506,7 @@ export function CuttingListView() {
 
             <div className="mt-3 space-y-6">
               {grouping === 'pieces' ? (
-                <PartsTable rows={list.rows as CuttingRow[]} showUnits bandThickness={bandThickness} />
+                <PartsTable rows={list.rows} showUnits bandThickness={bandThickness} />
               ) : (
                 unitsWithParts.map(({ item, parts }) => (
                   <section key={item.id} className="break-inside-avoid rounded-2xl border border-[#ded8ce] bg-[#fffefa] p-3 sm:p-4 print:rounded-none">
@@ -537,7 +522,7 @@ export function CuttingListView() {
                       </div>
                     </div>
                     <PartsTable
-                      rows={parts.map((p) => ({ ...p, materialName: materialName(p.materialId) }))}
+                      rows={parts}
                       showUnits={false}
                       bandThickness={bandThickness}
                       editFor={item.id}
@@ -625,7 +610,9 @@ export function CuttingListView() {
           {(!empty || design.customParts.length > 0) && <ExtraPieces design={design} />}
         </div>
       </div>
-      {compact && !empty && <footer className="workshop-actions studio-panel shrink-0 border-t px-3 py-1 print:hidden">{exportTools}</footer>}
+      {compact && <footer className="workshop-actions phone-flow-actions print:hidden"><ChecksButton compact />
+        {empty ? <Button variant="primary" disabled aria-label={c.exportLabel} title={c.emptyText}><Download size={16} />{c.export}</Button> : exportTools}
+      </footer>}
     </div>
   );
 }

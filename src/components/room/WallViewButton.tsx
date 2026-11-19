@@ -5,7 +5,8 @@ import { useT } from '../../i18n';
 export function WallViewButton({ face, numbered = false, open }: {
   face: { id: string; number: number }; numbered?: boolean; open: (id: string) => void;
 }) {
-  const label = useT().room.openWall(face.number);
+  const { room } = useT();
+  const label = room.openWall(face.number);
   const start = useRef<{ x: number; y: number } | null>(null);
   return <button type="button" className="room-wall-view-button" title={label} aria-label={label}
     onPointerDown={(e) => { start.current = e.isPrimary ? { x: e.clientX, y: e.clientY } : null; }}
@@ -14,6 +15,6 @@ export function WallViewButton({ face, numbered = false, open }: {
     }}
     onPointerCancel={() => { start.current = null; }}
     onClick={(e) => { if (!e.detail || start.current) open(face.id); start.current = null; }}>
-    <span><PanelsTopLeft size={18} aria-hidden="true" />{numbered && face.number}</span>
+    <span><PanelsTopLeft size={16} aria-hidden="true" />{room.wallView}{numbered && ` ${face.number}`}</span>
   </button>;
 }

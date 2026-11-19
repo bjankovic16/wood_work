@@ -1,23 +1,17 @@
-import { useEffect, useState } from 'react';
+import { Images, Plus } from 'lucide-react';
 import { useT } from '../../i18n';
 import { useUiStore } from '../../store/uiStore';
-import { Button, Dialog } from '../ui';
 
-export function StartGuide({ compact, isEmpty }: { compact: boolean; isEmpty: boolean }) {
-  const t = useT();
-  const [welcome, setWelcome] = useState(() => isEmpty && !useUiStore.getState().welcomeSeen);
+export function StartGuide({ onAdd }: { onAdd: () => void }) {
+  const { canvas: c } = useT();
   const dragging = useUiStore((s) => !!s.libraryDrag);
-  useEffect(() => { if (welcome) useUiStore.getState().rememberWelcome(); }, [welcome]);
-  if (!isEmpty || dragging) return null;
-  const hint = compact ? t.canvas.emptyTouch : t.canvas.emptyDesktop;
-  return <>
-    <p data-testid="empty-plan-hint" data-plan-overlay={compact ? '' : undefined} className="pointer-events-none absolute inset-x-3 bottom-16 mx-auto w-fit max-w-sm rounded-lg bg-studio-paper/95 px-3 py-2 text-center text-xs text-studio-muted lg:bottom-4">{hint}</p>
-    <Dialog open={welcome} title={t.canvas.startTitle} sheet={compact} onClose={() => setWelcome(false)}>
-      <div className="space-y-4 p-4 text-sm">
-        <p>{hint}</p>
-        <Button variant="primary" onClick={() => setWelcome(false)}>{t.canvas.dismissStart}</Button>
-        <Button variant="outline" onClick={useUiStore.getState().openRoomPlan}>{t.canvas.startWithRoom}</Button>
-      </div>
-    </Dialog>
-  </>;
+  if (dragging) return null;
+  return <section data-testid="empty-plan-hint" data-plan-overlay="" aria-label={c.startTitle} className="layout-start">
+    <button type="button" aria-label={c.startIdea} aria-description={c.startIdeaHint} onClick={() => useUiStore.getState().setLayoutsOpen(true)}>
+      <Images aria-hidden="true" /><strong>{c.startIdea}</strong><small>{c.startIdeaHint}</small>
+    </button>
+    <button type="button" data-plan-controls="" data-add-trigger="" aria-label={c.startManual} aria-description={c.startManualHint} onClick={onAdd}>
+      <Plus aria-hidden="true" /><strong>{c.startManual}</strong><small>{c.startManualHint}</small>
+    </button>
+  </section>;
 }

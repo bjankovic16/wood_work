@@ -1,5 +1,6 @@
 import type { Design } from '../domain/types';
 import { partNote, type CuttingList } from '../engine/cuttingList';
+import { boardLabel } from '../engine/materialLabel';
 import type { Part } from '../engine/parts';
 import { en, type Messages } from '../i18n/en';
 
@@ -81,11 +82,6 @@ export async function cuttingListWorkbook(design: Design, list: CuttingList, gen
     const band = id ? design.edgeBands.find((b) => b.id === id) : undefined;
     return band ? t.engine.edgeBand(band) : '';
   };
-  const materialName = (id: string) => {
-    const material = design.materials.find((m) => m.id === id);
-    return material ? t.engine.material(material) : '';
-  };
-
   addTable(
     workbook.addWorksheet(r.sheetNames.parts),
     [...partColumns(t), { header: col.units, key: 'units', width: 22 }, { header: col.note, key: 'note', width: 44 }],
@@ -107,7 +103,7 @@ export async function cuttingListWorkbook(design: Design, list: CuttingList, gen
           unit: item.label,
           type: t.kinds[item.kind],
           size: `${item.width} × ${item.height} × ${item.depth}`,
-          ...partRow({ ...part, materialName: materialName(part.materialId) }, bandName, t),
+          ...partRow(part, bandName, t),
           note: partNote(part, t.engine),
         })),
       ),
@@ -146,6 +142,7 @@ export async function cuttingListWorkbook(design: Design, list: CuttingList, gen
   );
   materials.getColumn('used').numFmt = '0%';
   materials.getColumn('cost').numFmt = '#,##0.00';
+  materials.getColumn('cost').hidden = !list.hasCosts;
   if (list.cost !== null) {
     const total = materials.addRow({ name: r.total, cost: list.cost });
     total.font = { bold: true };
@@ -166,7 +163,7 @@ export async function cuttingListWorkbook(design: Design, list: CuttingList, gen
   const c = design.construction;
   const board = (id: string) => {
     const m = design.materials.find((x) => x.id === id);
-    return m ? r.boardWithThickness(t.engine.material(m), t.mm(m.thickness)) : '';
+    return m ? boardLabel(m, t.engine) : t.engine.unknownBoard;
   };
   const f = r.facts;
   const v = r.values;

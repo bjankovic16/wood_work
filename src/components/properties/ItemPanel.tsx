@@ -2,13 +2,15 @@ import { ChevronRight, Copy, RotateCwSquare, Trash2, TriangleAlert, X } from 'lu
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { BAR_MATERIAL_ID, ELEVATION_LIMITS, GLASS_MATERIAL_ID, sizeLimits, type SizeField } from '../../domain/catalog';
 import { aabbSize, attachedRoomSurface, attachedWall, backWall, isFlushWith, itemRect, mountingWalls, attachedSegment } from '../../domain/geometry';
-import type { KitchenItem, Material, Room } from '../../domain/types';
+import type { KitchenItem, Room } from '../../domain/types';
 import { KIND_OPTIONS, resolveConfig, type BuildContext } from '../../engine/config';
 import { FRONT_FINISHES, type FrontFinish } from '../../domain/style';
 import { edgeText } from '../../engine/cuttingList';
+import { boardLabel } from '../../engine/materialLabel';
 import { unitParts } from '../../engine/parts';
 import { useT, type CornerName, type Messages } from '../../i18n';
 import { cn } from '../../lib/cn';
+import { shortcutKeys } from '../../lib/shortcutKeys';
 import * as actions from '../../store/actions';
 import { useDesignStore } from '../../store/designStore';
 import { useBuildContext, useIssues } from '../../store/derived';
@@ -97,14 +99,14 @@ function MaterialField({
   const t = useT();
   const materials = useDesignStore((s) => s.design.materials);
   const kitchen = materials.find((m) => m.id === kitchenWide);
-  const materialLabel = (m: Material) => `${t.engine.material(m)} ${t.mm(m.thickness)} mm`;
   const options = [
-    { value: '', label: t.item.kitchenBoard(kitchen ? materialLabel(kitchen) : '—') },
-    ...materials.filter((m) => m.id !== kitchenWide).map((m) => ({ value: m.id, label: materialLabel(m) })),
+    { value: '', label: t.item.kitchenBoard(kitchen ? boardLabel(kitchen, t.engine) : t.engine.unknownBoard) },
+    ...materials.filter((m) => m.id !== kitchenWide).map((m) => ({ value: m.id, label: boardLabel(m, t.engine) })),
   ];
   return (
     <PickerField
       label={label}
+      wrapValue
       value={item[field] && item[field] !== kitchenWide ? item[field] : ''}
       options={options}
       onChange={(value) => actions.setItemOption(item.id, field, value || undefined)}
@@ -115,7 +117,7 @@ function MaterialField({
 /** Everything editable about one unit. Shared by the desktop panel and the phone sheet. */
 export type ItemSection = 'size' | 'fronts' | 'materials' | 'parts';
 
-export function ItemFields({ item, section }: { item: KitchenItem; section?: ItemSection }) {
+export function ItemFields({ item, section }: { item: KitchenItem; section: ItemSection }) {
   const t = useT();
   const inPlan = useUiStore((s) => s.view === 'plan');
   const locked = useUiStore((s) => s.view === '3d' && s.previewLockedIds.includes(item.id));
@@ -131,7 +133,7 @@ export function ItemFields({ item, section }: { item: KitchenItem; section?: Ite
 
   // The request is consumed once the width field has had the chance to focus itself.
   useEffect(() => {
-    if (focusRequest === 'width' && (!section || section === 'size')) useUiStore.getState().requestFocus(null);
+    if (focusRequest === 'width' && section === 'size') useUiStore.getState().requestFocus(null);
   }, [focusRequest, section]);
 
   const sizeField = (field: SizeField, label: string) => {
@@ -143,7 +145,7 @@ export function ItemFields({ item, section }: { item: KitchenItem; section?: Ite
         value={field === 'width2' ? (item.width2 ?? item.width) : item[field]}
         min={limits.min}
         max={limits.max}
-        picks={section ? commonSizes(item, field, room, inPlan) : undefined}
+        picks={commonSizes(item, field, room, inPlan)}
         autoFocus={field === 'width' && focusRequest === 'width'}
         onCommit={(value) => {
           const result = actions.setItemSize(item.id, field, value);
@@ -156,7 +158,7 @@ export function ItemFields({ item, section }: { item: KitchenItem; section?: Ite
 
   const hasCounts = Boolean(options.doors || options.drawers || options.shelves);
   const drawersOnly = config.doors === 0 && config.drawers > 0;
-  const show = (tab: ItemSection) => !section || section === tab;
+  const show = (tab: ItemSection) => section === tab;
 
   return (
     <>
@@ -169,23 +171,9 @@ export function ItemFields({ item, section }: { item: KitchenItem; section?: Ite
           {corner && sizeField('width2', t.item.widthWallB)}
           {sizeField('depth', t.item.depth)}
           {sizeField('height', t.item.height)}
-          {!section && inPlan && <NumberField label={t.advancedRoom.angle} value={item.rotation} min={0} max={360} suffix="°" precision={1} onCommit={(angle) => actions.setItemAngle(item.id, angle)} />}
           {!inPlan && sizeBlocked && <p role="status" className="text-xs text-amber-800">{t.view3d.resizeBlocked}</p>}
         </PanelSection>
       </fieldset>}
-      {show('size') && <ThreeTierSetup key={item.id} item={item} />}
-
-      {show('size') && canStackCabinet(item) && (
-        <PanelSection title={t.stacking.title}>
-          <StackAboveButton item={item} />
-          <p className="text-xs leading-relaxed text-zinc-600">{t.stacking.hint}</p>
-          <details className="text-xs leading-relaxed text-zinc-600">
-            <summary className="cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">{t.stacking.installation}</summary>
-            <p className="pt-2">{t.stacking.supplierNote}</p>
-          </details>
-        </PanelSection>
-      )}
-
       {show('fronts') && <PanelSection title={hasCounts ? t.item.frontsAndShelves : t.item.frontView}>
         <FrontPreview item={item} ctx={ctx} />
         {item.kind === 'shelf' && <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox"
@@ -290,12 +278,12 @@ export function ItemFields({ item, section }: { item: KitchenItem; section?: Ite
 
       {show('size') && inPlan && <fieldset className="min-w-0">
         <PanelSection title={t.item.position}>
-          {section && <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
             <div className="min-w-0 flex-1">
               <NumberField label={t.sheet.customAngle} value={item.rotation} min={0} max={360} suffix="°" precision={1} onCommit={(angle) => actions.setItemAngle(item.id, angle)} />
             </div>
             <RotateButton relative />
-          </div>}
+          </div>
           <NumberField
             label={t.item.fromLeftWall}
             value={item.x}
@@ -326,6 +314,17 @@ export function ItemFields({ item, section }: { item: KitchenItem; section?: Ite
         <TextField label={t.item.code} value={item.label} maxLength={12} onCommit={(v) => actions.setItemLabel(item.id, v)} />
       </PanelSection>}
 
+      {show('size') && <ThreeTierSetup key={item.id} item={item} />}
+      {show('size') && canStackCabinet(item) && (
+        <PanelSection title={t.stacking.title}>
+          <StackAboveButton item={item} />
+          <p className="text-xs leading-relaxed text-zinc-600">{t.stacking.hint}</p>
+          <details className="text-xs leading-relaxed text-zinc-600">
+            <summary className="cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">{t.stacking.installation}</summary>
+            <p className="pt-2">{t.stacking.supplierNote}</p>
+          </details>
+        </PanelSection>
+      )}
       {show('parts') && <PartsSection item={item} ctx={ctx} />}
     </>
   );
@@ -406,7 +405,7 @@ export function RotateButton({ relative = false }: { relative?: boolean }) {
 export function DuplicateButton({ className, iconOnly = false }: { className?: string; iconOnly?: boolean }) {
   const t = useT();
   return (
-    <TooltipButton variant="outline" className={className} tooltip={t.item.duplicateTitle} aria-label={t.item.duplicate} onClick={actions.duplicateSelected}>
+    <TooltipButton variant="outline" className={className} tooltip={`${t.item.duplicate} (${shortcutKeys().duplicate.join('+')})`} aria-label={t.item.duplicate} onClick={actions.duplicateSelected}>
       <Copy className="size-4" />
       {!iconOnly && t.item.duplicate}
     </TooltipButton>

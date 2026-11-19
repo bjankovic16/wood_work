@@ -1,3 +1,4 @@
+import { chooseLanguage } from './settings-language.mjs';
 // Browser test: drives the real app in the locally installed Chrome, the way a
 // user would (clicks, drags, keyboard), and checks the resulting design.
 // Usage: node scripts/e2e.mjs [screenshot-dir]
@@ -87,12 +88,12 @@ try {
   console.log('Serbian browser-language detection');
   check(
     'a Serbian browser starts in the Serbian room editor',
-    (await page.evaluate(() => document.documentElement.lang)) === 'sr-Latn' && await workspace.getByRole('heading', { name: 'Moja prostorija' }).isVisible(),
+    (await page.evaluate(() => document.documentElement.lang)) === 'sr-Latn' && await workspace.getByRole('heading', { name: 'Prostorija', exact: true }).isVisible(),
     await page.evaluate(() => document.documentElement.lang),
   );
   check('the first project has a Serbian name', (await design()).name === 'Moja kuhinja', (await design()).name);
   await page.getByRole('button', { name: 'Ideje', exact: true }).click();
-  await page.getByRole('radio', { name: 'Moj raspored' }).click();
+  await page.getByRole('radio', { name: 'Početni rasporedi' }).click();
   await page.getByRole('button', { name: /^L-oblik/ }).click();
   check('reviewing the Serbian layout has not added any units', (await design()).items.length === 0);
   await page.getByTestId('confirm-idea-fit').click();
@@ -111,11 +112,11 @@ try {
   const [serbianPdf] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'PDF dokument' }).click()]);
   await serbianPdf.saveAs(path.join(shotsDir, 'cutting-list-sr.pdf'));
   check('a Serbian PDF is named in Serbian', serbianPdf.suggestedFilename() === 'Moja kuhinja - krojna lista.pdf', serbianPdf.suggestedFilename());
-  await page.getByRole('radio', { name: /Osnova/ }).click();
+  await page.getByRole('radio', { name: '2. Raspored' }).click();
   await page.waitForSelector('canvas');
   await page.keyboard.press('Control+z');
   check('Undo takes the Serbian layout away again', (await design()).items.length === 0);
-  await page.getByLabel('Jezik / Language').selectOption('en');
+  await chooseLanguage(page, 'en');
   check(
     'the language can be switched to English',
     (await page.evaluate(() => document.documentElement.lang)) === 'en' && await page.locator('header').getByRole('button', { name: 'Ideas', exact: true }).isVisible(),
@@ -204,7 +205,7 @@ try {
       sortedJson(kitchenSnapshot(loaded)) === sortedJson(kitchenSnapshot(preset.design)),
       { room: loaded.room, style: loaded.style, units: loaded.items.length },
     );
-    check(`${preset.id}: the gallery closes and opens 3D`, !(await gallery.isVisible()) && (await page.getByRole('radio', { name: /^3D/ }).getAttribute('aria-checked')) === 'true');
+    check(`${preset.id}: the gallery closes and opens 3D`, !(await gallery.isVisible()) && (await page.getByRole('radio', { name: '3. 3D', exact: true }).getAttribute('aria-checked')) === 'true');
     if (preset.framed) {
       await page.waitForFunction((id) => Boolean(window.__kitchen3D?.scene.getObjectByName(id)), loaded.items[0].id);
       check(`${preset.id}: the editable 3D scene opens at the same front view as its preview`, (await page.evaluate(() => window.__kitchen.ui.getState().cameraView)) === 'front');
@@ -234,9 +235,9 @@ try {
   await premiumPage.goto(url, { waitUntil: 'domcontentloaded' });
   const roomSetup = premiumPage.getByTestId('room-workspace');
   await roomSetup.getByTestId('room-plan').waitFor();
-  await premiumPage.getByLabel('Jezik / Language').selectOption('en');
+  await chooseLanguage(premiumPage, 'en');
   const premiumDesign = () => premiumPage.evaluate(() => window.__kitchen.design.getState().design);
-  check('blank kitchens start with the room, not an inspiration gallery', await roomSetup.getByRole('heading', { name: 'My room' }).isVisible() && !(await premiumPage.getByRole('dialog', { name: 'Ideas' }).isVisible()));
+  check('blank kitchens start with the room, not an inspiration gallery', await roomSetup.getByRole('heading', { name: 'Room', exact: true }).isVisible() && !(await premiumPage.getByRole('dialog', { name: 'Ideas' }).isVisible()));
   await roomSetup.getByLabel('Width', { exact: true }).fill('4200');
   await roomSetup.getByLabel('Width', { exact: true }).press('Enter');
   await roomSetup.getByLabel('Depth', { exact: true }).fill('3200');
@@ -327,14 +328,14 @@ try {
   await premiumPage.getByRole('button', { name: 'Projects', exact: true }).click();
   await premiumPage.getByRole('dialog', { name: 'Projects' }).getByRole('button', { name: 'Start fresh', exact: true }).click();
   await roomSetup.getByTestId('room-plan').waitFor();
-  check('new projects open their own empty room', (await premiumDesign()).items.length === 0 && await roomSetup.getByRole('heading', { name: 'My room' }).isVisible());
+  check('new projects open their own empty room', (await premiumDesign()).items.length === 0 && await roomSetup.getByRole('heading', { name: 'Room', exact: true }).isVisible());
   await roomSetup.getByTestId('room-done').click();
   check('another measured project also goes straight to the blank plan', !(await optionalStart.isVisible()) && await premiumPage.locator('.konvajs-content').isVisible() && (await premiumDesign()).items.length === 0);
   await premiumContext.close();
 
   console.log('Ready-made layouts');
   await openIdeas();
-  await page.getByRole('radio', { name: 'My room layout' }).click();
+  await page.getByRole('radio', { name: 'Starter layouts' }).click();
   await page.getByRole('button', { name: /^L-shaped/ }).click();
   await gallery.getByRole('combobox', { name: 'Main wall' }).selectOption('top');
   await gallery.getByRole('radio', { name: 'Left return' }).click();
@@ -346,7 +347,7 @@ try {
     laid.items.length > 8 && laid.items.some((i) => i.kind === 'corner' && i.x === 0 && i.y === 0) && sortedJson(laid.room) === sortedJson(sourceProject.room),
     laid.items.map((i) => i.label),
   );
-  await page.getByRole('radio', { name: 'Plan', exact: true }).click();
+  await page.getByRole('radio', { name: '2. Layout', exact: true }).click();
   await page.locator('.konvajs-content').waitFor();
   await shot('01b-l-layout.png');
   await page.keyboard.press('Control+z');
@@ -516,7 +517,7 @@ try {
 
   console.log('Room');
   await page.keyboard.press('Escape');
-  await page.getByRole('radio', { name: 'Room design', exact: true }).click();
+  await page.getByRole('radio', { name: '1. Room', exact: true }).click();
   const roomWidth = page.getByLabel('Width', { exact: true });
   await roomWidth.fill('3000');
   await roomWidth.press('Enter');
@@ -594,7 +595,7 @@ try {
   await shot('09-u-shaped.png');
 
   console.log('3D');
-  await page.getByRole('radio', { name: /^3D/ }).click();
+  await page.getByRole('radio', { name: '3. 3D', exact: true }).click();
   await page.locator('main canvas').first().waitFor();
   await page.waitForTimeout(2500); // shader compilation and first frames
   await shot('14-3d.png');
@@ -619,7 +620,7 @@ try {
   await page.waitForFunction((initial) => window.__kitchen3D.camera.position.toArray().some((v, i) => Math.abs(v - initial[i]) > 0.001), camera);
   check('a 3D cabinet drag orbits the furnished kitchen without editing it', sortedJson(await design()) === beforeOrbit && await page.evaluate(() => window.__kitchen.design.getState().past.length) === historyBeforeOrbit);
   await page.getByRole('button', { name: 'Reset view' }).click();
-  await page.getByRole('radio', { name: /^Plan/ }).click();
+  await page.getByRole('radio', { name: '2. Layout' }).click();
   await page.waitForSelector('canvas');
 
   console.log('Fronts, construction and cutting list');
@@ -627,10 +628,14 @@ try {
   const b1Front = await screen(1200, 470);
   await page.mouse.click(b1Front.x, b1Front.y);
   check('clicking B1 selects it', (await view()).selectedId === (await byLabel('B1')).id);
+  const cabinetTab = (name) => page.getByRole('tab', { name, exact: true });
+  await cabinetTab('Fronts').click();
   check('a 600 mm base cabinet has two doors by default', (await page.getByLabel('Doors', { exact: true }).textContent()) === '2');
   await page.getByRole('button', { name: 'More drawers' }).click();
   check('adding a drawer is stored on the unit', (await byLabel('B1')).drawers === 1, await byLabel('B1'));
+  await cabinetTab('Parts').click();
   check('its parts now include a drawer front', await page.getByText('Drawer front', { exact: true }).first().isVisible());
+  await cabinetTab('Fronts').click();
   await page.getByRole('button', { name: 'Fewer doors' }).click();
   check('removing a door leaves one', (await byLabel('B1')).doors === 1, await byLabel('B1'));
   await shot('10-unit-fronts.png');
@@ -643,13 +648,14 @@ try {
   await page.getByRole('radio', { name: 'Full overlay' }).click();
   check('…and go back to full overlay', (await byLabel('B1')).doorType === undefined, await byLabel('B1'));
 
+  await cabinetTab('Materials').click();
   await page.getByLabel('Carcass', { exact: true }).selectOption('particleboard-white-16');
   check('one unit can use another board', (await byLabel('B1')).carcassMaterial === 'particleboard-white-16', await byLabel('B1'));
   await page.getByLabel('Carcass', { exact: true }).selectOption('');
   check('…and go back to the kitchen board', (await byLabel('B1')).carcassMaterial === undefined, await byLabel('B1'));
 
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  const settings = page.getByRole('dialog', { name: 'Kitchen settings' });
+  const settings = page.getByRole('dialog', { name: 'Settings' });
   await settings.getByLabel('Fronts', { exact: true }).selectOption('mdf-oak-19');
   await settings.getByLabel('Front edges', { exact: true }).selectOption('abs-2');
   const chosen = (await design()).construction;
@@ -673,7 +679,7 @@ try {
   await page.getByRole('button', { name: 'Done' }).click();
   check('Done closes the dialog', !(await page.getByRole('dialog').isVisible()));
 
-  await page.getByRole('radio', { name: /Cutting list/ }).click();
+  await page.getByRole('radio', { name: /Cut list/ }).click();
   await page.waitForSelector('table');
   const cutListCounts = await page.evaluate(async () => {
     const { buildCuttingList } = await import('/src/engine/cuttingList.ts');
@@ -712,7 +718,7 @@ try {
   await shot('12-cutting-list.png');
 
   console.log('Exports');
-  const exportMenu = page.getByRole('button', { name: 'Export the cutting list' });
+  const exportMenu = page.getByRole('button', { name: 'Export the cut list' });
   /** Picks an entry from the cutting list's Export menu and keeps the file it downloads. */
   async function exportFile(entry, name) {
     await exportMenu.click();
@@ -728,7 +734,7 @@ try {
   const csvFile = await exportFile('CSV file', 'cutting-list.csv');
   const csv = await readFile(csvFile.file, 'utf8');
   check('the CSV download has a header and a row per kind of piece', csv.includes('Piece;Quantity;Length (mm)') && csv.split('\r\n').length > 10, csv.slice(0, 200));
-  check('downloads are named after the project', csvFile.suggested === 'Kuhinja Petrović - cutting list.csv', csvFile.suggested);
+  check('downloads are named after the project', csvFile.suggested === 'Kuhinja Petrović - cut list.csv', csvFile.suggested);
 
   const pdfFile = await exportFile('PDF document', 'cutting-list.pdf');
   const pdf = await readFile(pdfFile.file);
@@ -741,12 +747,12 @@ try {
   const sheetNames = workbook.worksheets.map((w) => w.name);
   check(
     'the Excel workbook has the parts, units, materials, hardware and project sheets',
-    JSON.stringify(sheetNames) === JSON.stringify(['Cutting list', 'By unit', 'Materials', 'Hardware', 'Project']),
+    JSON.stringify(sheetNames) === JSON.stringify(['Cut list', 'By unit', 'Materials', 'Hardware', 'Project']),
     sheetNames,
   );
-  const firstSheet = workbook.getWorksheet('Cutting list');
+  const firstSheet = workbook.getWorksheet('Cut list');
   check('…with a row per kind of piece', firstSheet.rowCount === csv.trim().split('\r\n').length, { rows: firstSheet.rowCount });
-  check('the app says the file was saved', await page.getByText('Saved “Kuhinja Petrović - cutting list.xlsx”.').isVisible());
+  check('the app says the file was saved', await page.getByText('Saved “Kuhinja Petrović - cut list.xlsx”.').isVisible());
 
   await exportMenu.click();
   await page.getByRole('button', { name: 'Copy table for a spreadsheet' }).click();
@@ -833,7 +839,7 @@ try {
   check('Reset to defaults restores the construction rules', reset.bottomJoint === 'between' && reset.drawerSystem === 'wooden', reset);
   check('…and keeps the chosen materials', reset.frontMaterial === 'mdf-oak-19', reset);
   await page.getByRole('button', { name: 'Done' }).click();
-  await page.getByRole('radio', { name: /Plan/ }).click();
+  await page.getByRole('radio', { name: '2. Layout' }).click();
   await page.waitForSelector('canvas');
 
   console.log('Projects');
@@ -915,7 +921,7 @@ try {
 
   console.log('Windows and doors');
   await page.keyboard.press('Escape');
-  await page.getByRole('radio', { name: 'Room design', exact: true }).click();
+  await page.getByRole('radio', { name: '1. Room', exact: true }).click();
   await page.getByRole('button', { name: 'Add an object', exact: true }).click();
   await page.getByRole('button', { name: 'Window', exact: true }).click();
   const selectedOpening = page.getByTestId('selected-room-card').getByTestId('opening-card');
@@ -945,11 +951,11 @@ try {
   await doorFrom.press('Escape');
   await page.waitForTimeout(150);
   await shot('15b-window-and-door.png');
-  await page.getByRole('radio', { name: '3D', exact: true }).click();
+  await page.getByRole('radio', { name: '3. 3D', exact: true }).click();
   await page.locator('main canvas').first().waitFor();
   await page.waitForTimeout(2500);
   await shot('16-3d-window.png');
-  await page.getByRole('radio', { name: /^Plan/ }).click();
+  await page.getByRole('radio', { name: '2. Layout' }).click();
   await page.waitForSelector('canvas');
 
   console.log('Phone');
@@ -986,9 +992,9 @@ try {
   await phoneRoom.getByTestId('room-plan').waitFor();
   await mobile.evaluate(() => document.fonts.ready);
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-01-empty-sr.png') });
-  check('the phone starts in the Serbian room editor too', await phoneRoom.getByRole('heading', { name: 'Moja prostorija' }).isVisible());
+  check('the phone starts in the Serbian room editor too', await phoneRoom.getByRole('heading', { name: 'Prostorija', exact: true }).isVisible());
   await mobile.setViewportSize({ width: 320, height: 568 });
-  const startActions = await Promise.all([mobile.getByRole('button', { name: /^Vodič za planiranje:/ }), mobile.getByTestId('room-done')].map((el) => el.boundingBox()));
+  const startActions = await Promise.all([mobile.getByRole('button', { name: /^Provere:/ }), mobile.getByTestId('room-done')].map((el) => el.boundingBox()));
   check('the room starting actions fit on a 320 px phone', startActions.every((box) => box && box.x >= 0 && box.x + box.width <= 320 && box.y + box.height <= 568), startActions);
   await mobile.screenshot({ path: path.join(shotsDir, 'usability-start-phone-narrow.png') });
   await mobile.getByTestId('room-done').tap();
@@ -1004,15 +1010,15 @@ try {
   await mobile.setViewportSize({ width: 390, height: 844 });
   await mobile.getByRole('button', { name: 'Više' }).tap();
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-00-menu-sr.png') });
-  await mobile.getByRole('radio', { name: 'English' }).tap();
-  await mobile.getByRole('button', { name: 'More' }).tap();
-  check('the phone layout shows the plan with an "Add element" button', await mobile.getByRole('button', { name: 'Add element' }).isVisible());
-  check('the phone keeps consistent navigation labels visible', (await mobile.getByLabel('Project name').isVisible()) && (await mobile.getByRole('radio', { name: 'Plan', exact: true }).getByText('Plan', { exact: true }).isVisible()) && (await mobile.getByRole('radio', { name: 'Cutting list', exact: true }).getByText('Cutting list', { exact: true }).isVisible()));
-  await mobile.getByRole('radio', { name: 'Room design', exact: true }).tap();
+  await mobile.getByRole('button', { name: 'Više', exact: true }).tap();
+  await chooseLanguage(mobile, 'en');
+  check('the empty layout offers both starting choices', await mobile.getByRole('button', { name: 'Add cabinets yourself', exact: true }).isVisible() && await mobile.getByRole('button', { name: 'Start from an idea', exact: true }).isVisible());
+  check('the phone keeps consistent navigation labels visible', (await mobile.getByLabel('Project name').isVisible()) && (await mobile.getByRole('radio', { name: '2. Layout', exact: true }).getByText('Layout', { exact: true }).isVisible()) && (await mobile.getByRole('radio', { name: '4. Cut list', exact: true }).getByText('Cut list', { exact: true }).isVisible()));
+  await mobile.getByRole('radio', { name: '1. Room', exact: true }).tap();
   await phoneRoom.getByTestId('room-plan').waitFor();
   await mobile.screenshot({ path: path.join(shotsDir, 'usability-room-setup-phone.png') });
   await mobile.getByTestId('room-done').tap();
-  await mobile.getByRole('button', { name: 'Add element', exact: true }).tap();
+  await mobile.getByRole('button', { name: 'Add cabinets yourself', exact: true }).tap();
   check('users can open the part picker after room setup on phones', await mobile.getByRole('dialog', { name: 'Add element', exact: true }).isVisible());
   await mobile.getByRole('searchbox', { name: 'Search kitchen parts' }).fill('600');
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-02-add.png') });
@@ -1047,7 +1053,7 @@ try {
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-03-edit.png') });
   await mobile.getByTestId('item-sheet').getByRole('slider').press('Home');
 
-  await mobile.getByRole('radio', { name: 'Cutting list', exact: true }).tap();
+  await mobile.getByRole('radio', { name: '4. Cut list', exact: true }).tap();
   check('the cutting list opens on the phone', await mobile.locator('table').first().isVisible());
   await mobile.getByTestId('cutting-overview').locator('..').locator(':scope > summary').tap();
   check('phone users can see a dimensioned image of their cabinet', await mobile.getByTestId('cutting-cabinet-preview').getByRole('img').isVisible());
@@ -1055,13 +1061,13 @@ try {
   check('the cut-list overview fits a narrow phone without page-level horizontal overflow', await mobile.getByTestId('cutting-overview').evaluate((element) => element.scrollWidth <= element.clientWidth + 1));
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-cutting-overview-narrow.png') });
   await mobile.setViewportSize({ width: 390, height: 844 });
-  check('…with its Export menu and extra pieces', (await mobile.getByRole('button', { name: 'Export the cutting list' }).isVisible()) && (await mobile.getByRole('button', { name: 'Add piece' }).isVisible()));
+  check('…with its Export menu and extra pieces', (await mobile.getByRole('button', { name: 'Export the cut list' }).isVisible()) && (await mobile.getByRole('button', { name: 'Add piece' }).isVisible()));
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-04-list.png') });
-  await mobile.getByRole('button', { name: 'Export the cutting list' }).tap();
+  await mobile.getByRole('button', { name: 'Export the cut list' }).tap();
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-04b-export.png') });
-  await mobile.getByRole('button', { name: 'Export the cutting list' }).tap();
+  await mobile.getByRole('button', { name: 'Export the cut list' }).tap();
 
-  await mobile.getByRole('radio', { name: /^3D/ }).tap();
+  await mobile.getByRole('radio', { name: '3. 3D', exact: true }).tap();
   await mobile.locator('main canvas').first().waitFor();
   await mobile.waitForTimeout(2500);
   await open3DTools(mobile);
@@ -1069,17 +1075,17 @@ try {
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-05-3d.png') });
   await close3DTools(mobile);
   await mobile.getByRole('button', { name: 'Deselect' }).tap();
-  await mobile.getByRole('radio', { name: 'Room design', exact: true }).tap();
+  await mobile.getByRole('radio', { name: '1. Room', exact: true }).tap();
   await mobile.getByRole('button', { name: 'More', exact: true }).tap();
   await mobile.getByTestId('room-ideas').tap();
   const beforeStarter = await mobileDesign();
-  await mobile.getByRole('radio', { name: 'My room layout' }).tap();
+  await mobile.getByRole('radio', { name: 'Starter layouts' }).tap();
   await mobile.getByRole('button', { name: /^U-shaped/ }).tap();
   check('a phone starter preview has not replaced the existing kitchen', sortedJson(await mobileDesign()) === sortedJson(beforeStarter));
   await mobile.getByTestId('confirm-idea-fit').tap();
   const phoneLayout = await mobileDesign();
   check('confirming the U-shaped starter builds two corners in the existing room', phoneLayout.items.filter((i) => i.kind === 'corner').length === 2 && sortedJson(phoneLayout.room) === sortedJson(beforeStarter.room));
-  await mobile.getByRole('radio', { name: '3D', exact: true }).tap();
+  await mobile.getByRole('radio', { name: '3. 3D', exact: true }).tap();
   await mobile.waitForTimeout(2000);
   await mobile.screenshot({ path: path.join(shotsDir, 'phone-06-u-3d.png') });
 

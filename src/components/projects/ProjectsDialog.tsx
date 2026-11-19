@@ -87,7 +87,7 @@ export function ProjectsDialog() {
     <Dialog open={page === 'projects'} title={p.title} sheet={compact} wide onClose={close}>
       <LocalStorageNotice canSave={canSave} />
       <div className="flex flex-wrap gap-2 border-b border-zinc-100 px-5 py-3">
-        <StartFreshButton placement="dialog" onCreated={close} />
+        <StartFreshButton onCreated={close} />
         <Button variant="outline" onClick={() => compare('projects')}>
           <Columns2 className="size-4" />{t.planner.compare}
         </Button>

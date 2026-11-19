@@ -33,8 +33,8 @@ try {
 
   const nav = page.getByRole('navigation', { name: 'Design workspace' });
   const name = page.getByRole('textbox', { name: 'Project name' });
-  const titles = ['Room', 'Plan', '3D', 'Cutting list'];
-  assert.deepEqual(await nav.getByRole('radio').allInnerTexts(), titles);
+  const titles = ['1 Room', '2 Layout', '3 3D', '4 Cut list'];
+  assert.deepEqual((await nav.getByRole('radio').allInnerTexts()).map(s => s.replace(/\s+/g, ' ')), titles);
   for (const width of [320, 360, 390]) {
     await page.setViewportSize({ width, height: 740 });
     const targets = await nav.getByRole('radio').evaluateAll((buttons) => buttons.map((b) => {
@@ -52,7 +52,7 @@ try {
   assert.equal(await name.inputValue(), 'Offline kitchen');
   const header = await name.boundingBox();
   await page.getByTestId('room-done').tap();
-  await page.getByRole('button', { name: 'Add element', exact: true }).tap();
+  await page.getByRole('button', { name: 'Add cabinets yourself', exact: true }).tap();
   const add = page.getByRole('dialog', { name: 'Add element', exact: true });
   await add.locator('[data-preset="base-600"]').tap();
   await add.locator('[data-preset="base-600"]').tap();
@@ -68,7 +68,7 @@ try {
   const pieces = page.locator('[data-part-card]');
   assert.ok(await pieces.count() > 0);
   assert.ok(await page.getByTestId('cutting-scroll').evaluate((el) => el.scrollWidth <= el.clientWidth));
-  await page.getByRole('button', { name: 'Export the cutting list', exact: true }).tap();
+  await page.getByRole('button', { name: 'Export the cut list', exact: true }).tap();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Excel workbook', exact: true }).tap()]);
   assert.match(download.suggestedFilename(), /\.xlsx$/);
   await page.emulateMedia({ media: 'print' });

@@ -38,6 +38,15 @@ export function inUpperRow(item: KitchenItem, row: UpperRow): boolean {
   return isWallMounted(item) && verticalOverlap(item, { elevation: row.elevation, height: row.top - row.elevation });
 }
 
+/** Unlike a cupboard report, the editor also needs to expose a lone hood above its hob. */
+export function editableUpperRows(items: readonly KitchenItem[]): UpperRow[] {
+  const rows = upperCabinetRows(items);
+  for (const item of items.filter(isWallMounted).sort((a, b) => a.elevation - b.elevation)) {
+    if (!rows.some((row) => inUpperRow(item, row))) rows.push({ elevation: item.elevation, top: item.elevation + item.height });
+  }
+  return rows.sort((a, b) => a.elevation - b.elevation);
+}
+
 /** Places a standard closed cupboard above the source, keeping its back against the same surface. */
 export function planCabinetAbove(room: Room, items: readonly KitchenItem[], source: KitchenItem, openings: readonly Opening[] = []): StackPlan {
   if (!canStackCabinet(source)) return { ok: false, reason: 'unsupported' };

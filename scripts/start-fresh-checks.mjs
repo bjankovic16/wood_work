@@ -1,3 +1,4 @@
+import { chooseLanguage } from './settings-language.mjs';
 import assert from 'node:assert/strict';
 
 const button = (scope, name) => scope.getByRole('button', { name, exact: true });
@@ -10,7 +11,7 @@ async function checkBlankRoom(page, dimensions, blank) {
   await room.getByTestId('room-plan').waitFor();
   assert.equal(await room.locator('.room-view-picker select').inputValue(), '');
   const compact = page.viewportSize().width < 1024;
-  assert.equal(await room.getByRole(compact ? 'button' : 'tab', { name: dimensions, exact: true }).getAttribute(compact ? 'aria-expanded' : 'aria-selected'), 'true');
+  assert.equal(await room.getByRole(compact ? 'button' : 'tab', { name: dimensions, exact: true }).getAttribute(compact ? 'aria-expanded' : 'aria-selected'), compact ? 'false' : 'true');
   assert.equal(await room.getByTestId('room-3d').count(), 0, 'No 3D preview should follow a kitchen switch.');
   assert.deepEqual({ ...await design(page), name: blank.name }, blank);
 }
@@ -25,11 +26,11 @@ export async function startFreshChecks(browser, url) {
   await room.getByTestId('room-plan').waitFor();
   await desktop.evaluate(() => document.fonts.ready);
   for (const [language, undo, start] of [['sr', 'Korak unazad', 'Počni iznova'], ['en', 'Undo', 'Start fresh']]) {
-    await desktop.getByLabel('Jezik / Language').selectOption(language);
+    await chooseLanguage(desktop, language);
     for (const width of [1280, 1024]) {
       await desktop.setViewportSize({ width, height: 800 });
       assert.equal(await button(bar, undo).innerText(), undo, 'Desktop Undo keeps its visible label.');
-      assert.equal(await button(bar, start).innerText(), start);
+      assert.equal(await button(bar, start).count(), 0, 'Start fresh belongs only in Projects.');
       assert.ok(await bar.evaluate((el) => el.scrollWidth <= innerWidth && el.querySelector('input').clientWidth >= 64
         && [...el.querySelectorAll('button')].every((b) => b.scrollWidth <= b.clientWidth + 1 && b.scrollHeight <= b.clientHeight + 1)),
       `Toolbar controls must fit at ${width}px in ${language}.`);
@@ -42,7 +43,7 @@ export async function startFreshChecks(browser, url) {
   await width.press('Enter');
   await room.getByTestId('room-done').click();
   await desktop.locator('[data-preset="base-600"]').click();
-  await bar.getByRole('radio', { name: 'Room design' }).click();
+  await bar.getByRole('radio', { name: '1. Room' }).click();
   await button(room, '3D preview').click();
   await room.getByTestId('room-3d').waitFor();
   await room.getByRole('tab', { name: 'Paint & tiles' }).click();
@@ -50,7 +51,8 @@ export async function startFreshChecks(browser, url) {
   const prefs = await preferences(desktop);
   // Blur commits the name just before Start fresh; no waiting for autosave.
   await bar.getByLabel('Project name').fill(edited.name);
-  await button(bar, 'Start fresh').click();
+  await button(bar, 'Projects').click();
+  await button(desktop.getByRole('dialog', { name: 'Projects', exact: true }), 'Start fresh').click();
   await checkBlankRoom(desktop, 'Dimensions', blank);
   const { activeId: fresh, projects } = await index(desktop);
   assert.notEqual(fresh, previous);
@@ -79,19 +81,17 @@ export async function startFreshChecks(browser, url) {
   const phoneRoom = phone.getByTestId('room-workspace');
   await phoneRoom.getByTestId('room-plan').waitFor();
   const phoneBlank = await design(phone);
+  await button(phoneRoom, 'Mere').tap();
   await phoneRoom.getByLabel('Širina', { exact: true }).fill('4200');
   await phoneRoom.getByLabel('Širina', { exact: true }).press('Enter');
   await phoneRoom.getByRole('button', { name: 'Objekti' }).tap();
   const more = button(phoneBar, 'Više');
-  const start = button(phoneBar, 'Počni iznova');
-  assert.ok(await start.isHidden(), 'The shortcut must not crowd the closed phone toolbar.');
   await more.tap();
-  assert.match(await start.innerText(), /u Projektima samo dok je ova stranica otvorena/);
-  await phoneBar.locator('summary').tap();
-  const language = phoneBar.getByRole('radio', { name: 'Srpski', exact: true });
-  await language.scrollIntoViewIfNeeded();
-  const box = await language.boundingBox();
-  assert.ok(box && box.y + box.height <= phone.viewportSize().height, 'The expanded More menu scrolls on a short phone.');
+  assert.equal(await button(phoneBar, 'Počni iznova').count(), 0);
+  await button(phoneBar, 'Projekti').tap();
+  const phoneProjects = phone.getByRole('dialog', { name: 'Projekti' });
+  const start = button(phoneProjects, 'Počni iznova');
+  assert.match(await phoneProjects.innerText(), /u Projektima samo dok je ova stranica otvorena/);
   await start.tap();
   await checkBlankRoom(phone, 'Mere', phoneBlank);
   assert.equal(await more.getAttribute('aria-expanded'), 'false');

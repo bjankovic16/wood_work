@@ -1,6 +1,7 @@
 import type { Design } from '../domain/types';
 import type { Issue } from '../engine/checks';
 import { edgeText, partNote, type CuttingList } from '../engine/cuttingList';
+import { boardLabel } from '../engine/materialLabel';
 import type { Part } from '../engine/parts';
 import { en, type Messages } from '../i18n/en';
 import { planSvg } from './planSvg';
@@ -49,10 +50,6 @@ function partCells(part: Part, materialName: string, bandThickness: (id: string 
 export function cuttingListDocument(design: Design, list: CuttingList, issues: Issue[], generated = new Date(), t: Messages = en): object {
   const r = t.report;
   const date = t.date(generated);
-  const materialName = (id: string) => {
-    const material = design.materials.find((m) => m.id === id);
-    return material ? t.engine.material(material) : '';
-  };
   const bandThickness = (id: string | null) => (id ? (design.edgeBands.find((b) => b.id === id)?.thickness ?? null) : null);
   const rows = upperCabinetRows(design.items);
   const plan = planSvg(design, t.engine, rows.length > 1 ? design.items.filter((item) => !isWallMounted(item)) : design.items);
@@ -63,19 +60,20 @@ export function cuttingListDocument(design: Design, list: CuttingList, issues: I
   const c = design.construction;
   const board = (id: string) => {
     const m = design.materials.find((x) => x.id === id);
-    return m ? r.boardWithThickness(t.engine.material(m), t.mm(m.thickness)) : '';
+    return m ? boardLabel(m, t.engine) : t.engine.unknownBoard;
   };
 
+  const costCell = (cost: number | null): Cell[] => list.hasCosts ? [right(cost !== null ? t.money(cost) : '')] : [];
   const totals: Row[] = [
-    header([r.board, r.pieces, r.area, r.sheets, r.cost], [1, 2, 3, 4]),
+    header([r.board, r.pieces, r.area, r.sheets, ...(list.hasCosts ? [r.cost] : [])], [1, 2, 3, 4]),
     ...list.materials.map((m) => [
-      `${m.materialName} ${t.mm(m.thickness)} mm`,
+      m.materialName,
       right(String(m.pieces)),
       right(t.decimal(m.area, 2)),
       right(`${m.sheets} × ${m.sheetLength}×${m.sheetWidth}`),
-      right(m.cost === null ? '—' : t.money(m.cost)),
+      ...costCell(m.cost),
     ]),
-    ...list.edges.map((e) => [r.edgeBandingRow(e.name), right(''), right(`${t.mm(e.metres)} m`), right(''), right(e.cost === null ? '—' : t.money(e.cost))]),
+    ...list.edges.map((e) => [r.edgeBandingRow(e.name), right(''), right(`${t.mm(e.metres)} m`), right(''), ...costCell(e.cost)]),
   ];
 
   const content: object[] = [
@@ -104,7 +102,7 @@ export function cuttingListDocument(design: Design, list: CuttingList, issues: I
         width: '*',
         stack: [
           { text: r.materials, bold: true, fontSize: 10, margin: [0, 0, 0, 4] },
-          { table: { headerRows: 1, widths: ['*', 32, 40, 78, 44], body: totals }, layout: tableLayout },
+          { table: { headerRows: 1, widths: ['*', 32, 40, 78, ...(list.hasCosts ? [44] : [])], body: totals }, layout: tableLayout },
           ...(list.cost !== null ? [{ text: r.materialCost(t.money(list.cost)), bold: true, alignment: 'right', margin: [0, 4, 0, 0] }] : []),
           { text: r.sheetsNote, fontSize: 7, color: MUTED, margin: [0, 4, 0, 10] },
           { text: r.construction, bold: true, fontSize: 10, margin: [0, 0, 0, 4] },
@@ -162,13 +160,13 @@ export function cuttingListDocument(design: Design, list: CuttingList, issues: I
   }
 
   content.push({ text: r.partsByUnit, fontSize: 13, bold: true, margin: [0, 14, 0, 4], pageBreak: 'before' });
-  const unitTable = (parts: Array<Part & { materialName?: string }>) => ({
+  const unitTable = (parts: Array<Part & { materialName: string }>) => ({
     table: {
       headerRows: 1,
       widths: [110, 24, 40, 40, 28, 170, 80, '*'],
       body: [
         header([r.piece, r.qty, r.length, r.width, r.thick, r.material, r.edges, r.note], [1, 2, 3, 4]),
-        ...parts.map((p) => [...partCells(p, p.materialName ?? materialName(p.materialId), bandThickness, t), { text: partNote(p, t.engine), color: MUTED }]),
+        ...parts.map((p) => [...partCells(p, p.materialName, bandThickness, t), { text: partNote(p, t.engine), color: MUTED }]),
       ],
     },
     layout: tableLayout,

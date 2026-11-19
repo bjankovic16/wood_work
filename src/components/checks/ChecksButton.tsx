@@ -97,7 +97,7 @@ export function ChecksButton({ compact = false }: { compact?: boolean }) {
 
   return (
     <div ref={rootRef} className={cn('relative shrink-0', open && 'z-40')}
-      onPointerEnter={(e) => { if (e.pointerType !== 'touch') setMode((m) => m === 'closed' ? 'preview' : m); }}
+      onPointerEnter={(e) => { if (!compact && e.pointerType !== 'touch') setMode((m) => m === 'closed' ? 'preview' : m); }}
       onPointerLeave={() => { if (mode === 'preview' && !rootRef.current?.contains(document.activeElement)) setMode('closed'); }}
       onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setMode('closed'); }}>
       <button
@@ -108,7 +108,7 @@ export function ChecksButton({ compact = false }: { compact?: boolean }) {
         aria-haspopup="dialog"
         aria-controls={open ? id : undefined}
         aria-describedby={open && issues.length ? `${id}-preview` : undefined}
-        onFocus={() => setMode((m) => m === 'closed' ? 'preview' : m)}
+        onFocus={() => { if (!compact) setMode((m) => m === 'closed' ? 'preview' : m); }}
         onClick={() => setMode((m) => m === 'pinned' ? 'closed' : 'pinned')}
         className={cn(
           'inline-flex h-8 min-w-8 touch-manipulation items-center justify-center rounded-md text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40',

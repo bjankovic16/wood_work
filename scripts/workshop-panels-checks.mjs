@@ -39,6 +39,8 @@ export async function checkWorkshopPanels(browser, url) {
           collision: issues.find((i) => i.roomFeatureId === 'column' && i.itemIds.length).message,
           roomOnly: issues.find((i) => i.roomFeatureId === 'outside' && !i.itemIds.length).message,
           settings: t.settings.title, done: t.common.done, used: t.settings.usedBoard, price: `${t.settings.pricePerSheet} (RSD)`,
+          white: t.engine.material(fixture.materials.find((m) => m.id === 'particleboard-white-18')),
+          name: t.settings.name, enterPrice: t.settings.enterPrice, addPrices: t.cutting.addPrices,
           money: t.money(1234.5), count: t.cutting.sheetCount(list.materials.reduce((n, m) => n + m.sheets, 0)),
           info: t.cutting.aboutEstimate, note: t.cutting.estimateNote, checks: t.checks.checks, all: t.checks.showAll(issues.length),
           dimensions: t.room.dimensions, advanced: t.room.advanced, more: t.topBar.more,
@@ -48,6 +50,11 @@ export async function checkWorkshopPanels(browser, url) {
       const settings = page.getByRole('dialog', { name: expected.settings });
       const cards = settings.getByTestId('material-card');
       await cards.first().waitFor();
+      assert.equal(await settings.locator('summary .board-price').count(), 0, 'Unknown prices do not get a currency placeholder.');
+      for (const thickness of [16, 18]) {
+        const label = settings.locator(`[data-material-id="particleboard-white-${thickness}"] .board-name`);
+        assert.equal(await label.innerText(), `${expected.white} ${thickness} mm`);
+      }
       assert.equal(await settings.locator('details[open]').count(), 0);
       const ids = await cards.evaluateAll((els) => els.map((el) => el.dataset.materialId));
       const marked = await cards.filter({ has: page.getByText(expected.used, { exact: true }) }).evaluateAll((els) => els.map((el) => el.dataset.materialId));
@@ -58,8 +65,11 @@ export async function checkWorkshopPanels(browser, url) {
       await press(row);
       assert.equal(await settings.locator('details[open]').count(), 1);
       const price = first.getByRole('textbox', { name: expected.price, exact: true });
+      assert.equal(await first.getByRole('textbox', { name: expected.name, exact: true }).inputValue(), expected.white);
+      assert.equal(await price.inputValue(), '');
+      assert.equal(await price.getAttribute('placeholder'), expected.enterPrice);
       await price.fill(compact ? '1234,5' : '1234.5'); await price.press('Enter');
-      assert.match(await row.innerText(), /2800×2070×18 mm/);
+      assert.match(await row.innerText(), /2800×2070 mm/);
       assert.ok((await row.innerText()).includes(expected.money));
       assert.ok(await row.evaluate((el) => el.scrollWidth <= el.clientWidth && el.offsetHeight >= 46 && getComputedStyle(el).listStyleType === 'none'),
         'Material names and prices can wrap on a phone; rows must not overflow or shrink their touch targets.');
@@ -68,6 +78,20 @@ export async function checkWorkshopPanels(browser, url) {
 
       const summary = page.getByTestId('cutting-summary');
       assert.match(await summary.innerText(), /^\d/);
+      assert.doesNotMatch(await summary.innerText(), /RSD/, 'One priced board is not the material total.');
+      assert.ok((await page.getByTestId('material-totals').innerText()).includes(expected.money));
+      for (const thickness of [16, 18]) {
+        assert.ok(await page.locator('[data-part-card]').getByText(`${expected.white} ${thickness} mm`, { exact: true }).count() > 0);
+      }
+      await press(summary.getByRole('button', { name: expected.addPrices }));
+      await settings.waitFor();
+      const reloadCard = settings.locator('[data-material-id="particleboard-white-18"]');
+      await press(reloadCard.locator('summary'));
+      const reloadPrice = reloadCard.getByRole('textbox', { name: expected.price, exact: true });
+      await reloadPrice.fill(''); await reloadPrice.press('Enter');
+      assert.equal(await reloadCard.locator('.board-price').count(), 0);
+      await press(settings.getByRole('button', { name: expected.done }));
+      assert.doesNotMatch(await page.getByTestId('material-totals').innerText(), /RSD/);
       assert.equal(await summary.getByText(expected.count, { exact: true }).isVisible(), true);
       const note = summary.getByText(expected.note), info = summary.getByRole('button', { name: expected.info });
       assert.equal(await note.isVisible(), false);

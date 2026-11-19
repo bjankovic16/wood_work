@@ -7,7 +7,8 @@ import { Button } from '../ui';
 const steps = [['room', Ruler], ['plan', LayoutGrid], ['3d', Box], ['list', List]] as const;
 
 export function PlanningGuide({ compare }: { compare: () => void }) {
-  const p = useT().planner;
+  const t = useT(), p = t.planner;
+  const names = { room: t.room.tab, plan: t.topBar.plan, '3d': t.topBar.view3d, list: t.topBar.list };
   const here = useUiStore((s) => s.roomOpen ? 'room' : s.view);
   const setPage = useUiStore((s) => s.setProjectPage);
   return <div className="space-y-4 p-4">
@@ -20,8 +21,8 @@ export function PlanningGuide({ compare }: { compare: () => void }) {
           <Icon size={20} className="shrink-0 text-studio-accent" aria-hidden="true" />
           <span className="min-w-0 flex-1">
             {view === here && <small className="block font-medium text-studio-accent">{p.here}</small>}
-            <strong className="block text-sm">{i + 1}. {p.steps[view][0]}</strong>
-            <span className="block text-xs leading-relaxed text-studio-muted">{p.steps[view][1]}</span>
+            <strong className="block text-sm">{i + 1}. {names[view]}</strong>
+            <span className="block text-xs leading-relaxed text-studio-muted">{p.steps[view]}</span>
           </span><ArrowRight size={15} aria-hidden="true" />
         </button>
       </li>)}
