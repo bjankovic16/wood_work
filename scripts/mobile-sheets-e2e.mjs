@@ -59,6 +59,13 @@ try {
   await tile.press('Enter');
   assert.equal((await selected()).label, 'B2');
   assert.match(await add.getByRole('status').filter({ hasText: 'Added:' }).innerText(), /B2/);
+  for (const name of ['Edit on plan', 'Move', 'Resize']) {
+    assert.ok(await button(add, name).evaluate((b) => {
+      const r = b.getBoundingClientRect();
+      return r.left >= 0 && r.right <= innerWidth && r.height >= 44 && r.width >= 44
+        && b.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
+    }), `${name} must be reachable in the 320px Add footer.`);
+  }
   assert.equal(await tile.evaluate((el) => {
     const r = el.getBoundingClientRect();
     return el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));

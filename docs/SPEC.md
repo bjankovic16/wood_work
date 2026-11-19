@@ -177,9 +177,12 @@ sheet with small, half and full detents. The grip has no visible height caption;
 its accessible value and help, tap, drag and keyboard controls remain available.
 Both editor widths use Size, Fronts, Materials and Parts tabs and common-size
 picks. Put stacking after the everyday size, position and code fields.
-On phones, Add allows repeated picks or direct **Resize** and **Move** for the
-last pick. Resize opens Size with the width ready to edit, even when a unit is
-too small for edge handles. In Layout, Move lets a user tap a free destination
+On phones, Add allows repeated picks or **Edit on plan**, **Resize** and **Move**
+for the last pick. Edit on plan exposes the selected cabinet (and its upper row if
+needed) without opening a form. Drag its body to move it or a side/front edge to
+resize it. Provide separate, connected grips on narrow footprints; grabbing a
+grip off-centre must not jump the measurement. Resize opens the exact width field.
+In Layout, Move lets a user tap a free destination
 for the selected footprint's centre without rotation or wall snapping. Check
 the actual room and obstacles before placing; a rejected tap, a pinch or Cancel
 does not edit the design. Normal body drags, edge resizing and 3D orbit still work independently.

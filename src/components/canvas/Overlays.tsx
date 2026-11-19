@@ -1,15 +1,16 @@
 import type { KonvaEventObject } from 'konva/lib/Node';
 import { Group, Line, Rect } from 'react-konva';
 import { computeClearances, computeWallChains, computeSegmentChains, type WallChain } from '../../domain/dimensions';
-import { footprintPolygon, itemRect, localDepthExtent, localToRoom, roomToLocal } from '../../domain/geometry';
+import { footprintPolygon, localDepthExtent, localToRoom, roomToLocal } from '../../domain/geometry';
 import { polygonBounds } from '../../domain/polygons';
 import { roomOutline } from '../../domain/roomGeometry';
-import { itemHandles, type Guide, type HandleId } from '../../domain/snapping';
+import type { Guide, HandleId, ItemHandle } from '../../domain/snapping';
 import type { KitchenItem, Room } from '../../domain/types';
 import type { Issue } from '../../engine/checks';
 import { WALL_THICKNESS } from '../../store/viewport';
 import { DimensionLine } from './DimensionLine';
 import { ItemShape } from './ItemShape';
+import { planResizeEdges } from './planResizeEdges';
 import { ACCENT, CANVAS_BACKGROUND, COMPACT_LABEL_PX, DIMENSION_COLORS, GUIDE } from './theme';
 
 /** Distance of each dimension row from the outside face of the wall, in screen pixels. */
@@ -178,39 +179,28 @@ interface SelectionProps {
   px: number;
   /** Touch screen: bigger handles that are easier to hit with a finger. */
   touch?: boolean;
-  onHandlePointerDown: (handle: HandleId, event: KonvaEventObject<PointerEvent>) => void;
+  resizing?: { handle: HandleId; item: KitchenItem };
+  onHandlePointerDown: (handle: ItemHandle, event: KonvaEventObject<PointerEvent>) => void;
   onCursor: (cursor: string) => void;
 }
 
-export function Selection({ item, px, touch = false, onHandlePointerDown, onCursor }: SelectionProps) {
+export function Selection({ item, px, touch = false, resizing, onHandlePointerDown, onCursor }: SelectionProps) {
   const size = (touch ? 14 : 9) * px;
-  // Below this on-screen size the handles would cover the whole unit, leaving nothing to grab.
-  const minResizable = touch ? 44 : 28;
-  const rect = itemRect(item);
-  const handles = itemHandles(item).filter((handle) => {
-    const extent = handle.side === 'left' || handle.side === 'right' ? rect.w : rect.h;
-    return extent / px >= minResizable;
-  });
+  const edges = planResizeEdges(item, px, touch, resizing);
   return (
     <Group>
       <Line points={footprintPolygon(item)} closed stroke={ACCENT} strokeWidth={2 * px} listening={false} />
-      {handles.map((handle) => (
-        <Rect
-          key={handle.id}
-          name="handle"
-          x={handle.point.x - size / 2}
-          y={handle.point.y - size / 2}
-          width={size}
-          height={size}
-          fill="#ffffff"
-          stroke={ACCENT}
-          strokeWidth={1.5 * px}
-          cornerRadius={2 * px}
-          hitStrokeWidth={(touch ? 14 : 8) * px}
-          onPointerDown={(e) => onHandlePointerDown(handle.id, e)}
+      {edges.map(({ handle, edge, grip, offset }) => (
+        <Group key={handle.id} onPointerDown={(e) => onHandlePointerDown(handle, e)}
           onMouseEnter={() => onCursor(handle.side === 'left' || handle.side === 'right' ? 'ew-resize' : 'ns-resize')}
-          onMouseLeave={() => onCursor('')}
-        />
+          onMouseLeave={() => onCursor('')}>
+          {edge && <Line points={edge} stroke="transparent" strokeWidth={(touch ? 12 : 8) * px} />}
+          {offset > 0 && <Line points={[handle.point.x, handle.point.y, grip.x, grip.y]}
+            stroke={ACCENT} strokeWidth={1.5 * px} listening={false} />}
+          <Rect name={`handle grip-${handle.id}`} x={grip.x - size / 2} y={grip.y - size / 2}
+            width={size} height={size} fill="#ffffff" stroke={ACCENT} strokeWidth={1.5 * px}
+            cornerRadius={2 * px} hitStrokeWidth={(touch ? 14 : 8) * px} />
+        </Group>
       ))}
     </Group>
   );

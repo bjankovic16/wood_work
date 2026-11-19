@@ -124,7 +124,14 @@ async function layers(page) {
   assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().selectedId), 'plan-upper');
 
   await button(page, 'Wall units').click();
-  await row.selectOption('1200');
+  const firstHit = await row.evaluate(async (select) => {
+    select.value = '1200';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    await Promise.resolve(); // Read the committed selection before the next animation frame.
+    const stage = window.Konva.stages[0];
+    return stage.getIntersection(stage.getAbsoluteTransform().point({ x: 1050, y: 160 }))?.findAncestor('.item')?.id();
+  });
+  assert.equal(firstHit, 'plan-hood', 'The newly visible row must be pickable from its first frame.');
   await page.mouse.click(...await canvasPoint(page, 1050, 160));
   assert.equal(await selected(), 'plan-hood', 'An accessory outside every cupboard row is still reachable above a floor unit.');
   await row.selectOption('2170');
@@ -161,6 +168,23 @@ async function layers(page) {
   assert.ok(Math.hypot(box.x + box.width / 2 - spot[0], box.y + box.height / 2 - spot[1]) < 2,
     `The rendered centre should follow the click: ${JSON.stringify({ spot, box, repositioned })}`);
   assert.deepEqual(repositioned, { ...added, x: repositioned.x, y: repositioned.y });
+  await button(page, 'Undo').click();
+  assert.deepEqual(await page.evaluate(() => window.__kitchen.design.getState().design.items.at(-1)), added);
+
+  // Pick well away from the little midpoint grip: the side itself must resize, not move the unit.
+  const [side, out] = await page.evaluate(async (item) => {
+    const { localToRoom } = await import('/src/domain/geometry.ts');
+    return [0, 200].map((delta) => localToRoom(item, item.width + delta, item.depth * 0.18));
+  }, added);
+  await page.mouse.move(...await canvasPoint(page, side.x, side.y)); await page.mouse.down();
+  await page.mouse.move(...await canvasPoint(page, out.x, out.y), { steps: 4 }); await page.mouse.up();
+  const stretched = await page.evaluate(() => window.__kitchen.design.getState().design.items.at(-1));
+  assert.ok(stretched.width > added.width && stretched.depth === added.depth && stretched.rotation === added.rotation);
+  assert.ok(await page.evaluate(async ([a, b]) => {
+    const { localToRoom } = await import('/src/domain/geometry.ts');
+    const p = localToRoom(a, 0, 0), q = localToRoom(b, 0, 0);
+    return Math.hypot(p.x - q.x, p.y - q.y) < 1;
+  }, [added, stretched]), 'Dragging a side leaves the opposite end anchored, including when rotated.');
   await button(page, 'Undo').click();
   assert.deepEqual(await page.evaluate(() => window.__kitchen.design.getState().design.items.at(-1)), added);
 }
@@ -501,6 +525,66 @@ async function phonePlacement(page) {
   assert.equal(await width.inputValue(), '600');
 }
 
+async function directPhoneEditing(page) {
+  const sheet = page.getByTestId('item-sheet'), picker = page.getByRole('dialog', { name: 'Dodaj element' });
+  const last = () => page.evaluate(() => window.__kitchen.design.getState().design.items.at(-1));
+  const history = () => page.evaluate(() => window.__kitchen.design.getState().past.length);
+  await page.evaluate(() => window.__kitchen.ui.getState().setSnapEnabled(false));
+  await button(sheet, 'Dodaj element').tap();
+  await picker.getByRole('searchbox').fill('300');
+  await picker.locator('[data-preset="base-300"]').tap();
+  const added = await last(), initial = await history();
+  await button(picker, 'Na crtež').tap();
+  await picker.waitFor({ state: 'detached' });
+  assert.equal(await sheet.getAttribute('data-snap'), 'small');
+  const body = await planGeometry(page, added.id), z = await zoom(page);
+  assert.ok(body.centreHit && body.width < 44, 'Test the actual narrow footprint at phone fit, not a zoomed-in unit.');
+  const [x, y] = [body.x + body.width / 2, body.y + body.height / 2];
+  const [toX, toY] = await canvasPoint(page, 1730, 1570);
+  await swipePlan(page, x, y, toX - x, toY - y);
+  const moved = await last();
+  assert.ok(Math.hypot(moved.x + moved.width / 2 - 1730, moved.y + moved.depth / 2 - 1570) * z < 2);
+  assert.deepEqual(moved, { ...added, x: moved.x, y: moved.y });
+  assert.equal(await history(), initial + 1);
+  const middle = await planGeometry(page, added.id);
+  await swipePlan(page, middle.x + middle.width / 2, middle.y + middle.height / 2, 20, -14);
+  const movedAgain = await last();
+  assert.ok(Math.hypot((movedAgain.x - moved.x) * z - 20, (movedAgain.y - moved.y) * z + 14) < 2,
+    'A free-standing unit can be grabbed again in the middle of the room.');
+  await button(page, 'Korak unazad').tap();
+  assert.deepEqual(await last(), moved);
+  for (const [grip, field, dx, dy] of [['right', 'width', 24, 0], ['front', 'depth', 0, 16]]) {
+    await drawn(page);
+    const point = await page.evaluate((grip) => {
+      const stage = window.Konva.stages[0], node = stage.findOne(`.grip-${grip}`);
+      if (!node) return null;
+      const r = node.getClientRect(), p = { x: r.x + r.width / 2 - 3, y: r.y + r.height / 2 - 2 };
+      const c = stage.content.getBoundingClientRect();
+      return stage.getIntersection(p) === node && document.elementFromPoint(p.x + c.x, p.y + c.y)?.tagName === 'CANVAS'
+        ? [p.x + c.x, p.y + c.y] : null;
+    }, grip);
+    assert.ok(point, `The ${field} grip must be visible and pickable without opening the size form.`);
+    await swipePlan(page, ...point, dx, dy);
+    const next = await last();
+    assert.ok(Math.abs((next[field] - moved[field]) * z - (dx || dy)) < 2, `${field} follows finger travel, not the offset grip's absolute position.`);
+    assert.deepEqual(next, { ...moved, [field]: next[field] });
+    assert.equal(await history(), initial + 2);
+    await button(page, 'Korak unazad').tap();
+    assert.deepEqual(await last(), moved);
+  }
+  await button(page, 'Korak unazad').tap();
+  assert.deepEqual(await last(), added);
+  await button(sheet, 'Dodaj element').tap();
+  await picker.locator('[data-preset="wall-600"]').tap();
+  const upper = await last();
+  await button(picker, 'Na crtež').tap();
+  await drawn(page);
+  assert.ok(await page.evaluate((id) => {
+    const ui = window.__kitchen.ui.getState();
+    return ui.viewFilter === 'wall' && ui.selectedId === id && !!window.Konva.stages[0].findOne('.grip-front');
+  }, upper.id), 'An explicitly edited upper must have real grips, not just its dashed All-layer outline.');
+}
+
 /** Pass a fresh touch-enabled Playwright Page already on the Vite app. Owns the fixture,
  * preferences, language and viewport; close its isolated context after this returns. */
 export async function checkPlanUX(page) {
@@ -513,6 +597,7 @@ export async function checkPlanUX(page) {
   await openPhonePlan(page);
   await cabinetActions(page);
   await phonePlacement(page);
+  await directPhoneEditing(page);
 }
 
 // Also runnable without the unrelated 3D/workshop suites.

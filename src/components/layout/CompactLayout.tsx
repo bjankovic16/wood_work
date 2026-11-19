@@ -1,6 +1,8 @@
-import { Plus, Ruler } from 'lucide-react';
+import { MousePointer2, Plus, Ruler } from 'lucide-react';
 import { useEffect, useId, useState } from 'react';
+import { isWallMounted } from '../../domain/geometry';
 import type { KitchenItem } from '../../domain/types';
+import { editableUpperRows, inUpperRow } from '../../domain/upperCabinets';
 import { useT } from '../../i18n';
 import { useDesignStore } from '../../store/designStore';
 import { useUiStore } from '../../store/uiStore';
@@ -73,10 +75,23 @@ function AddSheet({ close }: { close: () => void }) {
   const t = useT();
   const [added, setAdded] = useState<KitchenItem | null>(null);
   const selectedId = useUiStore((s) => s.selectedId), inPlan = useUiStore((s) => s.view === 'plan');
+  const editOnDrawing = (item: KitchenItem) => {
+    const ui = useUiStore.getState();
+    ui.requestFocus(null); // A custom pick normally opens the width field; this choice keeps the drawing exposed.
+    if (isWallMounted(item)) {
+      const row = editableUpperRows(useDesignStore.getState().design.items).find((row) => inUpperRow(item, row));
+      ui.setWallElevation(row?.elevation ?? null);
+      ui.setViewFilter('wall');
+    } else if (ui.viewFilter === 'wall') ui.setViewFilter('floor');
+    close();
+  };
   return <Dialog open title={t.phone.addElement} sheet onClose={close}
-    footer={inPlan && added && added.id === selectedId && <><PlanMoveButton onStart={close} /><SizeButton onEdit={close} /></>}
+    footer={inPlan && added && added.id === selectedId && <>
+      <Button variant="primary" onClick={() => editOnDrawing(added)}><MousePointer2 className="size-4" aria-hidden="true" />{t.canvas.onDrawing}</Button>
+      <PlanMoveButton onStart={close} /><SizeButton short onEdit={close} />
+    </>}
     headerNote={<p role="status" aria-atomic="true" className="text-xs font-medium text-studio-accent">{added && t.sheet.added(t.kinds[added.kind], added.label)}</p>}>
-    <p className="px-4 pt-3 text-xs text-zinc-500">{t.phone.addHint}</p>
+    <p className="px-4 pt-3 text-sm text-studio-muted">{inPlan && added ? t.canvas.drawingHint : t.phone.addHint}</p>
     <div className="space-y-1 px-3 pb-[max(env(safe-area-inset-bottom),16px)] pt-1">
       <LibrarySections wide multiple onAdded={() => {
         const id = useUiStore.getState().selectedId;
