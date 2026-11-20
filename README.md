@@ -48,6 +48,10 @@ Compare runs on the same device and browser.
 Open [Kitchen Designer](https://bjankovic16.github.io/wood_work/).
 Pushes to `main` run the unit tests, build the app and deploy it to GitHub Pages
 through [the deployment workflow](.github/workflows/deploy-pages.yml).
+Publishing waits for the build job's uploaded artifact. If only publishing
+fails, use **Re-run failed jobs** on the current `main` run to reuse that build.
+If the artifact has expired or `main` has moved on, use **Run workflow** on
+`main` instead of redeploying an older commit.
 See [the browser test workflow](.github/workflows/browser-tests.yml) for the
 suites run on pull requests and pushes to `main`; screenshots of a failed
 suite are attached to its run for a week.
