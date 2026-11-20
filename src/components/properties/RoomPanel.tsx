@@ -17,6 +17,7 @@ import { RoomFeatureFields, RoomStructureSettings } from './RoomStructureSetting
 import { AdvancedRoomSettings } from './AdvancedRoomSettings';
 import { openingOnWall, roomSegments } from '../../domain/walls';
 import { editRoomPositionIn2D, RoomReadout, useRoomReadout } from '../room/RoomReadout';
+import { requestRoomWall } from '../room/RoomWallPicker';
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
@@ -89,7 +90,7 @@ export function OpeningCard({ opening, number }: { opening: Opening; number: num
   );
 }
 
-export function RoomObjectButtons({ wallId, menu = false, facing = false }: { wallId?: string; menu?: boolean; facing?: boolean }) {
+export function RoomObjectButtons({ menu = false, facing = false }: { menu?: boolean; facing?: boolean }) {
   const t = useT();
   const count = useDesignStore((s) => s.design.room.features?.length ?? 0);
   const [failed, setFailed] = useState(false);
@@ -107,13 +108,13 @@ export function RoomObjectButtons({ wallId, menu = false, facing = false }: { wa
       {choices.map(({ kind, Icon }) => {
         const opening = kind === 'door' || kind === 'window';
         return <Button key={kind} variant={menu ? 'ghost' : 'outline'} data-close-menu={menu || undefined}
-          disabled={!opening && count >= MAX_ROOM_FEATURES} onClick={(e) => add(e, () => {
+          disabled={!opening && count >= MAX_ROOM_FEATURES} onClick={(e) => add(e, () => requestRoomWall((chosenWall) => {
             if (opening) {
-              actions.addOpening(kind, wallId);
+              actions.addOpening(kind, chosenWall);
               if (menu) useUiStore.getState().setRoomElevationOpen(true);
             }
-            else actions.addRoomFeature(kind, facing || kind === 'chimney' ? wallId : undefined);
-          })}>
+            else actions.addRoomFeature(kind, facing || kind === 'chimney' ? chosenWall : undefined);
+          }))}>
           {menu ? <Icon size={17} aria-hidden="true" /> : <Plus className="size-4" />}{opening ? t.room.opening(kind) : t.engine.roomFeatures[kind]}
         </Button>;
       })}
@@ -128,10 +129,8 @@ export function RoomObjectsSection({ workspace = false }: { workspace?: boolean 
   const id = useId();
   const openings = useDesignStore((s) => s.design.openings);
   const room = useDesignStore((s) => s.design.room);
-  const wallId = useUiStore((s) => s.selectedWallId);
   const selection = useUiStore((s) => s.roomSelection);
   const walls = roomSegments(room);
-  const wall = walls.find((s) => s.id === wallId);
   const ui = useUiStore.getState();
   const count = { window: 0, door: 0 };
   const objects = [
@@ -139,7 +138,7 @@ export function RoomObjectsSection({ workspace = false }: { workspace?: boolean 
     ...(room.features ?? []).map((f, i) => ({ type: 'feature' as const, id: f.id, wallId: f.wallId, name: `${t.engine.roomFeatures[f.kind]} ${i + 1}` })),
   ];
   return <section className="room-inventory">
-    {!workspace && <RoomObjectButtons wallId={wall?.id} />}
+    {!workspace && <RoomObjectButtons />}
     <div className="room-inventory-label"><Layers size={16} aria-hidden="true" />
       {objects.length ? <label htmlFor={id}>{t.room.roomObjects}</label> : <h3>{t.room.roomObjects}</h3>}<span>{objects.length}</span>
     </div>

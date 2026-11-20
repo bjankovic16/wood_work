@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
-import { chimneyCornerCheck, draftedWindowCheck, furnishedWallChecks, planCornerChecks, wallEditorChecks, workspaceObjectChecks } from './room-object-checks.mjs';
+import { chimneyCornerCheck, draftedWindowCheck, furnishedWallChecks, planCornerChecks, roomViewAndAddChecks, wallEditorChecks, workspaceObjectChecks } from './room-object-checks.mjs';
 import { startFreshChecks } from './start-fresh-checks.mjs';
 import { plannerChecks } from './planner-checks.mjs';
 import { showRoomModel, waitForIdleRendering } from './three-test-helpers.mjs';
@@ -28,7 +28,7 @@ async function phoneRoomTools(page, workspace) {
     await page.setViewportSize(viewport);
     await plan.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     await assertWallTargets(plan, 8);
-    const shortcut = plan.getByRole('button', { name: 'Pogled na zid 3' });
+    const shortcut = plan.getByRole('button', { name: 'Pogledaj zid 3' });
     await shortcut.tap();
     assert.equal(await workspace.getByRole('combobox', { name: 'Izaberi pogled' }).inputValue(), 'bottom');
     if (!planOnly && viewport.width === 320) {
@@ -63,7 +63,7 @@ async function phoneRoomTools(page, workspace) {
       await assertWallTargets(plan, 12);
       await plan.getByRole('button', { name: 'Pomeri ugao 4' }).press('Enter');
       assert.equal(await plan.locator('[data-corner-angle]').textContent(), '270°');
-      await plan.getByRole('button', { name: 'Pogled na zid 3' }).tap();
+      await plan.getByRole('button', { name: 'Pogledaj zid 3' }).tap();
       assert.equal(await workspace.getByRole('combobox', { name: 'Izaberi pogled' }).inputValue(), 'edge-2');
       await workspace.getByRole('button', { name: 'Nazad na osnovu' }).tap();
       await page.getByRole('button', { name: 'Korak unazad', exact: true }).tap();
@@ -266,7 +266,7 @@ async function separatedRoomChecks(page) {
   assert.equal(await picker.inputValue(), projectedWall, 'The 3D icon opens the wall shown beside it.');
   await showRoomModel(page);
   await revealSchedule();
-  await schedule.locator('[data-measure="partition:divider"]').getByRole('button', { name: 'Wall view: Wall 6' }).press('Enter');
+  await schedule.locator('[data-measure="partition:divider"]').getByRole('button', { name: 'View wall 6' }).press('Enter');
   assert.equal(await picker.inputValue(), 'divider:-1');
   assert.deepEqual(await state(), edited, 'Wall shortcuts change the view, not measurements, selections in the design, or history.');
   await kitchen3D.click();
@@ -359,6 +359,7 @@ try {
     if (!planOnly) await separatedRoomChecks(page);
     await planCornerChecks(page, compact);
     await wallEditorChecks(page, compact, !planOnly);
+    await roomViewAndAddChecks(page, compact, !planOnly);
     await chimneyCornerCheck(page, compact);
     if (compact) {
       await page.evaluate(async () => {

@@ -274,10 +274,14 @@ interface MenuProps {
   /** Shown next to the icon; without it the button is icon-only. */
   text?: ReactNode;
   variant?: ButtonProps['variant'];
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export function Menu({ label, icon, children, align = 'right', text, variant = 'ghost' }: MenuProps) {
-  const [open, setOpen] = useState(false);
+export function Menu({ label, icon, children, align = 'right', text, variant = 'ghost', open: controlledOpen, onOpenChange }: MenuProps) {
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = controlledOpen ?? localOpen;
+  const setOpen = (value: boolean) => onOpenChange ? onOpenChange(value) : setLocalOpen(value);
   const rootRef = useRef<HTMLDivElement>(null);
   const id = useId();
   const closeToTrigger = () => {
@@ -298,7 +302,7 @@ export function Menu({ label, icon, children, align = 'right', text, variant = '
     }} onKeyDown={(e) => {
       if (open && e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeToTrigger(); }
     }}>
-      <TooltipButton tooltip={label} variant={variant} aria-label={label} aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen((o) => !o)}>
+      <TooltipButton tooltip={label} variant={variant} aria-label={label} aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen(!open)}>
         {icon}
         {text}
       </TooltipButton>

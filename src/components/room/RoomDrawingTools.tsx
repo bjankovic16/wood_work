@@ -4,8 +4,11 @@ import { roomOutline } from '../../domain/roomGeometry';
 import type { Room } from '../../domain/types';
 import type { WallSegment } from '../../domain/walls';
 import { useT } from '../../i18n';
+import { useUiStore, type RoomPlanAngle } from '../../store/uiStore';
 import { RoomObjectButtons } from '../properties/RoomPanel';
 import { Menu } from '../ui';
+import { requestRoomWall } from './RoomWallPicker';
+import { roomPlanBounds } from './roomPlanView';
 
 interface Props {
   room: Room;
@@ -16,11 +19,16 @@ interface Props {
   show: (wallId: string) => void;
   back: () => void;
   roomModel?: { active: boolean; open: () => void };
+  angle?: RoomPlanAngle;
 }
 
-export function RoomDrawingTools({ room, walls, facing, selectedWall, pickerRef, show, back, roomModel }: Props) {
+export function RoomDrawingTools({ room, walls, facing, selectedWall, pickerRef, show, back, roomModel, angle = 0 }: Props) {
   const t = useT();
-  const number = facing ? walls.indexOf(facing) + 1 : 0;
+  const addOpen = useUiStore((s) => s.roomAddMenuOpen);
+  const ui = useUiStore.getState();
+  const bounds = roomPlanBounds(room, angle);
+  const selected = facing ?? selectedWall;
+  const number = selected ? walls.indexOf(selected) + 1 : 0;
   let modelOption = ':room-model';
   while (walls.some((s) => s.id === modelOption)) modelOption += ':';
   const margin = Math.max(room.width, room.depth) * 0.1;
@@ -29,14 +37,16 @@ export function RoomDrawingTools({ room, walls, facing, selectedWall, pickerRef,
       <ArrowLeft size={16} aria-hidden="true" />
     </button>}
     <label className="room-view-picker">
-      <svg className="room-mini-plan" aria-hidden="true" viewBox={`${-margin} ${-margin} ${room.width + 2 * margin} ${room.depth + 2 * margin}`}>
+      <svg className="room-mini-plan" aria-hidden="true" viewBox={`${bounds.x - margin} ${bounds.y - margin} ${bounds.width + 2 * margin} ${bounds.height + 2 * margin}`}>
+        <g transform={`rotate(${angle})`}>
         <polygon points={roomOutline(room).map((p) => `${p.x},${p.y}`).join(' ')} fill="#e1e9dd" stroke="#718878" vectorEffect="non-scaling-stroke" />
         {room.partitions?.map((p) => <line key={p.id} x1={p.start.x} y1={p.start.y} x2={p.end.x} y2={p.end.y} stroke="#899889" vectorEffect="non-scaling-stroke" />)}
         {facing && <line x1={facing.start.x} y1={facing.start.y} x2={facing.end.x} y2={facing.end.y}
           stroke="#246748" strokeWidth="3" strokeLinecap="round" vectorEffect="non-scaling-stroke" />}
+        </g>
       </svg>
       <span aria-hidden="true"><small>{roomModel?.active ? t.room.model : facing ? t.room.facingWall : t.room.plan}</small>
-        <strong>{facing && !roomModel?.active ? t.advancedRoom.wall(number) : t.room.chooseWall}</strong></span>
+        <strong>{number && !roomModel?.active ? t.advancedRoom.wall(number) : t.room.chooseWall}</strong></span>
       <ChevronDown size={15} aria-hidden="true" />
       <select aria-label={t.room.drawingView} ref={pickerRef} value={roomModel?.active ? modelOption : facing?.id ?? ''}
         onChange={(e) => e.target.value === modelOption ? roomModel?.open() : show(e.target.value)}>
@@ -59,9 +69,10 @@ export function RoomDrawingTools({ room, walls, facing, selectedWall, pickerRef,
       else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') buttons[i === -1 && e.key === 'ArrowUp' ? buttons.length - 1
         : (i + (e.key === 'ArrowUp' ? -1 : 1) + buttons.length) % buttons.length].focus();
     }}>
-      <Menu label={t.room.addObject} variant="outline" icon={<Plus size={16} aria-hidden="true" />}
+      <Menu label={t.room.addObject} variant="outline" icon={<Plus size={16} aria-hidden="true" />} open={addOpen}
+        onOpenChange={(open) => open ? requestRoomWall(() => ui.setRoomAddMenuOpen(true)) : ui.setRoomAddMenuOpen(false)}
         text={<><span className="room-add-label">{t.room.addShort}</span><ChevronDown size={14} aria-hidden="true" /></>}>
-        <RoomObjectButtons menu wallId={selectedWall?.id} facing={!!facing} />
+        <RoomObjectButtons menu facing={!!facing} />
       </Menu>
     </div>}
   </div>;

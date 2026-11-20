@@ -923,6 +923,7 @@ try {
   console.log('Windows and doors');
   await page.keyboard.press('Escape');
   await page.getByRole('radio', { name: '1. Room', exact: true }).click();
+  await page.getByTestId('room-workspace').getByRole('combobox', { name: 'Drawing view' }).selectOption('top');
   await page.getByRole('button', { name: 'Add an object', exact: true }).click();
   await page.getByRole('button', { name: 'Window', exact: true }).click();
   const selectedOpening = page.getByTestId('selected-room-card').getByTestId('opening-card');

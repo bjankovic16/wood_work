@@ -4,11 +4,12 @@ import { dragFeatureSize } from '../../domain/roomObjectPlacement';
 import type { Room, RoomFeature } from '../../domain/types';
 import { useT } from '../../i18n';
 import { updateRoomFeature } from '../../store/actions';
-import { useUiStore } from '../../store/uiStore';
+import { useUiStore, type RoomPlanAngle } from '../../store/uiStore';
 import { useDrawingDrag } from './useDrawingDrag';
+import { rotatePlanPoint } from './roomPlanView';
 
-export function FeatureSizeGrips({ room, feature, px }: { room: Room; feature: RoomFeature; px: number }) {
-  const t = useT(), drag = useDrawingDrag();
+export function FeatureSizeGrips({ room, feature, px, angle = 0 }: { room: Room; feature: RoomFeature; px: number; angle?: RoomPlanAngle }) {
+  const t = useT(), drag = useDrawingDrag(angle);
   const [blocked, setBlocked] = useState(false);
   const [a, b, c] = roomFeaturePolygon(room, feature);
   if (!a || !b || !c) return null;
@@ -19,6 +20,7 @@ export function FeatureSizeGrips({ room, feature, px }: { room: Room; feature: R
   ] as const;
   return <>{edges.map(({ field, dx, dy, sides }) => sides.map((sign) => {
     const amount = feature[field], n = { x: sign * dx, y: sign * dy };
+    const viewedNormal = rotatePlanPoint(n, angle);
     const edge = amount / 2, out = Math.max(edge + 8 * px, 38 * px);
     const resize = (delta: number) => {
       const desired = Math.max(100, amount + delta);
@@ -29,8 +31,9 @@ export function FeatureSizeGrips({ room, feature, px }: { room: Room; feature: R
     const label = field === 'width' ? (feature.wallId ? t.roomStructure.alongLength : t.roomStructure.width)
       : (feature.wallId ? t.roomStructure.projection : t.roomStructure.depth);
     return <g key={`${field}:${sign}`} data-feature-grip={`${field}:${sign}`} role="slider" tabIndex={0} aria-label={label}
+      aria-orientation={Math.abs(viewedNormal.x) > Math.abs(viewedNormal.y) ? 'horizontal' : 'vertical'}
       aria-valuenow={amount} aria-valuemin={100} aria-valuemax={Math.ceil(Math.hypot(room.width, room.depth))} aria-valuetext={`${amount} mm`}
-      aria-description={t.roomStructure.resizeHint} style={{ cursor: Math.abs(n.x) > Math.abs(n.y) ? 'ew-resize' : 'ns-resize' }}
+      aria-description={t.roomStructure.resizeHint} style={{ cursor: Math.abs(viewedNormal.x) > Math.abs(viewedNormal.y) ? 'ew-resize' : 'ns-resize' }}
       onPointerDown={(e) => {
         const { gridSize, snapEnabled } = useUiStore.getState(), step = snapEnabled ? gridSize : 1;
         if (drag.start(e, (d) => resize(Math.round((d.x * n.x + d.y * n.y) / step) * step), () => setBlocked(false))) e.preventDefault();
@@ -47,6 +50,7 @@ export function FeatureSizeGrips({ room, feature, px }: { room: Room; feature: R
     </g>;
   }))}
     {blocked && <text x={centre.x} y={centre.y} textAnchor="middle" pointerEvents="none" fontSize={12 * px} fill="#753908"
+      transform={`rotate(${-angle} ${centre.x} ${centre.y})`}
       stroke="white" strokeWidth={3 * px} paintOrder="stroke">{t.room.noSpace}</text>}
   </>;
 }
