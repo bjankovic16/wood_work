@@ -610,7 +610,7 @@ export function CuttingListView() {
           {(!empty || design.customParts.length > 0) && <ExtraPieces design={design} />}
         </div>
       </div>
-      {compact && <footer className="workshop-actions phone-flow-actions print:hidden"><ChecksButton compact />
+      {compact && <footer className="workshop-actions phone-flow-actions print:hidden"><ChecksButton variant="chip" />
         {empty ? <Button variant="primary" disabled aria-label={c.exportLabel} title={c.emptyText}><Download size={16} />{c.export}</Button> : exportTools}
       </footer>}
     </div>

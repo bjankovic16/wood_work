@@ -148,7 +148,7 @@ export function CompactLayout() {
         )}
         {designing && item && !placing && <ItemSheet key={item.id} item={item} adding={sheet === 'add'} onAdd={openAdd} />}
       </main>}
-      {(roomOpen || view !== 'list') && <div className="phone-flow-actions"><ChecksButton compact /><NextStep /></div>}
+      {(roomOpen || view === '3d') && <div className="phone-flow-actions"><ChecksButton variant="chip" /><NextStep /></div>}
       <MobileNavigation />
 
       {sheet === 'add' && <AddSheet close={closeAdd} />}

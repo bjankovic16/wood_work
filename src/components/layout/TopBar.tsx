@@ -173,10 +173,13 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
               <Button className="w-full justify-start" data-close-menu onClick={() => ui.setProjectPage('guide')}>
                 <CircleHelp className="size-4" />{t.planner.guide}
               </Button>
-              {!roomOpen && view === 'plan' && <details>
-                <summary className="cursor-pointer rounded-lg px-2 py-3 text-[13px] font-medium text-studio-muted">{t.topBar.view}</summary>
-                <ViewOptions />
-              </details>}
+              {!roomOpen && view === 'plan' && <>
+                <ChecksButton variant="menu" />
+                <details>
+                  <summary className="cursor-pointer rounded-lg px-2 py-3 text-[13px] font-medium text-studio-muted">{t.topBar.view}</summary>
+                  <ViewOptions />
+                </details>
+              </>}
               <Button className="w-full justify-start" data-close-menu onClick={() => ui.setSettingsTab('materials')}>
                 <Hammer className="size-4" />
                 {t.topBar.settings}

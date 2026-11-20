@@ -290,6 +290,8 @@ const annotations = (page) => page.evaluate(() => {
 });
 
 async function phoneLayers(page) {
+  const sheet = page.getByTestId('item-sheet');
+  const nav = page.getByRole('navigation', { name: 'Design workspace' });
   const initial = await annotations(page);
   assert.deepEqual(initial.room, ['3600', '3000']);
   assert.deepEqual(initial.unit, []);
@@ -302,16 +304,19 @@ async function phoneLayers(page) {
   await page.getByLabel('Upper cabinet row', { exact: true }).selectOption('2170');
   await page.touchscreen.tap(...await canvasPoint(page, 900, 160));
   assert.deepEqual((await annotations(page)).unit, ['600', '560'], 'The chosen upper has editable dimensions in its row.');
-  assert.equal(await page.locator('[data-plan-cabinet-name]').textContent(), 'Wall cabinet · W2');
+  assert.equal(await sheet.getAttribute('aria-label'), 'Wall cabinet · W2');
+  assert.equal(await page.locator('[data-plan-controls] [role="status"]').count(), 0, 'No dimming or duplicate cabinet captions above the phone drawing.');
+  const dock = await sheet.boundingBox(), tabs = await nav.boundingBox();
+  assert.ok(Math.abs(dock.y + dock.height - tabs.y) < 1, 'The cabinet sheet meets the tabs without a checks/next row.');
   await button(page, 'All').tap();
   const returned = await annotations(page);
   assert.ok(returned.codes.includes('S1') && !returned.codes.includes('W2'));
   assert.deepEqual(returned.unit, [], 'A selected upper must not leave rulers over the sink in All.');
   await page.touchscreen.tap(...await canvasPoint(page, 900, 160));
   assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().selectedId), 'phone-sink');
-  assert.equal(await page.locator('[data-plan-cabinet-name]').textContent(), 'Sink cabinet · S1');
+  assert.equal(await sheet.getAttribute('aria-label'), 'Sink cabinet · S1');
   await page.evaluate(() => window.__kitchen.ui.getState().setLanguage('sr'));
-  assert.equal(await page.locator('[data-plan-cabinet-name]').textContent(), 'Element za sudoperu · S1');
+  assert.equal(await sheet.getAttribute('aria-label'), 'Element za sudoperu · S1');
   await page.evaluate(() => window.__kitchen.ui.getState().setLanguage('en'));
   await button(page, 'Deselect').tap();
   await button(page, 'Floor units').tap();

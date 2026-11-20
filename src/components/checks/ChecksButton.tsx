@@ -36,7 +36,8 @@ function openIssue(issue: Issue) {
   }
 }
 
-export function ChecksButton({ compact = false }: { compact?: boolean }) {
+export function ChecksButton({ variant = 'toolbar' }: { variant?: 'toolbar' | 'chip' | 'menu' }) {
+  const compact = variant !== 'toolbar', inMenu = variant === 'menu';
   const t = useT();
   const issues = useIssues();
   const checklist = usePrecutChecklist();
@@ -51,14 +52,14 @@ export function ChecksButton({ compact = false }: { compact?: boolean }) {
   const [position, setPosition] = useState({ left: 0, above: false, height: 0 });
 
   useLayoutEffect(() => {
-    if (!open || !rootRef.current || !popupRef.current) return;
+    if (!open || inMenu || !rootRef.current || !popupRef.current) return;
     const anchor = rootRef.current.getBoundingClientRect();
     const width = popupRef.current.offsetWidth;
     const below = innerHeight - anchor.bottom;
     const above = below < 180 && anchor.top > below;
     const left = Math.max(8, Math.min(innerWidth - width - 8, anchor.right - width));
     setPosition({ left: left - anchor.left, above, height: (above ? anchor.top : below) - 12 });
-  }, [open]);
+  }, [open, inMenu]);
 
   useEffect(() => {
     if (!open) return;
@@ -103,21 +104,21 @@ export function ChecksButton({ compact = false }: { compact?: boolean }) {
       <button
         ref={badgeRef}
         type="button"
-        aria-label={t.checks.summary(summary)}
+        aria-label={inMenu ? undefined : t.checks.summary(summary)}
         aria-expanded={open}
-        aria-haspopup="dialog"
+        aria-haspopup={inMenu ? undefined : 'dialog'}
         aria-controls={open ? id : undefined}
         aria-describedby={open && issues.length ? `${id}-preview` : undefined}
         onFocus={() => { if (!compact) setMode((m) => m === 'closed' ? 'preview' : m); }}
         onClick={() => setMode((m) => m === 'pinned' ? 'closed' : 'pinned')}
         className={cn(
-          'inline-flex h-8 min-w-8 touch-manipulation items-center justify-center rounded-md text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40',
-          compact ? 'gap-1 px-1 text-xs' : 'gap-1.5 px-2',
+          'inline-flex h-8 min-w-8 touch-manipulation items-center rounded-md text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40',
+          inMenu ? 'w-full justify-start gap-1.5 px-2' : compact ? 'justify-center gap-1 px-1 text-xs' : 'justify-center gap-1.5 px-2',
           errors > 0 ? 'text-red-700 hover:bg-red-50' : warnings > 0 ? 'text-amber-700 hover:bg-amber-50' : 'text-emerald-700 hover:bg-emerald-50',
         )}
       >
         {issues.length === 0 ? <CircleCheck className="size-4" /> : <TriangleAlert className="size-4" />}
-        <span>{compact ? t.checks.chip(issues.length) : t.checks.checks}</span>
+        <span>{inMenu ? t.checks.summary(t.checks.chip(issues.length)) : compact ? t.checks.chip(issues.length) : t.checks.checks}</span>
         {!compact && issues.length > 0 && (
           <span
             aria-hidden
@@ -132,9 +133,9 @@ export function ChecksButton({ compact = false }: { compact?: boolean }) {
         )}
       </button>
       {open && (
-        <div ref={popupRef} className={cn('absolute w-[min(22rem,calc(100vw-1rem))]', position.above ? 'bottom-full pb-1' : 'top-full pt-1')} style={{ left: position.left }}>
-        <div id={id} role="dialog" aria-label={t.checks.checks}
-          className="overflow-y-auto overscroll-contain rounded-xl border border-zinc-200 bg-white p-2 shadow-xl" style={{ maxHeight: position.height }}>
+        <div ref={popupRef} className={inMenu ? undefined : cn('absolute w-[min(22rem,calc(100vw-1rem))]', position.above ? 'bottom-full pb-1' : 'top-full pt-1')} style={inMenu ? undefined : { left: position.left }}>
+        <div id={id} role={inMenu ? 'region' : 'dialog'} aria-label={t.checks.checks}
+          className={cn('rounded-xl border border-zinc-200 bg-white p-2', !inMenu && 'overflow-y-auto overscroll-contain shadow-xl')} style={inMenu ? undefined : { maxHeight: position.height }}>
           <div className="px-2 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">{summary}</div>
           {issues.length === 0 ? (
             <p className="flex items-center gap-2 px-2 pb-2 text-[13px] text-zinc-600">

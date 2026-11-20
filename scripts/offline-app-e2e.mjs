@@ -63,7 +63,7 @@ try {
   await add.locator('[data-preset="base-600"]').tap();
   await add.locator('[data-preset="base-600"]').tap();
   await add.getByRole('button', { name: 'Close', exact: true }).tap();
-  await page.getByTestId('step-next').tap();
+  await nav.getByRole('radio', { name: '3. 3D', exact: true }).tap();
   await page.getByTestId('three-viewport').locator('canvas').waitFor();
   await page.waitForFunction(() => document.querySelector('[data-testid="customer-share"]:enabled'));
   assert.deepEqual(await name.boundingBox(), header, 'Entering furnished 3D must not shrink or move the project name.');

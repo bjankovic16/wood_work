@@ -43,7 +43,7 @@ export async function checkWorkshopPanels(browser, url) {
           name: t.settings.name, enterPrice: t.settings.enterPrice, addPrices: t.cutting.addPrices,
           money: t.money(1234.5), count: t.cutting.sheetCount(list.materials.reduce((n, m) => n + m.sheets, 0)),
           info: t.cutting.aboutEstimate, note: t.cutting.estimateNote, checks: t.checks.checks, all: t.checks.showAll(issues.length),
-          dimensions: t.room.dimensions, advanced: t.room.advanced, more: t.topBar.more,
+          dimensions: t.room.dimensions, advanced: t.room.advanced, more: t.topBar.more, menuChecks: t.checks.summary(t.checks.chip(issues.length)),
           print: t.cutting.print, exp: t.cutting.exportLabel, pdf: t.cutting.pdf };
       });
 
@@ -127,11 +127,18 @@ export async function checkWorkshopPanels(browser, url) {
       };
       await page.waitForFunction(cabinetVisible);
       await page.evaluate(() => window.__kitchen.ui.getState().setViewport(1, { x: -8000, y: -8000 }));
-      await press(badge); await press(checks.getByRole('button', { name: expected.collision, exact: true }));
+      const openPlanChecks = async () => {
+        if (compact) {
+          await page.getByRole('button', { name: expected.more, exact: true }).tap();
+          await page.getByRole('button', { name: expected.menuChecks, exact: true }).tap();
+        } else await press(badge);
+      };
+      const planChecks = compact ? page.getByRole('region', { name: expected.checks, exact: true }) : checks;
+      await openPlanChecks(); await press(planChecks.getByRole('button', { name: expected.collision, exact: true }));
       await page.waitForFunction(cabinetVisible);
-      await press(badge);
-      await press(checks.getByText(expected.all, { exact: true }));
-      await press(checks.getByRole('button', { name: expected.roomOnly, exact: true }));
+      await openPlanChecks();
+      await press(planChecks.getByText(expected.all, { exact: true }));
+      await press(planChecks.getByRole('button', { name: expected.roomOnly, exact: true }));
       await page.getByTestId('room-plan').waitFor();
       await page.getByTestId('selected-room-card').locator('[data-room-feature="outside"]').waitFor();
       await press(page.getByRole(compact ? 'button' : 'tab', { name: expected.dimensions, exact: true }));
