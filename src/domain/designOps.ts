@@ -1,4 +1,7 @@
-import { DEFAULT_CONSTRUCTION, DEFAULT_EDGE_BANDS, DEFAULT_MATERIALS, parseConstruction, parseEdgeBands, parseMaterials, withModuleMaterials } from '../engine/settings';
+import { DEFAULT_CONSTRUCTION, DEFAULT_EDGE_BANDS, DEFAULT_MATERIALS, parseConstruction, parseEdgeBands, parseMaterials, SETTING_LIMITS, withModuleMaterials } from '../engine/settings';
+import { buildContext } from '../engine/config';
+import { withPanelThickness } from '../engine/parts';
+import { SHEET_TRIM } from '../engine/nesting';
 import { BAR_MATERIAL_ID, ELEVATION_LIMITS, GLASS_MATERIAL_ID, KIND_SPECS, MODULE_MATERIAL_DEFAULTS, sizeLimits, type SizeField } from './catalog';
 import { clampToRoom, resizeFromAnchor } from './geometry';
 import { clamp } from './math';
@@ -34,12 +37,19 @@ export function createDesign(name = 'My kitchen'): Design {
   };
 }
 
+export function syncPanelWidths(design: Design): Design {
+  if (!design.items.some((item) => item.kind === 'endPanel')) return design;
+  const ctx = buildContext(design);
+  const items = design.items.map((item) => withPanelThickness(item, ctx, design.partEdits[item.id]));
+  return items.some((item, i) => item !== design.items[i]) ? { ...design, items } : design;
+}
+
 export function setConstruction(design: Design, patch: Partial<ConstructionSettings>): Design {
   const next = { ...design.construction, ...patch };
   const changed = (Object.keys(patch) as Array<keyof ConstructionSettings>).some(
     (key) => JSON.stringify(next[key]) !== JSON.stringify(design.construction[key]),
   );
-  return changed ? { ...design, construction: next } : design;
+  return changed ? syncPanelWidths({ ...design, construction: next }) : design;
 }
 
 function shallowEqual<T extends object>(a: T, b: T): boolean {
@@ -54,6 +64,11 @@ export function setName(design: Design, name: string): Design {
 
 /** Changes the room size and pulls any unit that would end up outside back in. */
 export function setRoom(design: Design, patch: Partial<Room>): Design {
+  if (design.room.vertices && !Object.hasOwn(patch, 'vertices')
+    && (patch.width !== undefined && patch.width !== design.room.width
+      || patch.depth !== undefined && patch.depth !== design.room.depth)) {
+    throw new RangeError('Edit the walls or corners to resize a custom room outline.');
+  }
   const room = normalizeRoom({
     ...design.room,
     ...patch,
@@ -76,14 +91,14 @@ export function setRoom(design: Design, patch: Partial<Room>): Design {
   return {
     ...design,
     room,
-    items: design.items.map((item) => clampToRoom(item, room)),
+    items: room.vertices && !Object.hasOwn(patch, 'vertices') ? design.items : design.items.map((item) => clampToRoom(item, room)),
     openings: design.openings.map((opening) => clampOpening(opening, room)),
   };
 }
 
 export function addItem(design: Design, item: KitchenItem): Design {
   const items = [...design.items, item];
-  return { ...design, items, materials: withModuleMaterials(design.materials, items) };
+  return syncPanelWidths({ ...design, items, materials: withModuleMaterials(design.materials, items) });
 }
 
 export function updateItem(design: Design, id: string, patch: Partial<KitchenItem>): Design {
@@ -95,7 +110,7 @@ export function updateItem(design: Design, id: string, patch: Partial<KitchenIte
     changed = true;
     return next;
   });
-  return changed ? { ...design, items } : design;
+  return changed ? syncPanelWidths({ ...design, items }) : design;
 }
 
 /** Replaces a unit as a whole, so edits can also remove optional settings. */
@@ -106,7 +121,7 @@ export function replaceItem(design: Design, next: KitchenItem): Design {
     changed = true;
     return next;
   });
-  return changed ? { ...design, items } : design;
+  return changed ? syncPanelWidths({ ...design, items }) : design;
 }
 
 export function removeItem(design: Design, id: string): Design {
@@ -123,6 +138,7 @@ export function clearItems(design: Design): Design {
 
 /** Sets one dimension, clamped to what the unit type allows. The back-left corner stays in place. */
 export function withSize(item: KitchenItem, field: SizeField, value: number, room: Room): KitchenItem {
+  if (item.kind === 'endPanel' && field === 'width') throw new RangeError('End-panel width comes from its stock thickness.');
   const limits = sizeLimits(item, field);
   const size = Math.round(clamp(value, limits.min, limits.max));
   if (field === 'height') return size === item.height ? item : { ...item, height: size };
@@ -139,6 +155,31 @@ export function withPosition(item: KitchenItem, x: number, y: number, room: Room
 }
 
 const isNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
+const validId = (value: unknown): value is string => typeof value === 'string' && !!value.trim()
+  && !['__proto__', 'constructor', 'prototype'].includes(value);
+const isKind = (value: unknown): value is ItemKind => typeof value === 'string' && Object.hasOwn(KIND_SPECS, value);
+
+function identifiedCollection(raw: unknown): boolean {
+  if (raw === undefined) return true;
+  if (!Array.isArray(raw)) return false;
+  const ids = new Set<string>();
+  return raw.every((entry) => {
+    if (!isRecord(entry) || !validId(entry.id) || ids.has(entry.id)) return false;
+    ids.add(entry.id);
+    return true;
+  });
+}
+
+function validStock(raw: unknown, sheet: boolean): boolean {
+  if (raw === undefined) return true;
+  return Array.isArray(raw) && raw.every((entry: unknown) => isRecord(entry)
+    && (entry.name === undefined || typeof entry.name === 'string' && !!entry.name.trim())
+    && ['thickness', ...(sheet ? ['sheetLength', 'sheetWidth'] : [])].every((key) =>
+      entry[key] === undefined || isNumber(entry[key]) && entry[key] > (key === 'thickness' ? 0 : 2 * SHEET_TRIM))
+    && (entry.price === undefined || isNumber(entry.price) && entry.price >= 0)
+    && (!sheet || entry.grain === undefined || typeof entry.grain === 'boolean'));
+}
 
 /** Per-unit thicknesses as designs saved before the materials library stored them. */
 interface LegacyThickness {
@@ -147,14 +188,14 @@ interface LegacyThickness {
 }
 
 function parseItem(raw: unknown): { item: KitchenItem; legacy: LegacyThickness } | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const v = raw as Record<string, unknown>;
-  if (typeof v.id !== 'string' || typeof v.kind !== 'string' || !(v.kind in KIND_SPECS)) return null;
+  if (!isRecord(raw)) return null;
+  const v = raw;
+  if (!validId(v.id) || !isKind(v.kind)) return null;
   if (![v.x, v.y, v.width, v.depth, v.height, v.elevation].every(isNumber)) return null;
-  if (!isNumber(v.rotation)) return null;
+  if (!isNumber(v.rotation) || (v.width as number) <= 0 || (v.depth as number) <= 0 || (v.height as number) <= 0) return null;
   const item: KitchenItem = {
     id: v.id,
-    kind: v.kind as ItemKind,
+    kind: v.kind,
     label: typeof v.label === 'string' ? v.label : '',
     x: v.x as number,
     y: v.y as number,
@@ -164,18 +205,33 @@ function parseItem(raw: unknown): { item: KitchenItem; legacy: LegacyThickness }
     height: v.height as number,
     elevation: v.elevation as number,
   };
-  if (isNumber(v.width2)) item.width2 = v.width2;
-  for (const key of ['doors', 'drawers', 'shelves'] as const) {
-    if (isNumber(v[key])) item[key] = v[key];
+  if (v.width2 !== undefined) {
+    if (!isNumber(v.width2) || v.width2 <= 0) return null;
+    item.width2 = v.width2;
   }
+  for (const key of ['doors', 'drawers', 'shelves'] as const) {
+    if (v[key] === undefined) continue;
+    const count = v[key];
+    // Kind changes can retain dormant counts; the engine applies the current kind's ranges.
+    if (!isNumber(count) || !Number.isInteger(count) || count < 0) return null;
+    item[key] = count;
+  }
+  if (v.label !== undefined && typeof v.label !== 'string') return null;
+  for (const [key, choices] of [
+    ['doorType', ['overlay', 'inset']], ['hinge', ['left', 'right']],
+    ['drawerLayout', ['equal', 'shallowTop']], ['shelfForm', ['floating']],
+  ] as const) if (v[key] !== undefined && !choices.some((choice) => choice === v[key])) return null;
+  if (['carcassThickness', 'backThickness'].some((key) => v[key] !== undefined && (!isNumber(v[key]) || v[key] <= 0))) return null;
   if (v.doorType === 'overlay' || v.doorType === 'inset') item.doorType = v.doorType;
   if (v.hinge === 'left' || v.hinge === 'right') item.hinge = v.hinge;
   if (v.drawerLayout === 'equal' || v.drawerLayout === 'shallowTop') item.drawerLayout = v.drawerLayout;
   if (item.kind === 'shelf' && v.shelfForm === 'floating') item.shelfForm = v.shelfForm;
   for (const key of ['carcassMaterial', 'backMaterial', 'frontMaterial'] as const) {
+    if (v[key] !== undefined && !validId(v[key])) return null;
     if (typeof v[key] === 'string') item[key] = v[key];
   }
   for (const key of ['frontFinish', 'carcassFinish'] as const) {
+    if (v[key] !== undefined && (typeof v[key] !== 'string' || !Object.hasOwn(FRONT_FINISHES, v[key]))) return null;
     if (typeof v[key] === 'string' && Object.hasOwn(FRONT_FINISHES, v[key])) item[key] = v[key] as FrontFinish;
   }
   const legacy: LegacyThickness = {};
@@ -185,11 +241,12 @@ function parseItem(raw: unknown): { item: KitchenItem; legacy: LegacyThickness }
 }
 
 function parseOpening(raw: unknown, room: Room): Opening | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const v = raw as Record<string, unknown>;
-  if (typeof v.id !== 'string' || (v.kind !== 'window' && v.kind !== 'door')) return null;
+  if (!isRecord(raw)) return null;
+  const v = raw;
+  if (!validId(v.id) || (v.kind !== 'window' && v.kind !== 'door')) return null;
   if (v.wall !== 'top' && v.wall !== 'right' && v.wall !== 'bottom' && v.wall !== 'left') return null;
   if (![v.offset, v.width, v.height].every(isNumber)) return null;
+  if ((v.width as number) <= 0 || (v.height as number) <= 0 || v.sill !== undefined && !isNumber(v.sill)) return null;
   return clampOpening(
     {
       id: v.id,
@@ -240,12 +297,18 @@ function migrateThicknesses(
 }
 
 /**
- * Validates data loaded from storage. Items that cannot be read are dropped,
- * and designs saved by earlier versions are brought up to date.
+ * Validates the whole project before loading it and migrates supported older formats.
  */
 export function parseDesign(raw: unknown): Design | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const v = raw as Record<string, unknown>;
+  if (!isRecord(raw)) return null;
+  const v = raw;
+  if (v.version !== undefined && (!isNumber(v.version) || !Number.isInteger(v.version) || v.version < 1 || v.version > 5)) return null;
+  const currentFormat = isNumber(v.version) && v.version >= 4;
+  if (currentFormat && ['name', 'openings', 'materials', 'edgeBands', 'construction', 'style', 'customParts', 'partEdits']
+    .some((key) => !Object.hasOwn(v, key) || v[key] === undefined)) return null;
+  if (v.name !== undefined && typeof v.name !== 'string') return null;
+  if (![v.items, v.openings, v.customParts, v.materials, v.edgeBands].every(identifiedCollection)
+    || !validStock(v.materials, true) || !validStock(v.edgeBands, false)) return null;
   const room = parseRoom(v.room);
   if (!room) return null;
   const segments = roomSegments(room);
@@ -257,49 +320,88 @@ export function parseDesign(raw: unknown): Design | null {
   if (Array.isArray(v.openings) && v.openings.some((o) => o?.wallId !== undefined
     && (typeof o.wallId !== 'string' || !segments.some((s) => s.id === o.wallId)))) return null;
   if (!Array.isArray(v.items)) return null;
-  const rawConstruction = (v.construction ?? {}) as Record<string, unknown>;
+  if (v.construction !== undefined && !isRecord(v.construction)) return null;
+  const rawConstruction = isRecord(v.construction) ? v.construction : {};
+  if (currentFormat && (Object.keys(DEFAULT_CONSTRUCTION).some((key) => !Object.hasOwn(rawConstruction, key) || rawConstruction[key] === undefined)
+    || !Array.isArray(v.materials) || !v.materials.length
+    || !v.materials.every((entry: unknown) => isRecord(entry) && ['name', 'thickness', 'sheetLength', 'sheetWidth', 'grain', 'price']
+      .every((key) => Object.hasOwn(entry, key) && entry[key] !== undefined))
+    || !Array.isArray(v.edgeBands) || !v.edgeBands.every((entry: unknown) => isRecord(entry)
+      && ['name', 'thickness', 'price'].every((key) => Object.hasOwn(entry, key) && entry[key] !== undefined)))) return null;
+  if (v.style !== undefined && !isRecord(v.style)) return null;
+  const storedStyle: Record<string, unknown> = isRecord(v.style) ? v.style : {};
+  const style = parseStyle(storedStyle);
+  if (currentFormat && Object.keys(DEFAULT_STYLE).some((key) => storedStyle[key] === undefined)) return null;
+  if (currentFormat) {
+    if (Object.keys(storedStyle).some((key) => storedStyle[key] !== undefined && !Object.hasOwn(style, key))
+      || (Object.keys(style) as Array<keyof KitchenStyle>).some((key) => storedStyle[key] !== undefined && storedStyle[key] !== style[key])) return null;
+  }
+  if (rawConstruction.subtractEdges !== undefined && typeof rawConstruction.subtractEdges !== 'boolean') return null;
+  for (const [key, choices] of [
+    ['bottomJoint', ['between', 'under']], ['topJoint', ['between', 'over']], ['baseTop', ['rails', 'full']],
+    ['backMount', ['nailed', 'groove']], ['doorType', ['overlay', 'inset']], ['drawerSystem', ['wooden', 'metal']],
+  ] as const) if (rawConstruction[key] !== undefined && !choices.some((choice) => choice === rawConstruction[key])) return null;
+  for (const key of ['carcass', 'back', 'front']) {
+    const board = rawConstruction[key];
+    if (board !== undefined && (!isRecord(board) || !validStock([board], false))) return null;
+  }
+  for (const key of Object.keys(SETTING_LIMITS) as Array<keyof typeof SETTING_LIMITS>) {
+    const value = rawConstruction[key];
+    if (value !== undefined && (!isNumber(value) || value < SETTING_LIMITS[key].min || value > SETTING_LIMITS[key].max)) return null;
+  }
   const edgeBands = parseEdgeBands(v.edgeBands);
   const parsedItems = v.items.map(parseItem).filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+  if (parsedItems.length !== v.items.length) return null;
   const startMaterials = parseMaterials(v.materials, rawConstruction);
   const construction = parseConstruction(v.construction, startMaterials, edgeBands);
   const migrated = migrateThicknesses(parsedItems, startMaterials, construction);
   const items = migrated.items;
   const materials = withModuleMaterials(migrated.materials, items);
   const materialIds = new Set(materials.map((m) => m.id));
-  // Forget unit materials that are no longer in the library.
-  const checkedItems = items.map((item) => {
-    const next = { ...item };
-    for (const key of ['carcassMaterial', 'backMaterial', 'frontMaterial'] as const) {
-      if (next[key] !== undefined && !materialIds.has(next[key])) delete next[key];
-    }
-    return { ...MODULE_MATERIAL_DEFAULTS[next.kind], ...next };
-  });
+  const bandIds = new Set(edgeBands.map((band) => band.id));
+  if (['carcassMaterial', 'backMaterial', 'frontMaterial'].some((key) => rawConstruction[key] !== undefined
+    && (typeof rawConstruction[key] !== 'string' || !materialIds.has(rawConstruction[key])))) return null;
+  if (['carcassEdge', 'frontEdge'].some((key) => rawConstruction[key] !== undefined && rawConstruction[key] !== null
+    && (typeof rawConstruction[key] !== 'string' || !bandIds.has(rawConstruction[key])))) return null;
+  if (items.some((item) => (['carcassMaterial', 'backMaterial', 'frontMaterial'] as const)
+    .some((key) => item[key] !== undefined && !materialIds.has(item[key])))) return null;
+  const checkedItems = items.map((item) => ({ ...MODULE_MATERIAL_DEFAULTS[item.kind], ...item }));
   const itemIds = new Set(checkedItems.map((item) => item.id));
+  const openings = Array.isArray(v.openings) ? v.openings.map((o) => parseOpening(o, room)) : [];
+  const customParts = Array.isArray(v.customParts) ? v.customParts.map((c) => parseCustomPart(c, materialIds, edgeBands, construction)) : [];
+  const partEdits = parsePartEdits(v.partEdits, itemIds, materialIds);
+  if (openings.some((o) => o === null) || customParts.some((part) => part === null) || !partEdits) return null;
   const referencePhoto = v.referencePhoto === undefined ? undefined : parsePhotoReference(v.referencePhoto);
   if (referencePhoto === null) return null;
-  return {
+  return syncPanelWidths({
     version: 5,
     name: typeof v.name === 'string' ? v.name : 'My kitchen',
     ...(typeof v.galleryPresetId === 'string' && /^[a-z0-9-]{1,80}$/.test(v.galleryPresetId) ? { galleryPresetId: v.galleryPresetId } : {}),
     room,
     items: checkedItems,
-    openings: Array.isArray(v.openings) ? v.openings.map((o) => parseOpening(o, room)).filter((o): o is Opening => o !== null) : [],
+    openings: openings.filter((o): o is Opening => o !== null),
     materials,
     edgeBands,
     construction,
-    style: parseStyle(v.style),
-    customParts: Array.isArray(v.customParts)
-      ? v.customParts.map((c) => parseCustomPart(c, materialIds, edgeBands, construction)).filter((c): c is CustomPart => c !== null)
-      : [],
-    partEdits: parsePartEdits(v.partEdits, itemIds, materialIds),
+    style,
+    customParts: customParts.filter((c): c is CustomPart => c !== null),
+    partEdits,
     ...(referencePhoto ? { referencePhoto } : {}),
-  };
+  });
 }
 
 function parseCustomPart(raw: unknown, materialIds: Set<string>, edgeBands: EdgeBand[], construction: ConstructionSettings): CustomPart | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const v = raw as Record<string, unknown>;
-  if (typeof v.id !== 'string' || ![v.quantity, v.length, v.width].every(isNumber)) return null;
+  if (!isRecord(raw)) return null;
+  const v = raw;
+  if (!validId(v.id) || ![v.quantity, v.length, v.width].every(isNumber)
+    || !Number.isInteger(v.quantity) || (v.quantity as number) < 1 || (v.quantity as number) > 999
+    || (v.length as number) <= 0 || (v.width as number) <= 0 || (v.length as number) > 6000 || (v.width as number) > 6000) return null;
+  if (v.name !== undefined && (typeof v.name !== 'string' || !v.name.trim()) || v.note !== undefined && typeof v.note !== 'string') return null;
+  if (v.materialId !== undefined && (typeof v.materialId !== 'string' || !materialIds.has(v.materialId))) return null;
+  if (v.edgeBandId !== undefined && v.edgeBandId !== null
+    && (typeof v.edgeBandId !== 'string' || !edgeBands.some((band) => band.id === v.edgeBandId))) return null;
+  if (['edgesLength', 'edgesWidth'].some((key) => v[key] !== undefined
+    && (!isNumber(v[key]) || !Number.isInteger(v[key]) || v[key] < 0 || v[key] > 2))) return null;
   const edges = (value: unknown) => (isNumber(value) ? Math.min(2, Math.max(0, Math.round(value))) : 0);
   return {
     id: v.id,
@@ -315,14 +417,20 @@ function parseCustomPart(raw: unknown, materialIds: Set<string>, edgeBands: Edge
   };
 }
 
-function parsePartEdits(raw: unknown, itemIds: Set<string>, materialIds: Set<string>): Record<string, Record<string, PartEdit>> {
+function parsePartEdits(raw: unknown, itemIds: Set<string>, materialIds: Set<string>): Record<string, Record<string, PartEdit>> | null {
   const result: Record<string, Record<string, PartEdit>> = {};
-  if (!raw || typeof raw !== 'object') return result;
-  for (const [itemId, edits] of Object.entries(raw as Record<string, unknown>)) {
-    if (!itemIds.has(itemId) || !edits || typeof edits !== 'object') continue;
+  if (raw === undefined) return result;
+  if (!isRecord(raw)) return null;
+  for (const [itemId, edits] of Object.entries(raw)) {
+    if (!itemIds.has(itemId) || !isRecord(edits)) return null;
     const parsed: Record<string, PartEdit> = {};
-    for (const [key, edit] of Object.entries(edits as Record<string, unknown>)) {
-      const e = (edit ?? {}) as Record<string, unknown>;
+    for (const [key, edit] of Object.entries(edits)) {
+      if (!validId(key) || !isRecord(edit)) return null;
+      const e = edit;
+      if (['length', 'width'].some((field) => e[field] !== undefined
+        && (!isNumber(e[field]) || e[field] <= 0 || e[field] > 6000))) return null;
+      if (e.quantity !== undefined && (!isNumber(e.quantity) || !Number.isInteger(e.quantity) || e.quantity < 0 || e.quantity > 999)) return null;
+      if (e.materialId !== undefined && (typeof e.materialId !== 'string' || !materialIds.has(e.materialId))) return null;
       const clean: PartEdit = {};
       if (isNumber(e.length) && e.length > 0) clean.length = e.length;
       if (isNumber(e.width) && e.width > 0) clean.width = e.width;
@@ -369,7 +477,7 @@ export function setPartEdit(design: Design, itemId: string, key: string, edit: P
   const partEdits = { ...design.partEdits };
   if (Object.keys(unitEdits).length > 0) partEdits[itemId] = unitEdits;
   else delete partEdits[itemId];
-  return { ...design, partEdits };
+  return syncPanelWidths({ ...design, partEdits });
 }
 
 type CountKey = 'doors' | 'drawers' | 'shelves';
@@ -408,7 +516,7 @@ export function updateMaterial(design: Design, id: string, patch: Partial<Omit<M
     changed = true;
     return next;
   });
-  return changed ? { ...design, materials } : design;
+  return changed ? syncPanelWidths({ ...design, materials }) : design;
 }
 
 /** Whether the kitchen-wide settings use a material (such materials cannot be removed). */
@@ -434,7 +542,7 @@ export function removeMaterial(design: Design, id: string): Design {
     }
     if (Object.keys(kept).length > 0) partEdits[itemId] = kept;
   }
-  return {
+  return syncPanelWidths({
     ...design,
     materials: design.materials.filter((m) => m.id !== id),
     customParts: design.customParts.map((part) => (part.materialId === id ? { ...part, materialId: design.construction.carcassMaterial } : part)),
@@ -442,7 +550,7 @@ export function removeMaterial(design: Design, id: string): Design {
       (['carcassMaterial', 'backMaterial', 'frontMaterial'] as const).reduce((it, key) => (it[key] === id ? without(it, key) : it), item),
     ),
     partEdits,
-  };
+  });
 }
 
 export function addEdgeBand(design: Design, band: EdgeBand): Design {
@@ -468,6 +576,7 @@ export function removeEdgeBand(design: Design, id: string): Design {
   return {
     ...design,
     edgeBands: design.edgeBands.filter((b) => b.id !== id),
+    customParts: design.customParts.map((part) => part.edgeBandId === id ? { ...part, edgeBandId: null } : part),
     construction: {
       ...c,
       carcassEdge: c.carcassEdge === id ? null : c.carcassEdge,

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createItem } from '../domain/catalog';
+import { localToRoom } from '../domain/geometry';
 import * as ops from '../domain/designOps';
 import { KITCHEN_DESIGNS } from '../domain/kitchens';
 import { buildCuttingList } from '../engine/cuttingList';
@@ -423,12 +424,82 @@ describe('design history', () => {
 });
 
 describe('parseDesign', () => {
-  it('drops unreadable items and rejects invalid designs', () => {
+  it('rejects unreadable items atomically instead of dropping them', () => {
     const good = createItem('base', []);
     const parsed = ops.parseDesign({ name: 'Test', room: { width: 3000, depth: 2000, height: 2500 }, items: [good, { id: 1 }] });
-    expect(parsed?.items).toEqual([good]);
+    expect(parsed).toBeNull();
+    expect(ops.parseDesign({ name: 'Test', room: { width: 3000, depth: 2000, height: 2500 }, items: [good] })?.items).toEqual([good]);
     expect(ops.parseDesign({ room: {} })).toBeNull();
     expect(ops.parseDesign(null)).toBeNull();
+  });
+
+  it.each(['constructor', '__proto__', 'toString', 'missing'])('rejects the unsupported item kind %s', (kind) => {
+    expect(ops.parseDesign({ ...ops.createDesign(), items: [{ ...createItem('base', []), kind }] })).toBeNull();
+  });
+
+  it('rejects duplicate identities, bad records and future formats without changing valid legacy migration', () => {
+    const d = ops.createDesign();
+    const item = createItem('base', [], { id: 'same' });
+    expect(ops.parseDesign({ ...d, items: [item, { ...item, x: 1000 }] })).toBeNull();
+    expect(ops.parseDesign({ ...d, materials: [d.materials[0], d.materials[0]] })).toBeNull();
+    expect(ops.parseDesign({ ...d, edgeBands: [d.edgeBands[0], d.edgeBands[0]] })).toBeNull();
+    expect(ops.parseDesign({ ...d, customParts: [{ id: 'bad' }] })).toBeNull();
+    expect(ops.parseDesign({ ...d, materials: d.materials.map((m) => ({ ...m, sheetLength: 20 })) })).toBeNull();
+    expect(ops.parseDesign({ ...d, items: [item], partEdits: { same: { part: { quantity: 1000 } } } })).toBeNull();
+    expect(ops.parseDesign({ ...d, version: 999 })).toBeNull();
+    expect(ops.parseDesign({ room: d.room, items: [item] })?.version).toBe(5);
+  });
+
+  it('does not invent current-format stock, construction, grain or appearance settings from damaged records', () => {
+    const d = ops.createDesign();
+    expect(ops.parseDesign({ ...d, construction: undefined })).toBeNull();
+    expect(ops.parseDesign({ ...d, construction: {} })).toBeNull();
+    expect(ops.parseDesign({ ...d, materials: [] })).toBeNull();
+    expect(ops.parseDesign({ ...d, materials: d.materials.map(({ grain: _grain, ...m }) => m) })).toBeNull();
+    expect(ops.parseDesign({ ...d, style: {} })).toBeNull();
+    expect(ops.parseDesign({ ...d, style: { ...d.style, front: 'constructor' } })).toBeNull();
+  });
+
+  it('keeps an explicitly empty edge library and retires custom-piece references when bands are removed', () => {
+    let d = ops.addCustomPart(ops.createDesign(), {
+      id: 'extra', name: 'Extra', quantity: 1, length: 600, width: 100,
+      materialId: 'particleboard-white-18', edgesLength: 1, edgesWidth: 0, edgeBandId: 'abs-1', note: '',
+    });
+    for (const band of d.edgeBands) d = ops.removeEdgeBand(d, band.id);
+    expect(d.edgeBands).toEqual([]);
+    expect(d.customParts[0].edgeBandId).toBeNull();
+    expect(d.construction.carcassEdge).toBeNull();
+    expect(ops.parseDesign(JSON.parse(JSON.stringify(d)))).toEqual(d);
+  });
+});
+
+describe('end-panel stock thickness', () => {
+  it.each([0, 90, 180, 270])('keeps the physical back anchor fixed through material changes at %s degrees', (rotation) => {
+    const panel = createItem('endPanel', [], { x: 1000, y: 1000, rotation });
+    const original = ops.addItem(ops.createDesign(), panel);
+    const anchor = localToRoom(original.items[0], 0, 0);
+    const thicker = ops.setConstruction(original, { frontMaterial: 'mdf-oak-19' });
+    expect(thicker.items[0].width).toBe(19);
+    expect(localToRoom(thicker.items[0], 0, 0)).toEqual(anchor);
+    const changed = ops.updateMaterial(thicker, 'mdf-oak-19', { thickness: 50 });
+    expect(changed.items[0].width).toBe(50);
+    expect(localToRoom(changed.items[0], 0, 0)).toEqual(anchor);
+    expect(buildCuttingList(changed).units[0].parts[0].thickness).toBe(changed.items[0].width);
+    expect(ops.parseDesign(JSON.parse(JSON.stringify(changed)))?.items).toEqual(changed.items);
+    expect(() => ops.withSize(changed.items[0], 'width', 30, changed.room)).toThrow(/stock thickness/);
+  });
+
+  it('follows per-unit and hand-edited stock and returns to the shared stock when an override is removed', () => {
+    const item = createItem('endPanel', []);
+    const original = ops.addItem(ops.createDesign(), item);
+    const custom = ops.replaceItem(original, { ...item, frontMaterial: 'mdf-oak-19' });
+    expect(custom.items[0].width).toBe(19);
+    const restored = ops.removeMaterial(custom, 'mdf-oak-19');
+    expect(restored.items[0].width).toBe(18);
+    const part = buildCuttingList(original).units[0].parts[0];
+    const edited = ops.setPartEdit(original, item.id, part.key, { materialId: 'mdf-oak-19' });
+    expect(edited.items[0].width).toBe(19);
+    expect(ops.setPartEdit(edited, item.id, part.key, undefined).items[0].width).toBe(18);
   });
 });
 

@@ -177,6 +177,7 @@ export function parseMaterials(raw: unknown, legacy?: LegacyBoards): Material[] 
 }
 
 export function parseEdgeBands(raw: unknown): EdgeBand[] {
+  if (Array.isArray(raw) && raw.length === 0) return [];
   const parsed = Array.isArray(raw) ? uniqueById(raw.map(parseEdgeBand).filter((b): b is EdgeBand => b !== null)) : [];
   return parsed.length > 0 ? parsed : structuredClone(DEFAULT_EDGE_BANDS);
 }

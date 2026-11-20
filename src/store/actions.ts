@@ -20,6 +20,8 @@ import { createPhotoDesign } from '../domain/photoDesigns';
 import type { PairedPhotoId, PhotoReference } from '../domain/photoReferences';
 import { createProject, finishRoom } from './projects';
 import { DEFAULT_CONSTRUCTION } from '../engine/settings';
+import { buildContext } from '../engine/config';
+import { withPanelThickness } from '../engine/parts';
 import { currentMessages } from '../i18n';
 import { useDesignStore } from './designStore';
 import { offerUndo, showFeedback, undoFeedback, useFeedback } from './feedback';
@@ -97,7 +99,7 @@ export function addPresetToPlan(presetId: string): boolean {
   const preset = findPreset(presetId);
   if (!preset) return false;
   const { room, items, openings } = current();
-  const item = itemFromPreset(preset, items, currentMessages().labelPrefix, room);
+  const item = withPanelThickness(itemFromPreset(preset, items, currentMessages().labelPrefix, room), buildContext(current()));
   const spot = findFreeSpot(room, items, item, openings, preset.placement === 'centre');
   const placed = { ...item, ...(spot ?? centreOfRoom(room, item)) };
   if (!spot && item.kind === 'corner' && !canPlaceItem(room, items, placed, openings)) {
@@ -116,7 +118,7 @@ export function updateLibraryDrag(presetId: string, clientX: number, clientY: nu
   const { room, items, openings } = current();
   const pointer = clientToPlan(clientX, clientY, true);
   const previous = ui.libraryDrag?.presetId === presetId ? ui.libraryDrag : null;
-  const source = previous?.item ?? itemFromPreset(preset, items, currentMessages().labelPrefix, room);
+  const source = previous?.item ?? withPanelThickness(itemFromPreset(preset, items, currentMessages().labelPrefix, room), buildContext(current()));
   if (!pointer) {
     ui.setLibraryDrag({ presetId, item: source, clientX, clientY, ghost: null, wall: null, guides: [] });
     return;
@@ -312,6 +314,7 @@ export function nudgeSelected(dx: number, dy: number): void {
 
 export function setItemSize(id: string, field: SizeField, value: number): void | false {
   if (cabinetIsLocked(id)) return false;
+  if (field === 'width' && current().items.find((item) => item.id === id)?.kind === 'endPanel') return false;
   if (useUiStore.getState().view !== '3d') {
     editItem(id, (item, room) => ops.withSize(item, field, value, room));
     return;

@@ -7,7 +7,7 @@ import { buildCuttingList, cuttingListCsv } from './cuttingList';
 import { frontLayout } from './fronts';
 import { hingesPerDoor, unitHardware } from './hardware';
 import { nest } from './nesting';
-import { slideLength, unitParts } from './parts';
+import { slideLength, unitParts, validPart } from './parts';
 import { DEFAULT_CONSTRUCTION, parseConstruction, parseEdgeBands, parseMaterials } from './settings';
 
 const base = createDesign();
@@ -291,6 +291,34 @@ describe('settings', () => {
 });
 
 describe('changes by hand', () => {
+  it.each(['quantity', 'material'] as const)('preserves finished edging during a %s-only edit with edge subtraction', (change) => {
+    const ctx = context({ frontMaterial: 'particleboard-oak-18', frontEdge: 'abs-2', subtractEdges: true });
+    const item = unit('base');
+    const door = unitParts(item, ctx).find((part) => part.name === 'Door')!;
+    const edited = unitParts(item, ctx, { [door.key]: change === 'quantity' ? { quantity: 3 } : { materialId: 'mdf-oak-19' } })
+      .find((part) => part.key === door.key)!;
+    expect([edited.length, edited.width]).toEqual([door.length, door.width]);
+    expect(edited.edgeLength).toBe(door.edgeLength);
+    expect(edited.edgeLength).toBe(2028);
+    const resized = unitParts(item, ctx, { [door.key]: { length: door.length + 100 } }).find((part) => part.key === door.key)!;
+    expect(resized.edgeLength).toBe(door.edgeLength + 200);
+  });
+
+  it('keeps L-shaped arm depths, cutout notes and actual area consistent after a size edit', () => {
+    const ctx = context();
+    const item = unit('corner');
+    const bottom = unitParts(item, ctx).find((part) => part.name === 'Bottom')!;
+    const count = unitParts(item, ctx, { [bottom.key]: { quantity: 2 } }).find((part) => part.key === bottom.key)!;
+    expect(count.edgeLength).toBe(bottom.edgeLength);
+    expect(count.area).toBe(bottom.area);
+    const edited = unitParts(item, ctx, { [bottom.key]: { length: bottom.length + 100 } }).find((part) => part.key === bottom.key)!;
+    expect(edited.cutout).toEqual({ length: bottom.cutout!.length + 100, width: bottom.cutout!.width });
+    expect(edited.area).toBe(bottom.area + 100 * (bottom.width - bottom.cutout!.width));
+    expect(edited.edgeLength).toBe(bottom.edgeLength + 100);
+    expect(edited.note).toContain(String(bottom.cutout!.length + 100));
+    const impossible = unitParts(item, ctx, { [bottom.key]: { width: 50 } }).find((part) => part.key === bottom.key)!;
+    expect(validPart(impossible)).toBe(false);
+  });
   it('applies an edit to one generated part, and drops it once the unit changes', () => {
     const shelf = unitParts(unit('base'), context()).find((p) => p.name === 'Shelf')!;
     const edits = { [shelf.key]: { width: 500, quantity: 2 } };
@@ -300,6 +328,27 @@ describe('changes by hand', () => {
     const wider = unitParts(unit('base', { width: 800 }), context(), edits).find((p) => p.name === 'Shelf')!;
     expect(wider).toMatchObject({ length: 764, width: 540, quantity: 1 });
     expect(wider.edited).toBeUndefined();
+  });
+
+  describe('fabrication readiness', () => {
+    it('retains impossible parts for editing without nesting them or presenting a complete estimate', () => {
+      const design = createDesign();
+      design.items = [unit('base', { width: 150, doors: 0, drawers: 1 })];
+      design.materials = design.materials.map((m) => ({ ...m, price: 60, thickness: m.id === design.construction.carcassMaterial ? 50 : m.thickness }));
+      const list = buildCuttingList(design);
+      expect(list.invalidParts).toEqual([expect.objectContaining({ name: 'Drawer front/back', width: -76, quantity: 2 })]);
+      expect(list.materials.find((m) => m.invalid > 0)).toMatchObject({ invalid: 2, cost: null });
+      expect(list.materials.every((m) => m.area >= 0 && m.used >= 0)).toBe(true);
+      expect(list.cost).toBeNull();
+      expect(() => cuttingListCsv(list)).toThrow(/impossible cut sizes/);
+      const bad = list.invalidParts[0];
+      design.partEdits = { [design.items[0].id]: { [bad.key]: { quantity: 0 } } };
+      expect(buildCuttingList(design).invalidParts).toEqual([]);
+    });
+
+    it.each([0, -1, NaN, Infinity])('rejects a %s mm nesting dimension instead of treating it as a fitting piece', (length) => {
+      expect(() => nest([{ length, width: 100, canRotate: true }], { sheetLength: 2800, sheetWidth: 2070, trim: 10, kerf: 4 })).toThrow(RangeError);
+    });
   });
 
   it('lists pieces added by hand with the rest, under Extra', () => {

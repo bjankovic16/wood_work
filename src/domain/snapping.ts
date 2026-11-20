@@ -288,11 +288,12 @@ export function itemHandles(item: Placed): ItemHandle[] {
       { id: 'sideEnd', field: 'width2', point: localToRoom(item, d / 2, lh), side: side.vMax },
     ];
   }
-  return [
+  const handles: ItemHandle[] = [
     { id: 'left', field: 'width', point: localToRoom(item, 0, lh / 2), side: side.uMin },
     { id: 'right', field: 'width', point: localToRoom(item, lw, lh / 2), side: side.uMax },
     { id: 'front', field: 'depth', point: localToRoom(item, lw / 2, lh), side: side.vMax },
   ];
+  return handles.filter((handle) => item.kind !== 'endPanel' || handle.field !== 'width');
 }
 
 export interface ResizeInput {

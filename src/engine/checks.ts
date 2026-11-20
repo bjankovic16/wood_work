@@ -22,7 +22,7 @@ import { frontLayout } from './fronts';
 import { EN_LABELS, type EngineLabels } from './labels';
 import { boardLabel } from './materialLabel';
 import { SHEET_TRIM } from './nesting';
-import { customPart, innerDepth, MIN_DRAWER_BOX_HEIGHT, unitParts, type Part } from './parts';
+import { customPart, innerDepth, MIN_DRAWER_BOX_HEIGHT, unitParts, validPart, type Part } from './parts';
 
 export type Severity = 'error' | 'warning';
 
@@ -244,7 +244,12 @@ export function checkDesign(design: Design, labels: EngineLabels = EN_LABELS): I
     if (options.carcass || options.fronts) {
       for (const part of unitParts(item, ctx, design.partEdits[item.id])) {
         const material = ctx.materials.get(part.materialId);
-        if (!material || part.quantity <= 0 || fitsOnSheet(part, material)) continue;
+        if (part.quantity === 0) continue;
+        if (!validPart(part) || !material) {
+          add('error', `invalid-${item.id}-${part.key}`, say.invalidPart(part.name, item.label), [item.id]);
+          continue;
+        }
+        if (fitsOnSheet(part, material)) continue;
         add(
           'error',
           `sheet-${item.id}-${part.key}`,
@@ -258,7 +263,12 @@ export function checkDesign(design: Design, labels: EngineLabels = EN_LABELS): I
   for (const custom of design.customParts) {
     const part = customPart(custom, ctx);
     const material = ctx.materials.get(part.materialId);
-    if (!material || fitsOnSheet(part, material)) continue;
+    if (part.quantity === 0) continue;
+    if (!validPart(part) || !material) {
+      add('error', `invalid-custom-${custom.id}`, say.invalidPart(part.name, labels.extra));
+      continue;
+    }
+    if (fitsOnSheet(part, material)) continue;
     add('error', `sheet-custom-${custom.id}`, say.extraTooLarge(part.name, part.length, part.width, material, boardLabel(material, labels)));
   }
 

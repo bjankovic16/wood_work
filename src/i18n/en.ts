@@ -78,6 +78,8 @@ export const en = {
     closeTitle: 'Close (Esc)',
     cancel: 'Cancel',
     done: 'Done',
+    invalidNumber: 'No change applied. Enter a number or a valid arithmetic expression.',
+    blockedNumber: 'No change applied. Check the permitted dimensions and available space.',
   },
 
   customerView: {
@@ -295,6 +297,7 @@ export const en = {
     size: 'Size',
     width: 'Width',
     widthWallA: 'Width, wall A',
+    panelThickness: 'Width follows the selected panel stock thickness.',
     widthWallB: 'Width, wall B',
     depth: 'Depth',
     height: 'Height',
@@ -360,6 +363,7 @@ export const en = {
     split: 'Add corner',
     remove: 'Remove corner',
     closure: 'Changing a wall moves its end corner and the adjoining wall. The room stays closed.',
+    boundsHint: 'Width and depth follow this outline. Edit a wall or corner to reshape the room.',
     invalid: 'This edit cannot be applied. Keep a non-crossing room, walls inside its bounds, and attached openings/panels on a wall that fits them.',
     partitions: 'Interior & half-height walls',
     addPartition: 'Add partition',
@@ -987,6 +991,8 @@ export const en = {
     projectFile: 'Project file',
     notProject: 'That file is not a kitchen project.',
     unreadable: 'That file could not be read.',
+    unreadableSaved: 'Saved project data could not be read. The original is preserved. Open a valid backup or save the stored file for recovery.',
+    recoveryFile: (name: string) => `${name} - recovery.json`,
     openBadge: 'Open',
     open: 'Open',
     units: (n: number) => plural(n, 'unit', 'units'),
@@ -1038,6 +1044,7 @@ export const en = {
     sheetCount: (n: number) => plural(n, 'sheet', 'sheets'),
     aboutEstimate: 'How is the sheet count estimated?',
     oversize: (n: number) => `${n} pieces are larger than the sheet`,
+    incompleteEstimate: 'Estimate incomplete: fix impossible parts.',
     edgeBanding: 'edge banding',
     trimNote: 'Includes 30 mm per edge for trimming',
     estimateNote:

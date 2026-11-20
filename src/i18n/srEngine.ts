@@ -113,6 +113,7 @@ export const SR_LABELS: EngineLabels = {
   material: (material) => (BOARDS[material.id] && originalBoardNames.get(material.id) === material.name ? BOARDS[material.id] : material.name),
   edgeBand: (band) => (BANDS[band.id] && originalBandNames.get(band.id) === band.name ? BANDS[band.id] : band.name),
   unknownBoard: 'Nepoznata ploča',
+  invalidParts: 'Ispravite neizvodljive mere delova pre izvoza ili štampe. Nacrt i dalje možete da menjate i sačuvate kao projekat.',
   extra: 'Dodatno',
   changedByHand: 'ručno izmenjeno',
   leftOutByHand: 'ručno izostavljeno',
@@ -145,6 +146,7 @@ export const SR_LABELS: EngineLabels = {
       `${part} elementa ${unit} (${srMm(length)} × ${srMm(width)}) ne staje na ploču ${sheet.sheetLength} × ${sheet.sheetWidth} (${board}).`,
     extraTooLarge: (part, length, width, sheet, board) =>
       `Dodatni deo „${part}“ (${srMm(length)} × ${srMm(width)}) ne staje na ploču ${sheet.sheetLength} × ${sheet.sheetWidth} (${board}).`,
+    invalidPart: (part, unit) => `${part} elementa ${unit} ima neizvodljive mere ili materijal. Proverite pravila izrade i ručne izmene.`,
     fridgeByOven: (fridge, oven) => `Frižider ${fridge} stoji odmah pored rerne ${oven}; stavite element ili ploču između njih.`,
     openingDoesNotFit: (kind, wall) => (kind === 'door' ? `Vrata ${naZidu[wall]} ne staju u zid.` : `Prozor ${naZidu[wall]} ne staje u zid.`),
     blocksDoor: (unit, wall) => `${unit} blokira vrata ${naZidu[wall]}.`,

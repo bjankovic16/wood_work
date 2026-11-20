@@ -114,6 +114,11 @@ export function openingFitsRoomWall(room: Room, wall: Wall, offset: number, widt
 
 /** Constrain room edits without mutating objects held in undo history. */
 export function normalizeRoom(room: Room): Room {
+  if (room.vertices) {
+    const width = Math.max(ROOM_LIMITS.width.min, ...room.vertices.map((p) => Math.ceil(p.x)));
+    const depth = Math.max(ROOM_LIMITS.depth.min, ...room.vertices.map((p) => Math.ceil(p.y)));
+    if (room.width !== width || room.depth !== depth) room = { ...room, width, depth };
+  }
   let cutout = room.cutout;
   if (cutout) {
     const width = Math.round(clamp(cutout.width, 100, Math.max(100, room.width - 600)));
@@ -130,6 +135,7 @@ export function normalizeRoom(room: Room): Room {
         const { x, y } = polygonBounds(roomFeaturePolygon(outlineRoom, feature));
         return x === feature.x && y === feature.y ? feature : { ...feature, x, y };
       }
+      if (room.vertices) return feature;
       const width = Math.round(clamp(feature.width, 100, room.width));
       const depth = Math.round(clamp(feature.depth, 100, room.depth));
       const x = Math.round(clamp(feature.x, 0, room.width - width));
@@ -208,5 +214,9 @@ export function parseRoom(raw: unknown): Room | null {
     room.treatments = treatments;
   }
   if (room.features?.some((f) => f.wallId && !featureFitsRoom(room, f))) return null;
+  if (room.vertices) {
+    room.width = Math.max(ROOM_LIMITS.width.min, ...room.vertices.map((p) => Math.ceil(p.x)));
+    room.depth = Math.max(ROOM_LIMITS.depth.min, ...room.vertices.map((p) => Math.ceil(p.y)));
+  }
   return room;
 }

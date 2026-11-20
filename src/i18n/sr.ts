@@ -74,6 +74,8 @@ export const sr: Messages = {
     closeTitle: 'Zatvori (Esc)',
     cancel: 'Otkaži',
     done: 'Gotovo',
+    invalidNumber: 'Izmena nije primenjena. Unesite broj ili ispravan računski izraz.',
+    blockedNumber: 'Izmena nije primenjena. Proverite dozvoljene mere i raspoloživ prostor.',
   },
 
   customerView: {
@@ -291,6 +293,7 @@ export const sr: Messages = {
     size: 'Dimenzije',
     width: 'Širina',
     widthWallA: 'Širina, zid A',
+    panelThickness: 'Širina prati debljinu izabranog materijala panela.',
     widthWallB: 'Širina, zid B',
     depth: 'Dubina',
     height: 'Visina',
@@ -356,6 +359,7 @@ export const sr: Messages = {
     split: 'Dodaj ugao',
     remove: 'Ukloni ugao',
     closure: 'Izmena zida pomera njegov završni ugao i susedni zid. Prostorija ostaje zatvorena.',
+    boundsHint: 'Širina i dubina prate ovu osnovu. Promenite zid ili ugao da izmenite oblik prostorije.',
     invalid: 'Izmena nije moguća. Zidovi ne smeju da se ukrštaju niti izlaze iz prostorije, a otvori i obloge moraju da stanu na odgovarajući zid.',
     partitions: 'Pregradni i niski zidovi',
     addPartition: 'Dodaj pregradni zid',
@@ -977,6 +981,8 @@ export const sr: Messages = {
     projectFile: 'Fajl projekta',
     notProject: 'Taj fajl nije projekat kuhinje.',
     unreadable: 'Taj fajl ne može da se pročita.',
+    unreadableSaved: 'Sačuvani projekat ne može da se pročita. Original je sačuvan. Otvorite ispravnu rezervnu kopiju ili sačuvajte originalni fajl radi oporavka.',
+    recoveryFile: (name) => `${name} - oporavak.json`,
     openBadge: 'Otvoren',
     open: 'Otvori',
     units: elemenata,
@@ -1027,6 +1033,7 @@ export const sr: Messages = {
     sheetCount: (n) => `${n} ${srPlural(n, 'ploča', 'ploče', 'ploča')}`,
     aboutEstimate: 'Kako se procenjuje broj ploča?',
     oversize: (n) => `${n} ${srPlural(n, 'deo je veći', 'dela su veća', 'delova je veće')} od ploče`,
+    incompleteEstimate: 'Procena nije potpuna: ispravite neizvodljive delove.',
     edgeBanding: 'kant traka',
     trimNote: 'Uključeno 30 mm po ivici za obradu',
     estimateNote:

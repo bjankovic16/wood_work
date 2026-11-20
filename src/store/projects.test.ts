@@ -36,6 +36,73 @@ beforeEach(() => {
 });
 
 describe('projects', () => {
+  it('rejects damaged and unsupported imports without saving, switching or changing history', () => {
+    initProjects();
+    const state = useDesignStore.getState();
+    state.apply((d) => ops.addItem(d, createItem('base', [])));
+    const before = design(), past = useDesignStore.getState().past, index = localStorage.getItem('kitchen-designer:projects');
+    const project = projects().activeId, names = projects().projects;
+    for (const raw of [
+      { ...before, version: 999 },
+      { ...before, items: [{ ...before.items[0], kind: 'constructor' }] },
+      { ...before, items: [...before.items, { id: 'bad' }] },
+      { ...before, items: [before.items[0], { ...before.items[0], x: 1000 }] },
+    ]) {
+      expect(importProject(raw)).toBe(false);
+      expect(design()).toBe(before);
+      expect(useDesignStore.getState().past).toBe(past);
+      expect(projects().activeId).toBe(project);
+      expect(projects().projects).toBe(names);
+      expect(localStorage.getItem('kitchen-designer:projects')).toBe(index);
+    }
+  });
+
+  it('keeps an unreadable saved project intact and opens a separate warned recovery workspace', async () => {
+    const raw = JSON.stringify({ ...ops.createDesign('Original'), version: 999 });
+    localStorage.setItem('kitchen-designer:project:original', raw);
+    localStorage.setItem('kitchen-designer:projects', JSON.stringify({
+      activeId: 'original', projects: [{ id: 'original', name: 'Original', updatedAt: 1, units: 2 }],
+    }));
+    initProjects();
+    expect(projects().activeId).not.toBe('original');
+    expect(projects().readFailed).toBe(true);
+    expect(useUiStore.getState().projectPage).toBe('projects');
+    expect(projects().projects.some((p) => p.id === 'original')).toBe(true);
+    useDesignStore.getState().apply((d) => ops.setName(d, 'Recovered work'));
+    const current = design(), history = useDesignStore.getState().past;
+    flushSave();
+    expect(openProject('original')).toBe(false);
+    expect(duplicateProject('original')).toBeNull();
+    expect(design()).toBe(current);
+    expect(useDesignStore.getState().past).toBe(history);
+    expect(localStorage.getItem('kitchen-designer:project:original')).toBe(raw);
+    const writer = vi.spyOn(backupFile, 'saveBackupFile').mockResolvedValue('saved');
+    try {
+      expect(await saveProjectBackup('original')).toEqual({ outcome: 'saved' });
+      expect(writer.mock.calls[0][0]).toMatch(/oporavak\.json$/);
+      expect(await writer.mock.calls[0][1].text()).toBe(raw);
+      expect(projects().projects.find((p) => p.id === 'original')?.lastBackupAt).toBeUndefined();
+    } finally { writer.mockRestore(); }
+  });
+
+  it('does not overwrite an unreadable project index with a success-shaped new index', () => {
+    const raw = '{broken index';
+    localStorage.setItem('kitchen-designer:projects', raw);
+    initProjects();
+    expect(projects()).toMatchObject({ readFailed: true, writeFailed: true });
+    useDesignStore.getState().apply((d) => ops.setName(d, 'Temporary'));
+    createProject('Another temporary kitchen');
+    flushSave();
+    expect(localStorage.getItem('kitchen-designer:projects')).toBe(raw);
+  });
+
+  it('treats a valid empty project index as a fresh start, not a read failure', () => {
+    localStorage.setItem('kitchen-designer:projects', JSON.stringify({ activeId: '', projects: [] }));
+    initProjects();
+    expect(projects()).toMatchObject({ readFailed: false, writeFailed: false });
+    expect(JSON.parse(localStorage.getItem('kitchen-designer:projects')!).projects).toHaveLength(1);
+  });
+
   it('does not save 3D wall visibility or carry it into another project', () => {
     initProjects();
     const original = projects().activeId;

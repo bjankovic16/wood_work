@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { createDesign } from '../domain/designOps';
+import { createDesign, syncPanelWidths } from '../domain/designOps';
 import type { Design } from '../domain/types';
 
 const HISTORY_LIMIT = 100;
@@ -44,7 +44,7 @@ export const useDesignStore = create<DesignState>()((set, get) => ({
 
   apply: (recipe) => {
     const { design, gestureBase, past } = get();
-    const next = recipe(design);
+    const next = syncPanelWidths(recipe(design));
     if (next === design) return;
     if (gestureBase) {
       set({ design: next });
@@ -53,7 +53,7 @@ export const useDesignStore = create<DesignState>()((set, get) => ({
     }
   },
 
-  load: (design) => set({ design, past: [], future: [], gestureBase: null }),
+  load: (design) => set({ design: syncPanelWidths(design), past: [], future: [], gestureBase: null }),
 
   beginGesture: () => {
     if (!get().gestureBase) set({ gestureBase: get().design });

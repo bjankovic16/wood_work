@@ -55,7 +55,8 @@ export function CabinetResize({ item, overlay, onStart, onReady, onCancel, onBlo
   const gesture = useRef<ResizeGesture | null>(null);
   const tool = useRef<THREE.Group>(null);
   const hovered = useRef<SizeField | null>(null);
-  const fields: SizeField[] = item.kind === 'corner' ? ['width', 'height', 'depth', 'width2'] : ['width', 'height', 'depth'];
+  const fields: SizeField[] = item.kind === 'corner' ? ['width', 'height', 'depth', 'width2']
+    : item.kind === 'endPanel' ? ['height', 'depth'] : ['width', 'height', 'depth'];
 
   useFrame(() => {
     if (!tool.current) return;

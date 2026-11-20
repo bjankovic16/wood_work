@@ -1,4 +1,4 @@
-import { isWallMounted } from '../domain/geometry';
+import { isWallMounted, resizeFromAnchor } from '../domain/geometry';
 import type { CustomPart, EdgeBand, KitchenItem, Material, PartEdit } from '../domain/types';
 import { KIND_OPTIONS, resolveConfig, type BuildContext, type ResolvedConfig } from './config';
 import { cornerDoorWidths, frontLayout, OVEN_NICHE_HEIGHT, round1, type FrontRect } from './fronts';
@@ -22,6 +22,8 @@ export interface Part {
   area: number;
   /** The material's grain must run along the length, so the piece cannot be turned on the sheet. */
   grain: boolean;
+  /** Inner corner removed from an L-shaped blank, along its length and width. */
+  cutout?: { length: number; width: number };
   note?: string;
   /** Identifies a generated part for hand edits: its name, note and generated size. */
   key: string;
@@ -83,6 +85,10 @@ function piece(spec: PieceSpec, ctx: BuildContext): Part {
     edgeLength: round1(edgesA * spec.a + edgesB * spec.b + extra),
     area: spec.area ?? round1(Math.max(a, b)) * round1(Math.min(a, b)),
     grain: spec.material.grain,
+    ...(spec.note?.kind === 'lShaped' ? { cutout: {
+      length: aIsLength ? spec.note.a : spec.note.b,
+      width: aIsLength ? spec.note.b : spec.note.a,
+    } } : {}),
     ...(note ? { note } : {}),
     // Always the English words, so hand edits survive a change of language.
     key: partKey(EN_LABELS.part[spec.name], spec.note ? EN_LABELS.note(spec.note) : undefined, length, width),
@@ -91,6 +97,15 @@ function piece(spec: PieceSpec, ctx: BuildContext): Part {
 
 export function partKey(name: string, note: string | undefined, length: number, width: number): string {
   return `${name}|${note ?? ''}|${length}x${width}`;
+}
+
+export function validPart(part: Part): boolean {
+  if (part.quantity === 0) return true;
+  return Number.isInteger(part.quantity) && part.quantity > 0
+    && [part.length, part.width, part.thickness, part.area].every((n) => Number.isFinite(n) && n > 0)
+    && Number.isFinite(part.edgeLength) && part.edgeLength >= 0
+    && (!part.cutout || part.cutout.length > 0 && part.cutout.width > 0
+      && part.cutout.length < part.length && part.cutout.width < part.width);
 }
 
 const carcassBand = (ctx: BuildContext) => (ctx.settings.carcassEdge ? (ctx.edgeBands.get(ctx.settings.carcassEdge) ?? null) : null);
@@ -348,8 +363,13 @@ export function unitParts(item: KitchenItem, ctx: BuildContext, edits?: Record<s
     const length = edit.length ?? part.length;
     const width = edit.width ?? part.width;
     const banded = part.edges.length + part.edges.width > 0;
-    // L-shaped pieces keep their share of the rectangle.
-    const fill = part.area / (part.length * part.width);
+    const resized = length !== part.length || width !== part.width;
+    const cutout = part.cutout && (resized ? {
+      length: round1(part.cutout.length + length - part.length),
+      width: round1(part.cutout.width + width - part.width),
+    } : part.cutout);
+    const band = part.edgeBandId ? ctx.edgeBands.get(part.edgeBandId) : undefined;
+    const shrink = ctx.settings.subtractEdges ? band?.thickness ?? 0 : 0;
     const material = edit.materialId ? ctx.materials.get(edit.materialId) : undefined;
     return {
       ...part,
@@ -357,12 +377,22 @@ export function unitParts(item: KitchenItem, ctx: BuildContext, edits?: Record<s
       width,
       quantity: edit.quantity ?? part.quantity,
       ...(material ? { materialId: material.id, thickness: material.thickness, grain: material.grain } : {}),
-      area: fill < 1 ? round1(length * width * fill) : length * width,
-      edgeLength: banded ? round1(part.edges.length * length + part.edges.width * width) : part.edgeLength,
+      area: !resized ? part.area : cutout ? length * width - cutout.length * cutout.width : length * width,
+      edgeLength: !resized ? part.edgeLength : cutout ? (band ? round1(cutout.length + cutout.width) : 0)
+        : banded ? round1(part.edges.length * (length + part.edges.width * shrink)
+          + part.edges.width * (width + part.edges.length * shrink)) : part.edgeLength,
+      ...(cutout ? { cutout, ...(resized ? { note: ctx.labels.note({ kind: 'lShaped', a: cutout.length, b: cutout.width }) } : {}) } : {}),
       edited: true,
       calculated: { length: part.length, width: part.width, quantity: part.quantity, materialId: part.materialId, thickness: part.thickness },
     };
   });
+}
+
+export function withPanelThickness(item: KitchenItem, ctx: BuildContext, edits?: Record<string, PartEdit>): KitchenItem {
+  if (item.kind !== 'endPanel') return item;
+  const thickness = unitParts(item, ctx, edits)[0].thickness;
+  if (!Number.isFinite(thickness) || thickness <= 0) throw new RangeError('End panels require a positive stock thickness.');
+  return item.width === thickness ? item : resizeFromAnchor(item, { width: thickness });
 }
 
 /** A piece added by hand, as a cutting-list part. */

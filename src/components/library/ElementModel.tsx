@@ -4,6 +4,7 @@ import { useEffect, useMemo, type ReactNode } from 'react';
 import { itemFromPreset, type LibraryPreset } from '../../domain/catalog';
 import { useDesignStore } from '../../store/designStore';
 import { useBuildContext } from '../../store/derived';
+import { withPanelThickness } from '../../engine/parts';
 import { createMaterials, disposeMaterials } from '../three/materials';
 import { Unit3D } from '../three/Unit3D';
 import { canShowModel } from '../three/ModelPreviewFallback';
@@ -14,7 +15,7 @@ export default function ElementModel({ preset, fallback }: { preset: LibraryPres
   const room = useDesignStore((s) => s.design.room);
   const style = useDesignStore((s) => s.design.style);
   const ctx = useBuildContext();
-  const item = useMemo(() => itemFromPreset(preset, [], undefined, room), [preset, room]);
+  const item = useMemo(() => withPanelThickness(itemFromPreset(preset, [], undefined, room), ctx), [preset, room, ctx]);
   const materials = useMemo(() => createMaterials(style, true, room), [style, room]);
   useEffect(() => () => disposeMaterials(materials), [materials]);
   if (!canShowModel()) return fallback;

@@ -41,7 +41,8 @@ export function CabinetResizeLabels({ item, overlay }: {
 }) {
   const t = useT();
   return <div ref={overlay} data-testid="resize-labels" className="pointer-events-none absolute inset-0 z-[5]">
-    {(['width', 'height', 'depth', ...(item.kind === 'corner' ? ['width2'] as const : [])] as const).map((field) => {
+    {(['width', 'height', 'depth', ...(item.kind === 'corner' ? ['width2'] as const : [])] as const)
+      .filter((field) => item.kind !== 'endPanel' || field !== 'width').map((field) => {
       const label = field === 'width2' ? t.item.widthWallB : field === 'width' && item.kind === 'corner' ? t.item.widthWallA : t.item[field];
       return <span key={field} data-resize-field={field} style={{ visibility: 'hidden' }}
         className="absolute left-0 top-0 rounded-lg border border-blue-300 bg-white/95 px-2 py-1 text-blue-700 shadow-sm">

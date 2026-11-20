@@ -14,6 +14,12 @@ There are three distinct outputs: an editable project file, a workshop cutting
 list (calculated from the construction settings), and a view-only 3D HTML
 file for a customer. The customer does not need the editor or the cutting list.
 
+Project import is atomic: validate supported versions, catalogue kinds, unique
+identities and complete records before changing the active kitchen or history.
+Keep supported legacy migrations and structurally valid drafts with design
+warnings. Never silently discard unreadable objects or replace unreadable saved
+data under its original identity; surface recovery guidance and preserve backups.
+
 ## 2. Main interface
 
 ### Room: first screen, walls and openings
@@ -255,6 +261,18 @@ below the list. Supplier/appliance,
 glass, front-profile, handleless-system and chimney-clearance confirmations are
 neutral pre-cutting reminders, not problem badges or canvas warning outlines.
 Collisions and actionable design/manufacturing warnings remain visible problems.
+Validate effective cut sizes, stock and L-shaped cutouts after manual edits and
+edge subtraction. Keep impossible pieces visible for correction, but do not nest
+them or present complete material estimates. Block manufacturing PDF, Excel, CSV,
+clipboard and print output for these pieces; leave editing, JSON backups and
+customer views available. Quantity zero suppresses a piece without blocking export.
+Count/material-only edits must not change its finished edging; L-shaped size edits
+retain arm depths and update cutout notes and area consistently.
+End-panel footprint width is derived from its actual cut-stock thickness, not an
+independently editable dimension. Preserve its back anchor through material edits.
+Custom-room overall width/depth are read-only outline bounds; wall/corner editing
+changes the outline, while ceiling height remains editable. Explain rejected
+numeric edits with localized, associated input feedback.
 Hover, focus or tap Checks to preview at most two of these (errors first).
 Selecting a cabinet issue reveals that cabinet on the 2D plan at either width.
 

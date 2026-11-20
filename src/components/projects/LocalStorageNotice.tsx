@@ -11,6 +11,7 @@ type Retention = 'checking' | 'available' | 'requesting' | 'granted' | 'denied' 
 export function LocalStorageNotice({ canSave }: { canSave: boolean }) {
   const t = useT();
   const writeFailed = useProjectsStore((s) => s.writeFailed);
+  const readFailed = useProjectsStore((s) => s.readFailed);
   const local = storageWorks && !writeFailed;
   const [retention, setRetention] = useState<Retention>('checking');
   useEffect(() => {
@@ -32,6 +33,7 @@ export function LocalStorageNotice({ canSave }: { canSave: boolean }) {
   };
   return <section aria-label={t.feedback.localTitle} className="space-y-2 border-b border-amber-200 bg-amber-50 px-5 py-3 text-sm text-amber-950">
     <h3 className="flex items-center gap-2 font-semibold"><HardDrive size={17} aria-hidden="true" />{t.feedback.localTitle}</h3>
+    {readFailed && <p role="alert">{t.projects.unreadableSaved}</p>}
     <p>{local ? t.feedback.localWarning : t.feedback.sessionWarning} {canSave ? t.feedback.backupHint : t.files.unavailable}</p>
     {local && (retention === 'available' || retention === 'requesting') && <Button variant="outline" className="min-h-11" disabled={retention === 'requesting'}
       onClick={() => void request()}>{t.feedback.requestRetention}</Button>}

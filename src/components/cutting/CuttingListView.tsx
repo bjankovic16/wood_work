@@ -55,12 +55,16 @@ function PartEditor({ part, itemId, colSpan, onDone }: { part: TableRow; itemId:
     const q = evaluateExpression(quantity);
     const l = evaluateExpression(length);
     const w = evaluateExpression(width);
-    if (q === null || l === null || w === null || q < 0 || q > 999 || l <= 0 || w <= 0 || l > 6000 || w > 6000) {
+    const sizeIsValid = (value: number | null): value is number => value !== null && value > 0 && value <= 6000;
+    const omitted = q !== null && Math.round(q) === 0;
+    if (q === null || q < 0 || q > 999 || !omitted && (!sizeIsValid(l) || !sizeIsValid(w))) {
       setInvalid(true);
       return;
     }
     // Keep only what differs from the calculation; matching it again removes the change.
-    const next = { quantity: Math.round(q), length: Math.round(l * 10) / 10, width: Math.round(w * 10) / 10 };
+    const next = { quantity: Math.round(q),
+      length: sizeIsValid(l) ? Math.round(l * 10) / 10 : calculated.length,
+      width: sizeIsValid(w) ? Math.round(w * 10) / 10 : calculated.width };
     const edit: PartEdit = {};
     if (next.quantity !== calculated.quantity) edit.quantity = next.quantity;
     if (next.length !== calculated.length) edit.length = next.length;
@@ -175,7 +179,7 @@ function PartsTable({
             const changed = (key: 'quantity' | 'length' | 'width' | 'thickness' | 'materialId') =>
               row.calculated !== undefined && row.calculated[key] !== row[key] && 'font-semibold text-blue-700';
             return (
-              <tr key={`${row.key}-${i}`} data-part-card="" className={cn('break-inside-avoid hover:bg-zinc-50/60', row.quantity <= 0 && 'text-zinc-400 [&_td]:text-zinc-400')}>
+              <tr key={`${row.key}-${i}`} data-part-card="" className={cn('break-inside-avoid hover:bg-zinc-50/60', row.quantity <= 0 && 'text-zinc-400 [&_td]:text-zinc-400 print:hidden')}>
                 <td className={cn(td, 'font-medium text-zinc-900')}>
                   {row.name}
                   {row.edited && (
@@ -324,12 +328,14 @@ export function CuttingListView() {
   const bandThickness = (id: string | null) => (id ? (design.edgeBands.find((b) => b.id === id)?.thickness ?? null) : null);
   const ui = useUiStore.getState();
   const empty = list.rows.length === 0;
+  const blocked = list.invalidParts.length > 0;
 
   const flash = (message: string, sticky = false) => {
     setStatus(message);
     if (!sticky) window.setTimeout(() => setStatus((current) => (current === message ? null : current)), 3000);
   };
   const copy = async () => {
+    if (blocked) { flash(t.engine.invalidParts, true); return; }
     try {
       await navigator.clipboard.writeText(cuttingListCsv(list, '\t', t.engine));
       flash(c.copied);
@@ -338,6 +344,7 @@ export function CuttingListView() {
     }
   };
   const exportAs = async (kind: ExportKind) => {
+    if (blocked) { flash(t.engine.invalidParts, true); return; }
     const name = c.fileName(safeFileName(design.name), kind);
     flash(kind === 'pdf' ? c.preparingPdf : kind === 'xlsx' ? c.preparingXlsx : c.preparingFile, true);
     let file: Blob;
@@ -364,12 +371,16 @@ export function CuttingListView() {
 
   const exportTools = <div className="flex shrink-0 items-center justify-end gap-2 print:hidden">
             {!embedded && !empty && (
-              <Button variant="outline" onClick={() => window.print()}>
+              <Button variant="outline" disabled={blocked} title={blocked ? t.engine.invalidParts : undefined} onClick={() => {
+                if (blocked) flash(t.engine.invalidParts, true); else window.print();
+              }}>
                 <Printer className="size-4" />
                 {c.print}
               </Button>
             )}
-            {!empty && (
+            {!empty && (blocked ? <Button variant="primary" disabled title={t.engine.invalidParts} aria-label={c.exportLabel}>
+              <Download className="size-4" />{c.export}
+            </Button> : (
               <Menu label={c.exportLabel} text={c.export} icon={<Download className="size-4" />} variant="primary">
                 <div className="space-y-1">
                   {canSave && (
@@ -394,10 +405,11 @@ export function CuttingListView() {
                   </Button>
                 </div>
               </Menu>
-            )}
+            ))}
           </div>;
   return (
-    <div className="flex h-full select-text flex-col bg-[#f5f2eb] print:block print:h-auto print:bg-white">
+    <div data-invalid-cuts={blocked || undefined} className="flex h-full select-text flex-col bg-[#f5f2eb] print:block print:h-auto print:bg-white">
+      {blocked && <p data-invalid-print-warning className="hidden p-6 text-red-800 print:block">{t.engine.invalidParts}</p>}
       <header className="relative z-10 shrink-0 border-b border-studio-line bg-studio-paper print:border-0 print:bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-3 py-2 sm:px-4 lg:px-8 print:max-w-none print:p-0">
           <h1 className="text-lg font-semibold text-zinc-900">{c.title}</h1>
@@ -413,7 +425,8 @@ export function CuttingListView() {
         <div className="mx-auto max-w-7xl px-4 py-4 lg:px-8 print:max-w-none print:p-0">
           <div data-testid="cutting-summary" className="space-y-1">
             <p className="text-sm font-medium text-studio-ink">{c.summary(design.name, list.pieceCount, unitsWithParts.length)}</p>
-            {!empty && <>
+            {blocked && <p role="alert" data-testid="invalid-cut-export" className="text-sm font-medium text-red-800">{t.engine.invalidParts}</p>}
+            {!empty && !blocked && <>
               <div className="flex flex-wrap items-center gap-x-2">
                 <strong className="text-xl tabular-nums">{c.sheetCount(list.materials.reduce((sum, m) => sum + m.sheets, 0))}</strong>
                 <Button aria-label={c.aboutEstimate} aria-expanded={showEstimate} aria-controls={estimateId}
@@ -432,6 +445,7 @@ export function CuttingListView() {
                   <div className="text-[13px] font-medium text-zinc-900">
                     {total.materialName}
                   </div>
+                  {total.invalid > 0 ? <p className="mt-1 text-sm font-medium text-red-800">{c.incompleteEstimate}</p> : <>
                   <div className="mt-1 flex items-baseline gap-3 tabular-nums">
                     <span className="text-xl font-semibold text-zinc-900">{t.decimal(total.area, 2)} m²</span>
                     <span className="text-xs text-zinc-500">{c.pieces(total.pieces)}</span>
@@ -441,11 +455,13 @@ export function CuttingListView() {
                     {total.cost !== null && <span className="font-medium text-zinc-800"> · {t.money(total.cost)}</span>}
                   </div>
                   {total.oversize > 0 && <div className="mt-1 text-xs font-medium text-red-700">{c.oversize(total.oversize)}</div>}
+                  </>}
                 </div>
               ))}
               {list.edges.map((edge) => (
                 <div key={edge.bandId} className="rounded-xl border border-zinc-200 bg-white px-4 py-3 print:rounded-none">
                   <div className="text-[13px] font-medium text-zinc-900">{edge.name}</div>
+                  {blocked ? <p className="mt-1 text-sm font-medium text-red-800">{c.incompleteEstimate}</p> : <>
                   <div className="mt-1 flex items-baseline gap-3 tabular-nums">
                     <span className="text-xl font-semibold text-zinc-900">{t.mm(edge.metres)} m</span>
                     <span className="text-xs text-zinc-500">{c.edgeBanding}</span>
@@ -454,6 +470,7 @@ export function CuttingListView() {
                     {c.trimNote}
                     {edge.cost !== null && <span className="font-medium text-zinc-800"> · {t.money(edge.cost)}</span>}
                   </div>
+                  </>}
                 </div>
               ))}
           </div>}

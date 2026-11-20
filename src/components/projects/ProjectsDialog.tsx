@@ -58,10 +58,17 @@ export function ProjectsDialog() {
   const sorted = [...projects].sort((a, b) => b.updatedAt - a.updatedAt);
 
   const readFile = async (file: File) => {
+    const token = ++attempt.current;
+    setMessage(null);
+    const project = useProjectsStore.getState().activeId;
+    const current = () => token === attempt.current && useProjectsStore.getState().activeId === project;
     try {
-      if (importProject(JSON.parse(await file.text()))) close();
+      const raw: unknown = JSON.parse(await file.text());
+      if (!current()) return;
+      if (importProject(raw)) close();
       else setMessage(p.notProject);
     } catch {
+      if (!current()) return;
       setMessage(p.unreadable);
     }
   };
@@ -136,14 +143,16 @@ export function ProjectsDialog() {
                 <Button
                   variant="outline"
                   onClick={() => {
-                    openProject(project.id);
-                    close();
+                    if (openProject(project.id)) close();
+                    else setMessage(p.unreadableSaved);
                   }}
                 >
                   {p.open}
                 </Button>
               )}
-              <Button title={p.copyTitle} aria-label={p.copyAria(project.name)} onClick={() => duplicateProject(project.id)}>
+              <Button title={p.copyTitle} aria-label={p.copyAria(project.name)} onClick={() => {
+                if (!duplicateProject(project.id)) setMessage(t.planner.copyFailed);
+              }}>
                 <Copy className="size-4" />
               </Button>
               {canSave && (

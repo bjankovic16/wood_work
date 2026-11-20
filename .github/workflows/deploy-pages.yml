@@ -12,6 +12,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  browser:
+    uses: ./.github/workflows/browser-tests.yml
+    permissions:
+      contents: read
+
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -44,7 +49,7 @@ jobs:
           path: dist
 
   deploy:
-    needs: build
+    needs: [build, browser]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

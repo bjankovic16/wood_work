@@ -1,5 +1,5 @@
 import type { Design } from '../domain/types';
-import { partNote, type CuttingList } from '../engine/cuttingList';
+import { assertCuttable, partNote, type CuttingList } from '../engine/cuttingList';
 import { boardLabel } from '../engine/materialLabel';
 import type { Part } from '../engine/parts';
 import { en, type Messages } from '../i18n/en';
@@ -71,6 +71,7 @@ function partRow(part: Part & { materialName: string }, bandName: (id: string | 
  * built in the same language.
  */
 export async function cuttingListWorkbook(design: Design, list: CuttingList, generated = new Date(), t: Messages = en): Promise<Blob> {
+  assertCuttable(list, t.engine);
   const ExcelJS = await loadExcel();
   const r = t.report;
   const col = r.columns;
@@ -99,7 +100,7 @@ export async function cuttingListWorkbook(design: Design, list: CuttingList, gen
     ],
     [
       ...list.units.flatMap(({ item, parts }) =>
-        parts.map((part) => ({
+        parts.filter((part) => part.quantity > 0).map((part) => ({
           unit: item.label,
           type: t.kinds[item.kind],
           size: `${item.width} × ${item.height} × ${item.depth}`,

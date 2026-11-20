@@ -1,12 +1,10 @@
 name: Browser tests
 
-# Drives the real app in headless Chrome on desktop and phone sizes for every pull request and every push to main,
-# so a change that breaks moving, opening, resizing or the gallery shows up before anyone has to run the suites by hand.
+# PR checks also run once inside the main release workflow, before publishing its matching build.
 on:
   pull_request:
-  push:
-    branches: [main]
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read

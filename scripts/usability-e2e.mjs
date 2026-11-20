@@ -1,6 +1,6 @@
 import { chooseLanguage } from './settings-language.mjs';
 import assert from 'node:assert/strict';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
@@ -25,9 +25,138 @@ const roomShowsColours = ({ floorColor, wallColor }) => {
   const renderedFloor = pixel ? Array.from(pixel).slice(0, 3).map((value) => value.toString(16).padStart(2, '0')).join('') : floor.color.getHexString();
   return renderedFloor === floorColor && wall.color.getHexString() === wallColor;
 };
+
+async function checkSafetyControls(browser, url) {
+  for (const phone of [false, true]) {
+    const viewport = phone ? { width: 320, height: 740 } : { width: 1440, height: 900 };
+    const context = await browser.newContext({ viewport, locale: 'en-US', isMobile: phone, hasTouch: phone });
+    try {
+      const page = await context.newPage();
+      page.on('pageerror', (error) => errors.push(error.message));
+      await page.addInitScript(() => Object.defineProperty(window, 'showSaveFilePicker', { configurable: true, value: undefined }));
+      await page.goto(url, { waitUntil: 'domcontentloaded' });
+      const workspace = page.getByTestId('room-workspace');
+      if (phone) await workspace.getByRole('button', { name: 'Dimensions', exact: true }).click();
+      const width = workspace.getByRole('textbox', { name: 'Width', exact: true });
+      await width.fill('not-a-number');
+      await width.evaluate((input) => input.blur());
+      await page.waitForFunction(() => document.querySelector('input[aria-invalid="true"]'));
+      const description = await width.getAttribute('aria-describedby');
+      assert.ok(description);
+      assert.match(await page.evaluate((id) => document.getElementById(id)?.textContent, description), /No change applied/);
+      await page.waitForFunction((id) => {
+        const message = document.getElementById(id), box = message?.getBoundingClientRect();
+        return box && message.contains(document.elementFromPoint(box.x + box.width / 2, box.y + 1))
+          && message.contains(document.elementFromPoint(box.x + box.width / 2, box.bottom - 1));
+      }, description);
+      assert.equal(await width.inputValue(), '3600');
+      assert.equal(await page.evaluate(() => window.__kitchen.design.getState().past.length), 0);
+      await page.screenshot({ path: path.join(output, `numeric-error-${phone ? 'phone' : 'desktop'}.png`) });
+      await page.evaluate(async () => (await import('/src/store/actions.ts')).setRoomSize({ width: 3700 }));
+      await page.waitForFunction(() => !document.querySelector('input[aria-invalid="true"]'));
+      assert.equal(await width.inputValue(), '3700');
+      await width.fill('3600+200');
+      await width.press('Enter');
+      await page.waitForFunction(() => window.__kitchen.design.getState().design.room.width === 3800);
+      assert.equal(await width.getAttribute('aria-invalid'), null);
+      await page.getByRole('button', { name: 'Undo', exact: true }).click();
+      assert.equal(await width.inputValue(), '3700');
+      await page.evaluate(async () => {
+        const { editableRoomVertices, setRoomVertices } = await import('/src/store/actions.ts');
+        setRoomVertices(editableRoomVertices(window.__kitchen.design.getState().design.room));
+      });
+      await page.waitForFunction(() => [...document.querySelectorAll('input')].some((input) => input.readOnly));
+      assert.equal(await width.evaluate((input) => input.readOnly), true);
+      assert.equal(await workspace.getByRole('textbox', { name: 'Depth', exact: true }).evaluate((input) => input.readOnly), true);
+      const height = workspace.getByRole('textbox', { name: 'Height to ceiling', exact: true });
+      assert.equal(await height.evaluate((input) => input.readOnly), false);
+      await height.fill('2700');
+      await height.press('Enter');
+      await workspace.locator('[data-wall-dimension="top"]').click();
+      const wall = workspace.getByRole('dialog', { name: 'Wall 1', exact: true });
+      await wall.getByLabel('Wall length', { exact: true }).fill('4000');
+      await wall.getByLabel('Wall length', { exact: true }).press('Enter');
+      await page.waitForFunction(() => window.__kitchen.design.getState().design.room.width === 4000);
+      await wall.getByRole('button', { name: 'Done', exact: true }).click();
+      const measured = await page.evaluate(() => window.__kitchen.design.getState().design.room);
+      assert.equal(measured.height, 2700);
+      assert.equal(Math.max(...measured.vertices.map((point) => point.x)), measured.width);
+      await page.screenshot({ path: path.join(output, `outline-bounds-${phone ? 'phone' : 'desktop'}.png`) });
+      await page.evaluate(async () => {
+        const { createDesign } = await import('/src/domain/designOps.ts');
+        const { createItem } = await import('/src/domain/catalog.ts');
+        const d = createDesign('Invalid fabrication');
+        d.materials = d.materials.map((m) => m.id === d.construction.carcassMaterial ? { ...m, thickness: 50 } : m);
+        d.items = [createItem('base', [], { width: 150, doors: 0, drawers: 1 })];
+        window.__kitchen.design.getState().load(d);
+        window.__kitchen.ui.getState().setView('list');
+      });
+      await page.getByTestId('invalid-cut-export').waitFor();
+      assert.equal(await page.getByRole('button', { name: 'Export the cut list', exact: true }).isDisabled(), true);
+      assert.equal(await page.getByRole('button', { name: 'Print', exact: true }).isDisabled(), true);
+      assert.equal(await page.getByRole('button', { name: 'Checks: No problems found', exact: true }).count(), 0);
+      assert.match(await page.getByTestId('material-totals').innerText(), /Estimate incomplete/);
+      assert.match(await page.locator('tr').filter({ hasText: 'Drawer front/back' }).innerText(), /-76/);
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      await page.screenshot({ path: path.join(output, `fabrication-block-${phone ? 'phone' : 'desktop'}.png`) });
+      await page.emulateMedia({ media: 'print' });
+      const printed = await page.locator('[data-invalid-cuts]').innerText();
+      assert.match(printed, /Fix impossible cut sizes/);
+      assert.doesNotMatch(printed, /-76/);
+      await page.emulateMedia({ media: 'screen' });
+      await page.evaluate(async () => {
+        (await import('/src/store/projects.ts')).flushSave();
+        window.__kitchen.ui.getState().setProjectPage('projects');
+      });
+      const projects = page.getByRole('dialog', { name: 'Projects', exact: true });
+      const [backup] = await Promise.all([page.waitForEvent('download'),
+        projects.getByRole('button', { name: 'Save Invalid fabrication to a file', exact: true }).click()]);
+      assert.equal(backup.suggestedFilename(), 'Invalid fabrication.kitchen.json');
+      const saved = JSON.parse(await readFile(await backup.path(), 'utf8'));
+      assert.equal(saved.items[0].width, 150);
+      assert.equal(saved.materials.find((m) => m.id === saved.construction.carcassMaterial).thickness, 50);
+      await projects.getByRole('button', { name: 'Close', exact: true }).click();
+      await page.getByRole('radio', { name: 'By unit', exact: true }).click();
+      await page.getByRole('button', { name: 'Change Drawer front/back', exact: true }).click();
+      const editor = page.getByTestId('part-editor');
+      await editor.getByRole('textbox', { name: 'Qty', exact: true }).fill('0');
+      await editor.getByRole('button', { name: 'Save', exact: true }).click();
+      await page.getByTestId('invalid-cut-export').waitFor({ state: 'detached' });
+      assert.equal(await page.getByRole('button', { name: 'Export the cut list', exact: true }).isDisabled(), false);
+      await page.emulateMedia({ media: 'print' });
+      assert.doesNotMatch(await page.getByTestId('cutting-scroll').innerText(), /-76/);
+      await page.emulateMedia({ media: 'screen' });
+      await page.evaluate(async () => {
+        const { createDesign } = await import('/src/domain/designOps.ts');
+        const { createItem } = await import('/src/domain/catalog.ts');
+        const d = createDesign('Panel thickness');
+        d.materials = d.materials.map((m) => m.id === d.construction.frontMaterial ? { ...m, thickness: 50 } : m);
+        d.items = [createItem('endPanel', [], { x: 1000, y: 1000 })];
+        window.__kitchen.design.getState().load(d);
+        window.__kitchen.ui.getState().setView('plan');
+        window.__kitchen.ui.getState().select(d.items[0].id);
+        window.__kitchen.ui.getState().requestFocus('width');
+      });
+      const panelWidth = page.getByRole('textbox', { name: 'Width', exact: true });
+      await panelWidth.waitFor();
+      assert.equal(await panelWidth.evaluate((input) => input.readOnly), true);
+      assert.equal(await panelWidth.inputValue(), '50');
+      assert.ok(await page.evaluate(async () => {
+        const { itemHandles } = await import('/src/domain/snapping.ts');
+        const { buildCuttingList } = await import('/src/engine/cuttingList.ts');
+        const d = window.__kitchen.design.getState().design;
+        return d.items[0].width === buildCuttingList(d).units[0].parts[0].thickness
+          && itemHandles(d.items[0]).every((handle) => handle.field !== 'width');
+      }));
+    } finally { await context.close(); }
+  }
+  console.log('  PASS desktop/phone numeric errors, derived room/panel bounds, guarded fabrication exports/print, zero-quantity omissions and available JSON backups');
+}
+
 try {
   await server.listen();
   browser = await chromium.launch({ channel: 'chrome', headless: true });
+  await checkSafetyControls(browser, server.resolvedUrls.local[0]);
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'en-US' });
   const page = await context.newPage();
   page.on('pageerror', (error) => errors.push(error.message));

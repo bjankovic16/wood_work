@@ -169,4 +169,6 @@ details > summary:focus-visible { outline: 2px solid var(--color-studio-accent);
 @media print {
   body, #root, #root > div { height: auto; overflow: visible; }
   #root main:has([data-testid="cutting-scroll"]) { height: auto; }
+  [data-invalid-cuts] > :not([data-invalid-print-warning]) { display: none !important; }
+  [data-invalid-cuts] > [data-invalid-print-warning] { display: block !important; }
 }

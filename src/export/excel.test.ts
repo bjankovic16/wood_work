@@ -8,6 +8,22 @@ import { cuttingListWorkbook } from './excel';
 import { cuttingListDocument } from './pdf';
 
 describe('Excel export', () => {
+  it('refuses manufacturing exports with impossible cut sizes', async () => {
+    const design = createDesign();
+    design.items = [createItem('shelf', [], { depth: 100 })];
+    design.construction.shelfSetback = 150;
+    const list = buildCuttingList(design);
+    expect(() => cuttingListDocument(design, list, [])).toThrow(/impossible cut sizes/);
+    await expect(cuttingListWorkbook(design, list)).rejects.toThrow(/impossible cut sizes/);
+    const bad = list.invalidParts[0];
+    design.partEdits = { [design.items[0].id]: { [bad.key]: { quantity: 0 } } };
+    const omitted = buildCuttingList(design);
+    expect(omitted.units[0].parts.some((part) => part.quantity === 0)).toBe(true);
+    expect(JSON.stringify(cuttingListDocument(design, omitted, []))).not.toContain('"-50"');
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(await (await cuttingListWorkbook(design, omitted)).arrayBuffer());
+    expect(workbook.getWorksheet('By unit')!.getSheetValues().some((row) => Array.isArray(row) && row[4] === 'Shelf')).toBe(false);
+  });
   it('writes a workbook Excel can read back, with every sheet filled in', async () => {
     const design = { ...createDesign('Test kitchen'), items: [createItem('base', [], { label: 'B1' }), createItem('wall', [], { label: 'W1' })] };
     const blob = await cuttingListWorkbook(design, buildCuttingList(design), new Date(2026, 10, 13));

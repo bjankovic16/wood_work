@@ -48,6 +48,12 @@ interface Shelf {
 }
 
 export function nest(pieces: NestPiece[], options: NestOptions): NestResult {
+  if (![options.sheetLength, options.sheetWidth, options.kerf, options.trim].every(Number.isFinite)
+    || options.kerf < 0 || options.trim < 0
+    || options.sheetLength <= 2 * options.trim || options.sheetWidth <= 2 * options.trim
+    || pieces.some((p) => !Number.isFinite(p.length) || !Number.isFinite(p.width) || p.length <= 0 || p.width <= 0)) {
+    throw new RangeError('Nesting requires positive cut sizes and usable sheet dimensions.');
+  }
   const usableLength = options.sheetLength - 2 * options.trim;
   const usableWidth = options.sheetWidth - 2 * options.trim;
   const { kerf } = options;

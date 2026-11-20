@@ -77,6 +77,7 @@ export interface CheckLabels {
   shallowForSlides: (unit: string, depth: number) => string;
   partTooLarge: (part: string, unit: string, length: number, width: number, sheet: Pick<Material, 'sheetLength' | 'sheetWidth'>, material: string) => string;
   extraTooLarge: (part: string, length: number, width: number, sheet: Pick<Material, 'sheetLength' | 'sheetWidth'>, material: string) => string;
+  invalidPart: (part: string, unit: string) => string;
   fridgeByOven: (fridge: string, oven: string) => string;
   openingDoesNotFit: (kind: OpeningKind, wall: Wall) => string;
   blocksDoor: (unit: string, wall: Wall) => string;
@@ -104,6 +105,7 @@ export interface EngineLabels {
   material: (material: Material) => string;
   edgeBand: (band: EdgeBand) => string;
   unknownBoard: string;
+  invalidParts: string;
   /** Units column entry for pieces added by hand. */
   extra: string;
   changedByHand: string;
@@ -206,6 +208,7 @@ export const EN_LABELS: EngineLabels = {
   material: (material) => material.name,
   edgeBand: (band) => band.name,
   unknownBoard: 'Unknown board',
+  invalidParts: 'Fix impossible cut sizes before exporting or printing. You can still edit and back up the project.',
   extra: 'Extra',
   changedByHand: 'changed by hand',
   leftOutByHand: 'left out by hand',
@@ -238,6 +241,7 @@ export const EN_LABELS: EngineLabels = {
       `${part} of ${unit} (${formatMm(length)} × ${formatMm(width)}) does not fit on a ${sheet.sheetLength} × ${sheet.sheetWidth} sheet of ${material}.`,
     extraTooLarge: (part, length, width, sheet, material) =>
       `The extra piece “${part}” (${formatMm(length)} × ${formatMm(width)}) does not fit on a ${sheet.sheetLength} × ${sheet.sheetWidth} sheet of ${material}.`,
+    invalidPart: (part, unit) => `${part} of ${unit} has impossible cut sizes or stock. Check the construction settings and manual edits.`,
     fridgeByOven: (fridge, oven) => `Fridge ${fridge} stands right next to oven ${oven}; put a unit or a panel between them.`,
     openingDoesNotFit: (kind, w) => `The ${kind === 'door' ? 'door' : 'window'} on the ${wall(w)} does not fit in the wall.`,
     blocksDoor: (unit, w) => `${unit} blocks the door on the ${wall(w)}.`,

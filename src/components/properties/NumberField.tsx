@@ -15,6 +15,7 @@ interface NumberFieldProps {
   suffix?: string;
   autoFocus?: boolean;
   title?: string;
+  readOnly?: boolean;
   /** Optional price fields store an unknown price as zero; show an empty editor instead. */
   zeroPlaceholder?: string;
   /** Decimal places kept (whole numbers by default). */
@@ -37,6 +38,7 @@ export function NumberField({
   suffix = 'mm',
   autoFocus,
   title,
+  readOnly = false,
   zeroPlaceholder,
   precision = 0,
   picks,
@@ -46,7 +48,9 @@ export function NumberField({
   const show = t.number;
   const display = (n: number) => zeroPlaceholder && n === 0 ? '' : show(n);
   const inputRef = useRef<HTMLInputElement>(null);
+  const errorRef = useRef<HTMLParagraphElement>(null);
   const [draft, setDraft] = useState<string | null>(null);
+  const [error, setError] = useState<'number' | 'blocked' | null>(null);
   const skipBlurCommit = useRef(false);
 
   useEffect(() => {
@@ -55,17 +59,27 @@ export function NumberField({
     inputRef.current?.select();
   }, [autoFocus]);
 
+  useEffect(() => {
+    setError(null);
+    if (readOnly) setDraft(null);
+  }, [value, readOnly]);
+
+  useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [error]);
+
   const commit = (text: string): number | null => {
     const parsed = zeroPlaceholder && !text.trim() ? 0 : evaluateExpression(text);
-    if (parsed === null) return null;
+    if (parsed === null) { setError('number'); return null; }
     const factor = 10 ** precision;
     const next = Math.round(clamp(parsed, min, max) * factor) / factor;
-    if (next !== value && onCommit(next) === false) return null;
+    if (next !== value && onCommit(next) === false) { setError('blocked'); return null; }
+    setError(null);
     return next;
   };
 
   return <>
-    <div className="flex items-center gap-2" title={title}>
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1" title={title}>
       <label htmlFor={id} className="w-[104px] shrink-0 text-xs text-zinc-500">
         {shortLabel ? <><span aria-hidden="true">{shortLabel}</span><span className="sr-only">{label}</span></> : label}
       </label>
@@ -78,18 +92,22 @@ export function NumberField({
           autoComplete="off"
           spellCheck={false}
           placeholder={zeroPlaceholder}
+          readOnly={readOnly}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${id}-error` : undefined}
           value={draft ?? display(value)}
           onFocus={(e) => {
-            setDraft(display(value));
+            if (!readOnly) setDraft(display(value));
             e.currentTarget.select();
           }}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => { setDraft(e.target.value); setError(null); }}
           onBlur={(e) => {
-            if (!skipBlurCommit.current) commit(e.target.value);
+            if (!readOnly && !skipBlurCommit.current) commit(e.target.value);
             skipBlurCommit.current = false;
             setDraft(null);
           }}
           onKeyDown={(e) => {
+            if (readOnly) return;
             if (e.key === 'Enter') {
               e.preventDefault();
               if (window.matchMedia(COMPACT_QUERY).matches) { e.currentTarget.blur(); return; }
@@ -98,6 +116,7 @@ export function NumberField({
               e.currentTarget.select();
             } else if (e.key === 'Escape') {
               skipBlurCommit.current = true;
+              setError(null);
               e.currentTarget.blur();
             } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
               e.preventDefault();
@@ -107,14 +126,15 @@ export function NumberField({
               if (next !== null) setDraft(display(next));
             }
           }}
-          className="h-9 w-full rounded-md border border-zinc-200 bg-white pl-2.5 pr-9 text-base tabular-nums lg:h-8 lg:text-[13px] text-zinc-900 shadow-xs transition-colors hover:border-zinc-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+          className="h-9 w-full rounded-md border border-zinc-200 bg-white pl-2.5 pr-9 text-base tabular-nums lg:h-8 lg:text-[13px] text-zinc-900 shadow-xs transition-colors hover:border-zinc-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 aria-invalid:border-red-500 aria-invalid:focus:ring-red-500/20 read-only:bg-studio-canvas read-only:text-studio-muted"
         />
         <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-zinc-400">
           {suffix}
         </span>
       </div>
+      {error && <p ref={errorRef} id={`${id}-error`} role="alert" className="w-full text-xs text-red-700">{error === 'number' ? t.common.invalidNumber : t.common.blockedNumber}</p>}
     </div>
-    {picks && picks.length > 0 && <div role="group" aria-label={t.sheet.commonSizes(label)} className="flex flex-wrap gap-1">
+    {!readOnly && picks && picks.length > 0 && <div role="group" aria-label={t.sheet.commonSizes(label)} className="flex flex-wrap gap-1">
       {picks.map((pick) => <button key={pick.value} type="button"
         aria-label={`${label}: ${show(pick.value)} ${suffix}`} aria-pressed={pick.value === value} disabled={pick.disabled}
         className="min-h-8 min-w-11 rounded-lg border border-studio-line px-2 text-xs font-medium tabular-nums text-studio-muted aria-pressed:border-studio-accent aria-pressed:bg-[#ecf1e8] aria-pressed:text-studio-accent disabled:opacity-40"
@@ -127,8 +147,9 @@ export function NumberField({
             skipBlurCommit.current = true;
             e.currentTarget.focus({ preventScroll: true });
           }
-          if (pick.value !== value) onCommit(pick.value);
+          const applied = pick.value !== value ? onCommit(pick.value) : undefined;
           setDraft(null);
+          setError(applied === false ? 'blocked' : null);
         }}>{show(pick.value)}</button>)}
     </div>}
   </>;

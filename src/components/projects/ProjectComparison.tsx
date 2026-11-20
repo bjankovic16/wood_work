@@ -16,7 +16,8 @@ function summary(design: Design, t: Messages) {
   const area = (m2: number) => `${t.number(Math.round(m2 * 100) / 100)} m²`;
   return {
     name: design.name, width: plan.width, height: plan.height, image: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(plan.svg)}`,
-    values: [area(polygonArea(roomOutline(design.room)) / 1e6), design.items.length, cuts.pieceCount, area(cuts.materials.reduce((sum, m) => sum + m.area, 0))],
+    values: [area(polygonArea(roomOutline(design.room)) / 1e6), design.items.length, cuts.pieceCount,
+      cuts.invalidParts.length ? t.cutting.incompleteEstimate : area(cuts.materials.reduce((sum, m) => sum + m.area, 0))],
   };
 }
 

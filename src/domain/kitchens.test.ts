@@ -342,12 +342,11 @@ describe('looks for "Shuffle look"', () => {
     expect(applyKitchenLook(after, preset('ash-frame-island')).style.frontProfile).toBe('flat');
   });
 
-  it('round-trips independently chosen joinery without imposing new finishes on old files', () => {
+  it('round-trips valid joinery without imposing finishes and rejects damaged current-format styles', () => {
     const old = createDesign();
     expect(parseDesign(old)?.style).toEqual(old.style);
     const manual = setStyle(old, { windowFrame: 'navy', doorFrame: 'walnut', doorLeaf: 'eucalyptus' });
     expect(parseDesign(JSON.parse(JSON.stringify(manual)))).toEqual(manual);
-    expect(parseDesign({ ...manual, style: { ...manual.style, windowFrame: 'not-a-finish', doorLeaf: 'constructor' } })?.style)
-      .toEqual({ ...old.style, doorFrame: 'walnut' });
+    expect(parseDesign({ ...manual, style: { ...manual.style, windowFrame: 'not-a-finish', doorLeaf: 'constructor' } })).toBeNull();
   });
 });

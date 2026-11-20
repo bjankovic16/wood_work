@@ -99,7 +99,13 @@ try {
 
   await page.getByRole('radio', { name: '3. 3D', exact: true }).tap();
   const share = button(page.getByTestId('three-toolbar'), 'Share');
-  await share.tap();
+  await share.tap().catch(async (error) => {
+    console.error('3D share state:', await page.evaluate(() => ({
+      view: window.__kitchen.ui.getState().view, roomOpen: window.__kitchen.ui.getState().roomOpen,
+      scene: !!window.__kitchen3D, text: document.body.innerText.slice(0, 1400),
+    })), 'Page errors:', errors);
+    throw error;
+  });
   await toast.getByText(/Not shared/).waitFor({ timeout: 60000 });
   assert.equal(downloads.length, 0, 'Cancelling native share must not download a file instead.');
   const payload = await page.evaluate(() => window.testDevice.shares);
@@ -156,8 +162,57 @@ try {
   assert.equal((await index()).projects.find((p) => p.id === previous).lastBackupAt, backedUp);
   await page.reload();
   assert.ok((await index()).projects.find((p) => p.id === fresh).lastBackupAt);
+  await projects();
+  const beforeImport = await page.evaluate(() => {
+    const s = window.__kitchen.design.getState();
+    return { design: s.design, past: s.past, future: s.future, index: localStorage.getItem('kitchen-designer:projects') };
+  });
+  for (const raw of [
+    { ...beforeImport.design, version: 999 },
+    { ...beforeImport.design, items: [{ ...beforeImport.design.items[0], kind: 'constructor' }] },
+    { ...beforeImport.design, items: [beforeImport.design.items[0], beforeImport.design.items[0]] },
+  ]) {
+    await dialog.getByLabel('Project file', { exact: true }).setInputFiles({
+      name: 'invalid.kitchen.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(raw)),
+    });
+    await dialog.getByText('That file is not a kitchen project.', { exact: true }).waitFor();
+    assert.deepEqual(await page.evaluate(() => {
+      const s = window.__kitchen.design.getState();
+      return { design: s.design, past: s.past, future: s.future, index: localStorage.getItem('kitchen-designer:projects') };
+    }), beforeImport);
+  }
+  await page.evaluate(() => {
+    const text = File.prototype.text;
+    File.prototype.text = function () {
+      const file = this;
+      return new Promise((resolve) => { window.releaseProjectRead = async () => {
+        File.prototype.text = text;
+        resolve(await text.call(file));
+      }; });
+    };
+  });
+  await dialog.getByLabel('Project file', { exact: true }).setInputFiles({
+    name: 'slow.kitchen.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(beforeImport.design)),
+  });
+  await page.waitForFunction(() => typeof window.releaseProjectRead === 'function');
+  await button(dialog, 'Close').tap();
+  await page.evaluate(async () => { await window.releaseProjectRead(); await new Promise(requestAnimationFrame); });
+  assert.equal(await dialog.count(), 0);
+  assert.equal((await index()).activeId, JSON.parse(beforeImport.index).activeId);
+  assert.deepEqual(await design(), beforeImport.design);
+
+  const unreadable = { ...beforeImport.design, version: 999 };
+  await page.evaluate((raw) => {
+    const index = JSON.parse(localStorage.getItem('kitchen-designer:projects'));
+    localStorage.setItem(`kitchen-designer:project:${index.activeId}`, JSON.stringify(raw));
+  }, unreadable);
+  await page.reload();
+  await dialog.getByText(/The original is preserved/).waitFor();
+  assert.notEqual((await index()).activeId, JSON.parse(beforeImport.index).activeId);
+  assert.equal(await page.evaluate((id) => localStorage.getItem(`kitchen-designer:project:${id}`), JSON.parse(beforeImport.index).activeId), JSON.stringify(unreadable));
   assert.deepEqual(errors, []);
   console.log('  PASS native share, cancellation and download fallback; 390px Serbian View/Ideas and style Undo; confirmed JSON download survives reload');
+  console.log('  PASS atomic invalid imports, cancelled slow file reads and preserved unreadable saved projects');
 } finally {
   await browser?.close();
   await server.close();

@@ -2,10 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { createItem } from './catalog';
 import { cabinetResize } from './cabinetResize';
 import { localToRoom } from './geometry';
+import { itemHandles } from './snapping';
 
 const room = { width: 5000, depth: 4000, height: 2700 };
 
 describe('3D cabinet resizing', () => {
+  it('derives panel thickness from stock instead of exposing a width resize handle', () => {
+    const item = createItem('endPanel', [], { x: 1000, y: 1000 });
+    expect(itemHandles(item).map((handle) => handle.field)).toEqual(['depth']);
+    expect(cabinetResize(item, 'width', 50, room, 0)).toBeNull();
+    expect(cabinetResize(item, 'depth', 600, room, 0)).toMatchObject({ width: item.width, depth: 600 });
+  });
   it('grows and shrinks local dimensions at any angle without changing the anchor, elevation or other dimensions', () => {
     for (const rotation of [0, 45, 90, 180, 270, 315]) {
       const item = { ...createItem('base', [], { x: 1500, y: 1200 }), rotation };

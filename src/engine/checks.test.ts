@@ -14,6 +14,30 @@ const unit = (kind: KitchenItem['kind'], label: string, over: Partial<KitchenIte
 const messages = (d: Design) => checkDesign(d).map((i) => `${i.severity}: ${i.message}`);
 
 describe('checkDesign', () => {
+  it('reports impossible shelf and drawer parts from otherwise allowed cabinet settings', () => {
+    const shelf = design([unit('shelf', 'SH1', { depth: 100 })]);
+    shelf.construction.shelfSetback = 150;
+    expect(checkDesign(shelf)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ severity: 'error', itemIds: [shelf.items[0].id], message: expect.stringContaining('impossible cut sizes') }),
+    ]));
+    const drawer = design([unit('base', 'B1', { width: 150, doors: 0, drawers: 1 })]);
+    drawer.materials = drawer.materials.map((m) => m.id === drawer.construction.carcassMaterial ? { ...m, thickness: 50 } : m);
+    const invalid = checkDesign(drawer).find((issue) => issue.key.startsWith('invalid-'))!;
+    expect(invalid).toMatchObject({ severity: 'error', itemIds: [drawer.items[0].id] });
+    expect(invalid.message).toContain('Drawer front/back');
+    expect(invalid).not.toHaveProperty('category');
+  });
+
+  it('checks effective dimensions after edging and honors a suppressed impossible part', () => {
+    const d = design([unit('filler', 'FP1', { width: 10 })]);
+    d.construction = { ...d.construction, frontEdge: 'abs-2', subtractEdges: true };
+    d.edgeBands = d.edgeBands.map((b) => b.id === 'abs-2' ? { ...b, thickness: 5 } : b);
+    const part = unitParts(d.items[0], buildContext(d))[0];
+    expect(part.width).toBe(0);
+    expect(checkDesign(d).some((issue) => issue.key.startsWith('invalid-'))).toBe(true);
+    d.partEdits = { [d.items[0].id]: { [part.key]: { quantity: 0 } } };
+    expect(checkDesign(d).some((issue) => issue.key.startsWith('invalid-'))).toBe(false);
+  });
   it('separates supplier confirmations from real geometry and clearance problems', () => {
     const value = design([unit('hob', 'HB1'), unit('base', 'B1', { x: 300 })]);
     value.style = { ...value.style, frontProfile: 'shaker', handles: 'none' };

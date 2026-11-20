@@ -48,13 +48,19 @@ Compare runs on the same device and browser.
 Open [Kitchen Designer](https://bjankovic16.github.io/wood_work/).
 Pushes to `main` run the unit tests, build the app and deploy it to GitHub Pages
 through [the deployment workflow](.github/workflows/deploy-pages.yml).
-Publishing waits for the build job's uploaded artifact. If only publishing
+Publishing waits for the build job's uploaded artifact **and all browser checks
+for the same commit**. The release calls the reusable browser workflow once;
+pull requests also run it independently. If only publishing
 fails, use **Re-run failed jobs** on the current `main` run to reuse that build.
 If the artifact has expired or `main` has moved on, use **Run workflow** on
 `main` instead of redeploying an older commit.
 See [the browser test workflow](.github/workflows/browser-tests.yml) for the
 suites run on pull requests and pushes to `main`; screenshots of a failed
 suite are attached to its run for a week.
+If a push-triggered run shows **Action required**, resolve the repository's
+approval/policy requirement or explicitly run the deployment workflow on current
+`main`. That manual release also waits for its browser checks; no policy settings
+are changed by the workflow.
 The repository's Pages source must be **GitHub Actions**. Kitchen projects and
 uploaded reference photos stay in the visitor's browser, not in the deployment.
 
@@ -117,6 +123,18 @@ the app is not a substitute for a backup. After
 one complete online load, the production app can reopen and work offline,
 including the plan, 3D and workshop exports.
 
+Project files are validated before switching projects. Invalid object types,
+duplicate IDs, damaged records and unsupported newer formats are rejected without
+changing the current kitchen.
+Current-format files must keep their stock, sheet sizes, grain, construction and
+appearance records; missing required fields are not replaced with guessed values.
+If saved data cannot be read, the original is
+preserved and Projects explains the failure. A replacement workspace gets a new
+identity, never the unreadable project's key. The saved original can be downloaded
+as a separate recovery file without marking it as a usable confirmed project
+backup. A damaged project index is left untouched; use file backups to keep
+temporary work.
+
 **Try a different layout:** open **Compare layouts / Uporedi rasporede** from
 the guide or **Projects**. **Edit a copy of this kitchen** opens a separately
 named variant with the same room, cabinets and finishes. After editing, compare
@@ -136,6 +154,10 @@ does not switch projects or change either design.
   activate it with Enter or Space. You can type the same value in the panel.
   **Height to ceiling** is measured from the floor. Entering an exact wall
   length keeps a rectangular room rectangular.
+- **Custom outlines:** after editing corners, overall Width and Depth are
+  read-only bounds derived from the outline. Reshape it through wall lengths or
+  corners instead; ceiling Height remains editable. Invalid numeric text explains
+  why no change was applied instead of silently resetting.
 - **Drag a corner:** in **Room → Room outline** (**Prostorija → Obris prostorije**), grab the dot where two exterior walls meet. Only that corner
   moves, even in a rectangle. The arc shows the **interior angle** between the
   two walls (including inside notches). It updates with the wall lengths and
@@ -424,6 +446,10 @@ or a cutting-list export for the workshop; the customer view is neither.
 - **Units**: doors, drawers and shelves; full-overlay or inset fronts; hinge side;
   equal drawers or a shallow top drawer; a front-view preview; the unit's own
   parts list; a different board for any one unit.
+  End-panel width is the thickness of its selected cut stock, including a
+  per-piece material override. It updates at the same back anchor when stock
+  changes. Only depth/height are independently resizable; new overlaps remain
+  visible in Checks.
 - **Settings**:
   - *Materials and edges*: a library of boards (thickness, sheet size, grain,
     price) and edge bands; which ones the carcass, backs and fronts use; which
@@ -448,6 +474,11 @@ or a cutting-list export for the workshop; the customer view is neither.
   - *Changes by hand*: in the "By unit" view, any piece's quantity, size or
     board can be changed (0 leaves it out); changed values are marked and can
     be put back. A change stops applying once the unit itself changes the piece.
+    Quantity/material-only edits retain the finished per-piece edging. Resized
+    L-shaped pieces keep their arm depths and update the cutout note, area and
+    inner edging together.
+    Omitted pieces stay editable on screen and in project JSON, but are left out
+    of manufacturing reports, including the By unit sheets.
   - *Extra pieces*: anything the units do not include, with its own board and
     edge banding, counted in all totals.
   - *Totals and export*: the piece and sheet counts come first; the info button
@@ -456,6 +487,12 @@ or a cutting-list export for the workshop; the customer view is neither.
     parts, hardware, parts by unit), an Excel workbook (parts, by unit,
     materials, hardware, project), CSV, a copy for pasting into a
     spreadsheet, and print.
+    Impossible cut dimensions/stock are reported explicitly and make estimates
+    incomplete. PDF, Excel, CSV, clipboard output and Print are blocked until
+    those parts are fixed; native browser printing shows the warning rather than
+    invalid fabrication rows. Zero-quantity omissions remain supported. Other
+    design-check errors keep the existing flagged-draft workflow. Editing, project
+    JSON backups and customer-view output remain available.
 - **Projects**: several kitchens, each saved in the browser as you work; open,
   copy, delete, save one to a file and open it again (also on another
   device).

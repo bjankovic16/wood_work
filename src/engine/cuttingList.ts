@@ -4,7 +4,7 @@ import { unitHardware, type Hardware } from './hardware';
 import { EN_LABELS, type EngineLabels } from './labels';
 import { boardLabel } from './materialLabel';
 import { nest, SAW_KERF, SHEET_TRIM } from './nesting';
-import { customPart, unitParts, type Part } from './parts';
+import { customPart, unitParts, validPart, type Part } from './parts';
 
 export { formatMm } from './format';
 
@@ -21,16 +21,18 @@ export interface MaterialTotal {
   materialName: string;
   thickness: number;
   pieces: number;
-  /** Square metres of parts. */
+  /** Square metres of valid parts; only a subtotal when invalid > 0. */
   area: number;
   sheetLength: number;
   sheetWidth: number;
-  /** Sheets needed, by the shelf-layout estimate. */
+  /** Sheets for valid parts, by the shelf-layout estimate; incomplete when invalid > 0. */
   sheets: number;
   /** Share of the bought sheets that ends up as parts. */
   used: number;
   /** Pieces too large for the sheet. */
   oversize: number;
+  /** Required pieces whose sizes/stock are invalid; all estimates are incomplete until fixed. */
+  invalid: number;
   /** Sheets × price; null without a price or when some pieces don't fit. */
   cost: number | null;
 }
@@ -55,6 +57,7 @@ export interface UnitParts {
 
 export interface CuttingList {
   rows: CuttingRow[];
+  invalidParts: CuttingRow[];
   units: UnitParts[];
   /** Pieces added by hand. */
   extra: Array<Part & { materialName: string; customId: string }>;
@@ -107,7 +110,7 @@ export function buildCuttingList(design: Design, labels: EngineLabels = EN_LABEL
   for (const { label, parts } of groups) {
     for (const p of parts) {
       // Set to none by hand: still listed under its unit, so it can be brought back.
-      if (p.quantity <= 0) continue;
+      if (p.quantity === 0) continue;
       const key = [p.name, p.length, p.width, p.thickness, p.materialId, p.edges.length, p.edges.width, p.edgeBandId, p.note ?? '', p.edited ? 'edited' : ''].join('|');
       const row = rows.get(key);
       if (row) {
@@ -124,6 +127,8 @@ export function buildCuttingList(design: Design, labels: EngineLabels = EN_LABEL
     }
   }
   const sortedRows = [...rows.values()].sort(compareParts);
+  const invalidParts = sortedRows.filter((row) => !validPart(row) || !ctx.materials.has(row.materialId));
+  const invalid = new Set(invalidParts);
 
   // Boards: area, and sheets by laying the pieces out on each material's sheet size.
   const byBoard = new Map<string, CuttingRow[]>();
@@ -134,9 +139,12 @@ export function buildCuttingList(design: Design, labels: EngineLabels = EN_LABEL
   const materials: MaterialTotal[] = [...byBoard.values()].map((boardRows) => {
     const first = boardRows[0];
     const material = ctx.materials.get(first.materialId);
+    const validRows = boardRows.filter((row) => !invalid.has(row));
+    const invalidCount = boardRows.filter((row) => invalid.has(row))
+      .reduce((sum, row) => sum + (Number.isFinite(row.quantity) && row.quantity > 0 ? Math.ceil(row.quantity) : 1), 0);
     const sheetLength = material?.sheetLength ?? 2800;
     const sheetWidth = material?.sheetWidth ?? 2070;
-    const pieces = boardRows.flatMap((row) =>
+    const pieces = validRows.flatMap((row) =>
       Array.from({ length: row.quantity }, () => ({ length: row.length, width: row.width, canRotate: !row.grain })),
     );
     const layout = nest(pieces, { sheetLength, sheetWidth, kerf: SAW_KERF, trim: SHEET_TRIM });
@@ -145,19 +153,20 @@ export function buildCuttingList(design: Design, labels: EngineLabels = EN_LABEL
       materialName: first.materialName,
       thickness: first.thickness,
       pieces: pieces.length,
-      area: boardRows.reduce((sum, row) => sum + (row.area * row.quantity) / 1_000_000, 0),
+      area: validRows.reduce((sum, row) => sum + (row.area * row.quantity) / 1_000_000, 0),
       sheetLength,
       sheetWidth,
       sheets: layout.sheets,
       used: layout.used,
       oversize: layout.oversize,
-      cost: material && material.price > 0 && layout.oversize === 0 ? layout.sheets * material.price : null,
+      invalid: invalidCount,
+      cost: material && material.price > 0 && layout.oversize === 0 && !invalidCount ? layout.sheets * material.price : null,
     };
   });
 
   const edgeMetres = new Map<string, number>();
   for (const row of sortedRows) {
-    if (!row.edgeBandId) continue;
+    if (!row.edgeBandId || invalid.has(row)) continue;
     const edgeCount = row.edges.length + row.edges.width + (row.edgeLength > 0 && row.edges.length + row.edges.width === 0 ? 2 : 0);
     const millimetres = row.quantity * (row.edgeLength + edgeCount * EDGE_TRIM_ALLOWANCE);
     edgeMetres.set(row.edgeBandId, (edgeMetres.get(row.edgeBandId) ?? 0) + millimetres / 1000);
@@ -190,6 +199,7 @@ export function buildCuttingList(design: Design, labels: EngineLabels = EN_LABEL
   const costs = [...materials, ...edges].map((line) => line.cost);
   return {
     rows: sortedRows,
+    invalidParts,
     extra,
     units: units.map((u) => ({
       ...u,
@@ -200,10 +210,14 @@ export function buildCuttingList(design: Design, labels: EngineLabels = EN_LABEL
     materials,
     edges,
     hardware: [...hardware.values()].sort((a, b) => a.name.localeCompare(b.name, labels.locale)),
-    pieceCount: sortedRows.reduce((sum, row) => sum + row.quantity, 0),
+    pieceCount: sortedRows.reduce((sum, row) => sum + (Number.isFinite(row.quantity) && row.quantity > 0 ? row.quantity : 0), 0),
     hasCosts: costs.some((cost) => cost !== null),
-    cost: costs.length > 0 && costs.every((cost) => cost !== null) ? costs.reduce((sum, c) => sum + c, 0) : null,
+    cost: !invalidParts.length && costs.length > 0 && costs.every((cost) => cost !== null) ? costs.reduce((sum, c) => sum + c, 0) : null,
   };
+}
+
+export function assertCuttable(list: Pick<CuttingList, 'invalidParts'>, labels: EngineLabels = EN_LABELS): void {
+  if (list.invalidParts.length) throw new RangeError(labels.invalidParts);
 }
 
 /** Edge banding of a row as "L1 W0"-style text, empty when there is none. */
@@ -225,6 +239,7 @@ export function partNote(part: Pick<Part, 'note' | 'edited' | 'quantity'>, label
  * Numbers use the language's decimal mark, as its spreadsheets expect.
  */
 export function cuttingListCsv(list: CuttingList, separator: ';' | '\t' = ';', labels: EngineLabels = EN_LABELS): string {
+  assertCuttable(list, labels);
   const special = separator === ';' ? /[";\n]/ : /["\t\n]/;
   const escape = (value: string) => (special.test(value) ? `"${value.replace(/"/g, '""')}"` : value);
   const lines = list.rows.map((row) =>

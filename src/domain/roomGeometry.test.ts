@@ -58,6 +58,20 @@ describe('room footprints and fixed structures', () => {
     { id: 'diagonal', x: 1000, y: 0 }, { id: 'east', x: 4000, y: 3000 }, { id: 'south', x: 0, y: 3000 }, { id: 'west', x: 0, y: 0 },
   ] };
 
+  it('derives custom-room bounds without moving fixtures and refuses independent bounding-size edits', () => {
+    const original = { ...createDesign(), room: { ...angled, width: 4800, features: [chimney] }, items: [createItem('base', [], { x: 4200, y: 1000 })] };
+    const parsed = parseDesign(JSON.parse(JSON.stringify(original)))!;
+    expect(parsed.room.width).toBe(4000);
+    expect(parsed.room.features).toEqual(original.room.features);
+    expect(parsed.items).toEqual(original.items);
+    expect(() => setRoom(parsed, { width: 4800 })).toThrow(/walls or corners/);
+    expect(() => setRoom(parsed, { depth: 3500 })).toThrow(RangeError);
+    const taller = setRoom(parsed, { height: 2800 });
+    expect(taller.room.vertices).toBe(parsed.room.vertices);
+    expect(taller.room.features).toEqual(parsed.room.features);
+    expect(taller.items).toBe(parsed.items);
+    expect(parseDesign(JSON.parse(JSON.stringify(taller)))!.room).toEqual(taller.room);
+  });
   it('snaps a cabinet back to a real diagonal segment and reserves its angled opening', () => {
     const item = createItem('base', [], { width: 600 });
     const frame = roomSegments(angled)[0];

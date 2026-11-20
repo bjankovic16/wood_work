@@ -351,7 +351,7 @@ try {
     await angle.fill('270');
     await angle.press('Enter');
     assert.deepEqual(await room(), diagonal, 'a crossed/overlapping outline is rejected');
-    await drawing.getByRole('alert').waitFor();
+    await drawing.getByRole('alert').filter({ hasText: 'Izmena nije moguća.' }).waitFor();
     await page.keyboard.press('Escape');
     await workspaceObjectChecks(page, compact, !planOnly);
     await furnishedWallChecks(page, compact, path.resolve('test-results/room-workspace'));

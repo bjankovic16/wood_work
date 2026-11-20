@@ -201,15 +201,17 @@ export function RoomDimensions({ tiles = false }: { tiles?: boolean }) {
     catch (error) { if (!(error instanceof RangeError)) throw error; setFailed(true); return false; }
   };
   const fields = <>
-    <NumberField label={t.room.width} title={t.room.widthTitle} value={room.width} {...ROOM_LIMITS.width} onCommit={(v) => resize({ width: v })} />
-    <NumberField label={t.room.depth} title={t.room.depthTitle} value={room.depth} {...ROOM_LIMITS.depth} onCommit={(v) => resize({ depth: v })} />
+    <NumberField label={t.room.width} title={room.vertices ? t.advancedRoom.boundsHint : t.room.widthTitle} readOnly={!!room.vertices} value={room.width} {...ROOM_LIMITS.width} onCommit={(v) => resize({ width: v })} />
+    <NumberField label={t.room.depth} title={room.vertices ? t.advancedRoom.boundsHint : t.room.depthTitle} readOnly={!!room.vertices} value={room.depth} {...ROOM_LIMITS.depth} onCommit={(v) => resize({ depth: v })} />
     <NumberField label={t.room.ceilingHeight} shortLabel={tiles ? t.room.height : undefined} title={t.room.ceilingHeight} value={room.height} {...ROOM_LIMITS.height} onCommit={(v) => resize({ height: v })} />
   </>;
   const error = failed && <p role="alert" className="text-xs text-red-700">{t.advancedRoom.invalid}</p>;
-  if (!tiles) return <PanelSection title={t.room.roomSize}>{fields}{error}</PanelSection>;
+  const hint = room.vertices && <p className="text-xs text-studio-muted">{t.advancedRoom.boundsHint}</p>;
+  if (!tiles) return <PanelSection title={t.room.roomSize}>{fields}{hint}{error}</PanelSection>;
   return <section className="room-sizes">
     <h3>{t.room.roomSize}</h3>
     <div className="room-size-grid">{fields}</div>
+    {hint}
     {error}
   </section>;
 }

@@ -139,15 +139,17 @@ export function ItemFields({ item, section }: { item: KitchenItem; section: Item
 
   const sizeField = (field: SizeField, label: string) => {
     const limits = sizeLimits(item, field);
+    const derived = item.kind === 'endPanel' && field === 'width';
     return (
       <NumberField
         label={label}
-        title={`${limits.min}–${limits.max} mm`}
+        title={derived ? t.item.panelThickness : `${limits.min}–${limits.max} mm`}
+        readOnly={derived}
         value={field === 'width2' ? (item.width2 ?? item.width) : item[field]}
         min={limits.min}
         max={limits.max}
-        picks={commonSizes(item, field, room, inPlan)}
-        autoFocus={field === 'width' && focusRequest === 'width'}
+        picks={derived ? undefined : commonSizes(item, field, room, inPlan)}
+        autoFocus={field === (item.kind === 'endPanel' ? 'depth' : 'width') && focusRequest === 'width'}
         onCommit={(value) => {
           const result = actions.setItemSize(item.id, field, value);
           setSizeBlocked(result === false);
@@ -169,6 +171,7 @@ export function ItemFields({ item, section }: { item: KitchenItem; section: Item
       {show('size') && <fieldset disabled={locked} className="min-w-0">
         <PanelSection title={t.item.size} aside={inPlan && <span className="lg:hidden"><PlanMoveButton /></span>}>
           {sizeField('width', corner ? t.item.widthWallA : t.item.width)}
+          {item.kind === 'endPanel' && <p className="text-xs text-studio-muted">{t.item.panelThickness}</p>}
           {corner && sizeField('width2', t.item.widthWallB)}
           {sizeField('depth', t.item.depth)}
           {sizeField('height', t.item.height)}

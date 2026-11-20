@@ -32,7 +32,9 @@ interface ProjectIndex {
   projects: ProjectMeta[];
 }
 
-export const useProjectsStore = create<ProjectIndex & { writeFailed: boolean }>(() => ({ activeId: '', projects: [], writeFailed: false }));
+export const useProjectsStore = create<ProjectIndex & { writeFailed: boolean; readFailed: boolean }>(() => ({
+  activeId: '', projects: [], writeFailed: false, readFailed: false,
+}));
 useProjectsStore.subscribe(checkFeedbackScope);
 
 const INDEX_KEY = 'kitchen-designer:projects';
@@ -40,6 +42,7 @@ const projectKey = (id: string) => `kitchen-designer:project:${id}`;
 /** Where versions before projects kept their single design. */
 const LEGACY_KEY = 'kitchen-designer:design';
 const SAVE_DELAY = 400;
+let indexUnreadable = false;
 
 /** Session copies also cover browsers that can still read an old design but refuse new writes. */
 const memory = new Map<string, { design: Design; written: boolean }>();
@@ -65,7 +68,7 @@ function write(key: string, value: unknown): boolean {
 
 function saveIndex(): void {
   const { activeId, projects, writeFailed } = useProjectsStore.getState();
-  const failed = !write(INDEX_KEY, { activeId, projects }) || [...memory.values()].some((entry) => !entry.written);
+  const failed = indexUnreadable || !write(INDEX_KEY, { activeId, projects }) || [...memory.values()].some((entry) => !entry.written);
   if (failed !== writeFailed) useProjectsStore.setState({ writeFailed: failed });
 }
 
@@ -118,8 +121,9 @@ function parseIndex(raw: unknown): ProjectIndex | null {
       ...(p.roomMeasured === true ? { roomMeasured: true } : {}),
       ...(typeof p.lastBackupAt === 'number' && Number.isFinite(p.lastBackupAt) && p.lastBackupAt > 0 ? { lastBackupAt: p.lastBackupAt } : {}),
       ...(Number.isFinite(p.backupUpdatedAt) ? { backupUpdatedAt: p.backupUpdatedAt } : {}) }));
-  if (projects.length === 0) return null;
-  const activeId = typeof v.activeId === 'string' && projects.some((p) => p.id === v.activeId) ? v.activeId : projects[0].id;
+  if (projects.length !== v.projects.length
+    || projects.some((p) => !p.id.trim()) || new Set(projects.map((p) => p.id)).size !== projects.length) return null;
+  const activeId = typeof v.activeId === 'string' && projects.some((p) => p.id === v.activeId) ? v.activeId : projects[0]?.id ?? '';
   return { activeId, projects };
 }
 
@@ -169,20 +173,28 @@ export function initProjects(): void {
   if (started) return;
   started = true;
   const index = parseIndex(read(INDEX_KEY));
-  if (index) {
+  indexUnreadable = typeof safeStorage.getItem(INDEX_KEY) === 'string' && !index;
+  if (index && index.projects.length) {
     useProjectsStore.setState(index);
     const stored = loadDesign(index.activeId);
-    const design = stored ?? createDesign(index.projects.find((p) => p.id === index.activeId)?.name);
+    const design = stored ?? createDesign(nextName());
     useDesignStore.getState().load(design);
-    // A design that had to be made up is written on the first save.
-    savedDesign = stored;
+    savedDesign = design;
+    if (!stored) {
+      const id = newId();
+      storeDesign(id, design);
+      useProjectsStore.setState({ activeId: id, projects: [metaOf(id, design), ...index.projects], readFailed: true });
+      saveIndex();
+    }
   } else {
     const legacy = read(LEGACY_KEY) as { state?: { design?: unknown } } | null;
-    const design = parseDesign(legacy?.state?.design) ?? createDesign(currentMessages().names.defaultProject);
+    const migrated = parseDesign(legacy?.state?.design);
+    const design = migrated ?? createDesign(currentMessages().names.defaultProject);
     const id = newId();
     storeDesign(id, design);
     savedDesign = design;
-    useProjectsStore.setState({ activeId: id, projects: [metaOf(id, design)] });
+    useProjectsStore.setState({ activeId: id, projects: [metaOf(id, design)],
+      readFailed: indexUnreadable || typeof safeStorage.getItem(LEGACY_KEY) === 'string' && !migrated });
     useDesignStore.getState().load(design);
     saveIndex();
   }
@@ -192,6 +204,7 @@ export function initProjects(): void {
   if (needsRoomSetup(useProjectsStore.getState().activeId, active)) ui.setRoomOpen(true);
   else ui.setView('plan');
   ui.setReferenceOpen(Boolean(active.referencePhoto));
+  if (useProjectsStore.getState().readFailed) ui.setProjectPage('projects');
   useDesignStore.subscribe((state, previous) => {
     if (committedDesign(state) !== committedDesign(previous)) scheduleSave();
   });
@@ -236,19 +249,20 @@ export function startFresh(): string {
   return fresh;
 }
 
-export function openProject(id: string): void {
+export function openProject(id: string): boolean {
   const { activeId } = useProjectsStore.getState();
-  if (id === activeId) return;
-  flushSave();
+  if (id === activeId) return true;
   const design = loadDesign(id);
-  if (!design) return;
+  if (!design) { useProjectsStore.setState({ readFailed: true }); return false; }
+  flushSave();
   show(id, design);
+  return true;
 }
 
 export function duplicateProject(id: string, name?: string): string | null {
+  const source = projectDesign(id);
+  if (!source) { useProjectsStore.setState({ readFailed: true }); return null; }
   flushSave();
-  const source = loadDesign(id);
-  if (!source) return null;
   const copyId = newId();
   const design = { ...structuredClone(source), name: name ?? currentMessages().names.copyOf(source.name) };
   storeDesign(copyId, design);
@@ -327,19 +341,21 @@ export async function saveProjectBackup(id: string): Promise<BackupResult> {
   flushSave();
   const meta = useProjectsStore.getState().projects.find((p) => p.id === id);
   const design = meta && projectDesign(id);
-  if (!meta || !design) return { outcome: 'unavailable' };
+  const raw = !design ? safeStorage.getItem(projectKey(id)) : null;
+  if (!meta || !design && typeof raw !== 'string') return { outcome: 'unavailable' };
   let recorded = false;
   const confirm = () => {
     const { projects } = useProjectsStore.getState();
-    if (recorded || !projects.some((p) => p.id === id)) return;
+    if (!design || recorded || !projects.some((p) => p.id === id)) return;
     recorded = true;
     useProjectsStore.setState({ projects: projects.map((p) => p.id === id
       ? { ...p, lastBackupAt: Date.now(), backupUpdatedAt: meta.updatedAt } : p) });
     saveIndex();
   };
   try {
-    const data = new Blob([JSON.stringify(design, null, 2)], { type: 'application/json' });
-    const outcome = await saveBackupFile(`${safeFileName(design.name)}.kitchen.json`, data);
+    const data = new Blob([design ? JSON.stringify(design, null, 2) : String(raw)], { type: 'application/json' });
+    const filename = design ? `${safeFileName(design.name)}.kitchen.json` : currentMessages().projects.recoveryFile(safeFileName(meta.name));
+    const outcome = await saveBackupFile(filename, data);
     if (outcome === 'download-started') return { outcome, confirm };
     if (outcome === 'saved') confirm();
     return { outcome };
@@ -359,9 +375,10 @@ function nextName(): string {
 /** For tests: forget everything in memory. */
 export function resetProjectsForTests(): void {
   started = false;
+  indexUnreadable = false;
   savedDesign = null;
   memory.clear();
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = null;
-  useProjectsStore.setState({ activeId: '', projects: [], writeFailed: false });
+  useProjectsStore.setState({ activeId: '', projects: [], writeFailed: false, readFailed: false });
 }

@@ -1,6 +1,6 @@
 import type { Design } from '../domain/types';
 import type { Issue } from '../engine/checks';
-import { edgeText, partNote, type CuttingList } from '../engine/cuttingList';
+import { assertCuttable, edgeText, partNote, type CuttingList } from '../engine/cuttingList';
 import { boardLabel } from '../engine/materialLabel';
 import type { Part } from '../engine/parts';
 import { en, type Messages } from '../i18n/en';
@@ -48,6 +48,7 @@ function partCells(part: Part, materialName: string, bandThickness: (id: string 
  * Words come from `t`; the list should be built in the same language.
  */
 export function cuttingListDocument(design: Design, list: CuttingList, issues: Issue[], generated = new Date(), t: Messages = en): object {
+  assertCuttable(list, t.engine);
   const r = t.report;
   const date = t.date(generated);
   const bandThickness = (id: string | null) => (id ? (design.edgeBands.find((b) => b.id === id)?.thickness ?? null) : null);
@@ -173,13 +174,14 @@ export function cuttingListDocument(design: Design, list: CuttingList, issues: I
     margin: [0, 0, 0, 10],
   });
   for (const { item, parts } of list.units) {
-    if (parts.length === 0) continue;
+    const required = parts.filter((part) => part.quantity > 0);
+    if (required.length === 0) continue;
     content.push({
       stack: [
         { text: [{ text: `${item.label}  `, bold: true }, { text: r.unitHeader(t.kinds[item.kind], item.width, item.height, item.depth), color: MUTED }], margin: [0, 0, 0, 3] },
-        unitTable(parts),
+        unitTable(required),
       ],
-      unbreakable: parts.length <= 14,
+      unbreakable: required.length <= 14,
     });
   }
   if (list.extra.length > 0) {
