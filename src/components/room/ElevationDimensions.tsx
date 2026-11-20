@@ -4,6 +4,7 @@ import { openingOnWall, type WallSegment } from '../../domain/walls';
 import { useT } from '../../i18n';
 import { measureText } from '../../lib/measureText';
 import { drawingButton } from './RoomPlan';
+import { DimensionLines } from './DimensionLines';
 
 const CHAIN_GAP = 19; // screen pixels from the wall to the dimension chain
 
@@ -19,17 +20,10 @@ function Dimension({ kind, label, x, y, length, px, vertical, witnesses, overflo
   // A short dimension still needs a value: put it beyond the chain, not over the next number.
   const outside = overflowSide && half * 2 < width + 6 ? overflowSide : 0;
   const textX = outside * (half + 4 + width / 2);
-  const lines = witnesses.map((offset, i) => {
-    const sign = Math.sign(offset);
-    return `M${i ? half : -half} ${offset - sign * 2}V${-sign * 3}`;
-  }).join(' ');
   const props = edit ? drawingButton(`${label}: ${mm}`, edit) : { role: 'img', 'aria-label': `${label}: ${mm}` };
   return <g data-elevation-dimension={kind} pointerEvents="none" transform={`translate(${x} ${y}) rotate(${vertical ? -90 : 0}) scale(${px})`}
     color={overflowSide ? '#275b75' : '#394e44'}>
-    <path d={lines} fill="none" stroke="currentColor" strokeOpacity=".6" strokeWidth=".8" />
-    <path d={`M${-half - (outside < 0 ? width + 6 : 3)} 0H${half + (outside > 0 ? width + 6 : 3)}`}
-      stroke="currentColor" strokeWidth=".9" />
-    <path d={`M${-half - 3} 3l6 -6 M${half - 3} 3l6 -6`} stroke="currentColor" strokeWidth="1.5" />
+    <DimensionLines half={half} witnesses={witnesses} left={outside < 0 ? width + 6 : 3} right={outside > 0 ? width + 6 : 3} />
     <g {...props} className={edit ? 'room-ruler-button' : undefined} pointerEvents={edit ? 'auto' : 'none'}>
       {edit && <rect x={-Math.max(44, width + 8) / 2} y="-23" width={Math.max(44, width + 8)} height="44" fill="transparent" />}
       <text x={textX} y="-4" textAnchor="middle" fontSize={font} fontWeight="550" fill="currentColor">{text}</text>

@@ -115,6 +115,44 @@ describe('projects', () => {
     expect(useUiStore.getState().hiddenKitchenWallIds).toEqual([]);
   });
 
+  it('keeps room rotation and the pending Add choice out of saved projects and preferences', () => {
+    initProjects();
+    const original = design(), id = projects().activeId, ui = useUiStore.getState();
+    ui.setRoomPlanAngle(90);
+    ui.setRoomAddMenuOpen(true);
+    ui.setRoomWallRequest({ projectId: id, choose: vi.fn() });
+    flushSave();
+    expect(design()).toBe(original);
+    expect(projectDesign(id)).toEqual(original);
+    expect(useDesignStore.getState().past).toEqual([]);
+    const preferences = JSON.parse(localStorage.getItem('kitchen-designer:preferences')!).state;
+    for (const key of ['roomPlanAngle', 'roomAddMenuOpen', 'roomWallRequest']) expect(preferences).not.toHaveProperty(key);
+    createProject();
+    expect(useUiStore.getState()).toMatchObject({ roomPlanAngle: 0, roomAddMenuOpen: false, roomWallRequest: null });
+  });
+
+  it('ignores stale room-view and Add state from preference hydration', async () => {
+    initProjects();
+    const saved = JSON.parse(localStorage.getItem('kitchen-designer:preferences')!);
+    localStorage.setItem('kitchen-designer:preferences', JSON.stringify({ ...saved, state: { ...saved.state,
+      roomPlanAngle: 270, roomAddMenuOpen: true, roomWallRequest: { projectId: 'old-project', choose: 'not-a-function' },
+    } }));
+    await useUiStore.persist.rehydrate();
+    expect(useUiStore.getState()).toMatchObject({ roomPlanAngle: 0, roomAddMenuOpen: false, roomWallRequest: null });
+  });
+
+  it('discards a pending wall choice through every Room exit', () => {
+    initProjects();
+    const ui = useUiStore.getState();
+    for (const exit of [() => ui.setRoomOpen(false), () => ui.finishRoom(), () => ui.setView('plan'), () => ui.setRoomView('3d')]) {
+      ui.openRoomPlan();
+      ui.setRoomAddMenuOpen(true);
+      ui.setRoomWallRequest({ projectId: projects().activeId, choose: vi.fn() });
+      exit();
+      expect(useUiStore.getState()).toMatchObject({ roomAddMenuOpen: false, roomWallRequest: null });
+    }
+  });
+
   it('undoes only the last Start fresh, by opening its actual predecessor without deleting either kitchen', () => {
     initProjects();
     const original = projects().activeId;

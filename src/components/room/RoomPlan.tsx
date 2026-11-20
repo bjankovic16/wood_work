@@ -19,6 +19,9 @@ import { updateRoomFeature } from '../../store/actions';
 import { FeatureSizeGrips } from './FeatureSizeGrips';
 import { planGridStep, ROOM_COLORS } from '../canvas/theme';
 import { WALL_THICKNESS } from '../../store/viewport';
+import { measureText } from '../../lib/measureText';
+import { DimensionLines } from './DimensionLines';
+import { roomPlanFrame, rotatePlanPoint } from './roomPlanView';
 
 export const points = (polygon: Point[]) => polygon.map((p) => `${p.x},${p.y}`).join(' ');
 export function drawingButton(label: string, activate: (keyboard?: boolean) => void) {
@@ -33,18 +36,18 @@ export function RoomPlan({ onFaceWall, reference }: { onFaceWall: (id: string, k
   const { room, openings, items, style } = useDesignStore((s) => s.design);
   const selection = useUiStore((s) => s.roomSelection);
   const wallId = useUiStore((s) => s.selectedWallId);
+  const angle = useUiStore((s) => s.roomPlanAngle);
   const ui = useUiStore.getState();
-  const drag = useDrawingDrag();
+  const drag = useDrawingDrag(angle);
   const readout = useRoomReadout();
   const feature = selection?.type === 'feature' && room.features?.find((f) => f.id === selection.id);
   const size = useDrawingSize();
   const tileId = useId();
   const [measure, setMeasure] = useState<string | null>(null);
-  // Reserve actual screen space on all four sides for horizontal, tappable measurements.
-  const fitted = Math.max(room.width / Math.max(40, size.width - 158), room.depth / Math.max(25, size.height - 102));
+  const fitted = roomPlanFrame(room, size, angle);
   const allWalls = useMemo(() => roomSegments(room), [room]);
   const segments = allWalls.filter((wall) => !wall.partitionId);
-  const corners = usePlanCorners(segments, { px: fitted, x: (room.width - size.width * fitted) / 2, y: (room.depth - size.height * fitted) / 2 }, drag,
+  const corners = usePlanCorners(segments, fitted, drag,
     (id) => { setMeasure(null); ui.setSelectedWallId(id); });
   const { px, x, y } = corners.frame;
   const active = segments.find((s) => s.id === wallId);
@@ -56,8 +59,21 @@ export function RoomPlan({ onFaceWall, reference }: { onFaceWall: (id: string, k
   const outline = points(roomOutline(room));
   const { width, height } = size;
   const movingWall = selection ? undefined : active;
-  const { dimensions, icons, grip } = useMemo(() => planWallControls(allWalls, { x, y, px }, { width, height }, movingWall),
-    [allWalls, x, y, px, width, height, movingWall]);
+  const viewLabel = wallId ? t.room.openWall(allWalls.findIndex((s) => s.id === wallId) + 1) : '';
+  const namedWidth = Math.max(88, measureText(viewLabel, 12, 550) + 40);
+  const { dimensions, icons, grip } = useMemo(() => planWallControls(allWalls, { x, y, px, angle }, { width, height }, movingWall,
+    wallId ? { id: wallId, width: namedWidth } : undefined),
+    [allWalls, x, y, px, angle, width, height, movingWall, wallId, namedWidth]);
+  const readoutCentre = readout && rotatePlanPoint(readout.centre, angle);
+  const viewLayout = allWalls.map((wall, i) => ({ wall, label: t.room.openWall(i + 1), icon: icons.get(wall.id)!,
+    anchor: dimensions.get(wall.id)?.at ?? wallPoint(wall, wall.length / 2), number: i + 1 }));
+  const dimensionLayout = segments.map((wall, i) => {
+    const { anchor, at } = dimensions.get(wall.id)!;
+    const distance = (at.x - anchor.x) * wall.inward.x + (at.y - anchor.y) * wall.inward.y;
+    const centre = wallPoint(wall, wall.length / 2, distance), half = wall.length / (2 * px);
+    const along = ((at.x - centre.x) * wall.tangent.x + (at.y - centre.y) * wall.tangent.y) / px;
+    return { wall, number: i + 1, at, distance, centre, half, along };
+  });
   // Mobile browsers can discard the synthesized click on a thin, sloping SVG wall.
   // Treat a stationary single-finger release as a tap, without turning a swipe into one.
   const tap = useRef<{ x: number; y: number; id: number } | null>(null);
@@ -80,7 +96,7 @@ export function RoomPlan({ onFaceWall, reference }: { onFaceWall: (id: string, k
     },
   });
   return <div ref={size.ref} data-testid="room-plan" className="room-drafting-paper relative min-h-0 min-w-0 flex-1">
-    <svg aria-label={t.room.plan} className="absolute inset-0 h-full w-full touch-none" viewBox={`${x} ${y} ${size.width * px} ${size.height * px}`}>
+    <svg aria-label={t.room.plan} data-room-plan-angle={angle} className="absolute inset-0 h-full w-full touch-none" viewBox={`${x} ${y} ${size.width * px} ${size.height * px}`}>
       <defs>{tiled ? <pattern id={tileId} width={tile} height={tile} patternUnits="userSpaceOnUse">
         <rect width={tile} height={tile} fill={floor} /><path d={`M0 ${tile}V0H${tile}`} fill="none" stroke={style.floorGroutColor ?? DEFAULT_FLOOR_GROUT_COLOR} strokeWidth={Math.max(3, px * 1.4)} />
       </pattern> : <>
@@ -93,6 +109,7 @@ export function RoomPlan({ onFaceWall, reference }: { onFaceWall: (id: string, k
           <path d="M0 1000V0H1000" fill="none" stroke={ROOM_COLORS.gridMajor} strokeWidth={2 * px} />
         </pattern>
       </>}</defs>
+      <g data-room-space="" transform={`rotate(${angle})`}>
       <polygon points={outline} fill="none" stroke={ROOM_COLORS.wall} strokeWidth={2 * WALL_THICKNESS} strokeLinejoin="miter" />
       <polygon data-plan-floor="" points={outline} fill={`url(#${tileId})`} />
       {reference && items.flatMap((item) => footprintPieces(item).map((part, i) => <polygon key={`${item.id}-${i}`} data-plan-cabinet={item.id} points={points(part)} fill="#edf0e9" stroke="#95a198" strokeWidth={px} />))}
@@ -112,37 +129,6 @@ export function RoomPlan({ onFaceWall, reference }: { onFaceWall: (id: string, k
             stroke={wallId === s.id ? '#376b4a' : 'transparent'} strokeWidth={5 * px} pointerEvents="none" />
           <polygon fill="transparent" points={points([wallPoint(s, 0, outside), wallPoint(s, s.length, outside),
             wallPoint(s, s.length, inside), wallPoint(s, 0, inside)])} />
-        </g>;
-      })}
-      {allWalls.map((s, i) => {
-        const icon = icons.get(s.id)!, label = t.room.openWall(i + 1);
-        const anchor = dimensions.get(s.id)?.at ?? wallPoint(s, s.length / 2);
-        return <g key={s.id}>
-          <line x1={anchor.x} y1={anchor.y} x2={icon.x} y2={icon.y} stroke="#8d9f95" strokeWidth={px} pointerEvents="none" />
-          <g data-wall-view={s.id} {...planButton(label, (keyboard) => onFaceWall(s.id, keyboard))}
-            transform={`translate(${icon.x} ${icon.y}) scale(${px})`}>
-            <title>{label}</title>
-            <rect x="-22" y="-22" width="44" height="44" fill="transparent" />
-            <rect className="room-wall-view-chip" x="-20" y="-13" width="40" height="26" rx="8" />
-            <Eye x="-16" y="-8" size={16} aria-hidden="true" color="#315a44" />
-            <text textAnchor="middle" x="9" y="4" fontSize="12" fontWeight="600" fill="#315a44">{i + 1}</text>
-          </g>
-        </g>;
-      })}
-      {corners.targets}
-      {segments.map((s, i) => {
-        const label = `${t.advancedRoom.wall(i + 1)} · ${Math.round(s.length)} mm`;
-        const selected = s.id === wallId;
-        const { anchor, at } = dimensions.get(s.id)!;
-        return <g key={s.id}>
-          <line x1={anchor.x} y1={anchor.y} x2={at.x} y2={at.y} stroke="#8d9f95" strokeWidth={px} pointerEvents="none" />
-          <g data-wall-dimension={s.id} {...planButton(`${label}: ${t.advancedRoom.length}`, () => { ui.setSelectedWallId(s.id); setMeasure(s.id); })}
-            transform={`translate(${at.x} ${at.y}) scale(${px})`}>
-            <rect x="-32" y="-22" width="64" height="44" rx="8" fill="transparent" />
-            <rect x="-32" y="-18" width="64" height="36" rx="7" fill={selected ? '#34594d' : '#fffefa'} stroke={selected ? '#34594d' : '#c9d2c8'} />
-            <text textAnchor="middle" y="-4" fontSize="12" fontWeight="600" fill={selected ? '#e2eee3' : '#475b50'}>{t.advancedRoom.wall(i + 1)}</text>
-            <text textAnchor="middle" y="11" fontSize="13" fontWeight="650" fill={selected ? 'white' : '#233c33'}>{Math.round(s.length)}<tspan fontSize="12" fontWeight="500"> mm</tspan></text>
-          </g>
         </g>;
       })}
       {room.features?.map((f, i) => <g key={f.id} data-plan-feature={f.id} style={{ touchAction: 'none' }}
@@ -175,14 +161,47 @@ export function RoomPlan({ onFaceWall, reference }: { onFaceWall: (id: string, k
             wallPoint(frame, o.offset + o.width, 15 * px), wallPoint(frame, o.offset, 15 * px)])} />
         </g>;
       })}
+      {dimensionLayout.map(({ wall, centre, half, distance, along }) =>
+        <g key={wall.id} data-plan-dimension-line={wall.id} pointerEvents="none"
+          transform={`translate(${centre.x} ${centre.y}) rotate(${wall.angle}) scale(${px})`} color={wall.id === wallId ? '#34594d' : '#526457'}>
+          <DimensionLines half={half} witnesses={[-distance / px, -distance / px]}
+            left={Math.max(3, -half - along + 32)} right={Math.max(3, along + 32 - half)} />
+        </g>)}
+      {viewLayout.map(({ wall, anchor, icon }) =>
+        <line key={wall.id} x1={anchor.x} y1={anchor.y} x2={icon.x} y2={icon.y}
+          stroke="#8d9f95" strokeWidth={px} pointerEvents="none" />)}
+      {corners.targets}
+      {dimensionLayout.map(({ wall, number, at }) => {
+        const label = `${t.advancedRoom.wall(number)} · ${Math.round(wall.length)} mm`, selected = wall.id === wallId;
+        return <g key={wall.id} data-wall-dimension={wall.id}
+          {...planButton(`${label}: ${t.advancedRoom.length}`, () => { ui.setSelectedWallId(wall.id); setMeasure(wall.id); })}
+          transform={`translate(${at.x} ${at.y}) scale(${px}) rotate(${-angle})`}>
+          <rect x="-32" y="-22" width="64" height="44" rx="8" fill="transparent" />
+          <rect x="-32" y="-18" width="64" height="36" rx="2" fill="#fffefa" stroke={selected ? '#34594d' : '#c9d2c8'} strokeWidth={selected ? 1.4 : .7} />
+          <text textAnchor="middle" y="-4" fontSize="11" fontWeight="550" fill="#475b50">{t.advancedRoom.wall(number)}</text>
+          <text textAnchor="middle" y="11" fontSize="13" fontWeight="600" fill={selected ? '#34594d' : '#233c33'}>{Math.round(wall.length)}<tspan fontSize="11" fontWeight="500"> mm</tspan></text>
+        </g>;
+      })}
+      {viewLayout.map(({ wall, label, icon, number }) => {
+        const named = wall.id === wallId, half = named ? namedWidth / 2 : 22;
+        return <g key={wall.id} data-wall-view={wall.id} {...planButton(label, (keyboard) => onFaceWall(wall.id, keyboard))}
+          transform={`translate(${icon.x} ${icon.y}) scale(${px}) rotate(${-angle})`}>
+          <title>{label}</title>
+          <rect x={-half} y="-22" width={half * 2} height="44" fill="transparent" />
+          <rect className="room-wall-view-chip" x={-half + 2} y="-15" width={half * 2 - 4} height="30" rx="5" />
+          <Eye x={named ? -half + 9 : -16} y="-8" size={16} aria-hidden="true" color="#315a44" />
+          <text textAnchor={named ? 'start' : 'middle'} x={named ? -half + 30 : 9} y="4" fontSize="12" fontWeight="550" fill="#315a44">{named ? label : number}</text>
+        </g>;
+      })}
       {corners.grips}
       {!selection && corners.wallGrip(grip)}
       {!selection && corners.angle}
-      {feature && <FeatureSizeGrips key={feature.id} room={room} feature={feature} px={px} />}
+      {feature && <FeatureSizeGrips key={feature.id} room={room} feature={feature} px={px} angle={angle} />}
+      </g>
     </svg>
     {corners.notice && <p role="status" className="pointer-events-none absolute inset-x-2 bottom-1 mx-auto w-fit rounded bg-amber-50 px-2 py-1 text-center text-xs text-amber-950">{corners.notice}</p>}
-    {readout && !measuring && <DrawingReadout data={readout} x={(readout.centre.x - x) / px}
-      y={feature ? ((readout.centre.y - y) / px < height / 2 ? height - 74 : 0) : (readout.centre.y - y) / px} />}
+    {readout && readoutCentre && !measuring && <DrawingReadout data={readout} x={(readoutCentre.x - x) / px}
+      y={feature ? ((readoutCentre.y - y) / px < height / 2 ? height - 74 : 0) : (readoutCentre.y - y) / px} />}
     {measuring && <WallMeasureDialog wall={active} number={segments.indexOf(active) + 1} close={() => setMeasure(null)} />}
   </div>;
 }

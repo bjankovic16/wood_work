@@ -9,6 +9,8 @@ import {
   undo,
 } from '../store/actions';
 import { PLAN_AXES, useUiStore } from '../store/uiStore';
+import { useDesignStore } from '../store/designStore';
+import { unrotatePlanPoint } from '../components/room/roomPlanView';
 
 function isTyping(target: EventTarget | null): boolean {
   return (
@@ -61,7 +63,10 @@ export function useKeyboardShortcuts(): void {
         e.preventDefault();
         const [right, up] = ARROWS[e.key];
         const step = e.shiftKey ? 100 : 10;
-        nudgeRoomFeature(roomSelection.id, right * step, -up * step);
+        const ui = useUiStore.getState();
+        const bound = useDesignStore.getState().design.room.features?.find((f) => f.id === roomSelection.id)?.wallId;
+        const delta = unrotatePlanPoint({ x: right * step, y: -up * step }, ui.roomElevationOpen || bound ? 0 : ui.roomPlanAngle);
+        nudgeRoomFeature(roomSelection.id, delta.x, delta.y);
         return;
       }
       if (e.key === 'Delete' || e.key === 'Backspace') {

@@ -70,10 +70,11 @@ export function WallMeasurements() {
   const selectedId = useUiStore((s) => s.selectedWallId);
   const roomOpen = useUiStore((s) => s.roomOpen);
   const segments = roomSegments(room);
-  const wall = segments.find((s) => s.id === selectedId) ?? segments[0];
+  const wall = segments.find((s) => s.id === selectedId);
   return <PanelSection title={t.advancedRoom.title}>
-    <SelectField label={t.room.wall} value={wall.id} options={segments.map((s, i) => ({ value: s.id, label: t.advancedRoom.wall(i + 1) }))}
-      onChange={(id) => useUiStore.getState().setSelectedWallId(id)} />
+    <SelectField label={t.room.wall} value={wall?.id ?? ''} options={[{ value: '', label: t.room.chooseWall }, ...segments.map((s, i) => ({ value: s.id, label: `${t.advancedRoom.wall(i + 1)} · ${Math.round(s.length)} mm` }))]}
+      onChange={(id) => useUiStore.getState().setSelectedWallId(id || null)} />
+    {wall && <>
     {wall.partitionId ? <p className="text-xs">{t.advancedRoom.length}: {Math.round(wall.length)} mm · {t.room.height}: {wall.height} mm</p>
       : <WallMeasureFields key={wall.id} wall={wall} />}
     <Button variant="outline" onClick={() => {
@@ -81,6 +82,7 @@ export function WallMeasurements() {
       if (!roomOpen) ui.setRoomOpen(true);
       ui.setSelectedWallId(wall.id);
       ui.setRoomElevationOpen(true);
-    }}>{t.room.elevation}</Button>
+    }}>{t.room.openWall(segments.indexOf(wall) + 1)}</Button>
+    </>}
   </PanelSection>;
 }

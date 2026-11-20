@@ -2,9 +2,10 @@ import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from 'react
 import type { Point } from '../../domain/types';
 import { pointerFrame } from '../../lib/pointerFrame';
 import { useDesignStore } from '../../store/designStore';
+import type { RoomPlanAngle } from '../../store/uiStore';
 
 /** SVG units are millimetres. Capture the original transform and grab point until release. */
-export function useDrawingDrag() {
+export function useDrawingDrag(angle: RoomPlanAngle = 0) {
   const active = useRef<{ id: number; target: SVGGElement; start: DOMPoint; frame: ReturnType<typeof pointerFrame>; base: ReturnType<typeof useDesignStore.getState>['design']; finish?: (cancelled: boolean) => void } | null>(null);
   const cancel = () => {
     const g = active.current;
@@ -22,11 +23,12 @@ export function useDrawingDrag() {
     window.addEventListener('blur', cancel);
     document.addEventListener('visibilitychange', hidden);
     return () => { window.removeEventListener('keydown', escape, true); window.removeEventListener('blur', cancel); document.removeEventListener('visibilitychange', hidden); cancel(); };
-  }, []);
+  }, [angle]);
   return {
     start(e: ReactPointerEvent<SVGGElement>, move: (delta: Point) => void, finish?: (cancelled: boolean) => void) {
       if (e.button !== 0 || !e.isPrimary || active.current || useDesignStore.getState().gestureBase) return false;
-      const transform = e.currentTarget.ownerSVGElement?.getScreenCTM()?.inverse();
+      const space = e.currentTarget.closest<SVGGElement>('[data-room-space]') ?? e.currentTarget.ownerSVGElement;
+      const transform = space?.getScreenCTM()?.inverse();
       if (!transform) return false;
       const start = new DOMPoint(e.clientX, e.clientY);
       const origin = start.matrixTransform(transform);

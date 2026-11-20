@@ -9,8 +9,8 @@ import { useT } from '../../i18n';
 import { useDesignStore } from '../../store/designStore';
 import { useUiStore } from '../../store/uiStore';
 import type { useDrawingDrag } from './useDrawingDrag';
+import { rotatePlanPoint, unrotatePlanPoint, type RoomPlanFrame } from './roomPlanView';
 
-type Frame = Point & { px: number };
 type Block = Extract<ReturnType<typeof moveRoomCorner>, { ok: false }>['reason'];
 const arrows: Record<string, Point> = { ArrowLeft: { x: -1, y: 0 }, ArrowRight: { x: 1, y: 0 }, ArrowUp: { x: 0, y: -1 }, ArrowDown: { x: 0, y: 1 } };
 
@@ -40,11 +40,11 @@ function cornerMotion(base: Design, id: string, wholeWall = false, snapAngles = 
   };
 }
 
-export function usePlanCorners(walls: WallSegment[], fitted: Frame, drag: ReturnType<typeof useDrawingDrag>, select: (id: string) => void) {
+export function usePlanCorners(walls: WallSegment[], fitted: RoomPlanFrame, drag: ReturnType<typeof useDrawingDrag>, select: (id: string) => void) {
   const t = useT();
   const scope = useId();
   const selected = useUiStore((s) => s.selectedWallId);
-  const [held, setHeld] = useState<Frame | null>(null);
+  const [held, setHeld] = useState<RoomPlanFrame | null>(null);
   const [block, setBlock] = useState<{ reason: Block; design: Design } | null>(null);
   const frame = held ?? fitted;
 
@@ -54,8 +54,9 @@ export function usePlanCorners(walls: WallSegment[], fitted: Frame, drag: Return
       const { design, shift, blocked } = motion(delta);
       useDesignStore.getState().apply(() => design);
       // Geometry may rebase its origin, but the drawing must not slide under the pointer.
-      const x = frame.x + shift.x, y = frame.y + shift.y;
-      setHeld((prev) => prev?.x === x && prev.y === y ? prev : { px: frame.px, x, y });
+      const viewedShift = rotatePlanPoint(shift, frame.angle);
+      const x = frame.x + viewedShift.x, y = frame.y + viewedShift.y;
+      setHeld((prev) => prev?.x === x && prev.y === y ? prev : { ...frame, x, y });
       setBlock(blocked ? { reason: blocked, design } : null);
     }, (cancelled) => { setHeld(null); if (cancelled) setBlock(null); })) return;
     e.preventDefault();
@@ -74,8 +75,9 @@ export function usePlanCorners(walls: WallSegment[], fitted: Frame, drag: Return
     select(id);
     if (!step) return;
     const distance = e.shiftKey ? 100 : 10;
+    const direction = unrotatePlanPoint(step, frame.angle);
     const { design, blocked } = cornerMotion(useDesignStore.getState().design, id, wholeWall, !wholeWall && useUiStore.getState().roomAngleSnapEnabled)
-      ({ x: step.x * distance, y: step.y * distance });
+      ({ x: direction.x * distance, y: direction.y * distance });
     useDesignStore.getState().apply(() => design);
     setBlock(blocked ? { reason: blocked, design } : null);
   };
@@ -121,11 +123,11 @@ export function usePlanCorners(walls: WallSegment[], fitted: Frame, drag: Return
       <line x1={anchor.x} y1={anchor.y} x2={at.x} y2={at.y} stroke="#8d9f95" strokeWidth={frame.px} pointerEvents="none" />
       <g data-wall-move={wall.id} id={gripId} role="button" tabIndex={0}
         aria-label={t.room.wallHandle(i + 1)} aria-description={t.room.wallMoveHint} {...wallProps(wall.id)}
-        onPointerDown={(e) => begin(e, wall.id, gripId, true)} transform={`translate(${at.x} ${at.y}) scale(${frame.px})`}>
+        onPointerDown={(e) => begin(e, wall.id, gripId, true)} transform={`translate(${at.x} ${at.y}) scale(${frame.px}) rotate(${-frame.angle})`}>
         <title>{t.room.wallHandle(i + 1)} · {t.room.wallMoveHint}</title>
         <rect x="-22" y="-22" width="44" height="44" fill="transparent" />
         <rect x="-14" y="-14" width="28" height="28" rx="7" fill="#fffefa" stroke="#376b4a" strokeWidth="1.5" />
-        <g transform={`rotate(${wall.angle})`}><MoveVertical x="-9" y="-9" size={18} color="#315a44" aria-hidden="true" /></g>
+        <g transform={`rotate(${wall.angle + frame.angle})`}><MoveVertical x="-9" y="-9" size={18} color="#315a44" aria-hidden="true" /></g>
       </g>
     </g>;
   };
@@ -141,6 +143,7 @@ export function usePlanCorners(walls: WallSegment[], fitted: Frame, drag: Return
       <path d={`M ${radius * wall.tangent.x} ${radius * wall.tangent.y} A ${radius} ${radius} 0 ${degrees > 180 ? 1 : 0} 1 ${-radius * before.tangent.x} ${-radius * before.tangent.y}`}
         fill="none" stroke="#34594d" strokeWidth="1.5" />
       <text x={(radius + 18) * Math.cos(mid)} y={(radius + 18) * Math.sin(mid)} textAnchor="middle" dominantBaseline="central"
+        transform={`rotate(${-frame.angle} ${(radius + 18) * Math.cos(mid)} ${(radius + 18) * Math.sin(mid)})`}
         fontSize="14" fontWeight="650" fill="#264837" stroke="#fffefa" strokeWidth="4" paintOrder="stroke">{value}</text>
     </g>;
   }

@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronLeft, ChevronRight, GripVertical, Maximize2, Minimize2, MousePointer2, SquareDashed } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, GripVertical, Maximize2, Minimize2, MousePointer2, RotateCw, SquareDashed } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { polygonArea } from '../../domain/polygons';
 import { roomOutline } from '../../domain/roomGeometry';
@@ -18,6 +18,7 @@ import { useProjectsStore } from '../../store/projects';
 import { RoomNextStep } from '../layout/TopBar';
 import { PhoneViewButton } from '../layout/PhoneThreeChrome';
 import { RoomPreviewCube } from './RoomPreviewCube';
+import { nextRoomPlanAngle } from './roomPlanView';
 import type { RoomObjectSelection } from '../../domain/roomObjectPlacement';
 
 export function RoomWorkspace({ compact = false }: { compact?: boolean }) {
@@ -53,9 +54,11 @@ function ProjectRoom({ compact }: { compact: boolean }) {
   const view = useUiStore((s) => s.view);
   const wallId = useUiStore((s) => s.selectedWallId);
   const elevation = useUiStore((s) => s.roomElevationOpen);
+  const angle = useUiStore((s) => s.roomPlanAngle);
   const room = useDesignStore((s) => s.design.room);
   const openings = useDesignStore((s) => s.design.openings);
   const furnished = useDesignStore((s) => s.design.items.length > 0);
+  const gesturing = useDesignStore((s) => s.gestureBase !== null);
   const segments = useMemo(() => roomSegments(room), [room]);
   const wall = segments.find((s) => s.id === wallId);
   const facing = elevation ? wall : undefined;
@@ -110,7 +113,7 @@ function ProjectRoom({ compact }: { compact: boolean }) {
       {side === 'left' && <ChevronLeft size={16} aria-hidden="true" />}{wording}{side === 'right' && <ChevronRight size={16} aria-hidden="true" />}
     </button> : <span className={`room-wall-end ${side}`}>{wording}</span>;
   };
-  const tools = <RoomDrawingTools room={room} walls={segments} facing={facing} selectedWall={wall} pickerRef={viewPicker}
+  const tools = <RoomDrawingTools room={room} walls={segments} facing={facing} selectedWall={wall} pickerRef={viewPicker} angle={reviewing ? 0 : angle}
     roomModel={{ active: reviewing, open: () => { if (!drawingReturn.current) rememberDrawing(); setPreview(false); ui.setRoomView('3d'); } }}
     show={(id) => { ui.setRoomView('plan'); showDrawing(id); }}
     back={() => {
@@ -132,11 +135,21 @@ function ProjectRoom({ compact }: { compact: boolean }) {
       {preview ? <Minimize2 size={14} aria-hidden="true" /> : <Maximize2 size={14} aria-hidden="true" />}
     </>}
   </button>;
+  const viewActions = <div className="room-view-actions">
+    {!reviewing && !facing && <button type="button" className="room-canvas-toggle room-plan-rotate" data-room-rotate-view=""
+      disabled={gesturing} aria-label={t.room.rotatePlan} aria-description={t.room.planRotation(angle)}
+      title={`${t.room.rotatePlan} · ${t.room.planRotation(angle)}`}
+      onClick={() => ui.setRoomPlanAngle(nextRoomPlanAngle(useUiStore.getState().roomPlanAngle))}>
+      <RotateCw size={18} aria-hidden="true" /><span className="room-rotation-step" aria-hidden="true">90°</span>
+      <span className="sr-only" aria-live="polite">{t.room.planRotation(angle)}</span>
+    </button>}
+    {toggle}
+  </div>;
   return <main data-testid="room-workspace" aria-label={t.room.tab} className="flex h-full min-h-0 flex-1 flex-col bg-studio-canvas">
     <div className="room-work-area" data-view={view} data-elevation={view === 'plan' && !!facing || undefined}
       data-schedule-closed={compact && reviewing && !scheduleOpen || undefined}>
       <div className="room-canvas" data-testid="room-canvas">
-        {(!reviewing || !compact) && <div className="room-canvas-controls">{tools}{toggle}</div>}
+        {(!reviewing || !compact) && <div className="room-canvas-controls">{tools}{viewActions}</div>}
         <div className="room-drawing-area" data-room-stage="">
         {view === 'plan' && <div className="room-drawing-pane">
           {facing ? <WallElevation key={facing.id} wall={facing} number={segments.indexOf(facing) + 1} reference={reference} />

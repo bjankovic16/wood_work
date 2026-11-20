@@ -71,13 +71,19 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
    Returning to a saved project resumes it. To measure a different room, choose
    **Projects → Start fresh**. It opens a new empty kitchen; your previous kitchen stays in
    **Projects**. To remeasure the *same* kitchen, choose **1 Room**.
-2. Tap the **Wall view** icon beside a wall to open its inside elevation, or tap its
+2. Tap **View wall / Pogledaj zid** beside a selected wall to open its inside elevation, or tap its
    **number** to edit the measurement. Select or drag the wall line to move the wall;
    the eye shortcut opens its inside view.
+   Architectural dimension chains show witness lines, ticks and editable lengths.
+   The **90°** control beside the 3D preview rotates only the room drawing:
+   measurements, objects, saved projects and Undo history stay unchanged.
    The dropdown with the little floor plan lets you switch directly
    to any wall. In the wall view, choose **Add → Window** or **Door** and
    measure from the green start point. Add a chimney if needed. The
    selected object's measurements appear just below the room measurements.
+   If no wall is selected, **Add** asks you to choose one before opening its menu.
+   Cancelling adds nothing. The same prerequisite applies to room-object buttons,
+   not to the cabinet catalogue or complete kitchen presets.
    See [Measuring the room](#measuring-the-room) for diagonals and keyboard input.
 3. In Room, choose **Room model / Model prostorije** to see just the room,
    without a screenful of labels. Turn on **Dimension labels** when needed, or

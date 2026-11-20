@@ -14,6 +14,7 @@ export type MainView = 'plan' | '3d' | 'list';
 export type SettingsTab = 'materials' | 'construction';
 export type CabinetTool = 'resize' | 'place' | null;
 export type FitRequest = { type: 'idea'; id: KitchenDesignId } | { type: 'starter'; id: LayoutId };
+export type RoomPlanAngle = 0 | 90 | 180 | 270;
 
 export const GRID_SIZES = [10, 50, 100] as const;
 
@@ -63,6 +64,9 @@ interface UiState {
   roomSelection: RoomObjectSelection | null;
   roomElevationOpen: boolean;
   selectedWallId: string | null;
+  roomPlanAngle: RoomPlanAngle;
+  roomAddMenuOpen: boolean;
+  roomWallRequest: { projectId: string; choose: (wallId: string) => void } | null;
   referenceOpen: boolean;
   hiddenKitchenWallIds: string[];
   cameraView: CameraView;
@@ -91,6 +95,9 @@ interface UiState {
   setRoomElevationOpen: (open: boolean) => void;
   selectRoomObject: (selection: RoomObjectSelection | null, wallId?: string) => void;
   setSelectedWallId: (id: string | null) => void;
+  setRoomPlanAngle: (angle: RoomPlanAngle) => void;
+  setRoomAddMenuOpen: (open: boolean) => void;
+  setRoomWallRequest: (request: UiState['roomWallRequest']) => void;
   setReferenceOpen: (open: boolean) => void;
   setHiddenKitchenWallIds: (ids: string[]) => void;
   requestCamera: (view: CameraView, focusId?: string) => void;
@@ -136,6 +143,9 @@ export const useUiStore = create<UiState>()(
       roomSelection: null,
       roomElevationOpen: false,
       selectedWallId: null,
+      roomPlanAngle: 0,
+      roomAddMenuOpen: false,
+      roomWallRequest: null,
       referenceOpen: false,
       hiddenKitchenWallIds: [],
       cameraView: 'perspective',
@@ -161,22 +171,25 @@ export const useUiStore = create<UiState>()(
         return { previewLockedIds, cabinetTool: state.selectedId && previewLockedIds.includes(state.selectedId) ? null : state.cabinetTool };
       }),
       setLanguage: (language) => set({ language }),
-      setView: (view) => set((state) => state.view === view && !state.roomOpen ? state : { view, roomOpen: false, cabinetTool: null, previewLockedIds: [] }),
+      setView: (view) => set((state) => state.view === view && !state.roomOpen ? state : { view, roomOpen: false, cabinetTool: null, previewLockedIds: [], roomAddMenuOpen: false, roomWallRequest: null }),
       setSettingsTab: (settingsTab) => set({ settingsTab }),
       setLayoutsOpen: (layoutsOpen) => set({ layoutsOpen, fitRequest: null }),
       reviewFit: (fitRequest) => set({ layoutsOpen: true, fitRequest }),
       finishRoom: () => set({ roomOpen: false, view: 'plan', selectedId: null, cabinetTool: null,
-        selectedWallId: null, roomElevationOpen: false, roomSelection: null }),
+        selectedWallId: null, roomElevationOpen: false, roomSelection: null, roomAddMenuOpen: false, roomWallRequest: null }),
       setProjectPage: (projectPage) => set({ projectPage }),
       setRoomOpen: (roomOpen) => set(roomOpen
         ? { roomOpen, view: 'plan', selectedId: null, cabinetTool: null }
-        : { roomOpen }),
+        : { roomOpen, roomAddMenuOpen: false, roomWallRequest: null }),
       openRoomPlan: () => set({ roomOpen: true, view: 'plan', selectedId: null, selectedWallId: null,
-        roomSelection: null, roomElevationOpen: false, cabinetTool: null, previewLockedIds: [] }),
-      setRoomView: (view) => set((state) => state.view === view ? state : { view, cabinetTool: null, previewLockedIds: [] }),
+        roomSelection: null, roomElevationOpen: false, cabinetTool: null, previewLockedIds: [], roomPlanAngle: 0, roomAddMenuOpen: false, roomWallRequest: null }),
+      setRoomView: (view) => set((state) => state.view === view ? state : { view, cabinetTool: null, previewLockedIds: [], roomAddMenuOpen: false, roomWallRequest: null }),
       setRoomElevationOpen: (roomElevationOpen) => set({ roomElevationOpen }),
       selectRoomObject: (roomSelection, wallId) => set({ roomSelection, ...(roomSelection ? { selectedId: null, cabinetTool: null } : {}), ...(wallId ? { selectedWallId: wallId } : {}) }),
       setSelectedWallId: (selectedWallId) => set({ selectedWallId, roomSelection: null, selectedId: null, cabinetTool: null, ...(!selectedWallId ? { roomElevationOpen: false } : {}) }),
+      setRoomPlanAngle: (roomPlanAngle) => set({ roomPlanAngle }),
+      setRoomAddMenuOpen: (roomAddMenuOpen) => set({ roomAddMenuOpen }),
+      setRoomWallRequest: (roomWallRequest) => set({ roomWallRequest }),
       setReferenceOpen: (referenceOpen) => set({ referenceOpen }),
       setHiddenKitchenWallIds: (hiddenKitchenWallIds) => set({ hiddenKitchenWallIds }),
       requestCamera: (cameraView, focusId) => set((state) => ({ cameraView, cameraFocusId: focusId ?? null, cameraReturn: false, cameraToken: state.cameraToken + 1 })),
@@ -211,6 +224,7 @@ export const useUiStore = create<UiState>()(
         const stored = (persisted ?? {}) as Partial<UiState>;
         // Layers are a choice for the open kitchen, not a preference for the next visit.
         return { ...current, ...stored, viewFilter: current.viewFilter, wallElevation: current.wallElevation,
+          roomPlanAngle: current.roomPlanAngle, roomAddMenuOpen: current.roomAddMenuOpen, roomWallRequest: current.roomWallRequest,
           language: isLanguage(stored.language) ? stored.language : current.language };
       },
     },

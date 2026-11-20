@@ -158,6 +158,9 @@ function show(id: string, design: Design): void {
   ui.setHiddenKitchenWallIds([]);
   ui.setLibraryDrag(null);
   ui.setSelectedWallId(null);
+  ui.setRoomPlanAngle(0);
+  ui.setRoomAddMenuOpen(false);
+  ui.setRoomWallRequest(null);
   if (needsRoomSetup(id, design)) ui.setRoomOpen(true);
   else if (!design.items.length) ui.setView('plan');
   else ui.setRoomOpen(false);

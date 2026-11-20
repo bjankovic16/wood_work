@@ -196,6 +196,16 @@ describe('explicit 3D cabinet tools', () => {
     expect(store().design.room.features?.[0].offset).toBe(75);
     expect(store().design.openings[0]).toMatchObject({ offset: 100, sill: 600 });
   });
+
+  it('detaches a wall-picked structure with the same optional-field shape as its saved project', () => {
+    const id = actions.addRoomFeature('chimney', 'top');
+    actions.setRoomFeatureWall(id, null);
+    const feature = store().design.room.features?.find((f) => f.id === id);
+    expect(feature).toBeDefined();
+    expect(feature).not.toHaveProperty('wallId');
+    expect(feature).not.toHaveProperty('offset');
+    expect(store().design.room).toEqual(JSON.parse(JSON.stringify(store().design.room)));
+  });
 });
 
 describe('shuffle kitchen', () => {

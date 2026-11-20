@@ -592,7 +592,14 @@ export function addOpening(design: Design, opening: Opening): Design {
 /** A structure edit must not reposition cabinets or openings, even when they already have errors. */
 export function updateRoomFeature(design: Design, id: string, patch: Partial<Omit<RoomFeature, 'id' | 'kind'>>): Design {
   if (!design.room.features?.some((feature) => feature.id === id)) return design;
-  const room = normalizeRoom({ ...design.room, features: design.room.features.map((feature) => feature.id === id ? { ...feature, ...patch } : feature) });
+  const features = design.room.features.map((feature) => {
+    if (feature.id !== id) return feature;
+    const next = { ...feature, ...patch };
+    if (next.wallId === undefined) delete next.wallId;
+    if (next.offset === undefined) delete next.offset;
+    return next;
+  });
+  const room = normalizeRoom({ ...design.room, features });
   const feature = room.features!.find((f) => f.id === id)!;
   if (!featureFitsRoom(room, feature)) throw new RangeError('Structure is outside the room.');
   return JSON.stringify(room) === JSON.stringify(design.room) ? design : { ...design, room };

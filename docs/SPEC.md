@@ -96,7 +96,20 @@ data under its original identity; surface recovery guidance and preserve backups
   tolerance and provide 0°, 90°, 180° and 270° presets. A visible, remembered
   toggle disables angle snapping; Alt bypasses it during a mouse corner drag.
   Snapping never bypasses room or attachment validation.
-- Tapping a wall's **Wall view** shortcut opens its **2D inside
+- Offer a **90°** view rotation beside the Room preview cube while the outline is
+  open. Rotate only the drawing, not the Design, saved coordinates or Undo history.
+  Fit the rotated room to the available canvas; keep dimension labels, named
+  view actions and grips upright. Convert pointer and keyboard movement back to
+  the room's physical coordinates and preserve the held frame during rebasing.
+  Opening a different project resets the orientation; returning from the 3D
+  preview preserves it. Free structures follow screen-direction arrow nudges;
+  wall-bound structures retain their existing along-wall keyboard convention.
+- Draw perimeter measurements as architectural chains with witness lines and
+  ticks, sharing the SVG ruler strokes used in wall elevations. Keep editable
+  measurement targets separate from corners, wall movement and view shortcuts.
+  The selected wall's shortcut visibly says **View wall / Pogledaj zid**; other
+  shortcuts retain compact targets so short phone drawings stay usable.
+- Tapping a wall's **View wall** shortcut opens its **2D inside
   elevation**. Keep the shortcut distinct from the numeric measurement and
   corner drag targets. Offer the same shortcut at the wall labels and in
   the measurement list in room 3D, including both partition faces. Tapping the
@@ -107,6 +120,11 @@ data under its original identity; surface recovery guidance and preserve backups
   on partitions; label a free end without offering a link. Show the green origin, length and height rulers, real
   openings and optional read-only cabinet outlines (off by default). Use one **Add** dropdown shared by
   the plan and elevation, grouping openings separately from fixed structures.
+  Require an explicitly selected, valid wall before manual room-object adding.
+  When Add is requested without one, open a wall chooser and resume the menu or
+  requested object only after selection. Cancellation and selection alone do not
+  edit the Design. Do not apply this prerequisite to cabinet adding, imports,
+  complete kitchen presets or the separate outline/partition construction tools.
   The object picker revisits existing objects without creating another one.
   Drag an opening along the wall or enter its width, height and
   distance from the marked start. A window also has a sill height above the
