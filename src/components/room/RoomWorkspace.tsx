@@ -16,7 +16,7 @@ import { roomSegments } from '../../domain/walls';
 import { adjoiningWalls } from '../../domain/adjoiningWalls';
 import { useDesignStore } from '../../store/designStore';
 import { useProjectsStore } from '../../store/projects';
-import { NextStep } from '../layout/TopBar';
+import { RoomNextStep } from '../layout/TopBar';
 import { PhoneViewButton } from '../layout/PhoneThreeChrome';
 
 export function RoomWorkspace({ compact = false }: { compact?: boolean }) {
@@ -75,7 +75,7 @@ function ProjectRoom({ compact }: { compact: boolean }) {
     {!compact && <header className="room-heading">
       {title}{tools}
       {!reviewing && <Button variant="outline" active={preview} onClick={() => setPreview(!preview)}><Box size={16} />{t.room.preview}</Button>}
-      <NextStep />
+      <RoomNextStep />
     </header>}
     {compact && !reviewing && tools}
     <div className="room-work-area" data-view={view} data-elevation={view === 'plan' && !!facing || undefined}>

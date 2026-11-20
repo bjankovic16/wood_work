@@ -18,7 +18,7 @@ import { Button, Dialog } from '../ui';
 import { View3D } from '../three/View3D';
 import { LayoutDialog } from '../layouts/LayoutDialog';
 import { ProjectsDialog } from '../projects/ProjectsDialog';
-import { MobileNavigation, NextStep, TopBar } from './TopBar';
+import { MobileNavigation, RoomNextStep, TopBar } from './TopBar';
 import { ChecksButton } from '../checks/ChecksButton';
 import { PhoneThreeChrome, PhoneViewButton } from './PhoneThreeChrome';
 
@@ -148,7 +148,7 @@ export function CompactLayout() {
         )}
         {designing && item && !placing && <ItemSheet key={item.id} item={item} adding={sheet === 'add'} onAdd={openAdd} />}
       </main>}
-      {(roomOpen || view === '3d') && <div className="phone-flow-actions"><ChecksButton variant="chip" /><NextStep /></div>}
+      {roomOpen && <div className="phone-flow-actions"><ChecksButton variant="chip" /><RoomNextStep /></div>}
       <MobileNavigation />
 
       {sheet === 'add' && <AddSheet close={closeAdd} />}

@@ -127,18 +127,23 @@ export async function checkWorkshopPanels(browser, url) {
       };
       await page.waitForFunction(cabinetVisible);
       await page.evaluate(() => window.__kitchen.ui.getState().setViewport(1, { x: -8000, y: -8000 }));
-      const openPlanChecks = async () => {
+      const openEditorChecks = async () => {
         if (compact) {
           await page.getByRole('button', { name: expected.more, exact: true }).tap();
           await page.getByRole('button', { name: expected.menuChecks, exact: true }).tap();
         } else await press(badge);
       };
-      const planChecks = compact ? page.getByRole('region', { name: expected.checks, exact: true }) : checks;
-      await openPlanChecks(); await press(planChecks.getByRole('button', { name: expected.collision, exact: true }));
+      const editorChecks = compact ? page.getByRole('region', { name: expected.checks, exact: true }) : checks;
+      await openEditorChecks(); await press(editorChecks.getByRole('button', { name: expected.collision, exact: true }));
       await page.waitForFunction(cabinetVisible);
-      await openPlanChecks();
-      await press(planChecks.getByText(expected.all, { exact: true }));
-      await press(planChecks.getByRole('button', { name: expected.roomOnly, exact: true }));
+      if (compact) {
+        await page.getByRole('radio', { name: '3. 3D', exact: true }).tap();
+        await page.getByTestId('three-viewport').waitFor();
+        assert.equal(await badge.count(), 0, 'Phone 3D should only expose the issue count inside More.');
+      }
+      await openEditorChecks();
+      await press(editorChecks.getByText(expected.all, { exact: true }));
+      await press(editorChecks.getByRole('button', { name: expected.roomOnly, exact: true }));
       await page.getByTestId('room-plan').waitFor();
       await page.getByTestId('selected-room-card').locator('[data-room-feature="outside"]').waitFor();
       await press(page.getByRole(compact ? 'button' : 'tab', { name: expected.dimensions, exact: true }));

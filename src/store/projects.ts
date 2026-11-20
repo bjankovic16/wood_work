@@ -151,6 +151,7 @@ function show(id: string, design: Design): void {
   ui.select(null);
   ui.setViewFilter('all');
   ui.setWallElevation(null);
+  ui.setHiddenKitchenWallIds([]);
   ui.setLibraryDrag(null);
   ui.setSelectedWallId(null);
   if (needsRoomSetup(id, design)) ui.setRoomOpen(true);

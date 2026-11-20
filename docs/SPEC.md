@@ -39,8 +39,8 @@ file for a customer. The customer does not need the editor or the cutting list.
 - Use the same numbered destinations and names in the guide, on laptops and in
   the four equal phone tabs: **1 Room → 2 Layout → 3 3D → 4 Cut list**. Keep
   the phone project header stable. In Layout, let the drawing and cabinet sheet
-  meet the bottom tabs. Open checks from **⋯** and continue via the **3D** tab.
-  Room and 3D show the next action above the tabs; Cut list offers the real
+  meet the bottom tabs. In Layout and furnished 3D, open checks from **⋯**
+  and continue via the next numbered tab. Only Room shows a next-step row; Cut list offers the real
   Export menu. Put language selection in Settings.
 - An empty Layout offers two large actions: preview **Ideas** in the measured room,
   or add cabinets manually using the existing library. Browsing and reordering
@@ -316,7 +316,13 @@ project.
   The first tip disappears on drag or after six seconds, and stays dismissed
   across visits unless explicitly requested via **?**.
 - In the desktop editor, dock **Perspective / Studio / Front / Top**, **Style**, cabinet previews and **Share**
-  above the viewport. **Tools** includes room objects and help.
+  above the viewport. **Tools** includes room objects, wall visibility and help.
+  In kitchen 3D, use **View → Walls** on phone or **Tools → Walls** on desktop
+  to hide individual perimeter segments and whole partitions. Hide their
+  openings and surface finishes, not cabinets. Restoring a wall resumes normal
+  camera cutaways. These choices survive switching tabs, but do not change
+  the room model, project, undo history, cut list or customer export, and reset
+  on switching projects or reloading.
   Click or tap a cabinet, wall, opening or structure to select it. Mouse
   drags and touch swipes on the background **or an object's body** orbit the
   camera; scroll or pinch to zoom. This holds even when the object is already

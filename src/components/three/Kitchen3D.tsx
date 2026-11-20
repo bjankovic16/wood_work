@@ -21,6 +21,7 @@ import { SceneCanvas, type CameraRequest } from './SceneCanvas';
 import { useThreeNavigation } from './useThreeNavigation';
 import { createMaterials, disposeMaterials } from './materials';
 import { Room3D } from './Room3D';
+import { WallVisibility } from './WallVisibility';
 import { RoomObjectAnchor, RoomObjectAnnotation, RoomObjectTools } from './RoomObjectTools';
 import { CabinetResizeLabels, CabinetResizeTool, ResizeFeedback } from './CabinetResizeTool';
 import { SelectionOverlay } from './SelectionOverlay';
@@ -44,6 +45,11 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
   const items = useDesignStore((s) => s.design.items);
   const committedItems = useDesignStore((s) => committedDesign(s).items);
   const openings = useDesignStore((s) => s.design.openings);
+  const hiddenWalls = useUiStore((s) => s.hiddenKitchenWallIds);
+  const shownOpenings = useMemo(() => hiddenWalls.length ? openings.filter((opening) => {
+    const binding = openingOnWall(room, opening);
+    return !binding || !hiddenWalls.includes(binding.segment.id);
+  }) : openings, [room, openings, hiddenWalls]);
   const ctx = useBuildContext();
   const style = useDesignStore((s) => s.design.style);
   const selectedId = useUiStore((s) => s.selectedId);
@@ -118,7 +124,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
     setResizeBlocked(false);
   }, []);
   const roomOptions = [
-    ...openings.map((opening, index) => ({ type: 'opening' as const, id: opening.id, name: `${text.room.opening(opening.kind)} ${openings.slice(0, index + 1).filter((entry) => entry.kind === opening.kind).length}` })),
+    ...openings.flatMap((opening, index) => shownOpenings.includes(opening) ? [{ type: 'opening' as const, id: opening.id, name: `${text.room.opening(opening.kind)} ${openings.slice(0, index + 1).filter((entry) => entry.kind === opening.kind).length}` }] : []),
     ...(room.features ?? []).map((feature, index) => ({ type: 'feature' as const, id: feature.id, name: `${text.engine.roomFeatures[feature.kind]} ${index + 1}` })),
   ];
   const activeRoomSelection = roomSelection && roomOptions.some((option) => option.type === roomSelection.type && option.id === roomSelection.id) ? roomSelection : null;
@@ -211,6 +217,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
   const helpButton = <TooltipButton tooltip={text.view3d.showTip} aria-label={text.view3d.showTip} variant={chrome ? 'ghost' : 'outline'} onClick={() => {
     setToolsOpen(false); setStyleOpen(false); navigation.showHelp();
   }}><CircleHelp size={17} aria-hidden="true" />{chrome ? text.view3d.showTip : text.topBar.help}</TooltipButton>;
+  const wallVisibility = <WallVisibility room={room} hidden={hiddenWalls} onChange={useUiStore.getState().setHiddenKitchenWallIds} />;
 
   return (
     <div className="three-scene flex h-full min-h-0 w-full flex-col bg-[#ebe8e3] lg:flex-row">
@@ -220,6 +227,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
       {chrome?.open && <PhoneViewSheet id={chrome.id} onClose={() => chrome.setOpen(false)} view={request.focusId ? null : request.view} onView={useUiStore.getState().requestCamera}
         stylePanel={<StylePicker />} help={helpButton}>
+        {wallVisibility}
         <section className="room-preview-actions"><h3>{text.view3d.cabinetPreview}</h3>
           <div className="flex flex-wrap gap-2">{openAllButton}{interiorButton}</div></section>
         {roomObjects}
@@ -252,6 +260,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
 
       {toolsOpen && <div id={toolsId} data-testid="three-tools" className="flex max-h-[35dvh] shrink-0 flex-col items-start gap-2 overflow-y-auto overscroll-contain border-b border-studio-line bg-[#f7f5f0] px-3 py-3">
         {customer.desktop}
+        {wallVisibility}
         {roomObjects}
         {!compact && selected && <SelectedCabinetTools key={selected.id} item={selected}
           invalid={invalid.has(selected.id)} onFocus={() => useUiStore.getState().focusCamera(selected.id)} />}
@@ -271,7 +280,7 @@ export default function Kitchen3D({ compact = false }: { compact?: boolean }) {
             selectRoomObject(null);
           }
         }}>
-        <SceneRoom room={room} openings={openings} items={committedItems} materials={materials} detailed={detailed} build={ctx} selection={activeRoomSelection} onSelect={selectRoomObject} />
+        <SceneRoom room={room} openings={shownOpenings} hiddenWallIds={hiddenWalls} items={committedItems} materials={materials} detailed={detailed} build={ctx} selection={activeRoomSelection} onSelect={selectRoomObject} />
         {items.map((item) => (
           <Unit3D
             key={item.id}

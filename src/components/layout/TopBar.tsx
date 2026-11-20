@@ -82,14 +82,10 @@ export function MobileNavigation() {
   return <nav className="mobile-bottom-nav print:hidden" aria-label={useT().topBar.workspace}><ViewTabs compact /></nav>;
 }
 
-export function NextStep() {
+export function RoomNextStep() {
   const t = useT();
-  const step = useUiStore((s) => s.roomOpen ? 1 : s.view === 'plan' ? 2 : s.view === '3d' ? 3 : 4);
-  if (step === 4) return null; // The cut list owns the real Export menu.
-  const label = step === 1 ? t.topBar.plan : step === 2 ? t.topBar.view3d : t.topBar.list;
-  return <Button variant="primary" data-testid={step === 1 ? 'room-done' : 'step-next'}
-    aria-label={t.planner.next(label)} onClick={() => openWorkspace(step === 1 ? 'plan' : step === 2 ? '3d' : 'list')}>
-    {label}<ArrowRight size={16} aria-hidden="true" />
+  return <Button variant="primary" data-testid="room-done" aria-label={t.planner.next(t.topBar.plan)} onClick={() => openWorkspace('plan')}>
+    {t.topBar.plan}<ArrowRight size={16} aria-hidden="true" />
   </Button>;
 }
 
@@ -173,13 +169,11 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
               <Button className="w-full justify-start" data-close-menu onClick={() => ui.setProjectPage('guide')}>
                 <CircleHelp className="size-4" />{t.planner.guide}
               </Button>
-              {!roomOpen && view === 'plan' && <>
-                <ChecksButton variant="menu" />
-                <details>
-                  <summary className="cursor-pointer rounded-lg px-2 py-3 text-[13px] font-medium text-studio-muted">{t.topBar.view}</summary>
-                  <ViewOptions />
-                </details>
-              </>}
+              {!roomOpen && view !== 'list' && <ChecksButton variant="menu" />}
+              {!roomOpen && view === 'plan' && <details>
+                <summary className="cursor-pointer rounded-lg px-2 py-3 text-[13px] font-medium text-studio-muted">{t.topBar.view}</summary>
+                <ViewOptions />
+              </details>}
               <Button className="w-full justify-start" data-close-menu onClick={() => ui.setSettingsTab('materials')}>
                 <Hammer className="size-4" />
                 {t.topBar.settings}

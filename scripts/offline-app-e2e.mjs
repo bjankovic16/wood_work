@@ -67,7 +67,7 @@ try {
   await page.getByTestId('three-viewport').locator('canvas').waitFor();
   await page.waitForFunction(() => document.querySelector('[data-testid="customer-share"]:enabled'));
   assert.deepEqual(await name.boundingBox(), header, 'Entering furnished 3D must not shrink or move the project name.');
-  await page.getByTestId('step-next').tap();
+  await nav.getByRole('radio', { name: '4. Cut list', exact: true }).tap();
   const hardware = page.locator('[data-hardware-card]').first();
   assert.equal(await hardware.evaluate((el) => getComputedStyle(el).display), 'grid');
   assert.match(await hardware.locator('td').last().innerText(), /B1/);
