@@ -229,6 +229,8 @@ export const sr: Messages = {
     size: (width, height, depth) => `${width} × ${height} × ${depth} mm (Š × V × D)`,
     clickOrDrag: 'Kliknite da dodate ili prevucite na osnovu',
     add: (name) => `Dodaj: ${name}`,
+    cornerNoSpace: 'Nema mesta za ugaoni element. Oslobodite prostor za oba kraka pa pokušajte ponovo.',
+    cornerDropBlocked: 'Ugaoni element ovde ne staje. Probajte s druge strane dimnjaka ili na drugom slobodnom mestu.',
   },
 
   canvas: {
@@ -400,6 +402,7 @@ export const sr: Messages = {
     alongLength: 'Dužina uz zid',
     projection: 'Istak u prostoriju',
     moveHint: 'Prevucite ili pomerajte strelicama: 10 mm, uz Shift: 100 mm. Vezane strukture se pomeraju duž zida.',
+    resizeHint: 'Povucite kvadratić da promenite meru. Strelice nagore ili udesno povećavaju, a nadole ili ulevo smanjuju. Uz Shift korak je 100 mm.',
     width: 'Širina strukture',
     depth: 'Dubina strukture',
     remove: (name) => `Ukloni: ${name}`,
@@ -418,8 +421,13 @@ export const sr: Messages = {
     measurements: 'Mere prostorije',
     showMeasures: 'Oznake mera',
     cabinetReference: 'Prikaži obrise kuhinje kao orijentir',
-    reviewHint: 'Okrenite prostoriju da vidite mere. Sve mere su navedene i u spisku.',
-    cornerHintShort: 'Povucite ugao ili dodirnite „Pogled na zid“.',
+    reviewHint: 'Prevucite za okretanje. Dodirnite zid za pogled iznutra ili izaberite objekat da mu promenite mere.',
+    cornerHintShort: 'Povucite ugao. Dodirnite zid za pogled iznutra.',
+    insideAngle: 'Unutrašnji ugao',
+    resizeObject: 'Promeni mere',
+    previewSize: 'Promeni veličinu 3D pregleda',
+    backToDrawing: 'Nazad na 2D crtež',
+    chooseWall: 'Izaberi zid',
     cameraHints: {
       perspective: 'Okrenite prostoriju u perspektivi.',
       studio: 'Pogledajte celu prostoriju na tamnoj pozadini.',
@@ -517,6 +525,9 @@ export const sr: Messages = {
 
   fit: {
     referenceRoomLook: 'Primeni boju zidova, podne pločice i dekoraciju sa slike',
+    preview: 'Pregled predloga',
+    model: '3D u mojoj prostoriji',
+    modelFallback: '3D pregled nije dostupan. Prikazana je osnova.',
     title: 'Uklapanje u moju prostoriju', back: 'Nazad na ideje', main: 'Glavni zid', auto: 'Pronađi odgovarajući zid', side: 'Krak L kada gledate u glavni zid',
     left: 'Levi krak', right: 'Desni krak', confirm: 'Primeni ovaj raspored', sketch: 'Predlog rasporeda u vašoj prostoriji',
     fitted: (count) => `Broj predloženih elemenata: ${count}. Prostorija i otvori ostaju na mestu.`,

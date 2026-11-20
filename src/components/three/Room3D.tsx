@@ -145,7 +145,12 @@ export function Room3D({ room, openings, items = [], materials, selection, onSel
       }) : [];
       return <group key={segment.id} position={[m(segment.start.x), 0, m(segment.start.y)]} rotation={[0, -segment.angle * Math.PI / 180, 0]} userData={exportModel ? cutawayData(segment) : undefined}
         onClick={onWallSelect ? (event) => {
-          if (event.delta <= 2 && groups.current.get(segment.id)?.visible) { event.stopPropagation(); onWallSelect(segment.id); }
+          if (event.delta > 2 || !groups.current.get(segment.id)?.visible) return;
+          event.stopPropagation();
+          // Both partition faces share one solid mesh. The back is a different inside elevation.
+          const reverse = partition && physicalWall && (event.point.x * 1000 - segment.start.x) * segment.inward.x
+            + (event.point.z * 1000 - segment.start.y) * segment.inward.y < -partition.thickness / 2;
+          onWallSelect(reverse ? `${partition.id}:-1` : segment.id);
         } : undefined}
         ref={(group) => { if (group) groups.current.set(segment.id, group); else groups.current.delete(segment.id); }}>
         {selectedWallId === segment.id && <mesh position={[m(segment.length / 2), m(segment.height), 0]}>

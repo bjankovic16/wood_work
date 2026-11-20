@@ -58,7 +58,7 @@ export function planWallControls(walls: WallSegment[], frame: Frame, size: Viewp
     const origin = screen(dimension?.anchor ?? wallPoint(wall, wall.length / 2));
     const start = dimension ? screen(dimension.at) : screen(wallPoint(wall, wall.length / 2, 28 * frame.px));
     const normal = dimension ? { x: -wall.inward.x, y: -wall.inward.y } : wall.inward;
-    const halfWidth = 39;
+    const halfWidth = halfHit;
     const at = place(start, origin, normal, halfWidth, size, taken);
     icons.set(wall.id, plan(at));
     taken.push({ ...at, halfWidth, halfHeight: halfHit });

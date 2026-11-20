@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { footprintPieces, isWallMounted } from '../../domain/geometry';
 import { KITCHEN_DESIGNS } from '../../domain/kitchens';
 import { roomFeaturePolygon, roomOutline } from '../../domain/roomGeometry';
@@ -13,7 +13,9 @@ import { useUiStore, type FitRequest } from '../../store/uiStore';
 import { Button, Segmented } from '../ui';
 import { drawingButton } from '../room/RoomPlan';
 import { useDrawingSize } from '../room/useDrawingSize';
+import { ModelBoundary } from '../three/ModelPreviewFallback';
 
+const IdeaModel = lazy(() => import('./IdeaModel'));
 const points = (polygon: Point[]) => polygon.map(({ x, y }) => `${x},${y}`).join(' ');
 
 function FitSketch({ design: { room, openings, style }, items, mainWall, onSelect }: {
@@ -62,6 +64,7 @@ export function IdeaFitReview({ request }: { request: FitRequest }) {
   const [mainWallId, setWall] = useState(() => preferredIdeaWall(design.room, selectedWall) ?? '');
   const [side, setSide] = useState<'left' | 'right'>('left');
   const [referenceRoomLook, setReferenceRoomLook] = useState<boolean>();
+  const [preview, setPreview] = useState<'plan' | '3d'>('plan');
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => { heading.current?.focus(); }, []);
   const source = request.type === 'starter' ? request.id : KITCHEN_DESIGNS.find((preset) => preset.id === request.id)!;
@@ -71,13 +74,21 @@ export function IdeaFitReview({ request }: { request: FitRequest }) {
   const look = appearanceOnly ? review.candidate?.style : undefined;
   const activeWall = walls.findIndex((s) => s.id === fit?.mainWallId);
   const layout = typeof source === 'string' ? source : source.layout;
+  const sketch = <FitSketch design={review.candidate ?? design} items={review.candidate?.items ?? []} mainWall={fit?.mainWallId} onSelect={appearanceOnly ? undefined : setWall} />;
+  const fallback = <><p role="status" className="text-sm">{t.fit.modelFallback}</p>{sketch}</>;
   return <section className="space-y-4 p-4 sm:p-6">
     <Button variant="outline" onClick={() => useUiStore.getState().reviewFit(null)}>← {t.fit.back}</Button>
     <h3 ref={heading} tabIndex={-1} className="text-lg font-semibold outline-none">
       {appearanceOnly ? t.fit.appearance : t.fit.title} · {request.type === 'idea' ? t.kitchens.names[request.id] : t.layouts.names[request.id].name}
     </h3>
     <div className="grid gap-4 sm:grid-cols-2">
-      <FitSketch design={review.candidate ?? design} items={review.candidate?.items ?? []} mainWall={fit?.mainWallId} onSelect={appearanceOnly ? undefined : setWall} />
+      <div className="min-w-0 space-y-2">
+        {review.candidate && <Segmented ariaLabel={t.fit.preview} value={preview} onChange={setPreview}
+          options={[{ value: 'plan', label: t.room.plan }, { value: '3d', label: t.fit.model }]} />}
+        {review.candidate && preview === '3d' ? <ModelBoundary fallback={fallback}><Suspense fallback={<p role="status">{t.view3d.loading}</p>}>
+          <IdeaModel design={review.candidate} fallback={fallback} />
+        </Suspense></ModelBoundary> : sketch}
+      </div>
       <div className="space-y-3">
         {appearanceOnly && <p className="text-sm">{t.fit.keepInstalled(design.items.length)}</p>}
         {review.offersRoomLook && <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm"><input type="checkbox"

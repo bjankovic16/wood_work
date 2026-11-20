@@ -9,6 +9,23 @@ import { Button, PanelSection } from '../ui';
 import { NumberField, SelectField } from './NumberField';
 import { useState } from 'react';
 
+export function FeatureSizeFields({ feature }: { feature: RoomFeature }) {
+  const t = useT();
+  const room = useDesignStore((s) => s.design.room);
+  const wall = feature.wallId && roomSegments(room).find((s) => s.id === feature.wallId);
+  const [failed, setFailed] = useState(false);
+  const resize = (field: 'width' | 'depth', size: number) => {
+    const result = actions.setRoomFeatureSize(feature.id, field, size);
+    setFailed(result === false);
+    return result;
+  };
+  return <>
+    <NumberField label={wall ? t.roomStructure.alongLength : t.roomStructure.width} value={feature.width} min={100} max={wall ? Math.floor(wall.length) : room.width} onCommit={(size) => resize('width', size)} />
+    <NumberField label={wall ? t.roomStructure.projection : t.roomStructure.depth} value={feature.depth} min={100} max={wall ? Math.ceil(Math.hypot(room.width, room.depth)) : room.depth} onCommit={(size) => resize('depth', size)} />
+    {failed && <p role="alert" className="text-xs text-red-700">{t.room.noSpace}</p>}
+  </>;
+}
+
 export function RoomFeatureFields({ feature }: { feature: RoomFeature }) {
   const t = useT();
   const room = useDesignStore((state) => state.design.room);
@@ -23,8 +40,7 @@ export function RoomFeatureFields({ feature }: { feature: RoomFeature }) {
   return <>
     <SelectField label={t.roomStructure.alongWall} value={wall?.id ?? ''} options={[{ value: '', label: t.roomStructure.free }, ...walls.map((s, i) => ({ value: s.id, label: t.advancedRoom.wall(i + 1) }))]}
       onChange={(wallId) => edit(() => actions.setRoomFeatureWall(feature.id, wallId || null))} />
-    <NumberField label={wall ? t.roomStructure.alongLength : t.roomStructure.width} value={feature.width} min={100} max={wall ? Math.floor(wall.length - (feature.offset ?? 0)) : room.width} onCommit={(width) => update({ width })} />
-    <NumberField label={wall ? t.roomStructure.projection : t.roomStructure.depth} value={feature.depth} min={100} max={wall ? Math.max(room.width, room.depth) : room.depth} onCommit={(depth) => update({ depth })} />
+    <FeatureSizeFields feature={feature} />
     {wall ? <NumberField label={t.advancedRoom.offset} value={feature.offset ?? 0} min={0} max={Math.floor(wall.length - feature.width)} onCommit={(offset) => update({ offset })} />
       : <>
         <NumberField label={t.item.fromLeftWall} value={feature.x} min={0} max={room.width - feature.width} onCommit={(x) => update({ x })} />

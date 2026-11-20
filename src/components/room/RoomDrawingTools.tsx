@@ -35,7 +35,8 @@ export function RoomDrawingTools({ room, walls, facing, selectedWall, pickerRef,
         {facing && <line x1={facing.start.x} y1={facing.start.y} x2={facing.end.x} y2={facing.end.y}
           stroke="#246748" strokeWidth="3" strokeLinecap="round" vectorEffect="non-scaling-stroke" />}
       </svg>
-      <span aria-hidden="true"><strong>{roomModel?.active ? t.room.model : facing ? `${t.room.wallView} · ${number}` : t.room.plan}</strong></span>
+      <span aria-hidden="true">{!facing || roomModel?.active ? <small>{roomModel?.active ? t.room.model : t.room.plan}</small> : null}
+        <strong>{facing && !roomModel?.active ? t.advancedRoom.wall(number) : t.room.chooseWall}</strong></span>
       <ChevronDown size={15} aria-hidden="true" />
       <select aria-label={t.room.drawingView} ref={pickerRef} value={roomModel?.active ? modelOption : facing?.id ?? ''}
         onChange={(e) => e.target.value === modelOption ? roomModel?.open() : show(e.target.value)}>

@@ -81,6 +81,23 @@ try {
       }
     }
     assert.deepEqual(await snapshot(), before, 'Viewing the finished kitchen must not edit the project, history or cut list.');
+    if (phone) await saved.getByRole('banner').getByRole('button', { name: 'More', exact: true }).tap();
+    await saved.getByRole('button', { name: 'Ideas', exact: true }).click();
+    const gallery = saved.getByRole('dialog', { name: 'Ideas' });
+    assert.equal(await gallery.locator('canvas').count(), 0, 'Gallery cards are finished renders, not individual WebGL contexts.');
+    await gallery.locator('[data-kitchen-design]').first().click();
+    await gallery.getByRole('radio', { name: '3D in my room' }).click();
+    const canvas = gallery.getByTestId('idea-model').locator('canvas');
+    await canvas.waitFor();
+    const photo = await canvas.screenshot();
+    const box = await canvas.boundingBox();
+    await saved.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await saved.mouse.down();
+    await saved.mouse.move(box.x + box.width * .72, box.y + box.height * .6, { steps: 6 }); await saved.mouse.up();
+    assert.ok(!photo.equals(await canvas.screenshot()), 'Orbit must reveal a different view of the proposal.');
+    await gallery.getByRole('radio', { name: 'Room outline' }).click();
+    assert.equal(await gallery.locator('canvas').count(), 0);
+    await saved.keyboard.press('Escape');
+    assert.deepEqual(await snapshot(), before, 'Trying a finish in Ideas must not change cabinets, cuts or Undo before confirmation.');
     await saved.close();
   }
   const page = await browser.newPage({ locale: 'en-US', viewport: { width: 1440, height: 900 }, hasTouch: true, reducedMotion: 'reduce' });

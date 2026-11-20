@@ -44,12 +44,12 @@ export async function startFreshChecks(browser, url) {
   await room.getByTestId('room-done').click();
   await desktop.locator('[data-preset="base-600"]').click();
   await bar.getByRole('radio', { name: '1. Room' }).click();
+  const prefs = await preferences(desktop);
   await button(room, '3D preview').click();
-  await room.getByTestId('room-3d').waitFor();
+  await desktop.waitForFunction(() => window.__kitchen3D?.scene.getObjectByName('room-floor'));
   await room.getByRole('tab', { name: 'Paint & tiles' }).click();
   const edited = { ...await design(desktop), name: 'Working kitchen' };
-  await desktop.waitForFunction(() => window.__kitchen.ui.getState().moveHintSeen);
-  const prefs = await preferences(desktop);
+  assert.equal(await preferences(desktop), prefs, 'Opening the inset must not consume the full-scene navigation tip.');
   // Blur commits the name just before Start fresh; no waiting for autosave.
   await bar.getByLabel('Project name').fill(edited.name);
   await button(bar, 'Projects').click();

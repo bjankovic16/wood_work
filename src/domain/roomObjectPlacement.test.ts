@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { attachFeature, featureDragPlacement, freeFeature, openingDragPlacement } from './roomObjectPlacement';
+import { attachFeature, dragFeatureSize, featureDragPlacement, featureResize, freeFeature, openingDragPlacement } from './roomObjectPlacement';
 import { openingFrame, roomSegments, wallCoordinates, wallPoint } from './walls';
 import { featureFitsRoom, roomFeaturePolygon, roomFeaturePose } from './roomGeometry';
 import { createDesign, parseDesign, updateRoomFeature } from './designOps';
@@ -68,5 +68,23 @@ describe('room-object placement', () => {
     const detached = freeFeature(angled, attached);
     expect(detached.wallId).toBeUndefined();
     expect(featureFitsRoom(angled, detached)).toBe(true);
+  });
+
+  it('grows back from the end of a 3671 mm wall without detaching or moving its far edge', () => {
+    const r = { ...room, width: 3671 };
+    const f = attachFeature(r, { ...feature, width: 500 }, roomSegments(r)[0], 3171);
+    expect(featureResize(r, f, 'width', 800)).toMatchObject({ wallId: 'top', offset: 2871, width: 800, depth: 450 });
+    expect(featureResize(r, f, 'width', 800, 'end')).toEqual(featureResize(r, f, 'width', 800));
+    expect(dragFeatureSize(r, f, 'width', 800, 'start')).toEqual(f);
+    expect(featureResize(r, f, 'depth', 600)).toMatchObject({ offset: 3171, width: 500, depth: 600 });
+  });
+
+  it('clips a projection drag at the real notch and rejects an impossible exact size', () => {
+    const r: Room = { ...room, cutout: { kind: 'notch', corner: 'bottomRight', width: 1200, depth: 1000 } };
+    const f = attachFeature(r, feature, roomSegments(r)[0], 3250);
+    expect(featureResize(r, f, 'depth', 2600)).toBeNull();
+    expect(dragFeatureSize(r, f, 'depth', 2600, 'start')).toMatchObject({ depth: 2200, width: 450, offset: 3250 });
+    const free = { ...feature, x: 3500, y: 500 };
+    expect(featureResize(r, free, 'width', 800, 'end')).toMatchObject({ x: 3150, y: 500, width: 800 });
   });
 });

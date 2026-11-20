@@ -1,4 +1,4 @@
-import { Box, ChevronLeft, ChevronRight, MousePointer2 } from 'lucide-react';
+import { Box, ChevronDown, ChevronLeft, ChevronRight, GripVertical, MousePointer2, SquareDashed } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { polygonArea } from '../../domain/polygons';
 import { roomOutline } from '../../domain/roomGeometry';
@@ -6,7 +6,6 @@ import { useT } from '../../i18n';
 import { useUiStore } from '../../store/uiStore';
 import { roomMeasurements } from './roomMeasurements';
 import { View3D } from '../three/View3D';
-import { Button } from '../ui';
 import { RoomPlan } from './RoomPlan';
 import { RoomDrawingTools } from './RoomDrawingTools';
 import { RoomInspector } from './RoomInspector';
@@ -24,6 +23,29 @@ export function RoomWorkspace({ compact = false }: { compact?: boolean }) {
   return <ProjectRoom key={activeId} compact={compact} />;
 }
 
+function PreviewEdge({ value, change }: { value: number; change: (n: number) => void }) {
+  const t = useT();
+  const start = useRef<{ x: number; width: number; value: number } | null>(null);
+  const set = (n: number) => change(Math.max(30, Math.min(70, Math.round(n))));
+  return <div role="separator" aria-orientation="vertical" aria-label={t.room.previewSize} title={t.room.previewSize}
+    aria-valuemin={30} aria-valuemax={70} aria-valuenow={value} tabIndex={0} className="room-preview-divider"
+    onPointerDown={(e) => {
+      const stage = e.currentTarget.closest<HTMLElement>('[data-room-stage]');
+      if (e.button !== 0 || !e.isPrimary || !stage?.clientWidth) return;
+      start.current = { x: e.clientX, width: stage.clientWidth, value };
+      e.currentTarget.setPointerCapture(e.pointerId);
+    }} onPointerMove={(e) => {
+      const base = start.current;
+      if (base && e.currentTarget.hasPointerCapture(e.pointerId)) set(base.value + (base.x - e.clientX) * 100 / base.width);
+    }} onPointerUp={() => { start.current = null; }} onLostPointerCapture={() => { start.current = null; }}
+    onPointerCancel={() => { if (start.current) change(start.current.value); start.current = null; }}
+    onKeyDown={(e) => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+      e.stopPropagation(); e.preventDefault();
+      set(e.key === 'Home' ? 30 : e.key === 'End' ? 70 : value + (e.key === 'ArrowLeft' ? 5 : -5));
+    }}><GripVertical size={16} aria-hidden="true" /></div>;
+}
+
 function ProjectRoom({ compact }: { compact: boolean }) {
   const t = useT();
   const view = useUiStore((s) => s.view);
@@ -39,8 +61,11 @@ function ProjectRoom({ compact }: { compact: boolean }) {
   const viewPicker = useRef<HTMLSelectElement>(null);
   const ui = useUiStore.getState();
   const [preview, setPreview] = useState(false);
+  const [previewWidth, setPreviewWidth] = useState(42);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const [reference, setReference] = useState(false);
   const reviewing = view === '3d';
+  const previewButton = useRef<HTMLButtonElement>(null);
   const rows = useMemo(() => reviewing || preview ? roomMeasurements(room, openings, t) : [], [reviewing, preview, room, openings, t]);
   const area = t.number(Math.round(polygonArea(roomOutline(room)) / 10000) / 100);
   const showDrawing = (id: string) => {
@@ -48,6 +73,7 @@ function ProjectRoom({ compact }: { compact: boolean }) {
     ui.setRoomElevationOpen(!!id);
   };
   const openWallIn2D = (id: string) => {
+    setPreview(false);
     ui.setRoomView('plan'); showDrawing(id);
     requestAnimationFrame(() => viewPicker.current?.focus({ preventScroll: true }));
   };
@@ -71,15 +97,27 @@ function ProjectRoom({ compact }: { compact: boolean }) {
       showDrawing('');
       if (facing) requestAnimationFrame(() => document.querySelector<SVGElement>(`[data-wall-view="${CSS.escape(facing.id)}"]`)?.focus({ preventScroll: true }));
     }} />;
+  const togglePreview = () => {
+    if (reviewing) {
+      ui.setRoomView('plan');
+      requestAnimationFrame(() => previewButton.current?.focus({ preventScroll: true }));
+    } else if (compact) {
+      ui.setRoomView('3d');
+      requestAnimationFrame(() => previewButton.current?.focus({ preventScroll: true }));
+    } else setPreview(!preview);
+  };
+  const toggle = <button type="button" ref={previewButton} className="room-canvas-toggle" data-room-preview-toggle=""
+    aria-label={reviewing ? t.room.backToDrawing : t.room.preview} title={reviewing ? t.room.backToDrawing : t.room.preview}
+    aria-pressed={reviewing || preview} onClick={togglePreview}>
+    {reviewing ? <SquareDashed size={16} aria-hidden="true" /> : <Box size={16} aria-hidden="true" />}
+    {reviewing ? '2D' : <><span className="room-preview-long">{t.room.preview}</span><span className="room-preview-short" aria-hidden="true">3D</span></>}
+  </button>;
   return <main data-testid="room-workspace" aria-label={t.room.tab} className="flex h-full min-h-0 flex-1 flex-col bg-studio-canvas">
-    {!compact && <header className="room-heading">
-      {title}{tools}
-      {!reviewing && <Button variant="outline" active={preview} onClick={() => setPreview(!preview)}><Box size={16} />{t.room.preview}</Button>}
-      <RoomNextStep />
-    </header>}
-    {compact && !reviewing && tools}
-    <div className="room-work-area" data-view={view} data-elevation={view === 'plan' && !!facing || undefined}>
-      <div className="room-drawing-area">
+    <div className="room-work-area" data-view={view} data-elevation={view === 'plan' && !!facing || undefined}
+      data-schedule-closed={compact && reviewing && !scheduleOpen || undefined}>
+      <div className="room-canvas" data-testid="room-canvas">
+        {(!reviewing || !compact) && <div className="room-canvas-controls">{tools}{toggle}</div>}
+        <div className="room-drawing-area" data-room-stage="">
         {view === 'plan' && <div className="room-drawing-pane">
           {facing ? <WallElevation key={facing.id} wall={facing} number={segments.indexOf(facing) + 1} reference={reference} />
             : <RoomPlan reference={reference} onFaceWall={(id, keyboard) => { showDrawing(id); if (keyboard) viewPicker.current?.focus({ preventScroll: true }); }} />}
@@ -88,20 +126,28 @@ function ProjectRoom({ compact }: { compact: boolean }) {
           </nav> : compact ? <header className="room-plan-caption">{title}<p>{t.room.cornerHintShort}</p></header>
             : <p className="room-drawing-hint"><MousePointer2 size={13} />{t.room.measureHint}</p>}
         </div>}
-        {(view === '3d' || !compact && preview) && <div className="relative min-w-0 flex-1 border-studio-line lg:border-l" data-testid="room-3d" data-room-3d="" tabIndex={-1}
+        {(view === '3d' || !compact && preview) && <div className="relative min-w-0 flex-1" data-testid="room-3d" data-room-3d="" tabIndex={-1}
+          data-room-inset={view === 'plan' || undefined} style={view === 'plan' ? { width: `${previewWidth}%` } : undefined}
           onPointerDownCapture={(e) => { if (e.target instanceof HTMLCanvasElement) e.currentTarget.focus({ preventScroll: true }); }}>
-          <View3D rows={rows} split={view === 'plan'} onOpenWall={openWallIn2D} />
+          {view === 'plan' && <PreviewEdge value={previewWidth} change={setPreviewWidth} />}
+          <View3D rows={rows} onOpenWall={openWallIn2D} closeInset={view === 'plan' ? () => {
+            setPreview(false); previewButton.current?.focus({ preventScroll: true });
+          } : undefined} />
           {compact && <><div className="mobile-scene-tools"><PhoneViewButton /></div>
-            <div className="room-scene-picker">{tools}</div></>}
+            <div className="room-scene-picker">{tools}{toggle}</div></>}
         </div>}
+        </div>
       </div>
       <aside data-testid="room-inspector" className="room-inspector studio-panel">
+        {!compact && <header className="room-heading">{title}<RoomNextStep /></header>}
         {view === 'plan' ? <RoomInspector compact={compact} wall={facing} wallNumber={wall ? segments.indexOf(wall) + 1 : 0}
           reference={reference} onReference={furnished ? setReference : undefined} /> : <>
-          <section aria-label={t.room.measurements} data-testid="room-measurements" className="min-h-0 overflow-y-auto p-4">
-            <h2 className="text-sm font-semibold">{t.room.measurements}</h2>
+          {compact && <button className="flex min-h-11 shrink-0 items-center justify-between px-4 text-sm font-semibold" aria-expanded={scheduleOpen}
+            aria-controls="room-measure-schedule" onClick={() => setScheduleOpen(!scheduleOpen)}>{t.room.measurements}
+            <ChevronDown size={16} className={scheduleOpen ? 'rotate-180' : ''} /></button>}
+          <section id="room-measure-schedule" hidden={compact && !scheduleOpen} aria-label={t.room.measurements} data-testid="room-measurements" className="min-h-0 overflow-y-auto p-4">
+            {!compact && <h2 className="text-sm font-semibold">{t.room.measurements}</h2>}
             <p className="pt-1 text-xs text-studio-muted">{t.room.reviewHint}</p>
-            {wall && <Button variant="outline" className="mt-2" onClick={() => openWallIn2D(wall.id)}>{t.advancedRoom.wall(segments.indexOf(wall) + 1)} · {t.room.editIn2D}</Button>}
             <dl className="mt-2 divide-y divide-studio-line text-sm">{rows.map(({ id, name, value, details, faces = [] }) =>
               <div key={id} data-measure={id} className="py-2">
                 <dt className="font-semibold">{name}</dt><dd className="flex items-center justify-between gap-2">

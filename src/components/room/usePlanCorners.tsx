@@ -1,5 +1,6 @@
 import { useId, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { moveRoomCorner } from '../../domain/roomCornerEdit';
+import { normalizeAngle } from '../../domain/polygons';
 import type { Design, Point } from '../../domain/types';
 import type { WallSegment } from '../../domain/walls';
 import { useT } from '../../i18n';
@@ -95,6 +96,23 @@ export function usePlanCorners(walls: WallSegment[], fitted: Frame, drag: Return
         stroke={selected === wall.id ? '#fffefa' : '#376b4a'} strokeWidth={2 * frame.px} />
     </g>;
   });
-  return { frame, targets: layer(false), grips: layer(true),
+  const i = walls.findIndex((w) => w.id === selected);
+  const wall = walls[i], before = walls[(i + walls.length - 1) % walls.length];
+  let angle = null;
+  if (wall && before) {
+    // Clockwise in plan coordinates: sweep inside from the outgoing ray to the reversed incoming ray.
+    const degrees = normalizeAngle(before.angle + 180 - wall.angle);
+    const radius = Math.min(24, Math.min(wall.length, before.length) / frame.px / 3);
+    const mid = (wall.angle + degrees / 2) * Math.PI / 180;
+    const value = `${t.number(Math.round(degrees * 10) / 10)}°`;
+    angle = <g data-corner-angle={wall.id} transform={`translate(${wall.start.x} ${wall.start.y}) scale(${frame.px})`}
+      pointerEvents="none" role="img" aria-label={`${t.room.insideAngle}: ${value}`}>
+      <path d={`M ${radius * wall.tangent.x} ${radius * wall.tangent.y} A ${radius} ${radius} 0 ${degrees > 180 ? 1 : 0} 1 ${-radius * before.tangent.x} ${-radius * before.tangent.y}`}
+        fill="none" stroke="#34594d" strokeWidth="1.5" />
+      <text x={(radius + 18) * Math.cos(mid)} y={(radius + 18) * Math.sin(mid)} textAnchor="middle" dominantBaseline="central"
+        fontSize="14" fontWeight="650" fill="#264837" stroke="#fffefa" strokeWidth="4" paintOrder="stroke">{value}</text>
+    </g>;
+  }
+  return { frame, targets: layer(false), grips: layer(true), angle,
     notice: block && block.design === useDesignStore.getState().design ? t.room.cornerBlocked[block.reason] : null };
 }

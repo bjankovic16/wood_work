@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
-import { draftedWindowCheck, furnishedWallChecks, planCornerChecks, workspaceObjectChecks } from './room-object-checks.mjs';
+import { chimneyCornerCheck, draftedWindowCheck, furnishedWallChecks, planCornerChecks, workspaceObjectChecks } from './room-object-checks.mjs';
 import { startFreshChecks } from './start-fresh-checks.mjs';
 import { plannerChecks } from './planner-checks.mjs';
 import { showRoomModel, waitForIdleRendering } from './three-test-helpers.mjs';
@@ -31,6 +31,21 @@ async function phoneRoomTools(page, workspace) {
     const shortcut = plan.getByRole('button', { name: 'Pogled na zid 3' });
     await shortcut.tap();
     assert.equal(await workspace.getByRole('combobox', { name: 'Izaberi pogled' }).inputValue(), 'bottom');
+    if (!planOnly && viewport.width === 320) {
+      const canvas = workspace.getByTestId('room-canvas');
+      const state = () => page.evaluate(() => {
+        const { design, past, future } = window.__kitchen.design.getState();
+        return { design, past, future, wall: window.__kitchen.ui.getState().selectedWallId };
+      });
+      const before = await state();
+      await canvas.getByRole('button', { name: '3D pregled', exact: true }).tap();
+      await canvas.locator('[data-room-3d] canvas').waitFor();
+      assert.equal(await page.getByRole('radio', { name: '1. Prostorija' }).getAttribute('aria-checked'), 'true');
+      await canvas.getByRole('button', { name: 'Nazad na 2D crtež' }).tap();
+      await canvas.getByTestId('wall-elevation').waitFor();
+      assert.equal(await canvas.locator('canvas').count(), 0);
+      assert.deepEqual(await state(), before, 'A round trip inside the canvas preserves the current wall and Undo.');
+    }
     await workspace.getByRole('button', { name: 'Nazad na osnovu' }).tap();
     await page.waitForFunction(() => document.activeElement?.getAttribute('data-wall-view') === 'bottom');
     const panel = workspace.getByTestId('room-inspector');
@@ -46,6 +61,8 @@ async function phoneRoomTools(page, workspace) {
         ...d, room: { ...d.room, cutout: { kind: 'notch', corner: 'bottomRight', width: 1080, depth: 900 } },
       })));
       await assertWallTargets(plan, 12);
+      await plan.getByRole('button', { name: 'Pomeri ugao 4' }).press('Enter');
+      assert.equal(await plan.locator('[data-corner-angle]').textContent(), '270°');
       await plan.getByRole('button', { name: 'Pogled na zid 3' }).tap();
       assert.equal(await workspace.getByRole('combobox', { name: 'Izaberi pogled' }).inputValue(), 'edge-2');
       await workspace.getByRole('button', { name: 'Nazad na osnovu' }).tap();
@@ -118,15 +135,23 @@ async function phoneRoomPreview(page, workspace) {
   await camera.getByRole('button', { name: 'Vrati pogled' }).tap();
   await view.tap();
   assert.equal(await camera.getByRole('button', { name: 'Perspektiva' }).getAttribute('aria-pressed'), 'true');
-  await camera.getByRole('button', { name: 'Oznake mera' }).tap();
+  const labels = camera.getByRole('button', { name: 'Oznake mera' });
+  assert.equal(await labels.getAttribute('aria-pressed'), 'false');
+  await labels.tap();
+  assert.ok(await workspace.locator('[data-room-measure]').count() > 0);
+  await labels.tap();
   assert.equal(await workspace.locator('[data-room-measure]').count(), 0);
-  assert.ok(await workspace.getByTestId('room-measurements').isVisible(), 'The full schedule remains when scene labels are hidden.');
   assert.equal(await camera.getByTestId('customer-export').count(), 0);
   assert.equal(await camera.getByRole('button', { name: /Sledeća kuhinja|Otvori sve|Stil/ }).count(), 0);
   await page.keyboard.press('Escape');
   assert.ok(await view.evaluate((el) => el === document.activeElement));
-
-  assert.deepEqual(await state(), before, 'Room review is read-only.');
+  const schedule = workspace.getByRole('button', { name: 'Mere prostorije', exact: true });
+  assert.equal(await schedule.getAttribute('aria-expanded'), 'false');
+  await schedule.tap();
+  assert.ok(await workspace.getByTestId('room-measurements').isVisible(), 'The full schedule remains available without the scene labels.');
+  await page.waitForFunction((before) => document.querySelector('[data-room-3d] canvas').getBoundingClientRect().height < before, viewport.height);
+  await schedule.tap();
+  assert.deepEqual(await state(), before, 'Changing the room view is not a design edit.');
   await page.getByRole('radio', { name: '3. 3D', exact: true }).tap();
   await page.waitForFunction((id) => window.__kitchen3D?.scene.getObjectByName(id), original.items[0].id);
   const kitchen = sheet('Prikaz');
@@ -201,12 +226,34 @@ async function separatedRoomChecks(page) {
   await page.waitForFunction(() => window.__kitchen3D?.scene.getObjectByName('wall-finish-panel-0'));
   assert.equal(await roomTab.getAttribute('aria-checked'), 'true');
   const schedule = room.getByTestId('room-measurements');
+  const compact = page.viewportSize().width < 1024;
+  const revealSchedule = async () => {
+    if (compact && !await schedule.isVisible()) await room.getByRole('button', { name: 'Room measurements' }).tap();
+  };
+  await revealSchedule();
   assert.match(await schedule.locator('[data-measure="area"]').innerText(), /11\.84 m²/);
   assert.match(await schedule.locator('[data-measure="wall:slope"]').innerText(), /3256 mm.*Height: 2700 mm/s);
   assert.match(await schedule.locator('[data-measure="partition:divider"]').innerText(), /1200 mm.*120 mm.*1450 mm/s);
   assert.equal(await schedule.locator('[data-measure^="wall:"]').count(), 4);
   await waitForIdleRendering(page);
-  assert.ok(await room.locator('[data-room-measure]:visible').count() > 0);
+  assert.equal(await room.locator('[data-room-measure]').count(), 0);
+  const wallPoint = await page.evaluate(() => {
+    const { camera, scene, renderer } = window.__kitchen3D;
+    const mesh = scene.getObjectByName('room-wall-north-0');
+    const p = mesh.localToWorld(camera.position.clone().set(0, 0.6, 0)).project(camera);
+    const r = renderer.domElement.getBoundingClientRect();
+    return { x: r.x + (1 + p.x) * r.width / 2, y: r.y + (1 - p.y) * r.height / 2 };
+  });
+  if (compact) await page.touchscreen.tap(wallPoint.x, wallPoint.y);
+  else await page.mouse.click(wallPoint.x, wallPoint.y);
+  const picker = room.getByRole('combobox', { name: 'Drawing view' });
+  await room.getByTestId('wall-elevation').waitFor();
+  assert.equal(await picker.inputValue(), 'north', 'A tap on the visible wall itself opens its inside elevation without labels.');
+  await showRoomModel(page);
+  await page.waitForFunction(() => window.__kitchen3D?.scene.getObjectByName('wall-finish-panel-0'));
+  if (compact) await page.getByTestId('phone-view-toggle').tap();
+  await page.getByRole('button', { name: 'Dimension labels' }).click();
+  if (compact) await page.keyboard.press('Escape');
   assert.deepEqual(await page.evaluate(() => {
     const names = [];
     window.__kitchen3D.scene.traverse((n) => { if (n.name === 'kitchen-only' || n.name.startsWith('kitchen-backsplash-')) names.push(n.name); });
@@ -216,9 +263,9 @@ async function separatedRoomChecks(page) {
   await projected.waitFor();
   const projectedWall = (await projected.getAttribute('data-room-measure')).slice('wall:'.length);
   await projected.getByRole('button').click();
-  const picker = room.getByRole('combobox', { name: 'Drawing view' });
   assert.equal(await picker.inputValue(), projectedWall, 'The 3D icon opens the wall shown beside it.');
   await showRoomModel(page);
+  await revealSchedule();
   await schedule.locator('[data-measure="partition:divider"]').getByRole('button', { name: 'Wall view: Wall 6' }).press('Enter');
   assert.equal(await picker.inputValue(), 'divider:-1');
   assert.deepEqual(await state(), edited, 'Wall shortcuts change the view, not measurements, selections in the design, or history.');
@@ -259,13 +306,28 @@ try {
     assert.equal((await room()).vertices, undefined);
     await drawing.getByRole('button', { name: 'Done' }).click();
     if (!compact && !planOnly) {
-      await workspace.getByRole('button', { name: '3D preview' }).click();
+      const canvas = workspace.getByTestId('room-canvas'), plan = canvas.getByTestId('room-plan');
+      const paper = await plan.boundingBox();
+      await canvas.getByRole('button', { name: '3D preview' }).click();
       await workspace.getByTestId('three-viewport').locator('canvas').waitFor().catch(async (error) => {
         console.error('Preview state:', await page.locator('body').evaluate((el) => ({ text: el.innerText.slice(0, 900),
           canvases: [...el.querySelectorAll('canvas')].map((c) => [c.clientWidth, c.clientHeight]), view: window.__kitchen?.ui.getState().view })));
         throw error;
       });
       assert.equal(await page.getByTestId('room-plan').count(), 1);
+      const divider = canvas.getByRole('separator', { name: 'Resize 3D preview' });
+      const preview = canvas.getByTestId('room-3d'), inset = await preview.boundingBox(), startWidth = inset.width;
+      assert.deepEqual(await plan.boundingBox(), paper, 'The inset must not shrink or re-fit the 2D drawing.');
+      assert.ok(inset.x > paper.x && inset.y > paper.y && inset.x + inset.width <= paper.x + paper.width
+        && inset.y + inset.height <= paper.y + paper.height, '3D must be physically inside the drawing, not a sibling column.');
+      const bar = await divider.boundingBox();
+      await page.mouse.move(bar.x + bar.width / 2, bar.y + bar.height / 2);
+      await page.mouse.down(); await page.mouse.move(bar.x - 100, bar.y + bar.height / 2); await page.mouse.up();
+      assert.ok((await preview.boundingBox()).width > startWidth + 80);
+      await divider.press('ArrowRight');
+      assert.ok((await preview.boundingBox()).width < startWidth + 80);
+      await preview.getByRole('button', { name: 'Dimension labels' }).click();
+      assert.ok(await preview.locator('[data-room-measure]').count() > 0);
       await workspace.getByRole('button', { name: '3D preview' }).click();
     }
     if (!planOnly) {
@@ -296,6 +358,7 @@ try {
     if (compact && !planOnly) await phoneRoomPreview(page, workspace);
     if (!planOnly) await separatedRoomChecks(page);
     await planCornerChecks(page, compact);
+    await chimneyCornerCheck(page, compact);
     if (compact) {
       await page.evaluate(async () => {
         (await import('/src/store/projects.ts')).createProject('Kote');

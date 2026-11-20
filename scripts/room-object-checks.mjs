@@ -70,6 +70,7 @@ export async function planCornerChecks(page, touch) {
     assert.equal(await area.innerText(), '9 m²');
     await dragDrawing(page, plan.getByRole('button', { name: 'Pomeri ugao 2' }), 660, 0, true, false, async () => {
       await page.waitForFunction(() => document.querySelector('.room-area').innerText !== '9 m²');
+      assert.match(await plan.locator('[data-corner-angle="right"]').textContent(), /\d+,\d°/);
       assert.deepEqual(await plan.boundingBox(), initial, 'A longer live area must not resize the drawing under a finger.');
       assert.deepEqual(await caption.boundingBox(), captionBox, 'Prostorija must stay still as its area gains digits.');
     });
@@ -93,12 +94,16 @@ export async function planCornerChecks(page, touch) {
   const hit = await halo.boundingBox();
   assert.ok(hit.width >= 43.9 && hit.height >= 43.9, 'A finger should not need to land exactly on the small dot.');
   await tapOrClick(grip, touch);
+  assert.equal(await plan.locator('[data-corner-angle="east"]').textContent(), '135°');
   assert.deepEqual(await design(page), start, 'Tapping a corner must not open the inside wall or change the room.');
   await dragDrawing(page, grip, 750, -420, touch, false, async (finger) => {
     await page.waitForFunction(() => window.__kitchen.design.getState().design.room.width > 7000);
     const box = await grip.boundingBox();
     assert.ok(Math.hypot(box.x + box.width / 2 - finger.x, box.y + box.height / 2 - finger.y) < 2, 'The grip must stay under the pointer while the room bounds change.');
     const { room } = await design(page);
+    const [a, b, c] = room.vertices.slice(1);
+    const degrees = 180 - (Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(b.y - a.y, b.x - a.x)) * 180 / Math.PI;
+    assert.equal(await plan.locator('[data-corner-angle="east"]').textContent(), `${Math.round(degrees * 10) / 10}°`);
     for (const i of [1, 2]) {
       const a = room.vertices[i], b = room.vertices[i + 1];
       assert.match(await plan.locator(`[data-wall-dimension="${a.id}"]`).textContent(), new RegExp(String(Math.round(Math.hypot(b.x - a.x, b.y - a.y)))));
@@ -140,6 +145,7 @@ export async function planCornerChecks(page, touch) {
   await plan.getByRole('status').filter({ hasText: /window/ }).waitFor();
   await topRight.press('Shift+ArrowDown');
   assert.equal((await design(page)).room.vertices[1].y, limited.room.vertices[1].y + 100);
+  assert.notEqual(await plan.locator('[data-corner-angle="right"]').textContent(), '90°');
   assert.ok(await plan.isVisible());
 }
 
@@ -182,7 +188,7 @@ export async function draftedWindowCheck(page) {
   assert.equal(await room.getByRole('combobox', { name: 'Izaberi pogled' }).inputValue(), 'left');
 }
 
-async function assert3DIsReadOnly(page, id, type, touch) {
+async function check3DOrbitAndSize(page, id, type, touch) {
   const before = await design(page), count = await history(page);
   const viewport = page.getByTestId('three-viewport');
   await page.waitForFunction(({ type, id }) => Boolean(window.__kitchen3D?.scene.getObjectByName(`room-${type}-${id}`)), { id, type });
@@ -226,6 +232,20 @@ async function assert3DIsReadOnly(page, id, type, touch) {
   await page.keyboard.press('Shift+ArrowRight');
   assert.deepEqual(await design(page), before);
   assert.equal(await history(page), count, '3D gestures and keys must not change room geometry or history');
+  const scene = page.getByTestId('room-3d');
+  const resize = scene.getByRole('button', { name: 'Resize', exact: true });
+  await tapOrClick(resize, touch);
+  const label = type === 'feature' ? 'Length along wall' : 'Width';
+  const field = scene.getByLabel(label, { exact: true });
+  const width = Number(await field.inputValue()) + 100;
+  await setField(scene, label, width);
+  const updated = await design(page);
+  assert.equal((type === 'feature' ? updated.room.features : updated.openings).find((o) => o.id === id).width, width);
+  assert.match(await scene.getByTestId('room-readout-3d').innerText(), new RegExp(`${width} ×`));
+  assert.equal(await history(page), count + 1);
+  await tapOrClick(resize, touch);
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  assert.deepEqual(await design(page), before);
 }
 
 export async function workspaceObjectChecks(page, touch = false, three = true) {
@@ -366,14 +386,14 @@ export async function workspaceObjectChecks(page, touch = false, three = true) {
   if (three) {
     if (!touch) {
       await workspace.getByRole('button', { name: '3D preview' }).click();
-      await assert3DIsReadOnly(page, f.id, 'feature', false);
+      await check3DOrbitAndSize(page, f.id, 'feature', false);
       assert.equal(await workspace.getByTestId('room-readout-3d').innerText(), readout);
       await workspace.getByTestId('room-edit-position-2d').click();
       await page.waitForFunction((id) => document.activeElement?.getAttribute('data-plan-feature') === id, f.id);
-      await workspace.getByRole('button', { name: '3D preview' }).click();
+      assert.equal(await workspace.getByTestId('room-3d').count(), 0, 'Return to 2D must uncover the object being edited.');
     }
     await showRoomModel(page);
-    await assert3DIsReadOnly(page, f.id, 'feature', touch);
+    await check3DOrbitAndSize(page, f.id, 'feature', touch);
     assert.equal(await inspector.locator('input,select').count(), 0);
     assert.equal(await inspector.getByRole('button', { name: 'Chimney', exact: true }).count(), 0);
     await workspace.getByTestId('room-edit-position-2d').click();
@@ -399,7 +419,7 @@ export async function workspaceObjectChecks(page, touch = false, three = true) {
     await showRoomModel(page);
     assert.match(await workspace.locator('[data-measure="opening:legacy-door"]').innerText(), /From wall start: 1500 mm/);
     assert.match(await workspace.locator('[data-measure="opening:legacy-window"]').innerText(), /From wall start: 2800 mm/);
-    await assert3DIsReadOnly(page, 'legacy-door', 'opening', touch);
+    await check3DOrbitAndSize(page, 'legacy-door', 'opening', touch);
     await page.getByTestId('room-edit-position-2d').click();
     await elevation.waitFor();
     assert.equal(await card.getByLabel('Wall', { exact: true }).inputValue(), 'west');
@@ -409,7 +429,75 @@ export async function workspaceObjectChecks(page, touch = false, three = true) {
   await page.reload();
   await workspace.waitFor();
   assert.deepEqual(await design(page), saved);
-  console.log(`  PASS ${touch ? 'touch' : 'mouse'} wall elevation, floor-level door, 10/100 mm nudges, sloped/free chimney, legacy offsets, reload${three ? ', read-only 3D and 2D hand-off' : ''}`);
+  console.log(`  PASS ${touch ? 'touch' : 'mouse'} wall elevation, floor-level door, 10/100 mm nudges, sloped/free chimney, legacy offsets, reload${three ? ', 3D orbit, resize and 2D hand-off' : ''}`);
+}
+
+export async function chimneyCornerCheck(page, touch) {
+  await page.evaluate(async () => {
+    const { createDesign } = await import('/src/domain/designOps.ts');
+    const { createItem } = await import('/src/domain/catalog.ts');
+    const d = createDesign('Corner beside a chimney');
+    d.room = { width: 3671, depth: 3000, height: 2600, features: [
+      { id: 'flue', kind: 'chimney', wallId: 'top', x: 3171, y: 0, offset: 3171, width: 500, depth: 500 },
+    ] };
+    d.items = [[0, 0], [0, 2440], [3071, 2440]].map(([x, y]) => createItem('base', [], { x, y }));
+    window.__kitchen.design.getState().load(d);
+    const ui = window.__kitchen.ui.getState();
+    ui.setLanguage('sr'); ui.openRoomPlan(); ui.setSnapEnabled(true); ui.setGridSize(10);
+  });
+  const room = page.getByTestId('room-workspace'), plan = room.getByTestId('room-plan');
+  const feature = plan.locator('[data-plan-feature="flue"]');
+  await tapOrClick(feature, touch);
+  const original = await design(page), f = async () => (await design(page)).room.features[0];
+  const widthGrip = plan.locator('[data-feature-grip="width:-1"] circle');
+  await dragDrawing(page, widthGrip, -300, 0, touch, false, async () => {
+    await page.waitForFunction(() => window.__kitchen.design.getState().design.room.features[0].width > 750);
+    assert.equal(await history(page), 0);
+    assert.equal((await f()).offset + (await f()).width, 3671);
+  });
+  assert.ok(Math.abs((await f()).width - 800) <= 10);
+  assert.equal(await history(page), 1);
+  const undo = page.getByRole('button', { name: 'Korak unazad', exact: true });
+  await undo.click();
+  assert.deepEqual(await design(page), original);
+  await dragDrawing(page, plan.locator('[data-feature-grip="depth:1"] circle'), 0, 200, touch, true, async () => {
+    await page.waitForFunction(() => window.__kitchen.design.getState().design.room.features[0].depth > 650);
+  });
+  assert.deepEqual(await design(page), original);
+  assert.equal(await history(page), 0);
+  await setField(room.getByTestId('selected-room-card'), 'Dužina uz zid', 800);
+  assert.equal((await f()).offset, 2871);
+  await undo.click();
+  await page.getByRole('radio', { name: '2. Raspored', exact: true }).click();
+  if (touch) await page.locator('[data-add-trigger]').tap();
+  await page.getByRole('searchbox').fill('ugaoni');
+  await tapOrClick(page.locator('[data-preset="corner"]'), touch);
+  if (touch) await page.keyboard.press('Escape');
+  const added = await design(page), corner = added.items.at(-1);
+  assert.deepEqual([corner.kind, corner.x, corner.y, corner.rotation], ['corner', 2271, 0, 90]);
+  assert.equal(await page.evaluate(() => window.__kitchen.ui.getState().selectedId), corner.id);
+  assert.deepEqual(added.room, original.room);
+  await undo.click();
+  assert.deepEqual(await design(page), original);
+  if (!touch) {
+    const tile = page.locator('[data-preset="corner"]'), stage = page.locator('.konvajs-content');
+    const drop = async (x, y) => {
+      const targetPosition = await page.evaluate(([x, y]) => {
+        const { pan, zoom } = window.__kitchen.ui.getState();
+        return { x: pan.x + x * zoom, y: pan.y + y * zoom };
+      }, [x, y]);
+      await tile.dragTo(stage, { targetPosition });
+    };
+    await drop(3620, 575);
+    const next = (await design(page)).items.at(-1);
+    assert.deepEqual([next.kind, next.x, next.y, next.rotation], ['corner', 2771, 500, 90], 'A library drag can choose the other chimney face.');
+    await undo.click();
+    await drop(70, 80);
+    await page.getByText(/^Ugaoni element ovde ne staje/).waitFor();
+    assert.deepEqual(await design(page), original, 'A drop on the occupied side must not insert a colliding cabinet.');
+    assert.equal(await history(page), 0);
+  }
+  await page.getByRole('radio', { name: '1. Prostorija', exact: true }).click();
 }
 
 export async function furnishedWallChecks(page, compact, output) {

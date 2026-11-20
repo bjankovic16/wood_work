@@ -233,6 +233,8 @@ export const en = {
     size: (width: number, height: number, depth: number) => `${width} × ${height} × ${depth} mm (W × H × D)`,
     clickOrDrag: 'Click to add, or drag onto the plan',
     add: (name: string) => `Add ${name}`,
+    cornerNoSpace: 'No clear spot for this corner cabinet. Make room for both arms and try again.',
+    cornerDropBlocked: 'The corner cabinet does not fit here. Try the other side of the chimney or another clear spot.',
   },
 
   canvas: {
@@ -404,6 +406,7 @@ export const en = {
     alongLength: 'Length along wall',
     projection: 'Projection into room',
     moveHint: 'Drag or use arrows: 10 mm, Shift: 100 mm. Attached structures move along their wall.',
+    resizeHint: 'Drag a square to resize. Use Up/Right to grow or Down/Left to shrink; hold Shift for 100 mm.',
     width: 'Structure width',
     depth: 'Structure depth',
     remove: (name: string) => `Remove ${name}`,
@@ -422,8 +425,13 @@ export const en = {
     measurements: 'Room measurements',
     showMeasures: 'Dimension labels',
     cabinetReference: 'Show kitchen outlines for reference',
-    reviewHint: 'Orbit the room to see its dimensions. All measurements are also listed below.',
-    cornerHintShort: 'Drag a corner or tap Wall view.',
+    reviewHint: 'Drag to orbit. Tap a wall to face it, or select an object to resize it.',
+    cornerHintShort: 'Drag a corner. Tap a wall to face it.',
+    insideAngle: 'Interior angle',
+    resizeObject: 'Resize',
+    previewSize: 'Resize 3D preview',
+    backToDrawing: 'Back to 2D drawing',
+    chooseWall: 'Choose a wall',
     cameraHints: {
       perspective: 'Orbit the room in perspective.',
       studio: 'See the whole room against a dark background.',
@@ -521,6 +529,9 @@ export const en = {
 
   fit: {
     referenceRoomLook: 'Use the pictured wall paint, floor tiles and shelf accessories',
+    preview: 'Proposal preview',
+    model: '3D in my room',
+    modelFallback: '3D is unavailable. Showing the plan instead.',
     title: 'Fit to my room', back: 'Back to designs', main: 'Main wall', auto: 'Find a suitable wall', side: 'L return (facing the main wall)',
     left: 'Left return', right: 'Right return', confirm: 'Apply this layout', sketch: 'Proposed layout in your room',
     fitted: (count: number) => `Proposed layout: ${count} elements. Your room and openings stay in place.`,

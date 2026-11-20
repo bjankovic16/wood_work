@@ -1,8 +1,6 @@
 import { sizeLimits } from './catalog';
 import {
-  CORNER_ROTATION,
   aabbSize,
-  cornerPosition,
   footprintRects,
   itemRect,
   localDepthExtent,
@@ -11,12 +9,12 @@ import {
   resizeFromAnchor,
   rotationForWall,
   WALLS,
-  type Corner,
   type Placed,
 } from './geometry';
 import { clamp, roundTo } from './math';
 import { roomFeaturePolygon, roomOutline, roomWallRuns, type RoomWallRun } from './roomGeometry';
-import type { KitchenItem, Point, Room, Rotation, Wall } from './types';
+import type { KitchenItem, Opening, Point, Room, Rotation, Wall } from './types';
+import { snapCornerToRoom } from './placement';
 import { normalizeAngle } from './polygons';
 import { mountingSegments, wallCoordinates, wallPoint } from './walls';
 
@@ -59,15 +57,6 @@ export function pickWall(room: Room, pointer: Point, depth: number, previous: Wa
     best = previous;
   }
   return distance[best] <= zone ? best : null;
-}
-
-export function pickCorner(room: Room, pointer: Point, reach: number): Corner | null {
-  const left = pointer.x < room.width / 2;
-  const top = pointer.y < room.depth / 2;
-  const corner: Corner = top ? (left ? 'topLeft' : 'topRight') : left ? 'bottomLeft' : 'bottomRight';
-  const cx = left ? 0 : room.width;
-  const cy = top ? 0 : room.depth;
-  return Math.hypot(pointer.x - cx, pointer.y - cy) <= reach ? corner : null;
 }
 
 /** Lines that moving edges are attracted to: the walls and every edge of the other items. */
@@ -136,6 +125,7 @@ function isWallLine(axis: 'x' | 'y', value: number, room: Room): boolean {
 
 export interface DragInput {
   room: Room;
+  openings?: readonly Opening[];
   /** Every item except the one being placed. */
   others: readonly KitchenItem[];
   /** The item being placed, with the rotation it had when the drag started. */
@@ -174,7 +164,6 @@ export function computeDragPlacement(input: DragInput): DragResult {
   const { room, others, item, pointer, snap } = input;
   let rotation = item.rotation;
   let wall: Wall | null = null;
-  let corner: Corner | null = null;
   let surface: RoomWallRun | null = null;
 
   if (snap.enabled && item.kind !== 'corner' && (room.vertices || room.partitions?.length || room.cutout?.kind === 'diagonal')) {
@@ -205,8 +194,8 @@ export function computeDragPlacement(input: DragInput): DragResult {
 
   if (snap.enabled) {
     if (item.kind === 'corner') {
-      corner = pickCorner(room, pointer, Math.max(item.width, localDepthExtent(item)) + CORNER_REACH);
-      if (corner) rotation = CORNER_ROTATION[corner];
+      const spot = snapCornerToRoom(room, others, item, input.openings ?? [], pointer, Math.max(item.width, localDepthExtent(item)) + CORNER_REACH);
+      if (spot) return { ...spot, wall: null, guides: [] };
     } else {
       if (room.cutout || room.features?.length) {
         surface = pickSurface(room, pointer, item.depth, input.previousWall, input.stickyWall);
@@ -225,10 +214,7 @@ export function computeDragPlacement(input: DragInput): DragResult {
   let lockX = false;
   let lockY = false;
 
-  if (corner) {
-    ({ x, y } = cornerPosition(room, corner, { w, h }));
-    lockX = lockY = true;
-  } else if (wall === 'top') {
+  if (wall === 'top') {
     y = surface?.offset ?? 0;
     lockY = true;
   } else if (wall === 'bottom') {
