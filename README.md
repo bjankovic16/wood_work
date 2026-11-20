@@ -98,7 +98,8 @@ The interface follows the browser's primary language: Serbian for Serbian
 browsers, English otherwise. A language chosen manually is remembered.
 
 **Find your next step:** the numbered destinations are **1 Room → 2 Layout → 3 3D →
-4 Cut list**. On a phone, choose a bottom tab or use the arrow above it to continue.
+4 Cut list**. On a phone, choose a bottom tab. In Layout, tap **3D** to continue;
+there is no extra navigation row above the tabs.
 The last step offers **Export**, not a project switch. For a guide to all four steps,
 choose **Help** on a laptop or **⋯ → Planning guide** on a phone.
 
@@ -233,7 +234,8 @@ or a cutting-list export for the workshop; the customer view is neither.
   Release to commit a changed drag in one Undo step; Escape or an interrupted
   touch restores the starting position without a step. **All** is the initial
   layer: upper units are dashed outlines, and a click or tap on stacked units
-  picks the floor cabinet. Hover or tap to see its full name. Choose **Wall units**
+  picks the floor cabinet. Hover to see its full name on desktop, or tap to see
+  it in the cabinet sheet on a phone. Choose **Wall units**
   and, if needed, **Upper cabinet row** to edit an upper tier and see its measurements.
   A drag isolates its layer until release or cancellation. On a phone,
   pinch to zoom or tap **Fit** to see the whole room again. The drawing shows
@@ -449,7 +451,8 @@ or a cutting-list export for the workshop; the customer view is neither.
   filler, doors that will sag, drawers that cannot be built, wall units hung
   too low, parts larger than a sheet, units blocking a door or covering a
   window, a fridge next to the oven.
-  Hover, focus or tap the badge to preview the two highest-priority problems.
+  On phone Layout, open **⋯ → Checks** (**Više → Provere**) to see the issue
+  count and review problems. Elsewhere, use the checks badge.
   Select a problem to see its cabinet on the 2D plan, or its room object
   when no cabinet is involved. Supplier reminders stay separate.
 - **Windows and doors** can be selected in 3D, including by their frames

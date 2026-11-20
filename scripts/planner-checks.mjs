@@ -60,15 +60,19 @@ export async function plannerChecks(browser, url) {
       await button(dialog, phone ? 'Uredi kopiju ove kuhinje' : 'Edit a copy of this kitchen').click();
       assert.match(await name.inputValue(), /Kitchen A · (Variant|Varijanta) 1/);
       if (phone) {
-        const checks = page.getByRole('button', { name: /^Provere:/ });
+        const more = button(bar, 'Više');
+        const checks = page.getByRole('button', { name: 'Provere: Bez problema', exact: true });
+        assert.equal(await page.getByRole('button', { name: /^Provere:/ }).count(), 0);
+        await more.tap();
         await checks.focus();
         assert.equal(await checks.getAttribute('aria-expanded'), 'false', 'Restoring focus must not open a popup over Add.');
         await checks.press('Enter');
-        await page.getByRole('dialog', { name: 'Provere', exact: true }).waitFor();
+        await bar.getByRole('region', { name: 'Provere', exact: true }).waitFor();
         await page.keyboard.press('Escape');
         await checks.tap();
         assert.equal(await checks.getAttribute('aria-expanded'), 'true');
         await checks.tap();
+        await more.tap();
       }
       await addBase();
       await step(1);

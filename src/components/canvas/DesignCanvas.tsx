@@ -514,7 +514,7 @@ export function DesignCanvas({ compact = false, onAdd = () => useUiStore.getStat
   // even when an add, row edit or 3D selection left the upper selected.
   const selectedDetail = activeSelection && detailed.includes(activeSelection) ? activeSelection : undefined;
   const annotated = ghost ?? selectedDetail;
-  const identified = dragging ? undefined : items.find((i) => i.id === hoveredId && !dimmed.includes(i)) ?? activeSelection;
+  const identified = compact || dragging ? undefined : items.find((i) => i.id === hoveredId && !dimmed.includes(i)) ?? activeSelection;
   const gesture = gestureRef.current;
   const drawItem = (item: KitchenItem, mode: PlanItemMode) => <ItemShape key={item.id} item={item} px={px}
     compact={compact} mode={mode} hovered={hoveredId === item.id} onPointerDown={onItemPointerDown} onHoverChange={onHoverChange} />;
@@ -660,8 +660,8 @@ function CanvasControls({ zoom, viewFilter, compact, rows, row, manualRow, upper
             {rows.map((entry, index) => <option key={entry.elevation} value={entry.elevation}>{t.stacking.row(index + 1, t.mm(entry.elevation))}</option>)}
           </select>
         )}
-        {(upperOutlines || viewFilter !== 'all') && <p role="status" className="rounded-md bg-studio-paper/95 px-2 py-1 text-xs leading-tight text-studio-muted">
-          {viewFilter === 'all' ? t.canvas.upperOutlines(compact ? t.canvas.filters.wall.short : t.canvas.filters.wall.label)
+        {!compact && (upperOutlines || viewFilter !== 'all') && <p role="status" className="rounded-md bg-studio-paper/95 px-2 py-1 text-xs leading-tight text-studio-muted">
+          {viewFilter === 'all' ? t.canvas.upperOutlines(t.canvas.filters.wall.label)
             : t.canvas.dimmed[viewFilter === 'wall' && rows.length > 1 ? 'row' : viewFilter]}
         </p>}
         {identified && <p data-plan-cabinet-name="" role="status" className="max-w-full break-words rounded-md bg-studio-paper/95 px-2 py-1 text-xs font-medium leading-tight text-studio-ink">

@@ -38,8 +38,10 @@ file for a customer. The customer does not need the editor or the cutting list.
   numbered variant; preserve the original, including just-committed edits.
 - Use the same numbered destinations and names in the guide, on laptops and in
   the four equal phone tabs: **1 Room → 2 Layout → 3 3D → 4 Cut list**. Keep
-  the phone project header stable. Show the next action above the bottom tabs;
-  the last action opens the real Export menu. Put language selection in Settings.
+  the phone project header stable. In Layout, let the drawing and cabinet sheet
+  meet the bottom tabs. Open checks from **⋯** and continue via the **3D** tab.
+  Room and 3D show the next action above the tabs; Cut list offers the real
+  Export menu. Put language selection in Settings.
 - An empty Layout offers two large actions: preview **Ideas** in the measured room,
   or add cabinets manually using the existing library. Browsing and reordering
   ideas do not change the kitchen. Keep applying a style distinct from reordering.
@@ -167,7 +169,9 @@ Requirements:
 
 The plan opens on **All**. Show upper footprints as faint dashed outlines without
 their codes or dimensions; a stacked floor cabinet owns the shared hit area.
-Identify a cabinet by its full localized name on hover or tap. Use **Wall units**
+Identify a cabinet by its full localized name on desktop hover or in the phone
+sheet after a tap. Do not repeat its name or the dimmed-layer hint over the
+phone drawing. Use **Wall units**
 and the upper-row selector to label, measure and edit a specific upper tier.
 On phones fit to the usable drawing area, show total
 and selected dimensions by default, allow all dimensions on demand, and use
