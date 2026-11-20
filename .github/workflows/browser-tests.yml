@@ -1,10 +1,9 @@
 name: Browser tests
 
-# PR checks also run once inside the main release workflow, before publishing its matching build.
+# No automatic triggers: a nightly Claude scheduled task (~23h Belgrade) dispatches this on main
+# and opens a PR if something needs fixing. Run it by hand from the Actions tab any time.
 on:
-  pull_request:
   workflow_dispatch:
-  workflow_call:
 
 permissions:
   contents: read
