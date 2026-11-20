@@ -36,6 +36,18 @@ beforeEach(() => {
 });
 
 describe('projects', () => {
+  it('does not save 3D wall visibility or carry it into another project', () => {
+    initProjects();
+    const original = projects().activeId;
+    useUiStore.getState().setHiddenKitchenWallIds(['top']);
+    expect(JSON.parse(localStorage.getItem('kitchen-designer:preferences')!).state).not.toHaveProperty('hiddenKitchenWallIds');
+    createProject();
+    expect(useUiStore.getState().hiddenKitchenWallIds).toEqual([]);
+    useUiStore.getState().setHiddenKitchenWallIds(['bottom']);
+    openProject(original);
+    expect(useUiStore.getState().hiddenKitchenWallIds).toEqual([]);
+  });
+
   it('undoes only the last Start fresh, by opening its actual predecessor without deleting either kitchen', () => {
     initProjects();
     const original = projects().activeId;

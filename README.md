@@ -98,8 +98,8 @@ The interface follows the browser's primary language: Serbian for Serbian
 browsers, English otherwise. A language chosen manually is remembered.
 
 **Find your next step:** the numbered destinations are **1 Room → 2 Layout → 3 3D →
-4 Cut list**. On a phone, choose a bottom tab. In Layout, tap **3D** to continue;
-there is no extra navigation row above the tabs.
+4 Cut list**. On a phone, go from Layout to **3D** and then **Cut list** using
+the bottom tabs. Neither workspace has an extra navigation row.
 The last step offers **Export**, not a project switch. For a guide to all four steps,
 choose **Help** on a laptop or **⋯ → Planning guide** on a phone.
 
@@ -451,12 +451,12 @@ or a cutting-list export for the workshop; the customer view is neither.
   filler, doors that will sag, drawers that cannot be built, wall units hung
   too low, parts larger than a sheet, units blocking a door or covering a
   window, a fridge next to the oven.
-  On phone Layout, open **⋯ → Checks** (**Više → Provere**) to see the issue
+  In Layout or kitchen 3D on a phone, open **⋯ → Checks** (**Više → Provere**) to see the issue
   count and review problems. Elsewhere, use the checks badge.
   Select a problem to see its cabinet on the 2D plan, or its room object
   when no cabinet is involved. Supplier reminders stay separate.
 - **Windows and doors** can be selected in 3D, including by their frames
-  when the near wall is hidden. To change their location, select **Edit
+  when the near wall cuts away automatically. To change their location, select **Edit
   position in 2D** and work in the wall elevation. Angled walls and either
   face of an interior partition are supported. These diagrams are not
   door-swing or glazing specifications.
@@ -466,6 +466,11 @@ or a cutting-list export for the workshop; the customer view is neither.
   preview cabinets, or use the separate **Share** action. Drag to orbit
   without moving objects; tap the scene to bring its controls back. The navigation
   tip disappears on a drag or after six seconds. Use **?** in View to see it again.
+- **Hide a wall in kitchen 3D:** open **View → Walls** (**Prikaz → Zidovi**) on
+  a phone, or **Tools → Walls** on desktop. Uncheck any wall or partition to
+  hide it, its finishes, windows and doors. Check it again or choose **Show all
+  walls** to restore normal camera cutaways. This changes only your 3D view,
+  not the room drawing, cabinets, cut list or customer export.
 - **Desktop 3D toolbar**: the toolbar above the viewport holds **Style**, **3D /
   Front / Top**, **Open all** and **Share**. **Tools** includes the room
   object list and help. A selected door, window or structure shows its own

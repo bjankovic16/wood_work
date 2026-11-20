@@ -31,6 +31,9 @@ try {
   await page.goto(editor.resolvedUrls.local[0], { waitUntil: 'domcontentloaded' });
   await page.getByRole('radio', { name: '3. 3D', exact: true }).click();
   await page.getByTestId('three-tools-toggle').click();
+  const tools = page.getByTestId('three-tools');
+  await tools.getByText('Walls', { exact: true }).click();
+  await tools.getByRole('checkbox', { name: /^Wall 1/ }).uncheck(); // The door is on this wall.
   async function downloadKitchen(studio) {
     const [download] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }), page.getByTestId('customer-export').click()]);
     assert.equal(download.suggestedFilename(), 'Kitchen & oak.html');
@@ -52,7 +55,7 @@ try {
   const studio = await downloadKitchen(true);
   assert.ok(json.meshes.length > 10 && json.materials.length > 5 && json.textures.length > 0);
   assert.ok(json.nodes.some((node) => node.name === 'arched-mixer') && json.materials.some((mat) => mat.extras?.studioFinish));
-  assert.equal(json.nodes.filter((n) => n.extras?.cutaway).length, 5, 'All four walls and the door travel with the model, regardless of editor camera.');
+  assert.equal(json.nodes.filter((n) => n.extras?.cutaway).length, 5, 'All four walls and the door travel with the model, including the wall hidden in the editor.');
   assert.ok(!json.nodes.some((n) => /selection|gizmo|kitchen-resize-tool/i.test(n.name ?? '')));
   const floor = json.nodes.find((n) => n.name === 'room-floor');
   const floorMesh = json.meshes[floor.mesh].primitives[0];

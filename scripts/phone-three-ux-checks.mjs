@@ -17,6 +17,11 @@ async function checkChrome(page, mode) {
   });
   assert.ok(usableTop <= 120, `${mode}: ${usableTop} CSS px of chrome above the tappable canvas at 390×844`);
   assert.deepEqual(await page.getByTestId('three-toolbar').getByRole('button').allInnerTexts(), mode === 'editor' ? ['View', 'Share'] : ['View']);
+  if (mode === 'editor') {
+    const canvas = await page.getByTestId('three-viewport').boundingBox();
+    const tabs = await page.getByRole('navigation', { name: 'Design workspace' }).boundingBox();
+    assert.ok(Math.abs(canvas.y + canvas.height - tabs.y) < 1, 'No checks/next row should separate kitchen 3D from its bottom tabs.');
+  }
   for (const name of ['Undo', 'Redo']) {
     const button = page.getByRole('button', { name, exact: true });
     const bounds = await button.boundingBox();
@@ -86,6 +91,51 @@ async function checkHistory(page) {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByTestId('phone-view-toggle').waitFor({ state: 'detached' });
   assert.equal(await undo.innerText(), 'Undo', 'The desktop control keeps its visible label.');
+}
+
+async function checkWalls(page) {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => {
+    const store = window.__kitchen.design.getState(), { design } = store;
+    const vertices = [[0, 0], [3000, 0], [3600, 600], [3600, 3000], [0, 3000]].map(([x, y], i) => ({ id: `edge${i}`, x, y }));
+    store.load({ ...design, room: { ...design.room, vertices,
+      partitions: [{ id: 'half', start: { x: 1200, y: 1700 }, end: { x: 2800, y: 1700 }, thickness: 100, height: 1600 }],
+      treatments: [{ id: 'panel', wallId: 'half:-1', offset: 0, width: 200, elevation: 0, height: 400, finish: 'oak' }] },
+      items: [{ ...design.items[0], x: 1600, y: 0, rotation: 0 }], style: { ...design.style, backsplash: 'stone' }, openings: [
+        { id: 'entry', kind: 'door', wall: 'top', offset: 200, width: 800, sill: 0, height: 2000 },
+        { id: 'hatch', kind: 'window', wall: 'top', wallId: 'half:-1', offset: 500, width: 600, sill: 400, height: 600 },
+      ] });
+    window.__kitchen.ui.getState().setLanguage('sr');
+  });
+  const before = await state(page);
+  const sheet = page.getByTestId('phone-view-sheet');
+  const openWalls = async () => { await open3DTools(page); await sheet.getByText('Zidovi', { exact: true }).tap(); };
+  const expectMeshes = (present, absent) => page.waitForFunction(({ present, absent }) => {
+    const scene = window.__kitchen3D?.scene;
+    return scene && present.every((n) => scene.getObjectByName(n)) && absent.every((n) => !scene.getObjectByName(n));
+  }, { present, absent });
+  const fixed = ['fixed-cabinet', 'room-floor', 'room-wall-edge1-0'];
+  const perimeter = ['room-wall-edge0-0', 'room-opening-entry', 'kitchen-backsplash-edge0-0'];
+  const partition = ['room-wall-half:1-0', 'room-opening-hatch', 'wall-finish-panel-0'];
+  await expectMeshes([...fixed, ...perimeter, ...partition], []);
+  await openWalls();
+  assert.equal(await sheet.getByRole('checkbox').count(), 6, 'Five perimeter segments and one control for both faces of the partition.');
+  await sheet.getByRole('checkbox', { name: /^Zid 1/ }).tap();
+  await expectMeshes([...fixed, ...partition], perimeter);
+  await sheet.getByRole('checkbox', { name: /^Pregradni zid 1/ }).tap();
+  await expectMeshes(fixed, [...perimeter, ...partition]);
+  assert.equal(await sheet.getByRole('combobox', { name: 'Vrata, prozori i strukture' }).count(), 0);
+  await sheet.getByRole('button', { name: 'Studio', exact: true }).tap();
+  await expectMeshes(fixed, [...perimeter, ...partition]);
+  await page.getByRole('radio', { name: '4. Krojna lista', exact: true }).tap();
+  await page.getByRole('radio', { name: '3. 3D', exact: true }).tap();
+  await expectMeshes(fixed, [...perimeter, ...partition]);
+  await openWalls();
+  await sheet.getByRole('checkbox', { name: /^Zid 1/ }).tap();
+  await expectMeshes([...fixed, ...perimeter], partition);
+  await sheet.getByRole('button', { name: 'Prikaži sve zidove' }).tap();
+  await expectMeshes([...fixed, ...perimeter, ...partition], []);
+  assert.deepEqual(await state(page), before, 'Hiding and restoring walls is not a project edit or an undo step.');
 }
 
 /** Independent fresh contexts so a previous usability check cannot accidentally mark either first tip seen. */
@@ -161,6 +211,7 @@ export async function checkPhoneThreeUX(browser, url) {
         assert.equal(await file.failure(), null);
         assert.deepEqual(await state(page), before, 'Exporting the offline view must not change the design or history.');
         await checkHistory(page);
+        await checkWalls(page);
       } else assert.equal(await page.getByTestId('customer-share').count(), 0);
     } finally { await context.close(); }
   }

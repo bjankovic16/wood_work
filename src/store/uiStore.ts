@@ -63,6 +63,7 @@ interface UiState {
   roomElevationOpen: boolean;
   selectedWallId: string | null;
   referenceOpen: boolean;
+  hiddenKitchenWallIds: string[];
   cameraView: CameraView;
   cameraFocusId: string | null;
   /** The camera goes back to where it was before it went to look at a cabinet. */
@@ -90,6 +91,7 @@ interface UiState {
   selectRoomObject: (selection: RoomObjectSelection | null, wallId?: string) => void;
   setSelectedWallId: (id: string | null) => void;
   setReferenceOpen: (open: boolean) => void;
+  setHiddenKitchenWallIds: (ids: string[]) => void;
   requestCamera: (view: CameraView, focusId?: string) => void;
   /** Brings the camera to one cabinet; the chosen view stays the one to go back to. */
   focusCamera: (id: string) => void;
@@ -132,6 +134,7 @@ export const useUiStore = create<UiState>()(
       roomElevationOpen: false,
       selectedWallId: null,
       referenceOpen: false,
+      hiddenKitchenWallIds: [],
       cameraView: 'perspective',
       cameraFocusId: null,
       cameraReturn: false,
@@ -172,6 +175,7 @@ export const useUiStore = create<UiState>()(
       selectRoomObject: (roomSelection, wallId) => set({ roomSelection, ...(roomSelection ? { selectedId: null, cabinetTool: null } : {}), ...(wallId ? { selectedWallId: wallId } : {}) }),
       setSelectedWallId: (selectedWallId) => set({ selectedWallId, roomSelection: null, selectedId: null, cabinetTool: null, ...(!selectedWallId ? { roomElevationOpen: false } : {}) }),
       setReferenceOpen: (referenceOpen) => set({ referenceOpen }),
+      setHiddenKitchenWallIds: (hiddenKitchenWallIds) => set({ hiddenKitchenWallIds }),
       requestCamera: (cameraView, focusId) => set((state) => ({ cameraView, cameraFocusId: focusId ?? null, cameraReturn: false, cameraToken: state.cameraToken + 1 })),
       focusCamera: (cameraFocusId) => set((state) => ({ cameraFocusId, cameraReturn: false, cameraToken: state.cameraToken + 1 })),
       returnCamera: () => set((state) => ({ cameraFocusId: null, cameraReturn: true, cameraToken: state.cameraToken + 1 })),

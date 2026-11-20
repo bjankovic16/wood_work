@@ -48,10 +48,11 @@ function cutawayData(frame: WallSegment) {
   return frame.partitionId ? undefined : { cutaway: [m((frame.start.x + frame.end.x) / 2), m((frame.start.y + frame.end.y) / 2), frame.inward.x, frame.inward.y] };
 }
 
-export function Room3D({ room, openings, items = [], materials, selection, onSelect, selectedWallId, onWallSelect, exportModel = false, detailed = false, build }: {
+export function Room3D({ room, openings, items = [], materials, selection, onSelect, selectedWallId, onWallSelect, hiddenWallIds, exportModel = false, detailed = false, build }: {
   room: Room; openings: Opening[]; items?: KitchenItem[]; materials: KitchenMaterials;
   selection?: RoomObjectSelection | null; onSelect?: (selection: RoomObjectSelection) => void;
   selectedWallId?: string | null; onWallSelect?: (id: string) => void;
+  hiddenWallIds?: readonly string[];
   exportModel?: boolean; detailed?: boolean; build?: BuildContext;
 }) {
   const outline = useMemo(() => roomOutline(room), [room]);
@@ -122,6 +123,7 @@ export function Room3D({ room, openings, items = [], materials, selection, onSel
       </group>;
     })}
     {segments.map((segment) => {
+      if (hiddenWallIds?.includes(segment.id)) return null;
       const contact = contacts?.walls.get(segment.id);
       const partition = room.partitions?.find((p) => p.id === segment.partitionId);
       const physicalWall = !partition || segment.id.endsWith(':1');
