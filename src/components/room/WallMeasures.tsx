@@ -1,5 +1,6 @@
 import { useId, useLayoutEffect, useRef, useState } from 'react';
 import { ROOM_LIMITS } from '../../domain/roomGeometry';
+import { snapRoomAngle } from '../../domain/roomCornerEdit';
 import type { WallSegment } from '../../domain/walls';
 import { roomSegments } from '../../domain/walls';
 import { useIsCompact } from '../../hooks/useMediaQuery';
@@ -40,6 +41,7 @@ export function WallMeasureFields({ wall, focus, ceiling = !!focus }: { wall: Wa
   const t = useT();
   const [failed, setFailed] = useState(false);
   const room = useDesignStore((s) => s.design.room);
+  const snapAngles = useUiStore((s) => s.roomAngleSnapEnabled);
   const commit = (edit: () => void) => {
     try { edit(); setFailed(false); }
     catch (error) { if (!(error instanceof RangeError)) throw error; setFailed(true); return false; }
@@ -47,10 +49,17 @@ export function WallMeasureFields({ wall, focus, ceiling = !!focus }: { wall: Wa
   return <>
     <NumberField label={t.advancedRoom.length} value={Math.round(wall.length)} min={100} max={20000} autoFocus={focus === 'length'}
       onCommit={(length) => commit(() => editRoomWall(wall.id, length, wall.angle))} />
-    <NumberField label={t.advancedRoom.angle} value={Math.round(wall.angle * 10) / 10} min={0} max={360} suffix="°" precision={1}
-      onCommit={(angle) => commit(() => editRoomWall(wall.id, wall.length, angle))} />
     {ceiling && <NumberField label={t.room.ceilingHeight} value={room.height} {...ROOM_LIMITS.height} autoFocus={focus === 'height'}
       onCommit={(height) => commit(() => setRoomSize({ height }))} />}
+    <div className="room-angle-field">
+      <NumberField label={t.advancedRoom.angle} value={Math.round(wall.angle * 10) / 10} min={0} max={360} suffix="°" precision={1}
+        normalize={snapAngles ? snapRoomAngle : undefined} picks={[0, 90, 180, 270].map((value) => ({ value, disabled: false }))}
+        onCommit={(angle) => commit(() => editRoomWall(wall.id, wall.length, angle))} />
+      <label className="room-angle-snap">
+        <input type="checkbox" checked={snapAngles} onChange={(e) => useUiStore.getState().setRoomAngleSnapEnabled(e.target.checked)} />
+        {t.room.angleSnap}
+      </label>
+    </div>
     {failed && <p role="alert" className="text-xs text-red-700">{t.advancedRoom.invalid}</p>}
   </>;
 }

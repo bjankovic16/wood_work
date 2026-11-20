@@ -72,7 +72,8 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
    **Projects → Start fresh**. It opens a new empty kitchen; your previous kitchen stays in
    **Projects**. To remeasure the *same* kitchen, choose **1 Room**.
 2. Tap the **Wall view** icon beside a wall to open its inside elevation, or tap its
-   **number** to edit the measurement. The wall line also opens the inside view.
+   **number** to edit the measurement. Select or drag the wall line to move the wall;
+   the eye shortcut opens its inside view.
    The dropdown with the little floor plan lets you switch directly
    to any wall. In the wall view, choose **Add → Window** or **Door** and
    measure from the green start point. Add a chimney if needed. The
@@ -85,10 +86,11 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
    fixed structures, partitions and wall finishes. The same **Wall view** icon
    opens a wall from its 3D label or its row in the list. You can also tap the
    wall itself to face it. Room uses the same drawing grid and canvas colours as Layout.
-   Choose **3D preview / 3D pregled** on the canvas: on desktop the model opens
+   Choose the room-preview cube, **3D preview / 3D pregled**, on the canvas: on desktop the model opens
    inside the drawing without shrinking it (drag the preview's left edge or use
    its arrow keys to resize it). On a phone the model fills the canvas; tap
-   **2D** to return to the same outline or wall. The top-level **3D** tab always
+   **2D** to return to the same outline or wall. The desktop inset also has an
+   **Expand room preview** button for the full room model. The top-level **3D** tab always
    shows the furnished kitchen in the same project. Choose
    **Layout →** to open the drawing, then choose **Start from an idea**
    to [try an idea in your room](#trying-an-idea-in-your-room). A measured
@@ -158,6 +160,14 @@ does not switch projects or change either design.
   read-only bounds derived from the outline. Reshape it through wall lengths or
   corners instead; ceiling Height remains editable. Invalid numeric text explains
   why no change was applied instead of silently resetting.
+- **Drag a whole wall:** select its line and drag it, or use the two-way arrow
+  on the selected wall. Both ends move together, perpendicular to the wall;
+  adjoining walls stay connected and the selected wall stays parallel. Doors
+  and windows follow their walls without changing their start-relative offsets.
+  Cabinets, free-standing fixtures and partitions stay in their physical positions;
+  a move that displaces an attached fixed structure or makes an object no longer
+  fit is stopped. Arrow keys move by 10 mm; Shift uses 100 mm. A drag is one Undo
+  step, and Escape or a cancelled touch restores the starting shape.
 - **Drag a corner:** in **Room → Room outline** (**Prostorija → Obris prostorije**), grab the dot where two exterior walls meet. Only that corner
   moves, even in a rectangle. The arc shows the **interior angle** between the
   two walls (including inside notches). It updates with the wall lengths and
@@ -165,6 +175,11 @@ does not switch projects or change either design.
   cabinet, or leaves too little wall for a door or window. One **Undo** restores
   the room. You can also Tab to a corner and use the arrow keys (10 mm, or
   100 mm with Shift), or tap a wall's number to enter an exact measurement.
+- **Right angles:** corner dragging snaps to an exact 90° (or 270° inside a notch)
+  when within 5°. Wall angle fields snap near 0°, 90°, 180° and 270° and offer
+  those four presets. Turn off **Snap to right angles** for precise free-angle
+  edits; Alt temporarily disables it for a mouse corner drag. Invalid outlines
+  are still rejected rather than forced to fit.
 - **Wall elevation:** tap the wall's **Wall view** shortcut or choose it in **Drawing view**.
   The mini-plan marks which wall you're facing. **Left** and **Right** below the
   drawing tell you which wall meets each end; tap either to open it. An
@@ -176,6 +191,10 @@ does not switch projects or change either design.
   doors stay at floor level. Select an opening to see dimension lines outside
   the wall face: offset and width below, height and window sill to the right.
   The values are in millimetres and follow the opening as you drag.
+- **Visible cabinet rotation:** the 90° rotation icon sits in the desktop
+  selection actions and the phone element-sheet header, including when the
+  sheet is expanded or showing another tab. It is also available after adding
+  an element. Rotation remains a 2D operation and supports Undo.
 - **Chimney:** choose **Against wall**, then enter **Length along wall**,
   **Projection into room** and the offset from the marked start. Choose
   **Free on plan** to position it away from a wall. Placement uses the actual

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
-import { chimneyCornerCheck, draftedWindowCheck, furnishedWallChecks, planCornerChecks, workspaceObjectChecks } from './room-object-checks.mjs';
+import { chimneyCornerCheck, draftedWindowCheck, furnishedWallChecks, planCornerChecks, wallEditorChecks, workspaceObjectChecks } from './room-object-checks.mjs';
 import { startFreshChecks } from './start-fresh-checks.mjs';
 import { plannerChecks } from './planner-checks.mjs';
 import { showRoomModel, waitForIdleRendering } from './three-test-helpers.mjs';
@@ -358,6 +358,7 @@ try {
     if (compact && !planOnly) await phoneRoomPreview(page, workspace);
     if (!planOnly) await separatedRoomChecks(page);
     await planCornerChecks(page, compact);
+    await wallEditorChecks(page, compact, !planOnly);
     await chimneyCornerCheck(page, compact);
     if (compact) {
       await page.evaluate(async () => {

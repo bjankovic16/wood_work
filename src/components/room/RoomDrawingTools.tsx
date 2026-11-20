@@ -35,7 +35,7 @@ export function RoomDrawingTools({ room, walls, facing, selectedWall, pickerRef,
         {facing && <line x1={facing.start.x} y1={facing.start.y} x2={facing.end.x} y2={facing.end.y}
           stroke="#246748" strokeWidth="3" strokeLinecap="round" vectorEffect="non-scaling-stroke" />}
       </svg>
-      <span aria-hidden="true">{!facing || roomModel?.active ? <small>{roomModel?.active ? t.room.model : t.room.plan}</small> : null}
+      <span aria-hidden="true"><small>{roomModel?.active ? t.room.model : facing ? t.room.facingWall : t.room.plan}</small>
         <strong>{facing && !roomModel?.active ? t.advancedRoom.wall(number) : t.room.chooseWall}</strong></span>
       <ChevronDown size={15} aria-hidden="true" />
       <select aria-label={t.room.drawingView} ref={pickerRef} value={roomModel?.active ? modelOption : facing?.id ?? ''}
@@ -60,7 +60,7 @@ export function RoomDrawingTools({ room, walls, facing, selectedWall, pickerRef,
         : (i + (e.key === 'ArrowUp' ? -1 : 1) + buttons.length) % buttons.length].focus();
     }}>
       <Menu label={t.room.addObject} variant="outline" icon={<Plus size={16} aria-hidden="true" />}
-        text={<>{t.room.addShort}<ChevronDown size={14} aria-hidden="true" /></>}>
+        text={<><span className="room-add-label">{t.room.addShort}</span><ChevronDown size={14} aria-hidden="true" /></>}>
         <RoomObjectButtons menu wallId={selectedWall?.id} facing={!!facing} />
       </Menu>
     </div>}

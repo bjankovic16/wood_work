@@ -8,7 +8,7 @@ const tapOrClick = (locator, touch) => touch ? locator.tap() : locator.click();
 const dimension = (elevation, kind) => elevation.locator(`[data-elevation-dimension="${kind}"] text`);
 
 // Hit the actual wall at a known point, not the bounding-box centre of a rotated SVG group.
-async function faceWall(page, plan, id, touch, normal = 0) {
+async function selectWall(page, plan, id, touch, normal = 0) {
   const point = await plan.locator(`[data-wall-id="${id}"] line`).evaluate((line, normal) => {
     const x = line.x1.baseVal.value, y = line.y1.baseVal.value;
     const dx = line.x2.baseVal.value - x, dy = line.y2.baseVal.value - y;
@@ -19,6 +19,11 @@ async function faceWall(page, plan, id, touch, normal = 0) {
   assert.equal(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('[data-wall-id]')?.getAttribute('data-wall-id'), point), id);
   if (touch) await page.touchscreen.tap(point.x, point.y);
   else await page.mouse.click(point.x, point.y);
+}
+
+async function faceWall(page, plan, id, touch, normal = 0) {
+  await selectWall(page, plan, id, touch, normal);
+  await tapOrClick(plan.locator(`[data-wall-view="${id}"]`), touch);
 }
 
 async function drag(page, from, to, touch, cancel = false, held) {
@@ -48,6 +53,184 @@ async function dragDrawing(page, target, dx, dy, touch, cancel = false, held) {
     return { from, to: { x: from.x + delta.dx * matrix.a, y: from.y + delta.dy * matrix.d } };
   }, { dx, dy });
   await drag(page, from, to, touch, cancel, held);
+}
+
+export async function wallEditorChecks(page, touch, review3D) {
+  const workspace = page.getByTestId('room-workspace'), plan = workspace.getByTestId('room-plan');
+  const original = await page.evaluate(async () => {
+    const { createProject, flushSave } = await import('/src/store/projects.ts');
+    const { createDesign } = await import('/src/domain/designOps.ts');
+    const { createItem } = await import('/src/domain/catalog.ts');
+    createProject('Wall controls');
+    const d = createDesign('Wall controls');
+    d.room = { width: 4000, depth: 3000, height: 2600 };
+    d.items = [createItem('base', [], { x: 1200, y: 1400, width: 600, depth: 560 })];
+    d.openings = [{ id: 'wall-window', wall: 'top', kind: 'window', offset: 200, width: 600, height: 800, sill: 1100 }];
+    const { design, ui } = window.__kitchen;
+    design.getState().load(d);
+    ui.getState().setLanguage('en');
+    ui.getState().openRoomPlan();
+    ui.getState().setRoomAngleSnapEnabled(true);
+    flushSave();
+    return d;
+  });
+  await selectWall(page, plan, 'top', touch);
+  assert.ok(await plan.isVisible(), 'Selecting a wall must leave the outline available for dragging.');
+  assert.equal(await history(page), 0);
+  const grip = plan.locator('[data-wall-move="top"]');
+  const hit = await grip.boundingBox();
+  assert.ok(hit.width >= 43.9 && hit.height >= 43.9, 'The selected-wall grip is a complete touch target.');
+  await dragDrawing(page, grip, 0, -200, touch, false, async () => {
+    await page.waitForFunction(() => window.__kitchen.design.getState().design.room.depth === 3200);
+    assert.equal(await history(page), 0);
+    const saved = await page.evaluate(async () => {
+      const { flushSave, useProjectsStore } = await import('/src/store/projects.ts');
+      flushSave();
+      return JSON.parse(localStorage.getItem(`kitchen-designer:project:${useProjectsStore.getState().activeId}`));
+    });
+    assert.deepEqual(saved, original, 'Autosave must never write a partly moved wall.');
+  });
+  const moved = await design(page);
+  assert.deepEqual(moved.room.vertices, [{ id: 'top', x: 0, y: 0 }, { id: 'right', x: 4000, y: 0 },
+    { id: 'bottom', x: 4000, y: 3200 }, { id: 'left', x: 0, y: 3200 }]);
+  assert.deepEqual(moved.items, [{ ...original.items[0], y: original.items[0].y + 200 }]);
+  assert.deepEqual(moved.openings, [{ ...original.openings[0], wallId: 'top' }]);
+  assert.equal(await history(page), 1);
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  assert.deepEqual(await design(page), original);
+  await dragDrawing(page, grip, 200, 0, touch);
+  assert.deepEqual(await design(page), original, 'Tangential pointer travel does not move a wall.');
+  assert.equal(await history(page), 0);
+  await dragDrawing(page, grip, 0, -100, touch, true);
+  assert.deepEqual(await design(page), original, 'A cancelled wall drag restores the exact baseline.');
+  await plan.locator('[data-wall-id="top"]').press('ArrowUp');
+  assert.equal((await design(page)).room.depth, 3010);
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await dragDrawing(page, grip, 0, 2200, touch);
+  await plan.getByRole('status').filter({ hasText: 'cabinet would no longer fit' }).waitFor();
+  const stopped = await design(page);
+  assert.equal(stopped.room.depth, 1600);
+  assert.equal(stopped.items[0].y, 0, 'The cabinet stays at its physical position; only the drawing origin changes.');
+  await page.evaluate((d) => window.__kitchen.design.getState().load(d), original);
+  await dragDrawing(page, plan.getByRole('button', { name: 'Move corner 2', exact: true }), 50, 50, touch);
+  assert.equal(await plan.locator('[data-corner-angle="right"]').textContent(), '90°');
+  const angle = await page.evaluate(async () => {
+    const { roomSegments } = await import('/src/domain/walls.ts');
+    const { normalizeAngle } = await import('/src/domain/polygons.ts');
+    const walls = roomSegments(window.__kitchen.design.getState().design.room, false);
+    return normalizeAngle(walls[0].angle + 180 - walls[1].angle);
+  });
+  assert.ok(Math.abs(angle - 90) < 1e-8, 'Snapping must make the actual corner square, not just round its label.');
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await tapOrClick(plan.locator('[data-wall-view="right"]'), touch);
+  const inspector = workspace.getByTestId('room-inspector'), field = inspector.getByLabel('Angle', { exact: true });
+  const snap = inspector.getByRole('checkbox', { name: 'Snap to right angles (within 5°)', exact: true });
+  await field.fill('85'); await field.press('Enter');
+  assert.equal(await field.inputValue(), '90', 'The field must display the committed snap, not the unsnapped draft.');
+  assert.deepEqual(await design(page), original);
+  await snap.uncheck();
+  await field.fill('88'); await field.press('Enter');
+  assert.equal(await field.inputValue(), '88', 'Exact free angles remain available.');
+  await tapOrClick(inspector.getByRole('button', { name: 'Angle: 90 °', exact: true }), touch);
+  const right = await page.evaluate(async () => {
+    const { roomSegments } = await import('/src/domain/walls.ts');
+    return roomSegments(window.__kitchen.design.getState().design.room, false)[1].angle;
+  });
+  assert.equal(right, 90);
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await snap.check();
+  const safe = await design(page), revisions = await history(page);
+  await tapOrClick(inspector.getByRole('button', { name: 'Angle: 270 °', exact: true }), touch);
+  await inspector.getByRole('alert').filter({ hasText: 'This edit cannot be applied' }).waitFor();
+  assert.deepEqual(await design(page), safe, 'An impossible preset is rejected atomically.');
+  assert.equal(await history(page), revisions);
+  await workspace.getByRole('button', { name: 'Back to room outline', exact: true }).click();
+  await tapOrClick(plan.locator('[data-wall-view="right"]'), touch);
+  const cube = workspace.locator('[data-room-preview-toggle]');
+  assert.equal(await cube.locator('[data-room-preview-cube]').count(), 1);
+  assert.equal(await workspace.locator('canvas').count(), 0, 'The collapsed cube must not start a WebGL scene.');
+  if (touch) {
+    const viewport = page.viewportSize();
+    for (const width of [320, 360, 390]) {
+      await page.setViewportSize({ width, height: viewport.height });
+      for (const language of ['en', 'sr']) {
+        await page.evaluate((language) => window.__kitchen.ui.getState().setLanguage(language), language);
+        await page.waitForFunction((language) => document.querySelector('.room-view-picker strong').textContent
+          .startsWith(language === 'sr' ? 'Zid' : 'Wall'), language);
+        assert.ok(await workspace.locator('.room-drawing-tools').evaluate((tools) => {
+          const picker = tools.querySelector('.room-view-picker');
+          const name = document.createRange();
+          name.selectNodeContents(picker.querySelector('strong'));
+          const text = name.getBoundingClientRect(), bounds = picker.getBoundingClientRect();
+          const add = tools.querySelector('.room-add-menu button[aria-expanded]').getBoundingClientRect();
+          const controls = [...tools.querySelectorAll('button[aria-label], .room-view-picker')];
+          return text.x >= bounds.x && text.right <= bounds.right + .5 && text.right <= add.x
+            && controls.every((control) => {
+              const r = control.getBoundingClientRect();
+              return r.width >= 44 && r.height >= 44
+                && control.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
+            });
+        }), `The wall name and 44px controls must not overlap at ${width}px in ${language}.`);
+        assert.ok(await cube.evaluate((button) => {
+          const r = button.getBoundingClientRect();
+          return r.x >= 0 && r.right <= innerWidth && r.width >= 44 && r.height >= 44
+            && button.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
+        }), `The preview cube must stay reachable at ${width}px in ${language}.`);
+      }
+    }
+    await page.setViewportSize(viewport);
+    await page.evaluate(() => window.__kitchen.ui.getState().setLanguage('en'));
+  }
+  if (review3D) {
+    const before = await page.evaluate(() => {
+      const s = window.__kitchen.design.getState();
+      return { design: s.design, past: s.past, future: s.future };
+    });
+    await tapOrClick(cube, touch);
+    const canvas = workspace.getByTestId('three-viewport').locator('canvas');
+    await canvas.waitFor();
+    await waitForIdleRendering(page);
+    if (!touch) {
+      assert.equal(await workspace.locator('[data-room-inset]').count(), 1);
+      await workspace.getByRole('button', { name: 'Expand room preview', exact: true }).click();
+      assert.equal(await workspace.locator('[data-room-inset]').count(), 0);
+    }
+    await waitForIdleRendering(page);
+    await canvas.click({ position: { x: 5, y: 5 } });
+    await page.waitForFunction(() => window.__kitchen.ui.getState().selectedWallId === null);
+    await workspace.getByRole('button', { name: 'Back to 2D drawing', exact: true }).click();
+    await workspace.getByTestId('wall-elevation').waitFor();
+    assert.equal(await workspace.getByRole('combobox', { name: 'Drawing view', exact: true }).inputValue(), 'right');
+    assert.equal(await workspace.locator('canvas').count(), 0);
+    assert.deepEqual(await page.evaluate(() => {
+      const s = window.__kitchen.design.getState();
+      return { design: s.design, past: s.past, future: s.future };
+    }), before, 'Expanding and collapsing the cube preserves the entire design and Undo history.');
+  }
+  await page.evaluate((id) => {
+    const ui = window.__kitchen.ui.getState();
+    ui.setView('plan'); ui.select(id);
+  }, original.items[0].id);
+  const rotate = page.locator('[data-rotate-element]');
+  const box = await rotate.boundingBox();
+  assert.ok(box && box.width >= 44 && box.height >= 44 && await rotate.isVisible());
+  assert.ok(await rotate.evaluate((b) => {
+    const rect = b.getBoundingClientRect(), panel = b.closest('[data-testid="item-sheet"], aside').getBoundingClientRect();
+    return rect.y < panel.y + 150 && b.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
+  }), 'Rotation must be visible and reachable beside the selected element, not buried in position fields.');
+  if (touch) {
+    const sheet = page.getByTestId('item-sheet');
+    for (const key of ['ArrowUp', 'End', 'Home']) {
+      await sheet.getByTestId('sheet-handle').press(key);
+      assert.ok(await rotate.isVisible(), 'Rotation stays visible at every sheet size.');
+    }
+  }
+  await tapOrClick(rotate, touch);
+  assert.equal((await design(page)).items[0].rotation, 90);
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  assert.deepEqual(await design(page), original);
+  await page.evaluate(() => window.__kitchen.ui.getState().openRoomPlan());
 }
 
 export async function planCornerChecks(page, touch) {
@@ -528,6 +711,8 @@ export async function furnishedWallChecks(page, compact, output) {
   if (compact) await page.screenshot({ path: path.join(output, 'phone-inside-wall-sr.png') });
   await workspace.getByRole('button', { name: 'Nazad na osnovu' }).click();
   await plan.getByRole('button', { name: 'Zid 3', exact: true }).press('Enter');
+  assert.ok(await plan.isVisible(), 'Keyboard wall selection leaves the outline open.');
+  await plan.locator('[data-wall-view="bottom"]').press('Enter');
   assert.ok(await picker.evaluate((s) => s === document.activeElement));
   await picker.selectOption('');
   const trigger = workspace.getByRole('button', { name: 'Dodaj objekat', exact: true });

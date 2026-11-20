@@ -1,5 +1,5 @@
 import type { OrbitControls } from '@react-three/drei';
-import { CircleHelp, Ruler, X } from 'lucide-react';
+import { CircleHelp, Maximize2, Ruler, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import type { CameraView } from '../../domain/camera';
 import type { RoomObjectSelection } from '../../domain/roomObjectPlacement';
@@ -20,7 +20,7 @@ import { RoomObjectAnchor, RoomObjectAnnotation, RoomObjectTools } from './RoomO
 import { SceneCanvas, type CameraRequest } from './SceneCanvas';
 import { useThreeNavigation } from './useThreeNavigation';
 
-export default function RoomReview3D({ rows, closeInset, onOpenWall }: { rows: RoomMeasure[]; closeInset?: () => void; onOpenWall: (id: string) => void }) {
+export default function RoomReview3D({ rows, closeInset, expandInset, onOpenWall }: { rows: RoomMeasure[]; closeInset?: () => void; expandInset?: () => void; onOpenWall: (id: string) => void }) {
   const t = useT();
   const { room, openings, style } = useDesignStore((s) => s.design);
   const picked = useUiStore((s) => s.roomSelection);
@@ -54,7 +54,9 @@ export default function RoomReview3D({ rows, closeInset, onOpenWall }: { rows: R
       {closeInset ? <strong className="mr-auto px-1 text-xs">{t.room.preview}</strong> : <div role="group" aria-label={t.view3d.camera} className="flex gap-1">
         {(['perspective', 'studio', 'front', 'top'] as const).map((v) =>
           <TooltipButton key={v} active={v === request.view} tooltip={t.room.cameraHints[v]} onClick={() => choose(v)}>{t.view3d[v]}</TooltipButton>)}
-      </div>}{toggle}{closeInset ? <TooltipButton aria-label={t.common.close} tooltip={t.common.close} onClick={closeInset}><X size={16} /></TooltipButton> : help}
+      </div>}{toggle}{expandInset && <TooltipButton aria-label={t.room.expandPreview} tooltip={t.room.expandPreview}
+        onClick={expandInset}><Maximize2 size={16} /></TooltipButton>}
+      {closeInset ? <TooltipButton aria-label={t.common.close} tooltip={t.common.close} onClick={closeInset}><X size={16} /></TooltipButton> : help}
     </div>}
     {selection && <div data-three-object-tools="" className="studio-panel shrink-0 border-b px-3 py-2">
       <RoomObjectTools key={`${selection.type}:${selection.id}`} selection={selection} sizing onClose={() => ui.selectRoomObject(null)}

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createItem } from './catalog';
 import { createDesign, parseDesign } from './designOps';
-import { moveRoomCorner } from './roomCornerEdit';
+import { moveRoomCorner, moveRoomWall, snapRoomAngle, snapRoomCorner } from './roomCornerEdit';
+import { normalizeAngle } from './polygons';
 import type { Design, Opening, Room } from './types';
 import { roomSegments } from './walls';
 
@@ -9,7 +10,7 @@ const room: Room = { width: 4000, depth: 3000, height: 2680 };
 const window: Opening = { id: 'window', kind: 'window', wall: 'bottom', offset: 300, width: 900, height: 1000, sill: 1100 };
 const design = (patch: Partial<Design> = {}): Design => ({ ...createDesign(), room, ...patch });
 
-describe('moving one perimeter corner', () => {
+describe('room outline editing', () => {
   it('keeps the gesture-start design on a tap, and converts legacy offsets only on an actual edit', () => {
     const bottom = { ...window, id: 'bottom' }, left = { ...window, id: 'left', wall: 'left' as const };
     const base = design({ openings: [bottom, left] });
@@ -32,6 +33,121 @@ describe('moving one perimeter corner', () => {
     ]);
     expect(base).toEqual(original);
     expect(parseDesign(JSON.parse(JSON.stringify(next.design)))).toEqual(next.design);
+  });
+
+  describe('moving a whole perimeter wall', () => {
+    it.each(['top', 'right', 'bottom', 'left'])('moves both ends of %s perpendicular to the wall, preserving the room and all wall IDs', (id) => {
+      const base = design();
+      const original = structuredClone(base);
+      const wall = roomSegments(room, false).find((w) => w.id === id)!;
+      const next = moveRoomWall(base, id, { x: wall.inward.x * -200 + wall.tangent.x * 500, y: wall.inward.y * -200 + wall.tangent.y * 500 });
+      expect(next.ok).toBe(true);
+      if (!next.ok) return;
+      const moved = roomSegments(next.design.room, false).find((w) => w.id === id)!;
+      expect(moved.angle).toBeCloseTo(wall.angle, 10);
+      expect(moved.length).toBeCloseTo(wall.length, 10);
+      for (const key of ['start', 'end'] as const) {
+        expect(moved[key].x - next.shift.x).toBeCloseTo(wall[key].x - wall.inward.x * 200, 10);
+        expect(moved[key].y - next.shift.y).toBeCloseTo(wall[key].y - wall.inward.y * 200, 10);
+      }
+      expect(next.design.room.vertices?.map((v) => v.id)).toEqual(['top', 'right', 'bottom', 'left']);
+      expect(parseDesign(JSON.parse(JSON.stringify(next.design)))).toEqual(next.design);
+      expect(base).toEqual(original);
+    });
+
+    it('preserves physical furniture and free-fixture positions while doors/windows travel with the moved wall', () => {
+      const item = createItem('base', [], { x: 1800, y: 1300 });
+      const feature = { id: 'post', kind: 'column' as const, x: 900, y: 900, width: 200, depth: 200 };
+      const opening = { ...window, wall: 'top' as const, offset: 400 };
+      const base = design({ items: [item], openings: [opening], room: { ...room, features: [feature] } });
+      const next = moveRoomWall(base, 'top', { x: 450, y: 300 });
+      expect(next.ok).toBe(true);
+      if (!next.ok) return;
+      expect(next.shift).toEqual({ x: 0, y: -300 });
+      expect(next.design.items).toEqual([{ ...item, y: item.y - 300 }]);
+      expect(next.design.room.features).toEqual([{ ...feature, y: feature.y - 300 }]);
+      expect(next.design.openings).toEqual([{ ...opening, wallId: 'top' }]);
+      expect(next.design.room.depth).toBe(2700);
+    });
+
+    it('keeps a diagonal wall parallel and ignores movement along its own line', () => {
+      const vertices = [{ id: 'slope', x: 0, y: 0 }, { id: 'right', x: 4000, y: 800 },
+        { id: 'bottom', x: 4000, y: 3000 }, { id: 'left', x: 0, y: 3000 }];
+      const base = design({ room: { ...room, vertices } });
+      const wall = roomSegments(base.room, false)[0];
+      expect(moveRoomWall(base, wall.id, { x: wall.tangent.x * 800, y: wall.tangent.y * 800 }))
+        .toEqual({ ok: true, design: base, shift: { x: 0, y: 0 } });
+      const next = moveRoomWall(base, wall.id, { x: wall.inward.x * 200, y: wall.inward.y * 200 });
+      expect(next.ok).toBe(true);
+      if (!next.ok) return;
+      const moved = roomSegments(next.design.room, false)[0];
+      expect(moved.angle).toBeCloseTo(wall.angle, 10);
+      expect(moved.length).toBeCloseTo(wall.length, 10);
+      expect(parseDesign(JSON.parse(JSON.stringify(next.design)))).toEqual(next.design);
+    });
+
+    it('blocks newly excluded cabinets and door-clearance conflicts without relocating them', () => {
+      const cabinet = createItem('base', [], { x: 1300, y: 400 });
+      expect(moveRoomWall(design({ items: [cabinet] }), 'top', { x: 0, y: 450 })).toEqual({ ok: false, reason: 'cabinet' });
+      const door: Opening = { id: 'door', kind: 'door', wall: 'top', wallId: 'top', offset: 1200, width: 900, height: 2050, sill: 0 };
+      const clear = { ...cabinet, y: 1000 };
+      expect(moveRoomWall(design({ items: [clear], openings: [door] }), 'top', { x: 0, y: 200 })).toEqual({ ok: false, reason: 'opening' });
+    });
+
+    it('protects openings on adjoining walls and fixed structures attached to the moved wall', () => {
+      const opening = { ...window, wall: 'right' as const, wallId: 'right', offset: 2000 };
+      expect(moveRoomWall(design({ openings: [opening] }), 'top', { x: 0, y: 200 })).toEqual({ ok: false, reason: 'opening' });
+      const feature = { id: 'post', kind: 'column' as const, wallId: 'top', offset: 500, x: 500, y: 0, width: 200, depth: 200 };
+      expect(moveRoomWall(design({ room: { ...room, features: [feature] } }), 'top', { x: 0, y: -100 }))
+        .toEqual({ ok: false, reason: 'fixture' });
+      const partition = { id: 'divider', start: { x: 900, y: 150 }, end: { x: 1900, y: 150 }, thickness: 100, height: 2200 };
+      expect(moveRoomWall(design({ room: { ...room, partitions: [partition] } }), 'top', { x: 0, y: 200 }))
+        .toEqual({ ok: false, reason: 'fixture' });
+    });
+
+    it('rejects invalid IDs, nonfinite movement and impossible room bounds without mutating the baseline', () => {
+      const base = design();
+      const original = structuredClone(base);
+      for (const [id, delta] of [['missing', { x: 0, y: 100 }], ['top', { x: NaN, y: 0 }],
+        ['top', { x: 0, y: 3000 }], ['left', { x: -20000, y: 0 }]] as const) {
+        expect(moveRoomWall(base, id, delta)).toEqual({ ok: false, reason: 'outline' });
+      }
+      expect(base).toEqual(original);
+    });
+  });
+
+  describe('right-angle snapping', () => {
+    it.each([[85, 90], [95, 90], [84.9, 84.9], [95.1, 95.1], [355, 0], [360, 0], [185, 180], [265, 270], [45, 45]])(
+      'snaps %s° to %s° only within the five-degree tolerance', (input, output) => {
+        expect(snapRoomAngle(input)).toBe(output);
+      });
+    it('rejects a nonfinite angle explicitly', () => {
+      expect(() => snapRoomAngle(NaN)).toThrow(RangeError);
+    });
+    it('also snaps a reflex corner to an exact 270° without changing its wall identities', () => {
+      const shaped: Room = { ...room, vertices: [{ id: 'a', x: 0, y: 0 }, { id: 'b', x: 4000, y: 0 },
+        { id: 'c', x: 4000, y: 3000 }, { id: 'd', x: 2000, y: 3000 }, { id: 'bend', x: 2000, y: 1500 }, { id: 'f', x: 0, y: 1500 }] };
+      const next = moveRoomCorner(design({ room: shaped }), 'bend', snapRoomCorner(shaped, 'bend', { x: 30, y: -30 }));
+      expect(next.ok).toBe(true);
+      if (!next.ok) return;
+      const walls = roomSegments(next.design.room, false);
+      expect(normalizeAngle(walls[3].angle + 180 - walls[4].angle)).toBeCloseTo(270, 10);
+      expect(next.design.room.vertices?.map((v) => v.id)).toEqual(shaped.vertices?.map((v) => v.id));
+    });
+    it('makes a nearly square corner exactly 90° and round-trips its fractional outline', () => {
+      const base = design();
+      const delta = snapRoomCorner(room, 'right', { x: 50, y: 50 });
+      const next = moveRoomCorner(base, 'right', delta);
+      expect(next.ok).toBe(true);
+      if (!next.ok) return;
+      const walls = roomSegments(next.design.room, false);
+      expect(normalizeAngle(walls[0].angle + 180 - walls[1].angle)).toBeCloseTo(90, 10);
+      expect(parseDesign(JSON.parse(JSON.stringify(next.design)))).toEqual(next.design);
+      const free = { x: -600, y: 600 };
+      expect(snapRoomCorner(room, 'right', free)).toBe(free);
+      const tap = { x: 0, y: 0 };
+      expect(snapRoomCorner(room, 'right', tap)).toBe(tap);
+    });
   });
 
   it('rebases fixed footprints and partitions for both outward and inward moves of the only minimum', () => {

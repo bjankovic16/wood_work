@@ -27,6 +27,10 @@ export function WallElevation({ wall, number, reference }: { wall: WallSegment; 
   const scale = Math.min(Math.max(1, size.width - 88) / wall.length, Math.max(1, size.height - 76) / height);
   const px = 1 / scale, left = (size.width - wall.length * scale) / 2, top = (size.height - height * scale) / 2;
   return <section data-testid="wall-elevation" aria-label={`${t.room.elevation}: ${t.advancedRoom.wall(number)}`} className="room-elevation-paper flex min-h-0 min-w-0 flex-1 flex-col">
+    <header className="room-elevation-heading">
+      <h2>{t.advancedRoom.wall(number)}</h2><span>{t.room.facingWall}</span>
+      <p>{t.number(Math.round(wall.length))} × {t.number(wall.height)} mm</p>
+    </header>
     <div ref={size.ref} className="relative min-h-0 flex-1">
       <svg className="absolute inset-0 h-full w-full touch-pan-y" aria-label={t.room.elevation} viewBox={`${-left * px} ${-top * px} ${size.width * px} ${size.height * px}`}>
         <ElevationBackdrop wall={wall} height={height} px={px} reference={reference} />
