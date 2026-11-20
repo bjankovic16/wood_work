@@ -19,6 +19,16 @@ beforeEach(() => {
 });
 
 describe('choose a spot in Layout', () => {
+  it('does not silently insert a corner cabinet over the chimney when no spot fits', () => {
+    const original = ops.createDesign();
+    original.room = { width: 1400, depth: 1300, height: 2600,
+      features: [{ id: 'flue', kind: 'chimney', x: 300, y: 200, width: 750, depth: 750 }] };
+    store().load(original);
+    expect(actions.addPresetToPlan('corner')).toBe(false);
+    expect(useFeedback.getState().notice?.message(en)).toBe(en.library.cornerNoSpace);
+    expect(store().design).toBe(original);
+    expect(store().past).toEqual([]);
+  });
   it('moves a rotated island by its centre without snapping, resizing or losing its Undo step', () => {
     const item = createItem('drawer', [], { x: 1200, y: 1200, width: 900, depth: 600, rotation: 90 });
     const original = { ...ops.createDesign(), items: [item] };
@@ -50,6 +60,28 @@ describe('choose a spot in Layout', () => {
 });
 
 describe('explicit 3D cabinet tools', () => {
+  it('allows only deliberate architectural sizes in the Room model, not position edits or kitchen 3D edits', () => {
+    const original = ops.createDesign();
+    original.room.features = [{ id: 'flue', wallId: 'top', kind: 'chimney', offset: 3100, x: 3100, y: 0, width: 500, depth: 450 }];
+    original.openings = [{ id: 'window', kind: 'window', wall: 'bottom', offset: 300, width: 900, height: 800, sill: 900 }];
+    store().load(original);
+    const ui = useUiStore.getState();
+    ui.setView('3d');
+    expect(actions.setRoomFeatureSize('flue', 'width', 700)).toBe(false);
+    expect(actions.setOpeningSize('window', 'width', 1100)).toBe(false);
+    ui.setRoomOpen(true); ui.setRoomView('3d');
+    actions.updateRoomFeature('flue', { offset: 100 });
+    expect(store().design).toBe(original);
+    actions.setRoomFeatureSize('flue', 'width', 700);
+    expect(store().design.room.features![0]).toMatchObject({ width: 700, offset: 2900 });
+    actions.setOpeningSize('window', 'width', 1100);
+    expect(store().design.openings[0]).toMatchObject({ width: 1100, wallId: 'bottom', offset: 2400, sill: 900 });
+    expect(actions.setOpeningSize('window', 'height', 2300)).toBe(false);
+    expect(store().past).toHaveLength(2);
+    actions.undo(); actions.undo();
+    expect(store().design).toBe(original);
+    ui.setRoomOpen(false);
+  });
   it('disarms tools on selection/view changes and preview locks, without rearming when a preview closes', () => {
     const ui = () => useUiStore.getState();
     ui().setCabinetTool('resize');
@@ -477,10 +509,11 @@ describe('kitchen design gallery', () => {
       }
   });
 
-  it('opens framed examples in their preview camera and resets other examples to perspective', () => {
-    actions.openKitchenOriginal(KITCHEN_DESIGNS.find((kitchen) => kitchen.id === 'walnut-frame')!);
-    expect(useUiStore.getState().cameraView).toBe('front');
-    actions.openKitchenOriginal(KITCHEN_DESIGNS.find((kitchen) => kitchen.id === 'nordic-light')!);
-    expect(useUiStore.getState().cameraView).toBe('perspective');
+  it('opens gallery originals in their finished Studio view even after a Front inspection', () => {
+    for (const id of ['walnut-frame', 'nordic-light']) {
+      useUiStore.getState().requestCamera('front');
+      actions.openKitchenOriginal(KITCHEN_DESIGNS.find((kitchen) => kitchen.id === id)!);
+      expect(useUiStore.getState().cameraView).toBe('studio');
+    }
   });
 });

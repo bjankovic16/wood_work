@@ -200,24 +200,6 @@ export function attachedRoomSurface(item: Placed, room: Room): RoomWallRun | nul
   return roomWallRuns(room).find((surface) => surface.wall === wall && Math.abs(face - surface.offset) <= 1 && along >= surface.from - 1 && along + size <= surface.to + 1) ?? null;
 }
 
-export type Corner = 'topLeft' | 'topRight' | 'bottomRight' | 'bottomLeft';
-
-export const CORNERS: readonly Corner[] = ['topLeft', 'topRight', 'bottomRight', 'bottomLeft'];
-
-/** Rotation that puts an L-shaped corner unit into the given room corner. */
-export const CORNER_ROTATION: Record<Corner, Rotation> = {
-  topLeft: 0,
-  topRight: 90,
-  bottomRight: 180,
-  bottomLeft: 270,
-};
-
-export function cornerPosition(room: Room, corner: Corner, size: { w: number; h: number }): Point {
-  const right = corner === 'topRight' || corner === 'bottomRight';
-  const bottom = corner === 'bottomLeft' || corner === 'bottomRight';
-  return { x: right ? room.width - size.w : 0, y: bottom ? room.depth - size.h : 0 };
-}
-
 export function clampToRoom<T extends Placed>(item: T, room: Room): T {
   const { w, h } = aabbSize(item);
   const x = clamp(item.x, 0, Math.max(0, room.width - w));

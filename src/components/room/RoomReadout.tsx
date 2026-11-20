@@ -80,7 +80,7 @@ export function editRoomPositionIn2D() {
   if (selected) ui.selectRoomObject(selected, wall?.id);
   ui.setRoomElevationOpen(!!wall);
   if (selected) requestAnimationFrame(() => {
-    // In a split view the button still exists. Return keyboard focus to the actual 2D drawing.
+    // Return focus to the object itself, not the control that opened the drawing.
     const target = selected.type === 'opening' ? 'data-elevation-opening' : 'data-plan-feature';
     document.querySelector<SVGElement>(`[${target}="${CSS.escape(selected.id)}"]`)?.focus({ preventScroll: true });
   });

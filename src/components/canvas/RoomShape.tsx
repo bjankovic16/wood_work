@@ -5,12 +5,9 @@ import { openingFitsRoomWall, roomFeaturePolygon, roomFeaturePose, roomOutline }
 import { useT } from '../../i18n';
 import { FONT_FAMILY } from '../../lib/measureText';
 import { WALL_THICKNESS } from '../../store/viewport';
-import { COMPACT_LABEL_PX, ROOM_COLORS } from './theme';
+import { COMPACT_LABEL_PX, planGridStep, ROOM_COLORS } from './theme';
 import { openingFrame, openingIsValid, openingOnWall, partitionPolygon, roomSegments, wallPoint } from '../../domain/walls';
 import { useUiStore } from '../../store/uiStore';
-
-const GRID_STEPS = [50, 100, 250, 500, 1000];
-const MIN_GRID_SPACING_PX = 14;
 
 /** Where a wall starts, which way it runs, and which way is into the room. */
 /** A window (glass lines in the wall) or a door (an opening with its swing), drawn the usual plan way. */
@@ -61,7 +58,7 @@ export function RoomShape({ room, zoom, compact, openings = [] }: { room: Room; 
   const px = 1 / zoom;
   const outline = roomOutline(room);
   const points = outline.flatMap((point) => [point.x, point.y]);
-  const step = GRID_STEPS.find((s) => s * zoom >= MIN_GRID_SPACING_PX) ?? 1000;
+  const step = planGridStep(zoom);
   const lines = [];
   for (let x = step; x < room.width; x += step) {
     lines.push(

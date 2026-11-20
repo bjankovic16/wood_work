@@ -46,10 +46,13 @@ file for a customer. The customer does not need the editor or the cutting list.
   or add cabinets manually using the existing library. Browsing and reordering
   ideas do not change the kitchen. Keep applying a style distinct from reordering.
 - In Room, **Room model** switches between geometry editing and a
-  read-only architectural scene. On desktop, also offer a preview beside the
-  plan. Omit kitchen meshes and automatic backsplashes, but retain manual
-  wall finishes. Project dimension labels into the scene and show a complete,
-  scrollable list of room size/area, wall lengths/heights/angles, partition
+  separate architectural scene. Share Layout's drawing palette, wall weight
+  and scale-aware floor grid while preserving user-selected finishes. Offer **3D
+  preview** on the canvas: a resizable inset on desktop without shrinking the
+  drawing, and an in-place view on phones. **2D** returns to the current
+  outline or elevation. Omit kitchen meshes and automatic backsplashes, but retain manual
+  wall finishes. Project dimension labels only on request, in either layout. Keep a complete,
+  scrollable list (collapsible on phones) of room size/area, wall lengths/heights/angles, partition
   dimensions and positions, and opening, structure and finish dimensions and
   placements. Report actual polygon edges and wall-start-relative offsets.
   Plan, elevation, room 3D and inspector
@@ -66,7 +69,8 @@ file for a customer. The customer does not need the editor or the cutting list.
 - Typing a wall length in a rectangle keeps it rectangular. On the 2D floor
   plan, dragging a perimeter corner instead moves only that vertex, allowing
   angled walls without changing views. Update the two adjacent wall lengths
-  and area live; changing the area must not reflow the phone caption or resize
+  and area live. Mark the inside angle at the active corner, including reflex
+  angles; changing the measurements must not reflow the phone caption or resize
   the drawing under the pointer. Touch, mouse and
   keyboard users can move a corner. A completed drag is one undo step; a tap
   or cancelled gesture is not an edit. Stop at the last valid position if the
@@ -76,7 +80,8 @@ file for a customer. The customer does not need the editor or the cutting list.
 - Tapping a wall's **Wall view** shortcut or the wall line opens its **2D inside
   elevation**. Keep the shortcut distinct from the numeric measurement and
   corner drag targets. Offer the same shortcut at the wall labels and in
-  the measurement list in room 3D, including both partition faces. Provide a drawing
+  the measurement list in room 3D, including both partition faces. Tapping the
+  actual room 3D wall opens its inside elevation without enabling labels. Provide a drawing
   dropdown for the plan and all wall faces, a mini-plan marking the current face,
   and a one-tap return. Show which wall adjoins each end of the inside elevation
   and allow direct navigation to it. Use the actual face direction, including
@@ -96,7 +101,10 @@ file for a customer. The customer does not need the editor or the cutting list.
   projection into the room and offset from the wall start. Free placement on
   the plan is also possible. For an angled wall calculate contact on the real
   segment and check the footprint against the actual polygon, not its bounding
-  box. In the 2D plan, arrow keys move a selected structure 10 mm;
+  box. Provide separate, directly draggable plan grips for length and projection;
+  keep the opposite edge fixed and allow exact sizes to expand back from a wall end.
+  Room 3D provides explicit size fields for the selected structure or opening; body
+  drags still orbit and position edits remain in 2D. In the 2D plan, arrow keys move a selected structure 10 mm;
   Shift + arrow moves it 100 mm. Give the controls a short hint and provide
   touch and numeric alternatives.
 - Select each new object immediately. Put its card **directly below the room
@@ -119,6 +127,9 @@ width and ceiling variants. Keep browsing and direct adding independent of
 WebGL. **Preview before adding** opens one isolated, rotatable model in the
 project's own finishes; dismissing it must not change the design, selection
 or Undo history. Confirming uses the ordinary placement command exactly once.
+Corner cabinet insertion and snapping must consider the usable junction on
+either side of a wall chimney. Validate the L-shaped footprint, including
+opening clearances and neighbours at the same height, before insertion.
 
 Base cabinets:
 - 300mm cabinet
@@ -301,8 +312,10 @@ the Warm contemporary, Dark luxury and Japandi collections, framed kitchens
 and stacked uppers. Search translated names, finishes, styles and features
 without requiring accents. The optional gallery size filter compares original
 width, depth and ceiling height. Passing a filter is not a fit check.
-Searching, shuffling the gallery order and resetting filters must not edit a
-project.
+Show the actual finished Studio models on kitchen cards without loading a
+WebGL context per card. A fit review can orbit the exact candidate in the
+user's room; retain its 2D wall picker, including without WebGL. Searching,
+previewing, shuffling the gallery order and resetting filters must not edit a project.
 
 ### Editing and previewing in 3D
 

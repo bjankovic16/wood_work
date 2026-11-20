@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createItem } from './catalog';
-import { findFreeSpot, placeCopy } from './placement';
-import type { ItemKind, KitchenItem } from './types';
+import { canPlaceItem, findFreeSpot, placeCopy, snapCornerToRoom } from './placement';
+import type { ItemKind, KitchenItem, Room } from './types';
 
 const room = { width: 3600, depth: 3000, height: 2600 };
 
@@ -42,6 +42,28 @@ describe('findFreeSpot', () => {
     const [first, second] = placeAll(['corner', 'corner']);
     expect(first).toMatchObject({ rotation: 0, x: 0, y: 0 });
     expect(second).toMatchObject({ rotation: 90, x: 2700, y: 0 });
+  });
+
+  it('uses the exposed junction beside a corner chimney, without shortening either arm', () => {
+    const r: Room = { ...room, width: 3671, features: [{ id: 'flue', kind: 'chimney', wallId: 'top', offset: 3171, x: 3171, y: 0, width: 500, depth: 500 }] };
+    const occupied = [[0, 0], [0, 2440], [3071, 2440]].map(([x, y]) => createItem('base', [], { x, y }));
+    const item = createItem('corner', [], { width: 950, width2: 1050 });
+    const pose = findFreeSpot(r, occupied, item);
+    expect(pose).toEqual({ x: 3171 - 1050, y: 0, rotation: 90 });
+    expect(canPlaceItem(r, occupied, { ...item, ...pose })).toBe(true);
+    const otherSide = snapCornerToRoom(r, occupied, item, [], { x: 3620, y: 575 }, 1300);
+    expect(otherSide).toEqual({ x: 3671 - 1050, y: 500, rotation: 90 });
+    const door = { id: 'door', kind: 'door' as const, wall: 'top' as const, offset: 1800, width: 650, height: 2050, sill: 0 };
+    expect(findFreeSpot(r, occupied, item, [door])).toEqual(otherSide);
+  });
+
+  it('snaps beside a chimney on a sloping wall in the actual wall frame', () => {
+    const r: Room = { ...room, vertices: [{ id: 'slope', x: 0, y: 0 }, { id: 'b', x: 3600, y: 900 }, { id: 'c', x: 3600, y: 3000 }, { id: 'd', x: 0, y: 3000 }],
+      features: [{ id: 'flue', kind: 'chimney', wallId: 'slope', offset: 1550, width: 500, depth: 400, x: 0, y: 0 }] };
+    const item = createItem('corner', []);
+    const pose = snapCornerToRoom(r, [], item, [], { x: 2000, y: 500 }, 400);
+    expect(pose?.rotation).toBeCloseTo(Math.atan2(900, 3600) * 180 / Math.PI);
+    expect(canPlaceItem(r, [], { ...item, ...pose })).toBe(true);
   });
 
   it('returns null when the unit fits nowhere', () => {

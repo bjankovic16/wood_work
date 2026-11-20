@@ -1,9 +1,6 @@
 import {
-  CORNER_ROTATION,
-  CORNERS,
   aabbSize,
   clampToRoom,
-  cornerPosition,
   rotationForWall,
   verticalOverlap,
   footprintPieces,
@@ -13,8 +10,8 @@ import {
 import { openingObstacles } from './openings';
 import { roomFeaturePolygon, roomWallRuns } from './roomGeometry';
 import type { KitchenItem, Opening, Point, Room } from './types';
-import { angleBasis, polygonsOverlap } from './polygons';
-import { partitionPolygon, mountingSegments, wallPoint } from './walls';
+import { angleBasis, normalizeAngle, onSegment, polygonsOverlap } from './polygons';
+import { partitionPolygon, mountingSegments, roomSegments, wallPoint } from './walls';
 
 export type Placement = Pick<KitchenItem, 'x' | 'y' | 'rotation'>;
 
@@ -43,6 +40,39 @@ export function canPlaceItem(room: Room, items: readonly KitchenItem[], item: Ki
   return fitsAt(item, room, obstaclesFor(item, items, room, openings));
 }
 
+type CornerSite = { anchor: Point; rotation: number; order: number };
+
+function cornerSites(room: Room): CornerSite[] {
+  const walls = roomSegments(room, false);
+  const sites = walls.map((s, order) => ({ anchor: s.start, rotation: s.angle, order }));
+  for (const feature of room.features ?? []) {
+    const points = roomFeaturePolygon(room, feature);
+    // At an occupied room corner try either exposed side before moving on to the next corner.
+    const corner = walls.findIndex((s) => points.some((p) => Math.hypot(p.x - s.start.x, p.y - s.start.y) < 0.01));
+    const order = corner < 0 ? walls.length : corner + 0.5;
+    for (const wall of walls) for (const anchor of points) {
+      if (!onSegment(anchor, wall.start, wall.end)) continue;
+      for (const rotation of [wall.angle, normalizeAngle(wall.angle + 90)]) sites.push({ anchor, rotation, order });
+    }
+  }
+  return sites;
+}
+
+function fitCornerSites(room: Room, item: KitchenItem, obstacles: readonly Obstacle[], sites: CornerSite[]): Placement | null {
+  for (const { anchor, rotation } of sites) {
+    const origin = localToRoom({ ...item, x: 0, y: 0, rotation }, 0, 0);
+    const pose = { x: anchor.x - origin.x, y: anchor.y - origin.y, rotation };
+    if (fitsAt({ ...item, ...pose }, room, obstacles)) return pose;
+  }
+  return null;
+}
+
+export function snapCornerToRoom(room: Room, items: readonly KitchenItem[], item: KitchenItem, openings: readonly Opening[], pointer: Point, reach: number) {
+  const distance = ({ anchor }: CornerSite) => Math.hypot(anchor.x - pointer.x, anchor.y - pointer.y);
+  const sites = cornerSites(room).filter((site) => distance(site) <= reach).sort((a, b) => distance(a) - distance(b));
+  return sites.length ? fitCornerSites(room, item, obstaclesFor(item, items, room, openings), sites) : null;
+}
+
 /**
  * First free spot for a new item: corner units go into the first free room
  * corner; everything else goes into the first gap along the walls, clockwise
@@ -64,11 +94,8 @@ export function findFreeSpot(
   }
 
   if (item.kind === 'corner') {
-    for (const corner of CORNERS) {
-      const rotation = CORNER_ROTATION[corner];
-      const candidate = { ...item, rotation, ...cornerPosition(room, corner, aabbSize({ ...item, rotation })) };
-      if (fitsAt(candidate, room, obstacles)) return { x: candidate.x, y: candidate.y, rotation };
-    }
+    const spot = fitCornerSites(room, item, obstacles, cornerSites(room).sort((a, b) => a.order - b.order));
+    if (spot) return spot;
 
     if (room.vertices || room.partitions?.length || room.cutout?.kind === 'diagonal') {
       for (const surface of mountingSegments(room).filter((s) => !s.partitionId || item.elevation < s.height)) {

@@ -256,7 +256,7 @@ function buildKitchenDesign(preset: KitchenPreset, cabinets: CabinetPalette, nam
 }
 
 export function originalView(preset: KitchenPreset): CameraView {
-  return preset.previewView ?? (preset.framed ? 'front' : 'perspective');
+  return preset.previewView ?? 'studio';
 }
 
 /** One representative per whole palette, including contrasting rows and islands. */

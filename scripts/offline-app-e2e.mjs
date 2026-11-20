@@ -63,6 +63,20 @@ try {
   await add.locator('[data-preset="base-600"]').tap();
   await add.locator('[data-preset="base-600"]').tap();
   await add.getByRole('button', { name: 'Close', exact: true }).tap();
+  const previewIdea = async (p) => {
+    await p.getByRole('banner').getByRole('button', { name: 'More', exact: true }).tap();
+    await p.getByRole('button', { name: 'Ideas', exact: true }).tap();
+    const ideas = p.getByRole('dialog', { name: 'Ideas', exact: true });
+    const first = ideas.locator('[data-kitchen-design]').first();
+    assert.deepEqual(await first.locator('img').evaluate(async (img) => {
+      await img.decode(); return [img.naturalWidth, img.naturalHeight];
+    }), [900, 600]);
+    await first.tap();
+    await ideas.getByRole('radio', { name: '3D in my room' }).tap();
+    return ideas;
+  };
+  await (await previewIdea(page)).getByTestId('idea-model').locator('canvas').waitFor();
+  await page.keyboard.press('Escape');
   await nav.getByRole('radio', { name: '3. 3D', exact: true }).tap();
   await page.getByTestId('three-viewport').locator('canvas').waitFor();
   await page.waitForFunction(() => document.querySelector('[data-testid="customer-share"]:enabled'));
@@ -98,6 +112,10 @@ try {
   await still.locator('img').evaluate((img) => img.decode());
   await still.getByRole('button', { name: /^Add / }).tap();
   await catalog.getByRole('status').filter({ hasText: 'Added:' }).waitFor();
+  await catalog.getByRole('button', { name: 'Close', exact: true }).tap();
+  const fallback = await previewIdea(noGL);
+  await fallback.getByText('3D is unavailable. Showing the plan instead.').waitFor();
+  assert.ok(await fallback.locator('svg[role="img"]').isVisible());
   assert.deepEqual(errors, []);
   console.log('PASS Pages-path installation, offline reload, repeated adds, lazy 3D, workshop cards, printable rows and Excel export.');
 } finally {

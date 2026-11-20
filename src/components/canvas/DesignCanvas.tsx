@@ -295,6 +295,7 @@ export function DesignCanvas({ compact = false, onAdd = () => useUiStore.getStat
       if (g.kind === 'move') {
         const result = computeDragPlacement({
           room,
+          openings: store.design.openings,
           others,
           item: g.item,
           pointer,

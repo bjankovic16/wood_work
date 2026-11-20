@@ -14,7 +14,7 @@ import type { KitchenStyle } from '../domain/style';
 import { OPENING_DEFAULTS } from '../domain/openings';
 import type { ConstructionSettings, CustomPart, Design, EdgeBand, KitchenItem, Material, Opening, OpeningKind, PartEdit, Point, Room, RoomCutout, RoomFeature, RoomFeatureKind } from '../domain/types';
 import { MAX_ROOM_FEATURES, featureFitsRoom, roomFeaturePose } from '../domain/roomGeometry';
-import { attachFeature, featureDragPlacement, freeFeature } from '../domain/roomObjectPlacement';
+import { attachFeature, featureDragPlacement, featureResize, freeFeature, type FeatureDimension } from '../domain/roomObjectPlacement';
 import { createRoomExample, type RoomExampleId } from '../domain/roomExamples';
 import { createPhotoDesign } from '../domain/photoDesigns';
 import type { PairedPhotoId, PhotoReference } from '../domain/photoReferences';
@@ -22,7 +22,7 @@ import { createProject, finishRoom } from './projects';
 import { DEFAULT_CONSTRUCTION } from '../engine/settings';
 import { currentMessages } from '../i18n';
 import { useDesignStore } from './designStore';
-import { offerUndo, undoFeedback, useFeedback } from './feedback';
+import { offerUndo, showFeedback, undoFeedback, useFeedback } from './feedback';
 import { cabinetIsLocked, useUiStore } from './uiStore';
 import { clientToPlan, snapSettings } from './viewport';
 import { normalizeAngle } from '../domain/polygons';
@@ -98,7 +98,13 @@ export function addPresetToPlan(presetId: string): boolean {
   if (!preset) return false;
   const { room, items, openings } = current();
   const item = itemFromPreset(preset, items, currentMessages().labelPrefix, room);
-  insertAndSelect({ ...item, ...(findFreeSpot(room, items, item, openings, preset.placement === 'centre') ?? centreOfRoom(room, item)) }, preset.custom);
+  const spot = findFreeSpot(room, items, item, openings, preset.placement === 'centre');
+  const placed = { ...item, ...(spot ?? centreOfRoom(room, item)) };
+  if (!spot && item.kind === 'corner' && !canPlaceItem(room, items, placed, openings)) {
+    showFeedback((t) => t.library.cornerNoSpace);
+    return false;
+  }
+  insertAndSelect(placed, preset.custom);
   return true;
 }
 
@@ -107,7 +113,7 @@ export function updateLibraryDrag(presetId: string, clientX: number, clientY: nu
   const ui = useUiStore.getState();
   const preset = findPreset(presetId);
   if (!preset) { ui.setLibraryDrag(null); return; }
-  const { room, items } = current();
+  const { room, items, openings } = current();
   const pointer = clientToPlan(clientX, clientY, true);
   const previous = ui.libraryDrag?.presetId === presetId ? ui.libraryDrag : null;
   const source = previous?.item ?? itemFromPreset(preset, items, currentMessages().labelPrefix, room);
@@ -118,6 +124,7 @@ export function updateLibraryDrag(presetId: string, clientX: number, clientY: nu
   const item = previous?.ghost ?? source;
   const result = computeDragPlacement({
     room,
+    openings,
     others: items,
     item,
     pointer,
@@ -145,7 +152,11 @@ export function finishLibraryDrag(drop: boolean): boolean {
   const drag = ui.libraryDrag;
   ui.setLibraryDrag(null);
   if (!drop || !drag?.ghost) return false;
-  const { items } = current();
+  const { room, items, openings } = current();
+  if (drag.ghost.kind === 'corner' && !canPlaceItem(room, items, drag.ghost, openings)) {
+    showFeedback((t) => t.library.cornerDropBlocked);
+    return false;
+  }
   const item = { ...drag.ghost, id: newId(), label: nextLabel(drag.ghost.kind, items, currentMessages().labelPrefix) };
   insertAndSelect(item, findPreset(drag.presetId)?.custom);
   return true;
@@ -372,6 +383,29 @@ export function addRoomFeature(kind: RoomFeatureKind, wallId?: string): string {
 export function updateRoomFeature(id: string, patch: Partial<Omit<RoomFeature, 'id' | 'kind'>>): void {
   if (useUiStore.getState().view !== 'plan') return;
   apply((design) => ops.updateRoomFeature(design, id, patch));
+}
+
+function canSizeRoomObject() {
+  const { view, roomOpen } = useUiStore.getState();
+  return view === 'plan' || (roomOpen && view === '3d');
+}
+
+export function setRoomFeatureSize(id: string, field: FeatureDimension, value: number): void | false {
+  if (!canSizeRoomObject()) return false;
+  const { room } = current();
+  const feature = room.features?.find((f) => f.id === id);
+  const next = feature && featureResize(room, feature, field, value);
+  if (!next) return false;
+  apply((design) => ops.updateRoomFeature(design, id, next));
+}
+
+export function setOpeningSize(id: string, field: 'width' | 'height', value: number): void | false {
+  if (!canSizeRoomObject() || !Number.isFinite(value)) return false;
+  const { openings, room } = current();
+  const opening = openings.find((o) => o.id === id);
+  const binding = opening && openingOnWall(room, opening);
+  if (!opening || !binding || value < 100 || value > (field === 'width' ? binding.segment.length : binding.segment.height - opening.sill)) return false;
+  apply((d) => ops.updateOpening(d, id, { wallId: binding.segment.id, offset: binding.offset, [field]: value }));
 }
 
 export function setRoomFeatureWall(id: string, wallId: string | null): void {

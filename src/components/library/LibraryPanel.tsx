@@ -1,5 +1,5 @@
 import { ChevronDown, Search, X } from 'lucide-react';
-import { Component, lazy, Suspense, useEffect, useRef, useState, type MouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { findPreset, KIND_SPECS, LIBRARY, type LibraryPreset, type LibrarySection } from '../../domain/catalog';
 import { searchLibrary, type LibraryCategory } from '../../domain/librarySearch';
@@ -8,16 +8,11 @@ import { cn } from '../../lib/cn';
 import { addPresetToPlan, finishLibraryDrag, updateLibraryDrag } from '../../store/actions';
 import { useUiStore } from '../../store/uiStore';
 import { Button, Dialog } from '../ui';
+import { ModelBoundary } from '../three/ModelPreviewFallback';
 
 const DRAG_START_DISTANCE = 4;
 const ElementModel = lazy(() => import('./ElementModel'));
 const picture = (preset: LibraryPreset) => `${import.meta.env.BASE_URL}elements/${preset.id}.jpg`;
-
-class ModelBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { failed: boolean }> {
-  state = { failed: false };
-  static getDerivedStateFromError() { return { failed: true }; }
-  render() { return this.state.failed ? this.props.fallback : this.props.children; }
-}
 
 function presetName(preset: LibraryPreset, t: Messages): string {
   const name = preset.placement === 'ceiling' ? t.library.ceiling : preset.name === 'island' ? t.library.island : t.kinds[preset.kind];

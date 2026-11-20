@@ -18,7 +18,7 @@ try {
   await page.goto(server.resolvedUrls.local[0], { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => !!window.__kitchen);
   // Capture the same camera aspect regardless of toolbar language, wrapping or room setup.
-  await page.addStyleTag({ content: '[data-testid="three-viewport"] { position: fixed !important; left: 0; top: 0; width: 900px; height: 537px; z-index: 100; } main .absolute { visibility: hidden !important; }' });
+  await page.addStyleTag({ content: '[data-testid="three-viewport"] { position: fixed !important; left: 0; top: 0; width: 900px; height: 600px; z-index: 100; } main .absolute { visibility: hidden !important; }' });
   const jobs = await page.evaluate(async () => {
     const { KITCHEN_DESIGNS, originalView } = await import('/src/domain/kitchens.ts');
     const { PAIRED_PHOTOS } = await import('/src/domain/photoReferences.ts');
@@ -53,6 +53,8 @@ try {
     await page.waitForFunction((id) => !!window.__kitchen3D?.scene.getObjectByName(id), firstUnitId);
     await waitForIdleRendering(page);
     await assertNeutralScene(page);
+    if (!await page.evaluate(() => !!window.__kitchen3D.scene.getObjectByName('room-floor')?.material.aoMap))
+      throw new Error(`Missing finished kitchen materials in preview: ${job.id}`);
     const image = await page.getByTestId('three-viewport').locator('canvas').screenshot({ type: 'jpeg', quality: 90, scale: 'css' });
     if (image.length < 8000) throw new Error(`Preview for ${job.id} appears empty (${image.length} bytes).`);
     const directory = path.join(output, job.directory);

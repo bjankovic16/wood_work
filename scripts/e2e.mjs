@@ -208,7 +208,8 @@ try {
     check(`${preset.id}: the gallery closes and opens 3D`, !(await gallery.isVisible()) && (await page.getByRole('radio', { name: '3. 3D', exact: true }).getAttribute('aria-checked')) === 'true');
     if (preset.framed) {
       await page.waitForFunction((id) => Boolean(window.__kitchen3D?.scene.getObjectByName(id)), loaded.items[0].id);
-      check(`${preset.id}: the editable 3D scene opens at the same front view as its preview`, (await page.evaluate(() => window.__kitchen.ui.getState().cameraView)) === 'front');
+      check(`${preset.id}: the original opens with the gallery's finished surfaces and Studio camera`, await page.evaluate(() =>
+        window.__kitchen.ui.getState().cameraView === 'studio' && !!window.__kitchen3D.scene.getObjectByName('room-floor').material.aoMap));
       await shot(`gallery-${preset.id}.png`);
     }
   }

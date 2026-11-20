@@ -73,11 +73,16 @@ uploaded reference photos stay in the visitor's browser, not in the deployment.
    selected object's measurements appear just below the room measurements.
    See [Measuring the room](#measuring-the-room) for diagonals and keyboard input.
 3. In Room, choose **Room model / Model prostorije** to see just the room,
-   with dimension labels and a scrollable **Room measurements** list. It covers
+   without a screenful of labels. Turn on **Dimension labels** when needed, or
+   open **Room measurements** (collapsed on phones). It covers
    floor area, ceiling height, every wall (including diagonals), openings,
    fixed structures, partitions and wall finishes. The same **Wall view** icon
-   opens a wall from its 3D label or its row in the list. On desktop, **3D preview**
-   also shows the room beside the drawing. The top-level **3D** tab always
+   opens a wall from its 3D label or its row in the list. You can also tap the
+   wall itself to face it. Room uses the same drawing grid and canvas colours as Layout.
+   Choose **3D preview / 3D pregled** on the canvas: on desktop the model opens
+   inside the drawing without shrinking it (drag the preview's left edge or use
+   its arrow keys to resize it). On a phone the model fills the canvas; tap
+   **2D** to return to the same outline or wall. The top-level **3D** tab always
    shows the furnished kitchen in the same project. Choose
    **Layout →** to open the drawing, then choose **Start from an idea**
    to [try an idea in your room](#trying-an-idea-in-your-room). A measured
@@ -132,8 +137,9 @@ does not switch projects or change either design.
   **Height to ceiling** is measured from the floor. Entering an exact wall
   length keeps a rectangular room rectangular.
 - **Drag a corner:** in **Room → Room outline** (**Prostorija → Obris prostorije**), grab the dot where two exterior walls meet. Only that corner
-  moves, even in a rectangle. Watch the two wall lengths and floor area as
-  you drag. A corner stops before the outline crosses itself, cuts through a
+  moves, even in a rectangle. The arc shows the **interior angle** between the
+  two walls (including inside notches). It updates with the wall lengths and
+  floor area as you drag. A corner stops before the outline crosses itself, cuts through a
   cabinet, or leaves too little wall for a door or window. One **Undo** restores
   the room. You can also Tab to a corner and use the arrow keys (10 mm, or
   100 mm with Shift), or tap a wall's number to enter an exact measurement.
@@ -152,12 +158,16 @@ does not switch projects or change either design.
   **Projection into room** and the offset from the marked start. Choose
   **Free on plan** to position it away from a wall. Placement uses the actual
   outline, including diagonal walls, not just the room's width and depth.
-  On the plan, nudge a selected structure with the arrow keys (10 mm;
+  On the plan, select the chimney and drag a **square grip** at either end to change
+  its length, or the inward grip to change its projection. Typing a larger length
+  at a wall end grows it back along the wall. Drag the body to move it, or
+  nudge a selected structure with the arrow keys (10 mm;
   Shift + arrow: 100 mm). An attached structure moves along its wall. You
   can also use touch and the measurement fields without a keyboard.
 - A new object is selected immediately. Its card sits directly below the room
   measurements on desktop and in the same section on a phone. Read its sizes
-  and clearances in 2D or 3D. To change its position from a 3D view, use
+  and clearances in 2D or 3D. In the Room 3D preview, select a structure, door
+  or window and choose **Resize / Promeni mere** to edit dimensions. To change its position, use
   **Edit position in 2D**; switching views keeps the selection.
   Old projects retain the positions of their openings, including on the
   bottom and left walls.
@@ -171,6 +181,11 @@ starts on; clear it to browse larger originals as well. Click any card or
 photo to review it in **your** room. Open the pictured original in a separate
 project via **⋯**. **Reorder ideas** only reorders the gallery. **Apply a style to my kitchen** cycles looks on installed cabinets,
 or opens a layout review if the room is empty.
+
+The kitchen cards are Studio renders of their actual models, including finished
+fronts, worktops and fittings. In a review, **3D in my room / 3D u mojoj prostoriji**
+lets you rotate the proposed kitchen in your measured room before applying anything.
+Switch back to the outline to pick a wall.
 
 | What's already in the room? | What happens when you apply an idea? |
 |---|---|
@@ -330,6 +345,9 @@ or a cutting-list export for the workshop; the customer view is neither.
     inserting overlapping cabinets. Each tier's size and 2D placement remain
     editable and are checked as usual. Wall fixings, opening systems, load
     ratings and appliance ventilation still require an installer specification.
+  - **Corner cabinet beside a chimney:** adding or dragging a corner cabinet
+    considers the exposed wall/chimney junctions and checks both arms. The
+    chimney stays in place. This is a geometric fit, not a heat-clearance check.
   - In **Layout**, **Upper cabinet row** makes overlapping rows individually
     selectable. Full-height display cupboards remain visible across their
     height bands; selecting one in 3D preserves the active row when returning
@@ -462,7 +480,7 @@ or a cutting-list export for the workshop; the customer view is neither.
   door-swing or glazing specifications.
 - On phones, **View / Prikaz** opens camera controls in both 3D workspaces.
   In **Room → Room model**, it also toggles dimension labels; the complete
-  measurement list stays below the scene. In kitchen **3D**, use **Style**,
+  measurement list expands below the scene. In kitchen **3D**, use **Style**,
   preview cabinets, or use the separate **Share** action. Drag to orbit
   without moving objects; tap the scene to bring its controls back. The navigation
   tip disappears on a drag or after six seconds. Use **?** in View to see it again.

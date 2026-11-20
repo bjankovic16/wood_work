@@ -1,31 +1,21 @@
 import { createPortal, useThree } from '@react-three/fiber';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AmbientLight, Color, PerspectiveCamera, Scene } from 'three';
 import { CAMERA_FOV, kitchenCameraPose, STUDIO_BACKDROP, STUDIO_FOV } from '../../domain/camera';
 import type { Design } from '../../domain/types';
-import { buildContext } from '../../engine/config';
 import { blobDataUrl, customerHtml } from '../../export/customerHtml';
 import type { Messages } from '../../i18n';
 import { safeFileName } from '../../lib/platform';
-import { Room3D } from './Room3D';
-import { coffeeCornerId, Unit3D } from './Unit3D';
-import { createMaterials, disposeMaterials } from './materials';
-
-const noop = () => {};
+import { FinishedKitchen } from './FinishedKitchen';
 
 /** Mount the same closed, unselected furniture in a private scene, not a second WebGL context. */
 export default function CustomerExport({ design, studio, t, ready, failed }: {
   design: Design; studio: boolean; t: Messages; ready: (filename: string, blob: Blob) => void; failed: () => void;
 }) {
   const [model] = useState(() => new Scene());
-  const ctx = useMemo(() => buildContext(design), [design]);
-  const coffeeCorner = coffeeCornerId(design.items);
-  // Customer files present the finished kitchen, even when shared from a Front or Top inspection.
-  const materials = useMemo(() => createMaterials(design.style, true, design.room), [design.style, design.room]);
   const gl = useThree((s) => s.gl);
   const editor = useThree((s) => s.scene);
   const camera = useThree((s) => s.camera);
-  useEffect(() => () => disposeMaterials(materials), [materials]);
   useEffect(() => {
     let active = true;
     const run = async () => {
@@ -72,8 +62,5 @@ export default function CustomerExport({ design, studio, t, ready, failed }: {
     }); });
     return () => { active = false; cancelAnimationFrame(frame); };
   }, [model, gl, editor, camera, design, studio, t, ready, failed]);
-  return createPortal(<>
-    <Room3D room={design.room} openings={design.openings} items={design.items} materials={materials} detailed build={ctx} exportModel />
-    {design.items.map((item) => <Unit3D key={item.id} item={item} ctx={ctx} materials={materials} detailed coffeeMaker={item.id === coffeeCorner} selected={false} onSelect={noop} />)}
-  </>, model);
+  return createPortal(<FinishedKitchen design={design} exportModel />, model);
 }

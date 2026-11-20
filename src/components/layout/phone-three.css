@@ -1,7 +1,7 @@
 .mobile-scene-tools { position: absolute; z-index: 12; inset: .4rem auto auto .5rem; }
 .mobile-scene-tools [role="toolbar"] { display: flex; gap: .35rem; }
 [data-phone-three][data-chrome-hidden] .mobile-scene-tools { visibility: hidden; }
-.room-scene-picker { position: absolute; z-index: 12; inset: .4rem .5rem auto auto; }
+.room-scene-picker { position: absolute; z-index: 12; inset: .4rem .5rem auto auto; display: flex; align-items: center; gap: .25rem; }
 .room-scene-picker .room-drawing-tools { background: none; border: 0; padding: 0; }
 [data-phone-three][data-chrome-hidden] .room-scene-picker { visibility: hidden; }
 [data-phone-three] .three-scene > aside { order: 1; padding-bottom: 4.5rem; }
