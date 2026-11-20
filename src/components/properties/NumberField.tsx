@@ -20,6 +20,7 @@ interface NumberFieldProps {
   zeroPlaceholder?: string;
   /** Decimal places kept (whole numbers by default). */
   precision?: number;
+  normalize?: (value: number) => number;
   picks?: { value: number; disabled: boolean }[];
 }
 
@@ -41,6 +42,7 @@ export function NumberField({
   readOnly = false,
   zeroPlaceholder,
   precision = 0,
+  normalize,
   picks,
 }: NumberFieldProps) {
   const id = useId();
@@ -72,7 +74,8 @@ export function NumberField({
     const parsed = zeroPlaceholder && !text.trim() ? 0 : evaluateExpression(text);
     if (parsed === null) { setError('number'); return null; }
     const factor = 10 ** precision;
-    const next = Math.round(clamp(parsed, min, max) * factor) / factor;
+    const rounded = Math.round(clamp(parsed, min, max) * factor) / factor;
+    const next = normalize ? normalize(rounded) : rounded;
     if (next !== value && onCommit(next) === false) { setError('blocked'); return null; }
     setError(null);
     return next;

@@ -30,7 +30,7 @@ function place(start: Point, origin: Point, normal: Point, halfWidth: number, si
 }
 
 /** Place the numbers first. A new shortcut must not displace a measurement or cover a corner. */
-export function planWallControls(walls: WallSegment[], frame: Frame, size: Viewport) {
+export function planWallControls(walls: WallSegment[], frame: Frame, size: Viewport, movingWall?: WallSegment) {
   const screen = (p: Point) => ({ x: (p.x - frame.x) / frame.px, y: (p.y - frame.y) / frame.px });
   const plan = (p: Point) => ({ x: frame.x + p.x * frame.px, y: frame.y + p.y * frame.px });
   const perimeter = walls.filter((wall) => !wall.partitionId), taken: Box[] = [];
@@ -53,6 +53,15 @@ export function planWallControls(walls: WallSegment[], frame: Frame, size: Viewp
     taken.push({ x: p.x - nx * offset, y: p.y - ny * offset, halfWidth: halfHit, halfHeight: halfHit });
   }
 
+  let grip: Point | undefined;
+  if (movingWall) {
+    const origin = screen(wallPoint(movingWall, movingWall.length / 2));
+    const start = screen(wallPoint(movingWall, movingWall.length / 2, 24 * frame.px));
+    const at = place(start, origin, movingWall.inward, halfHit, size, taken);
+    grip = plan(at);
+    taken.push({ ...at, halfWidth: halfHit, halfHeight: halfHit });
+  }
+
   for (const wall of walls) {
     const dimension = dimensions.get(wall.id);
     const origin = screen(dimension?.anchor ?? wallPoint(wall, wall.length / 2));
@@ -63,5 +72,5 @@ export function planWallControls(walls: WallSegment[], frame: Frame, size: Viewp
     icons.set(wall.id, plan(at));
     taken.push({ ...at, halfWidth, halfHeight: halfHit });
   }
-  return { dimensions, icons };
+  return { dimensions, icons, grip };
 }

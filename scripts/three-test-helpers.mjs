@@ -51,6 +51,10 @@ export async function close3DTools(page) {
  * and fails the idle check that follows.
  */
 export async function waitForIdleRendering(page, { quietMs = 300, timeoutMs = 5000 } = {}) {
+  await page.waitForFunction(() => {
+    const canvas = document.querySelector('[data-testid="three-viewport"] canvas');
+    return !!canvas && window.__kitchen3D?.renderer.domElement === canvas;
+  });
   await page.evaluate(({ quietMs, timeoutMs }) => new Promise((resolve) => {
     const frame = () => window.__kitchen3D.renderer.info.render.frame;
     const start = performance.now();

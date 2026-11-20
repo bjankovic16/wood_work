@@ -43,6 +43,7 @@ interface UiState {
   /** Screen position of the plan origin, in pixels from the canvas corner. */
   pan: Point;
   snapEnabled: boolean;
+  roomAngleSnapEnabled: boolean;
   gridSize: number;
   showDimensions: boolean;
   viewFilter: ViewFilter;
@@ -99,6 +100,7 @@ interface UiState {
   setMoveHintSeen: () => void;
   setViewport: (zoom: number, pan: Point) => void;
   setSnapEnabled: (enabled: boolean) => void;
+  setRoomAngleSnapEnabled: (enabled: boolean) => void;
   setGridSize: (size: number) => void;
   setShowDimensions: (show: boolean) => void;
   setViewFilter: (filter: ViewFilter) => void;
@@ -117,6 +119,7 @@ export const useUiStore = create<UiState>()(
       zoom: 0.2,
       pan: { x: 0, y: 0 },
       snapEnabled: true,
+      roomAngleSnapEnabled: true,
       gridSize: 50,
       showDimensions: true,
       viewFilter: 'all',
@@ -182,6 +185,7 @@ export const useUiStore = create<UiState>()(
       setMoveHintSeen: () => set({ moveHintSeen: true }),
       setViewport: (zoom, pan) => set({ zoom, pan }),
       setSnapEnabled: (snapEnabled) => set({ snapEnabled }),
+      setRoomAngleSnapEnabled: (roomAngleSnapEnabled) => set({ roomAngleSnapEnabled }),
       setGridSize: (gridSize) => set({ gridSize }),
       setShowDimensions: (showDimensions) => set({ showDimensions }),
       setViewFilter: (viewFilter) => set({ viewFilter }),
@@ -196,6 +200,7 @@ export const useUiStore = create<UiState>()(
       storage: createJSONStorage(() => safeStorage),
       partialize: (s) => ({
         snapEnabled: s.snapEnabled,
+        roomAngleSnapEnabled: s.roomAngleSnapEnabled,
         gridSize: s.gridSize,
         showDimensions: s.showDimensions,
         language: s.language,

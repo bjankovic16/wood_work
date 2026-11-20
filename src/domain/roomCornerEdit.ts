@@ -1,18 +1,45 @@
 import { hasWorktop, WORKTOP_THICKNESS } from './catalog';
 import { footprintPieces, itemInsideRoom } from './geometry';
 import { openingObstacles } from './openings';
-import { polygonBounds, polygonContains, polygonsOverlap, validRoomPolygon } from './polygons';
+import { normalizeAngle, polygonBounds, polygonContains, polygonsOverlap, validRoomPolygon } from './polygons';
 import { featureFitsRoom, ROOM_LIMITS, roomFeaturePolygon, roomOutline } from './roomGeometry';
-import type { Design, KitchenItem, Opening, Point, Room } from './types';
+import type { Design, KitchenItem, Opening, Point, Room, RoomVertex } from './types';
 import { openingOnWall, partitionPolygon, roomSegments, type WallSegment } from './walls';
 
 export type RoomCornerEditResult =
   | { ok: true; design: Design; shift: Point }
   | { ok: false; reason: 'outline' | 'cabinet' | 'opening' | 'fixture' };
 
+export const ROOM_ANGLE_SNAP_TOLERANCE = 5;
+
+export function snapRoomAngle(angle: number): number {
+  if (!Number.isFinite(angle)) throw new RangeError('Invalid wall angle.');
+  const value = angle >= 0 && angle < 360 ? angle : normalizeAngle(angle);
+  const closest = Math.round(value / 90) * 90;
+  return Math.abs(value - closest) <= ROOM_ANGLE_SNAP_TOLERANCE + 1e-9 ? normalizeAngle(closest) : value;
+}
+
+export function snapRoomCorner(room: Room, cornerId: string, delta: Point): Point {
+  const walls = roomSegments(room, false);
+  const index = walls.findIndex((wall) => wall.id === cornerId);
+  if (index < 0 || !Number.isFinite(delta.x) || !Number.isFinite(delta.y)) throw new RangeError('Invalid room corner.');
+  if (!delta.x && !delta.y) return delta;
+  const corner = walls[index].start, a = walls[(index + walls.length - 1) % walls.length].start, b = walls[index].end;
+  const p = { x: corner.x + delta.x, y: corner.y + delta.y };
+  const angle = normalizeAngle((Math.atan2(a.y - p.y, a.x - p.x) - Math.atan2(b.y - p.y, b.x - p.x)) * 180 / Math.PI);
+  if (Math.min(Math.abs(angle - 90), Math.abs(angle - 270)) > ROOM_ANGLE_SNAP_TOLERANCE + 1e-9) return delta;
+  const centre = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  const radius = Math.hypot(a.x - b.x, a.y - b.y) / 2;
+  const length = Math.hypot(p.x - centre.x, p.y - centre.y);
+  if (!length || p.x === a.x && p.y === a.y || p.x === b.x && p.y === b.y) return delta;
+  // The circle with the adjoining corners as its diameter makes the selected corner exactly square.
+  return { x: centre.x + (p.x - centre.x) * radius / length - corner.x,
+    y: centre.y + (p.y - centre.y) * radius / length - corner.y };
+}
+
 // Do not introduce an overhang, or worsen an existing one. Height and offset do not change.
 function keepsSpan(before: WallSegment, after: WallSegment | undefined, end: number): boolean {
-  return !!after && after.length >= Math.min(before.length, end);
+  return !!after && after.length + 1e-7 >= Math.min(before.length, end);
 }
 
 function newlyBlocksOpening(items: KitchenItem[], before: Room, after: Room, opening: Opening): boolean {
@@ -33,8 +60,7 @@ function newlyBlocksOpening(items: KitchenItem[], before: Room, after: Room, ope
  * Wall attachments are measured from their segment's clockwise start, not the bounding box.
  */
 export function moveRoomCorner(base: Design, cornerId: string, delta: Point): RoomCornerEditResult {
-  const before = base.room;
-  const walls = roomSegments(before, false);
+  const walls = roomSegments(base.room, false);
   const index = walls.findIndex((wall) => wall.id === cornerId);
   if (index < 0 || !Number.isFinite(delta.x) || !Number.isFinite(delta.y)) return { ok: false, reason: 'outline' };
   const start = walls[index].start;
@@ -42,15 +68,35 @@ export function moveRoomCorner(base: Design, cornerId: string, delta: Point): Ro
   if (x === start.x && y === start.y) return { ok: true, design: base, shift: { x: 0, y: 0 } };
 
   const vertices = walls.map((wall, i) => ({ ...(i === index ? { x, y } : wall.start), id: wall.id }));
+  return editOutline(base, vertices);
+}
+
+export function moveRoomWall(base: Design, wallId: string, delta: Point): RoomCornerEditResult {
+  const walls = roomSegments(base.room, false);
+  const index = walls.findIndex((wall) => wall.id === wallId);
+  if (index < 0 || !Number.isFinite(delta.x) || !Number.isFinite(delta.y)) return { ok: false, reason: 'outline' };
+  const wall = walls[index];
+  const amount = Math.round(delta.x * wall.inward.x + delta.y * wall.inward.y);
+  if (!amount) return { ok: true, design: base, shift: { x: 0, y: 0 } };
+  const vertices = walls.map((w, i) => ({ id: w.id, x: w.start.x + (i === index || i === (index + 1) % walls.length ? wall.inward.x * amount : 0),
+    y: w.start.y + (i === index || i === (index + 1) % walls.length ? wall.inward.y * amount : 0) }));
+  return editOutline(base, vertices);
+}
+
+function editOutline(base: Design, vertices: RoomVertex[]): RoomCornerEditResult {
+  const before = base.room, walls = roomSegments(before, false);
   const bounds = polygonBounds(vertices);
   if (!validRoomPolygon(vertices) || bounds.w < ROOM_LIMITS.width.min || bounds.w > ROOM_LIMITS.width.max
     || bounds.h < ROOM_LIMITS.depth.min || bounds.h > ROOM_LIMITS.depth.max) return { ok: false, reason: 'outline' };
 
-  // Validate in the *same* physical frame as the baseline. Only the two incident walls changed.
+  // Validate before rebasing, so furniture and fixed structures stay in the same physical frame.
   const { cutout: _cutout, ...rest } = before;
-  const room: Room = { ...rest, width: bounds.w, depth: bounds.h, vertices };
-  const incident = new Set([cornerId, walls[(index + walls.length - 1) % walls.length].id]);
+  const room: Room = { ...rest, width: Math.ceil(bounds.w), depth: Math.ceil(bounds.h), vertices };
   const nextWalls = new Map(roomSegments(room).map((w) => [w.id, w]));
+  const incident = new Set(walls.filter((wall) => {
+    const next = nextWalls.get(wall.id)!;
+    return next.start.x !== wall.start.x || next.start.y !== wall.start.y || next.end.x !== wall.end.x || next.end.y !== wall.end.y;
+  }).map((wall) => wall.id));
   if (base.items.some((item) => !itemInsideRoom(item, room) && itemInsideRoom(item, before))) return { ok: false, reason: 'cabinet' };
 
   const openings: Opening[] = [];

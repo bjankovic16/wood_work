@@ -55,7 +55,9 @@ export function RoomPlan({ onFaceWall, reference }: { onFaceWall: (id: string, k
   const tile = style.floorTileSize ?? DEFAULT_FLOOR_TILE_SIZE;
   const outline = points(roomOutline(room));
   const { width, height } = size;
-  const { dimensions, icons } = useMemo(() => planWallControls(allWalls, { x, y, px }, { width, height }), [allWalls, x, y, px, width, height]);
+  const movingWall = selection ? undefined : active;
+  const { dimensions, icons, grip } = useMemo(() => planWallControls(allWalls, { x, y, px }, { width, height }, movingWall),
+    [allWalls, x, y, px, width, height, movingWall]);
   // Mobile browsers can discard the synthesized click on a thin, sloping SVG wall.
   // Treat a stationary single-finger release as a tap, without turning a swipe into one.
   const tap = useRef<{ x: number; y: number; id: number } | null>(null);
@@ -101,8 +103,11 @@ export function RoomPlan({ onFaceWall, reference }: { onFaceWall: (id: string, k
         // Keep partition face targets on their own side; a perimeter line can be hit from either side.
         const thickness = s.partitionId && room.partitions?.find((p) => p.id === s.partitionId)?.thickness;
         const outside = thickness ? -thickness / 2 : -20 * px, inside = (s.partitionId ? 20 : 24) * px;
-        return <g key={s.id} data-wall-id={s.id} {...planButton(t.advancedRoom.wall(i + 1), (keyboard) => onFaceWall(s.id, keyboard))} aria-pressed={wallId === s.id}>
-          <title>{t.room.openWall(i + 1)}</title>
+        return <g key={s.id} data-wall-id={s.id} {...(s.partitionId
+          ? planButton(t.advancedRoom.wall(i + 1), (keyboard) => onFaceWall(s.id, keyboard))
+          : { role: 'button', tabIndex: 0, 'aria-label': t.advancedRoom.wall(i + 1), 'aria-description': t.room.wallMoveHint, ...corners.wallProps(s.id) })}
+          aria-pressed={wallId === s.id}>
+          <title>{s.partitionId ? t.room.openWall(i + 1) : `${t.advancedRoom.wall(i + 1)} · ${t.room.wallMoveHint}`}</title>
           <line className="room-wall-edge" x1={s.start.x} y1={s.start.y} x2={s.end.x} y2={s.end.y}
             stroke={wallId === s.id ? '#376b4a' : 'transparent'} strokeWidth={5 * px} pointerEvents="none" />
           <polygon fill="transparent" points={points([wallPoint(s, 0, outside), wallPoint(s, s.length, outside),
@@ -171,6 +176,7 @@ export function RoomPlan({ onFaceWall, reference }: { onFaceWall: (id: string, k
         </g>;
       })}
       {corners.grips}
+      {!selection && corners.wallGrip(grip)}
       {!selection && corners.angle}
       {feature && <FeatureSizeGrips key={feature.id} room={room} feature={feature} px={px} />}
     </svg>

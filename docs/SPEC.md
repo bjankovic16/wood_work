@@ -54,8 +54,10 @@ data under its original identity; surface recovery guidance and preserve backups
 - In Room, **Room model** switches between geometry editing and a
   separate architectural scene. Share Layout's drawing palette, wall weight
   and scale-aware floor grid while preserving user-selected finishes. Offer **3D
-  preview** on the canvas: a resizable inset on desktop without shrinking the
-  drawing, and an in-place view on phones. **2D** returns to the current
+  preview** as a lightweight room-shaped cube on the canvas: a resizable inset
+  on desktop without shrinking the drawing, and an in-place view on phones.
+  The inset can expand to the full room model. Do not mount a WebGL scene for
+  the collapsed cube. Closing or choosing **2D** returns to the originating
   outline or elevation. Omit kitchen meshes and automatic backsplashes, but retain manual
   wall finishes. Project dimension labels only on request, in either layout. Keep a complete,
   scrollable list (collapsible on phones) of room size/area, wall lengths/heights/angles, partition
@@ -83,7 +85,18 @@ data under its original identity; surface recovery guidance and preserve backups
   outline would cross or a cabinet, fixture or opening would no longer fit;
   do not move or shrink it to make it fit. Keep stable wall IDs and account
   for legacy bottom/left opening offsets.
-- Tapping a wall's **Wall view** shortcut or the wall line opens its **2D inside
+- Selecting a perimeter wall line keeps the outline open. Drag the line or its
+  visible two-way grip to translate both endpoints perpendicular to that wall;
+  keep it parallel and connected to its neighbours. Share corner-edit validation,
+  gesture history and physical-frame rebasing. Openings follow with unchanged
+  wall-start offsets; cabinets and fixed fixtures are not relocated to make a
+  move work. Offer keyboard steps of 10 mm or 100 mm with Shift.
+- Snap a dragged corner's interior angle to exactly 90° or 270° within 5°.
+  Wall angle fields normalize near quarter-turn directions using the same
+  tolerance and provide 0°, 90°, 180° and 270° presets. A visible, remembered
+  toggle disables angle snapping; Alt bypasses it during a mouse corner drag.
+  Snapping never bypasses room or attachment validation.
+- Tapping a wall's **Wall view** shortcut opens its **2D inside
   elevation**. Keep the shortcut distinct from the numeric measurement and
   corner drag targets. Offer the same shortcut at the wall labels and in
   the measurement list in room 3D, including both partition faces. Tapping the
@@ -177,7 +190,9 @@ Requirements:
 - Snap-to-grid functionality.
 - Move elements on the 2D plan, by mouse, touch or keyboard.
 - Resize elements.
-- Rotate elements when applicable.
+- Rotate elements when applicable. Keep the 90° icon visible beside desktop
+  selection actions and in the phone element-sheet header at every sheet size
+  and tab; do not bury it under position fields. Retain 2D-only placement editing.
 - Select and edit individual elements.
 - Show dimensions directly on the canvas.
 - Zoom in and out.

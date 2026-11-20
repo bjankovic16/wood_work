@@ -58,13 +58,15 @@ function ItemSheet({ item, onAdd, adding }: { item: KitchenItem; onAdd: () => vo
     >
       <ItemHeader item={item}
         handle={<SheetHandle snap={snap} onSnap={setSnap} onClose={() => useUiStore.getState().select(null)} controls={small ? undefined : id} />}
-        action={(!small || inPlan) && <AddButton iconOnly open={onAdd} />} />
+        action={<div className="flex shrink-0 items-center gap-1">
+          {inPlan && <RotateButton prominent />}
+          {(!small || inPlan) && <AddButton iconOnly open={onAdd} />}
+        </div>} />
       {small && <div className="flex shrink-0 items-center justify-between gap-0.5 px-1 pb-1">
         {inPlan ? <><PlanMoveButton /><SizeButton short /></> : <Button variant="outline" onClick={() => {
           useUiStore.getState().requestFocus('parts');
           setSnap('half');
         }}><Layers className="size-4" aria-hidden="true" />{t.report.parts}</Button>}
-        <RotateButton />
         <DuplicateButton iconOnly />
         <DeleteButton iconOnly />
         {!inPlan && <AddButton open={onAdd} />}
@@ -91,7 +93,7 @@ function AddSheet({ close }: { close: () => void }) {
   return <Dialog open title={t.phone.addElement} sheet onClose={close}
     footer={inPlan && added && added.id === selectedId && <>
       <Button variant="primary" onClick={() => editOnDrawing(added)}><MousePointer2 className="size-4" aria-hidden="true" />{t.canvas.onDrawing}</Button>
-      <PlanMoveButton onStart={close} /><SizeButton short onEdit={close} />
+      <RotateButton prominent /><PlanMoveButton onStart={close} /><SizeButton short onEdit={close} />
     </>}
     headerNote={<p role="status" aria-atomic="true" className="text-xs font-medium text-studio-accent">{added && t.sheet.added(t.kinds[added.kind], added.label)}</p>}>
     <p className="px-4 pt-3 text-sm text-studio-muted">{inPlan && added ? t.canvas.drawingHint : t.phone.addHint}</p>

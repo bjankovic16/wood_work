@@ -282,12 +282,7 @@ export function ItemFields({ item, section }: { item: KitchenItem; section: Item
 
       {show('size') && inPlan && <fieldset className="min-w-0">
         <PanelSection title={t.item.position}>
-          <div className="flex items-center gap-2">
-            <div className="min-w-0 flex-1">
-              <NumberField label={t.sheet.customAngle} value={item.rotation} min={0} max={360} suffix="°" precision={1} onCommit={(angle) => actions.setItemAngle(item.id, angle)} />
-            </div>
-            <RotateButton relative />
-          </div>
+          <NumberField label={t.sheet.customAngle} value={item.rotation} min={0} max={360} suffix="°" precision={1} onCommit={(angle) => actions.setItemAngle(item.id, angle)} />
           <NumberField
             label={t.item.fromLeftWall}
             value={item.x}
@@ -416,13 +411,17 @@ export function PlanMoveButton({ onStart }: { onStart?: () => void }) {
   }}><Move className="size-4" aria-hidden="true" />{t.canvas.move}</Button>;
 }
 
-export function RotateButton({ relative = false }: { relative?: boolean }) {
+export function RotateButton({ relative = false, prominent = false }: { relative?: boolean; prominent?: boolean }) {
   const t = useT();
   const inPlan = useUiStore((s) => s.view === 'plan');
+  const dragging = useDesignStore((s) => s.gestureBase !== null);
   if (!inPlan) return null;
   return (
-    <TooltipButton variant="outline" tooltip={t.item.turn90Hint} aria-label={t.item.turn90} onClick={() => actions.rotateSelected(1)}>
-      <RotateCwSquare className="size-4" aria-hidden="true" />{relative ? '+90°' : '90°'}
+    <TooltipButton variant="outline" tooltip={t.item.turn90Hint} aria-label={t.item.turn90} disabled={dragging}
+      data-rotate-element={prominent ? '' : undefined}
+      className={prominent ? 'h-11 min-w-11 border-studio-accent/40 bg-[#e6eee2] px-2.5 text-studio-accent' : undefined}
+      onClick={() => actions.rotateSelected(1)}>
+      <RotateCwSquare className={prominent ? 'size-5' : 'size-4'} aria-hidden="true" />{relative ? '+90°' : '90°'}
     </TooltipButton>
   );
 }

@@ -18,13 +18,15 @@ export function ElevationBackdrop({ wall, height, px, reference }: { wall: WallS
   return <g pointerEvents="none" aria-hidden="true">
     <defs>
       <pattern id={`${id}-grid`} width="500" height="500" patternUnits="userSpaceOnUse" y={height}>
-        <path d="M0 500V0H500" fill="none" stroke="#3b5146" strokeOpacity=".22" strokeWidth={px} />
+        <path d="M0 500V0H500" fill="none" stroke="#3b5146" strokeOpacity=".13" strokeWidth={px} />
       </pattern>
       <pattern id={`${id}-floor`} width={6 * px} height={6 * px} patternUnits="userSpaceOnUse">
         <path d={`M0 ${6 * px}l${6 * px} ${-6 * px}`} stroke="#a1ac9d" strokeWidth={px} />
       </pattern>
     </defs>
     <rect data-elevation-paint="" y={top} width={w} height={wall.height} fill={style.wallColor ?? DEFAULT_WALL_COLOR} />
+    <rect x={-8 * px} y={top} width={8 * px} height={wall.height} fill="#d4dbce" stroke="#84927f" strokeWidth={px} />
+    <rect x={w} y={top} width={8 * px} height={wall.height} fill="#d4dbce" stroke="#84927f" strokeWidth={px} />
     <rect y={top} width={w} height={wall.height} fill={`url(#${id}-grid)`} stroke="#68796f" strokeWidth={px} />
     {room.treatments?.filter((t) => t.wallId === wall.id).map((t) => <rect key={t.id} x={t.offset} y={height - t.elevation - t.height}
       width={t.width} height={t.height} fill={{ ...WORKTOP_FINISHES, ...FRONT_FINISHES }[t.finish].color} stroke="#806e59" strokeWidth={px} />)}
@@ -50,8 +52,8 @@ export function ElevationBackdrop({ wall, height, px, reference }: { wall: WallS
             fill="#32463a" stroke="#fffefa" strokeWidth={2 * px} paintOrder="stroke">{item.label}</text>}
       </g>;
     })}
-    <rect x={-6 * px} y={height} width={w + 12 * px} height={6 * px} fill={`url(#${id}-floor)`} />
-    <path d={`M${-6 * px} ${height}h${w + 12 * px}`} stroke="#526558" strokeWidth={2 * px} />
+    <rect x={-8 * px} y={height} width={w + 16 * px} height={8 * px} fill={`url(#${id}-floor)`} />
+    <path d={`M${-8 * px} ${height}h${w + 16 * px}`} stroke="#526558" strokeWidth={2 * px} />
   </g>;
 }
 
